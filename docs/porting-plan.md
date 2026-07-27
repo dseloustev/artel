@@ -53,7 +53,7 @@ The rules everything else obeys, plus the config mechanism they will reference.
 
 - [ ] End-to-end dry run in a scratch repo (a trivial non-Dart project).
 - [ ] Operator docs: adapt `workflow-guide.md` + `skills-reference.md` to plugin reality.
-- [ ] Push to GitHub, verify `/plugin marketplace add <owner>/artel` install path.
+- [ ] Push to GitHub, verify `/plugin marketplace add dseloustev/artel` install path.
 - [ ] Tag `v0.1.0`.
 
 ## Source → plugin map

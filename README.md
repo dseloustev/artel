@@ -42,11 +42,9 @@ Core design properties:
 ## Install (once published)
 
 ```
-/plugin marketplace add <owner>/artel
+/plugin marketplace add dseloustev/artel
 /plugin install artel@artel
 ```
-
-> Replace `<owner>` with the GitHub account once the repo is published.
 
 ## Repository layout
 

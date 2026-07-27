@@ -4,8 +4,10 @@
   "version": "0.1.0",
   "author": {
     "name": "Dmitry Seloustev",
-    "email": "nimec77@gmail.com"
+    "email": "d.seloustev@adguard.com"
   },
+  "homepage": "https://github.com/dseloustev/artel",
+  "repository": "https://github.com/dseloustev/artel",
   "license": "MIT",
   "keywords": [
     "workflow",

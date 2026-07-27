@@ -44,6 +44,12 @@ content, port the structure and replace specifics with config references.
 - Host-writable state (config, run state, journals) belongs in the **host repo**
   (`.artel/…`), never inside the plugin install/cache directory.
 
+## Publishing
+
+Repo home: `https://github.com/dseloustev/artel` (corporate account). `gh` operations against
+it need the corporate profile: `GH_CONFIG_DIR=~/.config/gh-adguard gh …`. Git identity for
+commits here is the corporate one (`d.seloustev@adguard.com`, set in local git config).
+
 ## Testing a change
 
 Local smoke test: add this checkout as a local marketplace and install from it —

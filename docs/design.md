@@ -103,3 +103,6 @@ entry-point skills run a short one-time init interview and write the file.
   marketplace repo installable directly from GitHub.
 - **2026-07-27 — Skeleton-first.** Repo scaffolded with manifest + docs before any porting, so
   further work happens inside the plugin repo itself.
+- **2026-07-27 — License holder.** MIT under "Dmitry Seloustev" **deliberately** for now;
+  switches to the AdGuard legal entity only after the company reviews and approves the plugin.
+  Don't flag or change it before then.

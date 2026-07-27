@@ -1,0 +1,18 @@
+{
+  "name": "artel",
+  "description": "Spec-driven autonomous feature workflow for Claude Code: a ticket goes in, a pull request comes out, with one human approval pause in between.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Dmitry Seloustev",
+    "email": "nimec77@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "spec-driven",
+    "autonomous",
+    "agents",
+    "pipeline",
+    "feature-development"
+  ]
+}

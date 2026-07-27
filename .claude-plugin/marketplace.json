@@ -1,0 +1,14 @@
+{
+  "name": "artel",
+  "owner": {
+    "name": "Dmitry Seloustev",
+    "email": "nimec77@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "artel",
+      "source": "./",
+      "description": "Spec-driven autonomous feature workflow: ticket in, PR out, one approval pause."
+    }
+  ]
+}

@@ -151,3 +151,7 @@ entry-point skills run a short one-time init interview and write the file.
   plugin-authoring time; the source project already hit this (its figma-analyst dropped its
   curated tool list because the list silently blocked MCP tools and ToolSearch). Agents inherit
   the full toolset; their prompts constrain behavior.
+- **2026-08-01 — Ported agents keep their source `model:` frontmatter.** Per-agent model choices
+  (opus for design-heavy agents, sonnet for mechanical ones) are portable cost/capability
+  tuning, not project specifics; each ported agent keeps its source value. Companion to the
+  `tools:`-drop decision already logged.

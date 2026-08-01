@@ -25,10 +25,10 @@ The rules everything else obeys, plus the config mechanism they will reference.
 
 ## Phase 2 — agents
 
-- [ ] Port the crew (12): `analyst`, `figma-analyst`, `researcher`, `planner`, `task-planner`,
+- [x] Port the crew (12): `analyst`, `figma-analyst`, `researcher`, `planner`, `task-planner`,
       `tasklist-writer`, `vision-writer`, `implementer`, `reviewer`, `qa`, `validator`,
       `tech-writer`.
-- [ ] Strip source-project specifics (Flutter/Dart tool references, Jira project key,
+- [x] Strip source-project specifics (Flutter/Dart tool references, Jira project key,
       Bitbucket MCP tool names) → config lookups or adapter instructions.
 - [x] Port and genericize the agent-crew contracts consumed by every agent: `deviation-protocol.md`,
       `path-conventions.md` → `docs/`.

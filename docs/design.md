@@ -24,8 +24,10 @@ project can install it from a GitHub marketplace repo.
 
 ## Non-goals
 
-- Porting Flutter/Dart-specific skills (`flutter-*`, `dart-*`, `run-app`, `wallet-review`) —
-  those stay in the source project or become a separate companion plugin later.
+- Porting the informational Flutter/Dart reference skills (the `flutter-*` / `dart-*` how-to
+  and conventions guides) — those seed the **likbez** companion plugin (separate repo).
+  Workflow skills that merely carry a Flutter/wallet name (`flutter-inner-loop`,
+  `wallet-review`, `run-app`, `drive-app`) **are** in artel's scope, in genericized form.
 - Windsurf mirroring (`move-to-windsurf` / `restore-from-windsurf`) — tooling quirk of the
   source repo.
 - Building a hosted service or GUI. Artel is files in a plugin: skills, agents, hooks, docs.
@@ -41,8 +43,9 @@ The plugin follows the standard Claude Code plugin layout. Skills become namespa
 | Layer | Contents | Source of truth ported from |
 |---|---|---|
 | Entry points | `feature-development` (full pipeline), `dev` (lean loop) | orchestrator skills |
-| Stage skills | `analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `sync-phases`, `generate-idea`, `generate-vision`, `generate-tasklist` | orchestrator skills |
-| Agents | analyst, researcher, planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, qa, validator, tech-writer | `.claude/agents/*.md` |
+| Stage skills | `analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `sync-phases`, `generate-idea`, `generate-vision`, `generate-tasklist`, `figma-analysis`, `inner-loop` (← `flutter-inner-loop`), `deep-review` (← `wallet-review`), `run-app`, `drive-app`, `change-digest`, `address-pr-comment` | orchestrator skills |
+| Ops & utility skills | `init-branch`, `merge-conflicts`, `add-automation`, `remove-automation`, `save-context`, `restore-context`, `issue-draft` (← `jira-issue-ru`), `agents-md-generator` | utility skills |
+| Agents | analyst, figma-analyst, researcher, planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, qa, validator, tech-writer | `.claude/agents/*.md` |
 | Hooks | session baseline, fast per-edit verify, stop gate (+ verify), sensitive guard | `.claude/hooks/*.py` |
 | Contracts | autonomous-run contract, orchestrator-common, ticket-parsing rules | `.claude/docs/`, `.claude/agents/docs/` |
 | Operator docs | workflow guide, skills reference | `.claude/docs/` |
@@ -92,8 +95,8 @@ entry-point skills run a short one-time init interview and write the file.
    first — they need no private MCP server; `jira-mcp` ports easily for parity.*
 4. **Run-state and journal paths.** Source keeps run state under the host `.claude/`; plugin
    should keep host-writable state out of the plugin cache dir. Candidate: `.artel/run/`.
-5. **Figma analysis.** Depends on the Figma MCP server being connected; port as optional module
-   in a later phase.
+5. ~~**Figma analysis.**~~ Decided 2026-08-01: ships in v1, runtime-optional (skips silently
+   when no Figma MCP is connected) — see decision log.
 
 ## Decision log
 
@@ -106,3 +109,20 @@ entry-point skills run a short one-time init interview and write the file.
 - **2026-07-27 — License holder.** MIT under "Dmitry Seloustev" **deliberately** for now;
   switches to the AdGuard legal entity only after the company reviews and approves the plugin.
   Don't flag or change it before then.
+- **2026-08-01 — Full workflow scope (user-approved).** Artel ports **every** workflow skill
+  and agent from the source inventory ([source-inventory-workflow.md](source-inventory-workflow.md)):
+  32 skills, 12 agents (incl. `figma-analyst`), all 5 hooks, the contracts and operator docs.
+  Previously skipped/deferred items are now in scope: `init-branch`, `save-context`/
+  `restore-context`, `add-automation`/`remove-automation`, `merge-conflicts`,
+  `address-pr-comment`, `change-digest`, `agents-md-generator`, `figma-analysis`, `run-app`,
+  `drive-app`. Renames: `flutter-inner-loop` → `inner-loop`, `wallet-review` → `deep-review`,
+  `jira-issue-ru` → `issue-draft` (output language from config). Toolchain-bound skills
+  (`run-app`, `drive-app`, `add/remove-automation`) port as adapter-shaped skills whose
+  concrete commands come from `.artel/config.json` and degrade gracefully (e.g. RUNTIME_OK
+  recorded as skipped) when unconfigured.
+- **2026-08-01 — Companion plugin: `likbez` (user-approved).** The informational/reference
+  skills ([source-inventory-informational.md](source-inventory-informational.md), 31 skills)
+  become a second plugin named **likbez** (era-matched pair to "artel": the crew works, likbez
+  educates it), seeded from the source project and extended later from the internet.
+  `rules/ast-index.md` goes there too; orchestrator index-refresh steps in artel become an
+  optional config hook. Separate repo; out of scope for this porting plan beyond this note.

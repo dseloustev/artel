@@ -23,8 +23,9 @@ The rules everything else obeys, plus the config mechanism they will reference.
 
 ## Phase 2 — agents
 
-- [ ] Port the crew: `analyst`, `researcher`, `planner`, `task-planner`, `tasklist-writer`,
-      `vision-writer`, `implementer`, `reviewer`, `qa`, `validator`, `tech-writer`.
+- [ ] Port the crew (12): `analyst`, `figma-analyst`, `researcher`, `planner`, `task-planner`,
+      `tasklist-writer`, `vision-writer`, `implementer`, `reviewer`, `qa`, `validator`,
+      `tech-writer`.
 - [ ] Strip source-project specifics (Flutter/Dart tool references, Jira project key,
       Bitbucket MCP tool names) → config lookups or adapter instructions.
 
@@ -32,7 +33,16 @@ The rules everything else obeys, plus the config mechanism they will reference.
 
 - [ ] Port à-la-carte stage skills: `analysis`, `researcher`, `planner`, `tasklist`,
       `generate-idea`, `generate-vision`, `generate-tasklist`, `implementer`, `run-reviewer`,
-      `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `sync-phases`.
+      `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `sync-phases`,
+      `figma-analysis`, `change-digest`, `address-pr-comment`.
+- [ ] Port with rename: `flutter-inner-loop` → `inner-loop` (verify commands from config),
+      `wallet-review` → `deep-review` (dual reviewer; tracker/VCS via adapters),
+      `jira-issue-ru` → `issue-draft` (output language from config).
+- [ ] Port runtime-gate skills as config-driven adapters: `run-app`, `drive-app` (launch/drive
+      commands from config; RUNTIME_OK degrades to "skipped" when unconfigured), plus
+      `add-automation` / `remove-automation` (scaffold commands from config).
+- [ ] Port ops & utility skills: `init-branch`, `merge-conflicts`, `save-context`,
+      `restore-context` (store path → artel), `agents-md-generator`.
 - [ ] Each skill resolves ticket context → invokes its agent → reports (no inlined work).
 
 ## Phase 4 — entry-point orchestrators
@@ -61,15 +71,18 @@ The rules everything else obeys, plus the config mechanism they will reference.
 | Source (`.claude/…`) | Plugin | Action |
 |---|---|---|
 | `skills/feature-development`, `skills/dev` | `skills/` | port + genericize (Phase 4) |
-| `skills/{analysis,researcher,planner,tasklist,implementer,run-reviewer,qa,docs-update,validate,pr-description,pr-create,sync-phases,generate-idea,generate-vision,generate-tasklist}` | `skills/` | port + genericize (Phase 3) |
-| `skills/figma-analysis` + `agents/figma-analyst.md` | optional module | later, post-v0.1 |
-| `skills/{address-pr-comment,change-digest,merge-conflicts,jira-issue-ru,agents-md-generator}` | — | evaluate later; not core pipeline |
-| `skills/{flutter-*,dart-*,run-app,wallet-review,move-to-windsurf,restore-from-windsurf,init-branch}` | — | skip: project/toolchain-specific |
-| `agents/*.md` (crew of 11) | `agents/` | port + genericize (Phase 2) |
+| `skills/{analysis,researcher,planner,tasklist,implementer,run-reviewer,qa,docs-update,validate,pr-description,pr-create,sync-phases,generate-idea,generate-vision,generate-tasklist,figma-analysis,change-digest,address-pr-comment}` | `skills/` | port + genericize (Phase 3) |
+| `skills/flutter-inner-loop` → `inner-loop`, `skills/wallet-review` → `deep-review`, `skills/jira-issue-ru` → `issue-draft` | `skills/` | port + rename + genericize (Phase 3) |
+| `skills/{run-app,drive-app,add-automation,remove-automation}` | `skills/` | port as config-driven adapters (Phase 3) |
+| `skills/{init-branch,merge-conflicts,save-context,restore-context,agents-md-generator}` | `skills/` | port + genericize (Phase 3) |
+| `skills/{flutter-*,dart-*}` (informational how-tos) | `likbez` plugin | separate repo, seeded from source |
+| `skills/{move-to-windsurf,restore-from-windsurf}` | — | skip: superseded by `save-context`/`restore-context` |
+| `agents/*.md` (crew of 12, incl. figma-analyst) | `agents/` | port + genericize (Phase 2) |
 | `agents/docs/ticket-parsing.md` | `docs/` | port + genericize (Phase 1) |
 | `docs/{autonomous-run,orchestrator-common}.md` | `docs/` | port + genericize (Phase 1) |
 | `docs/{workflow-guide,skills-reference}.md` | `docs/` | adapt (Phase 6) |
 | `hooks/*.py` | `hooks/` | port + config-driven verify (Phase 5) |
-| `rules/sensitive-paths.json` | `hooks/` or `docs/` | port (Phase 5) |
-| `tools/agent/` (Dart CLI) | TBD | rewrite or fold into hooks (Phase 5, open question) |
-| `rules/ast-index.md`, Dart MCP rules | — | skip: toolchain-specific |
+| `rules/sensitive-paths.json` | `hooks/` or `docs/` | port, categories configurable (Phase 5) |
+| `tools/agent/` (Dart CLI) | `scripts/` or `hooks/` | Python rewrite: `verify`, `plan-check`, `codegen`; `dcm` folds into `verify` stages (Phase 5) |
+| `tools/launch_app.dart` + `tools/templates/` | — | replaced by config-driven launch/scaffold commands behind `run-app`/`drive-app`/`add-automation` (Phase 3/5) |
+| `rules/ast-index.md`, Dart MCP rules | `likbez` plugin | index-refresh in orchestrators becomes an optional config hook |

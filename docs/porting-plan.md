@@ -48,6 +48,13 @@ The rules everything else obeys, plus the config mechanism they will reference.
 - [ ] Port ops & utility skills: `init-branch`, `merge-conflicts`, `save-context`,
       `restore-context` (store path → artel), `agents-md-generator`.
 - [ ] Each skill resolves ticket context → invokes its agent → reports (no inlined work).
+- [ ] Phase-2 review follow-ups (fold into the matching skill ports): add `review/findings.json`
+      and the ticket `verify/` evidence dir to ticket-parsing.md §3/§4 (with `run-reviewer` /
+      `inner-loop`); uniform "(Phase 3)"/"(Phase 5)" forward-reference labels across agent
+      bodies (figma-analyst's template path lacks one); planner.md's design-doc citation →
+      `${CLAUDE_PLUGIN_ROOT}/docs/design.md` form; reconcile reviewer.md's "PR review approval"
+      checkbox with the tasklist template (with `tasklist`); consider a `specs.releases` config
+      key for the `specs/releases/` literal kept (with caveat) in qa.md/validator.md.
 
 ## Phase 4 — entry-point orchestrators
 

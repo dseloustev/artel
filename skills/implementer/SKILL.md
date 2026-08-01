@@ -32,6 +32,11 @@ Implement the next incomplete task now, per your agent definition's workflow:
 3. Do not mark the task complete on a red gate. Flip the checkbox, update the Progress Report, and
    report per your completion contract.
 
+For on-demand runtime checks: when a change's effect is unclear from tests alone and `runtime.run`
+(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`) is configured, you may launch via the `/artel:run-app`
+skill flow to observe it. This is not the `RUNTIME_OK` completion gate — it's a debugging aid
+mid-task; `/artel:run-app --gate` remains the only mode the gate treats as authoritative.
+
 Deviations follow `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`: minor → conservative option, record,
 continue; major or unsure → halt and return a DEVIATION report instead of a completion.
 ```

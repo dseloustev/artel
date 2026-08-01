@@ -49,7 +49,9 @@ The rules everything else obeys, plus the config mechanism they will reference.
       mid-implementation debugging, distinct from the `RUNTIME_OK` completion gate; the port
       dropped it (Dart/Flutter-specific, no `run-app` to point at yet) — when `run-app` lands,
       decide whether `implementer` (agent + skill) should regain a generic `runtime.run` /
-      `/artel:run-app` on-demand reference.
+      `/artel:run-app` on-demand reference. Resolved in the run-app port: restored as a one-line
+      optional hint in `skills/implementer/SKILL.md`'s dispatch prompt (`/artel:run-app` via
+      `runtime.run`, explicitly not the `RUNTIME_OK` gate).
 - [ ] Port ops & utility skills: `init-branch`, `merge-conflicts`, `save-context`,
       `restore-context` (store path → artel), `agents-md-generator`.
 - [ ] Each skill resolves ticket context → invokes its agent → reports (no inlined work).

@@ -128,3 +128,22 @@ All notable changes to this project are documented here. The format follows
   in the source. Folded-in follow-ups: `docs/ticket-parsing.md` §3/§4 now document the ticket
   `verify/` evidence dir (inner-loop), `change-report.html` and its phase variant (change-digest),
   and `pr-pending.md` (pr-create's identity-check-failure fallback).
+- Runtime-gate skills: `skills/run-app`, `skills/drive-app`, `skills/add-automation`,
+  `skills/remove-automation` — config-driven adapters ported from the source project's
+  Dart/Flutter-specific launcher and driver tooling. `run-app` and `drive-app` treat their
+  `runtime.run` / `runtime.drive` commands (config.md) as opaque, self-reporting black boxes — the
+  same evidence envelope (`{command, exit_code, output}`) `inner-loop` uses for `verify.commands` —
+  recording `runtime/observation.md` / `runtime/drive-observation.md` evidence; `run-app --gate` is
+  the only mode `agents/validator.md`'s `RUNTIME_OK` gate treats as authoritative. `add-automation`
+  / `remove-automation` run `runtime.scaffold.add`/`remove`, derive the changed paths from
+  `git status --porcelain` (the source's fixed Dart file list has no generic replacement), gate on
+  `verify.fast`, and commit exactly those paths, consistent with the `AUTOMATION_REMOVED` gate and
+  the reviewer's transient-automation carve-out already ported. Dropped as unreplaceable outside a
+  Dart/Flutter toolchain: the DTD/MCP connect and observe steps, widget-tree-based finder
+  targeting, the wallet unlock procedure and its hard rules, screenshot-per-verification-point
+  capture, the seed-phrase secrecy guardrail, and the file-content idempotency/trace checks.
+  Task-3 follow-up resolved: restored a one-line optional on-demand-runtime-check hint in
+  `skills/implementer/SKILL.md`'s dispatch prompt (`/artel:run-app` via `runtime.run`, explicitly
+  not the `RUNTIME_OK` gate) — logged in `docs/design.md`'s decision log. Folded-in follow-up:
+  `docs/ticket-parsing.md` §3/§4 now document the ticket `runtime/` evidence dir
+  (`observation.md`, `drive-observation.md`) and its phase-scoped variant.

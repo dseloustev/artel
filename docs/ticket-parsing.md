@@ -97,6 +97,9 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 ├── review/              # optional, machine-readable review findings (reviewer agent)
 │   └── findings.json   # lens findings (convention/architecture/security) for a ticket-wide review run
 ├── verify/              # optional, quality-gate evidence from inner-loop runs (fast-check/full-gate JSON per iteration, residual.json on stop-and-ask)
+├── runtime/             # optional, runtime-gate evidence (run-app, drive-app)
+│   ├── observation.md   # RUNTIME_OK evidence from run-app
+│   └── drive-observation.md # UI-driving evidence from drive-app
 ├── adr.md               # optional, ticket-wide ADR
 ├── summary.md           # optional, ticket-wide summary
 ├── change-report.html   # optional, derived HTML change-comprehension report (change-digest skill) — regenerable, never committed
@@ -113,6 +116,7 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
     ├── review/          # optional, machine-readable review findings for this phase (reviewer agent)
     │   └── findings.json # lens findings scoped to this phase's review run
     ├── verify/          # optional, quality-gate evidence from inner-loop runs scoped to this phase
+    ├── runtime/         # optional, runtime-gate evidence scoped to this phase (run-app, drive-app)
     ├── adr.md           # phase-scoped ADR (optional)
     ├── change-report.html # optional, phase-scoped variant of the change-digest report (derived, never committed)
     └── summary.md       # phase-scoped summary (optional)
@@ -130,6 +134,7 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 | Implementation notes | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/implementation-notes.md` |
 | Review findings | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/review/findings.json` — machine-readable lens findings from the `reviewer` agent, scoped to this phase's review run (`review.md` itself stays ticket-level — see 4.2) |
 | Verify evidence | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/verify/` — quality-gate evidence from `inner-loop` runs scoped to this phase (ticket-wide variant: 4.2) |
+| Runtime evidence | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/runtime/observation.md` (`run-app`) and `.../runtime/drive-observation.md` (`drive-app`), scoped to this phase (ticket-wide variant: 4.2) |
 | Change report | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/change-report.html` — derived HTML change-comprehension report from the `change-digest` skill, scoped to this phase; regenerable, never committed (ticket-wide variant: 4.2) |
 | PRD | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/prd.md` |
 | Plan | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/plan.md` |
@@ -156,6 +161,7 @@ Create the `phase-<PHASE_NUM>/` subfolder lazily on first write.
 | Review | `<specs.dir>/<TICKET_ID>/review.md` |
 | Review findings | `<specs.dir>/<TICKET_ID>/review/findings.json` — machine-readable lens findings from the `reviewer` agent (phase-scoped variant: 4.1) |
 | Verify evidence | `<specs.dir>/<TICKET_ID>/verify/` — quality-gate evidence from `inner-loop` runs: `iteration-<i>.json` (fast check), `iteration-<i>-full.json` (full gate), `residual.json` (on stop-and-ask) (phase-scoped variant: 4.1) |
+| Runtime evidence | `<specs.dir>/<TICKET_ID>/runtime/observation.md` — `RUNTIME_OK` evidence from `run-app`; `<specs.dir>/<TICKET_ID>/runtime/drive-observation.md` — UI-driving evidence from `drive-app` (phase-scoped variant: 4.1) |
 | Change report | `<specs.dir>/<TICKET_ID>/change-report.html` — derived HTML change-comprehension report from the `change-digest` skill; regenerable, never committed (phase-scoped variant: 4.1) |
 | ADR | `<specs.dir>/<TICKET_ID>/adr.md` |
 | PR description | `<specs.dir>/<TICKET_ID>/pr-description.md` |

@@ -180,3 +180,14 @@ entry-point skills run a short one-time init interview and write the file.
   could drift from it after a repo move/rename/re-clone with nothing to catch the mismatch, whereas
   deriving it at call time never can. `skills/pr-description`, `skills/pr-create` derive
   `projectKey`/`repositorySlug` this way instead of hardcoding them or adding a new config key.
+- **2026-08-01 — Restored the implementer's on-demand runtime-check hint (Task-3 follow-up,
+  resolved with the run-app port).** The source `implementer` skill carried a brief, optional
+  debugging hint distinct from the `RUNTIME_OK` completion gate: mid-task, when a change's effect
+  isn't obvious from tests alone, the agent could launch the app to look. The Phase-3 implementer
+  port (Task 3) dropped it — Dart/Flutter-specific launcher mechanics, no generic launcher to
+  point at yet. Now that `run-app` exists with a config-driven `runtime.run`, restored as one
+  sentence in `skills/implementer/SKILL.md`'s Phase-1 dispatch prompt: "you may launch via the
+  `/artel:run-app` skill flow to observe it; this is not the RUNTIME_OK gate." Not duplicated into
+  `agents/implementer.md` — source only ever carried the hint in the skill's dispatch prompt, and
+  the agent already receives it whenever the skill invokes it; adding a second copy in the agent
+  body would only risk drift between the two without adding capability.

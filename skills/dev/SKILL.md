@@ -170,5 +170,6 @@ to `run-journal.md`.
   `pause_reason: "user-abort"`, `run_active: false`.
 - Files this orchestrator writes directly: `<specs.dir>/.active_ticket`,
   `.artel/run/<TICKET_ID>/run-state.json`, `.artel/run/<TICKET_ID>/run-journal.md`,
-  `.artel/run/<TICKET_ID>/runtime-observation.md`, the step-2.3 work-list tasklist, and the
-  description file during sync. Everything else is delegated.
+  `.artel/run/<TICKET_ID>/runtime-observation.md`, the phase-aware `runtime/observation.md`
+  surface-skip entry, the step-2.3 work-list tasklist, and the description file during sync.
+  Everything else is delegated.

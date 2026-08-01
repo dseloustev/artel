@@ -18,3 +18,7 @@ All notable changes to this project are documented here. The format follows
 - Ticket-parsing contract: `docs/ticket-parsing.md` — config-driven identifier parsing
   (`ticket.pattern`/`projectKey`/`phaseSuffix`), the spec-trail directory layout, artifact path
   resolution, and the refuse-and-ask write rules, ported and genericized from the source project.
+- Autonomous-run contract: `docs/autonomous-run.md` — `run-state.json` schema, question
+  collection, AFK/HITL tags, capped loops, modes and risk classification, the run journal,
+  headless invocation, checkpoint commits, and phase traversal, ported and genericized with all
+  host-writable run state relocated to `.artel/run/`.

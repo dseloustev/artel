@@ -91,8 +91,8 @@ entry-point skills run a short one-time init interview and write the file.
    run state alongside it under `.artel/run/` — see decision log and [config.md](config.md).
 3. ~~**Tracker adapters at v1.**~~ Decided 2026-08-01: v1 ships `none` + `github-issues` +
    `jira-mcp` — see decision log.
-4. **Run-state and journal paths.** Source keeps run state under the host `.claude/`; plugin
-   should keep host-writable state out of the plugin cache dir. Candidate: `.artel/run/`.
+4. ~~**Run-state and journal paths.**~~ Decided 2026-08-01: `.artel/run/` in the host repo — see
+   decision log and [autonomous-run.md](autonomous-run.md).
 5. ~~**Figma analysis.**~~ Decided 2026-08-01: ships in v1, runtime-optional (skips silently
    when no Figma MCP is connected) — see decision log.
 
@@ -136,3 +136,9 @@ entry-point skills run a short one-time init interview and write the file.
   private MCP server, so artel is usable in any repo on day one; `jira-mcp` ports over from the
   source system almost unchanged and keeps parity for Jira shops, with the server addressed
   through a configurable `tracker.mcpToolPrefix` instead of a hardcoded tool name.
+- **2026-08-01 — Run state and journals live under `.artel/run/`** (open question 4). The source
+  system's `run-state.json`, `run-journal.md` and `open-questions.md` move from the spec trail
+  into their own host-writable, gitignored tree next to `.artel/config.json`, keeping the spec
+  trail under `specs.dir` purely human-readable documentation. `<specs.dir>/.active_ticket`
+  stays where [ticket-parsing.md](ticket-parsing.md) already settled it — it is a phase pointer,
+  not run bookkeeping. Schema and rules: [autonomous-run.md](autonomous-run.md).

@@ -18,8 +18,8 @@ The rules everything else obeys, plus the config mechanism they will reference.
       commands, language, specs dir) + a documented default → [config.md](config.md).
 - [x] Port and genericize `ticket-parsing.md` (ticket-ID grammar → config-driven) →
       [ticket-parsing.md](ticket-parsing.md).
-- [ ] Port and genericize `autonomous-run.md` (run state, modes, caps) — host-writable state
-      moves to `.artel/run/`.
+- [x] Port and genericize `autonomous-run.md` (run state, modes, caps) — host-writable state
+      moves to `.artel/run/` → [autonomous-run.md](autonomous-run.md).
 - [ ] Port `orchestrator-common.md` (the skill-orchestrator contract).
 
 ## Phase 2 — agents

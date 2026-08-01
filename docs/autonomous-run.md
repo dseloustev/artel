@@ -40,10 +40,11 @@ updates it in place, it does not relocate it.
 - **All information is collected upfront.** The interview (analysis) and the vision checkpoint are the
   chatty head of the pipeline. After the one approval pause, the run is silent.
 - **One approval pause.** `feature-development`: plan+tasklist approval. `dev`: work-list confirmation.
-  The approved artifact is the deviation-protocol anchor.
+  The approved artifact is the anchor for the deviation protocol — the escalation rule for
+  implementation-time divergences from the approved plan/tasklist, ported in a later phase.
 - **Mid-run interruptions are exceptional**, limited to: a deviation escalation (per the deviation
-  protocol), a `[HITL: …]` task, a loop-cap escalation, the PR-gate pause, or an environment error.
-  Nothing else may call `AskUserQuestion` after the pause.
+  protocol above), a `[HITL: …]` task, a loop-cap escalation, the PR-gate pause, or an environment
+  error. Nothing else may call `AskUserQuestion` after the pause.
 - **Escalate, never spin.** Every loop is capped; counters persist in the artifacts the loop writes.
 - **Run state lives in artifacts**, never in conversation memory. Re-read the relevant artifacts after
   every sub-agent return — never decide on stale state.

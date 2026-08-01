@@ -314,11 +314,11 @@ non-interactive and exit non-zero on failure.
 
 There is no bundled fallback file — absence is a defined state, not an error.
 
-- **Entry-point skills** (`feature-development`, `dev`) find no `.artel/config.json`, run a
-  one-time init interview covering ticket grammar, tracker, VCS, verify commands and languages,
-  write `.artel/config.json`, and continue into the requested run. The interview happens once per
-  repo; afterwards the file is edited by hand (Phase 4 — see
-  [porting-plan.md](porting-plan.md)).
+- **Entry-point skills** (`feature-development`, `dev`) find no `.artel/config.json` and invoke
+  the `setup` skill (`/artel:setup`), which interviews for ticket grammar, tracker, VCS, verify
+  commands and languages (plus optional extras), writes `.artel/config.json`, and returns
+  control so the requested run continues. The interview happens once per repo; afterwards the
+  file is edited by hand, or revised via `/artel:setup`.
 - **À-la-carte stage skills** never interview. They run against the defaults above and note in
   their report that no config was found, so a single stage invocation is never blocked by a
   missing file.

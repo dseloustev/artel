@@ -35,3 +35,6 @@ All notable changes to this project are documented here. The format follows
   PRD-interview, codebase-research, and optional Figma design-analysis agents, ported and
   genericized from the source project, with paths resolved via `<specs.dir>`/`<TICKET_ID>` and
   contracts cited via `${CLAUDE_PLUGIN_ROOT}/docs/`.
+- Planning agents: `agents/planner.md`, `agents/task-planner.md`, `agents/vision-writer.md`,
+  `agents/tasklist-writer.md` — architecture/plan, tasklist breakdown, technical vision, and
+  iterative work-plan drafting, ported and genericized from the source project's agent crew.

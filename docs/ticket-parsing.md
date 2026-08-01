@@ -96,9 +96,12 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 ├── review.md            # optional, ticket-wide review (always ticket-level, even for phase runs)
 ├── review/              # optional, machine-readable review findings (reviewer agent)
 │   └── findings.json   # lens findings (convention/architecture/security) for a ticket-wide review run
+├── verify/              # optional, quality-gate evidence from inner-loop runs (fast-check/full-gate JSON per iteration, residual.json on stop-and-ask)
 ├── adr.md               # optional, ticket-wide ADR
 ├── summary.md           # optional, ticket-wide summary
+├── change-report.html   # optional, derived HTML change-comprehension report (change-digest skill) — regenerable, never committed
 ├── pr-description.md    # ticket-wide
+├── pr-pending.md        # optional, intended PR/tracker actions recorded by pr-create when an identity check fails; ticket-wide only
 ├── post_feedback.md     # ticket-wide
 └── phase-<N>/
     ├── prd.md           # phase-scoped PRD
@@ -109,7 +112,9 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
     ├── implementation-notes.md # phase-scoped deviations log (optional)
     ├── review/          # optional, machine-readable review findings for this phase (reviewer agent)
     │   └── findings.json # lens findings scoped to this phase's review run
+    ├── verify/          # optional, quality-gate evidence from inner-loop runs scoped to this phase
     ├── adr.md           # phase-scoped ADR (optional)
+    ├── change-report.html # optional, phase-scoped variant of the change-digest report (derived, never committed)
     └── summary.md       # phase-scoped summary (optional)
 ```
 
@@ -124,6 +129,8 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 | Tasks | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` |
 | Implementation notes | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/implementation-notes.md` |
 | Review findings | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/review/findings.json` — machine-readable lens findings from the `reviewer` agent, scoped to this phase's review run (`review.md` itself stays ticket-level — see 4.2) |
+| Verify evidence | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/verify/` — quality-gate evidence from `inner-loop` runs scoped to this phase (ticket-wide variant: 4.2) |
+| Change report | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/change-report.html` — derived HTML change-comprehension report from the `change-digest` skill, scoped to this phase; regenerable, never committed (ticket-wide variant: 4.2) |
 | PRD | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/prd.md` |
 | Plan | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/plan.md` |
 | Research | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/research.md` |
@@ -148,8 +155,11 @@ Create the `phase-<PHASE_NUM>/` subfolder lazily on first write.
 | Summary | `<specs.dir>/<TICKET_ID>/summary.md` |
 | Review | `<specs.dir>/<TICKET_ID>/review.md` |
 | Review findings | `<specs.dir>/<TICKET_ID>/review/findings.json` — machine-readable lens findings from the `reviewer` agent (phase-scoped variant: 4.1) |
+| Verify evidence | `<specs.dir>/<TICKET_ID>/verify/` — quality-gate evidence from `inner-loop` runs: `iteration-<i>.json` (fast check), `iteration-<i>-full.json` (full gate), `residual.json` (on stop-and-ask) (phase-scoped variant: 4.1) |
+| Change report | `<specs.dir>/<TICKET_ID>/change-report.html` — derived HTML change-comprehension report from the `change-digest` skill; regenerable, never committed (phase-scoped variant: 4.1) |
 | ADR | `<specs.dir>/<TICKET_ID>/adr.md` |
 | PR description | `<specs.dir>/<TICKET_ID>/pr-description.md` |
+| PR pending | `<specs.dir>/<TICKET_ID>/pr-pending.md` — intended PR/tracker actions recorded by `pr-create` when an adapter identity check fails ([config.md](config.md)); ticket-wide only |
 | Post-feedback | `<specs.dir>/<TICKET_ID>/post_feedback.md` |
 | Design analysis | `<specs.dir>/<TICKET_ID>/design-analysis.md` (ticket-level only — never phase-scoped) |
 | Design evidence | `<specs.dir>/<TICKET_ID>/design/` |

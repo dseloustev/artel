@@ -105,3 +105,26 @@ All notable changes to this project are documented here. The format follows
   `change-digest`'s self-contained HTML/quiz template
   (`skills/change-digest/assets/report_template.html`) ports unchanged — it was already
   project-agnostic.
+- Renamed skills: `skills/inner-loop` (← `flutter-inner-loop`), `skills/deep-review` (←
+  `wallet-review`), `skills/issue-draft` (← `jira-issue-ru`), ported and genericized from the
+  source project's à-la-carte skills, consistent with the forward references already committed in
+  `agents/implementer.md` and `skills/implementer`. `inner-loop` keeps its bounded
+  edit→fast-check→full-gate loop shape and `MAX_VERIFY_ITERATIONS = 4` cap, now driven by
+  `verify.fast`/`verify.commands` (config.md) instead of a project-specific CLI — since
+  `verify.commands` always runs unscoped from the repo root, the source's separate scoped/unscoped
+  final pass collapses into one full-gate step per iteration; environment-error handling keeps the
+  exit-`2` convention `agents/implementer.md` already forward-references. `deep-review` keeps its
+  dual-independent-reviewer structure and quality-gate/resolve/dispatch/merge/plan-mode steps,
+  branches its quality gate and PR-link parsing on `verify.commands`/`vcs.adapter`, and — since
+  `agents/reviewer.md`'s standalone mode already runs the full lens set plus the regression guard on
+  every dispatch — drops the source's per-reviewer lens duplication, keeping only independence
+  (second reviewer never reads the first) as what distinguishes the two dispatches; the legacy
+  `review-windsurf.md` compatibility path is dropped (Windsurf mirroring is an explicit non-goal,
+  design.md). `issue-draft` keeps the free-text/file/Slack-export input resolution, single vs.
+  multiple-suggestions modes, and self-verify checklist; output language moves from hardcoded
+  Russian to `language.pr`, and the description's markup dialect now follows `tracker.adapter`
+  (Jira wiki under `"jira-mcp"`, Markdown otherwise) since the source's Jira-wiki-only format only
+  made sense when the destination was always Jira; issue creation/submission stays out of scope, as
+  in the source. Folded-in follow-ups: `docs/ticket-parsing.md` §3/§4 now document the ticket
+  `verify/` evidence dir (inner-loop), `change-report.html` and its phase variant (change-digest),
+  and `pr-pending.md` (pr-create's identity-check-failure fallback).

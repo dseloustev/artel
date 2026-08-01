@@ -18,6 +18,10 @@ The `.artel/` directory is artel's whole footprint in the host repo:
 - `.artel/config.json` — this file, committed.
 - `.artel/run/` — host-writable run state and journals (contract defined separately, alongside
   the autonomous-run rules). Not committed; add it to the host `.gitignore`.
+- `.artel/context/` — the `save-context`/`restore-context` store: a durable, host-repo-local
+  mirror of root docs (`CLAUDE.md`, `CHANGELOG.md`) and the spec trail (`<specs.dir>/<TICKET_ID>/`,
+  `<specs.dir>/.active_ticket`), used to declutter or archive the working tree and bring it back
+  later. Not committed; add it to the host `.gitignore`, same as `.artel/run/`.
 
 Nothing host-writable is ever written into the plugin install or cache directory. The plugin
 ships read-only skills, agents and hooks; everything a run produces lands in the host repo.

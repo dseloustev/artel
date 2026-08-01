@@ -147,3 +147,26 @@ All notable changes to this project are documented here. The format follows
   not the `RUNTIME_OK` gate) — logged in `docs/design.md`'s decision log. Folded-in follow-up:
   `docs/ticket-parsing.md` §3/§4 now document the ticket `runtime/` evidence dir
   (`observation.md`, `drive-observation.md`) and its phase-scoped variant.
+- Ops and utility skills: `skills/init-branch`, `skills/merge-conflicts`, `skills/save-context`,
+  `skills/restore-context`, `skills/agents-md-generator`, ported and genericized from the source
+  project's utility skills — none dispatch an agent; each keeps its procedural shape per the
+  ported-skills' `allowed-tools:`-drop convention. `init-branch` gains real branch-creation
+  (`feature/<TICKET_ID>[-<PHASE_NUM>]`, base-branch detection matching `agents/reviewer.md`'s
+  standalone-mode convention) that the source skill never had, chains `/artel:restore-context` and
+  `/init`, and replaces the source's Dart-toolchain dependency/codegen install step and hardcoded
+  `ast-index` calls with the optional host-hook pattern `docs/orchestrator-common.md` §1 already
+  defines (no generic equivalent exists for the former, so it is dropped rather than faked).
+  `merge-conflicts` keeps its five-phase setup/identify/plan-mode/resolve/verify structure,
+  routing its post-resolution check through `verify.commands` instead of a Dart analyzer/formatter
+  pair and generalizing the generated-file guardrail beyond `*.dart`/`make g`. `save-context` and
+  `restore-context` port as a matched pair (new decision below) with a `docs/`-subset mirror and a
+  top-level loose-`specs/`-files mirror dropped — both keyed to fixed source-project filenames with
+  no generic equivalent. `agents-md-generator` (a third-party community skill in the source
+  project, attribution dropped for frontmatter consistency with the rest of the crew) ports
+  essentially unchanged — its workflow and both `references/` templates were already
+  language/toolchain-agnostic — with its two template reads pointed at
+  `${CLAUDE_PLUGIN_ROOT}/skills/agents-md-generator/references/`. New decision: the context store
+  `save-context`/`restore-context` read and write moves from the source's user-level,
+  cross-project store to `.artel/context/` in the host repo (sibling to `.artel/run/`,
+  `docs/config.md` "Purpose and location"), gitignored like `.artel/run/`; logged with its
+  narrowed-scope trade-off in `docs/design.md`'s decision log.

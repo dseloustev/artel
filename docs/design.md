@@ -191,3 +191,21 @@ entry-point skills run a short one-time init interview and write the file.
   `agents/implementer.md` — source only ever carried the hint in the skill's dispatch prompt, and
   the agent already receives it whenever the skill invokes it; adding a second copy in the agent
   body would only risk drift between the two without adding capability.
+- **2026-08-01 — Context store lives at `.artel/context/` (Task 7: `save-context`/
+  `restore-context`).** The source system mirrored session context — root docs plus the spec
+  trail — into a **user-level, cross-project** store keyed by checkout basename
+  (`~/.claude/plugins/data/<tool>/<project>/`), so it survived branch switches, working-tree wipes,
+  and even a full reclone. Artel drops the user-level store: like `.artel/run/`, the context store
+  is host-repo-local, host-writable, and gitignored — `.artel/context/`, sibling to `.artel/run/`
+  under the `.artel/` footprint (see [config.md](config.md#purpose-and-location)). What gets
+  mirrored narrows to match: only the parts of the source store that correspond to concepts
+  artel's ported docs already define — root `CLAUDE.md`/`CHANGELOG.md` and the ticket-scoped spec
+  trail (`<specs.dir>/<TICKET_ID>/`, `<specs.dir>/.active_ticket` —
+  [ticket-parsing.md](ticket-parsing.md)'s own vocabulary). Dropped: the source's curated
+  mutable-`docs/`-subset mirror and its top-level loose `specs/`-file mirror, both keyed to fixed
+  source-project filenames (`code_style_guide.md`, `conventions.md`, `mfa-locker.md`, …) with no
+  generic equivalent in artel's config-driven model. Trade-off accepted knowingly: unlike the
+  global store, `.artel/context/` does not survive a full reclone or a wipe of the working tree —
+  the same cost already accepted for `.artel/run/`, and consistent with "host-writable state only
+  under `.artel/`" ([porting-plan.md](porting-plan.md) global constraints). `docs/config.md`'s
+  "Purpose and location" section now lists the new subtree alongside `.artel/run/`.

@@ -177,3 +177,7 @@ Before finishing, verify:
 - Line budgets are respected: root ≤ 60 lines, nested module ≤ 40 lines.
 - Nested files exist only for confirmed module boundaries.
 - Critical warnings from existing `AGENTS.md` files are preserved.
+
+---
+
+Adapted from a community skill by Stanislav [MADTeacher] Chernyshev, v2.0.

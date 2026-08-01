@@ -53,7 +53,10 @@ The rules everything else obeys, plus the config mechanism they will reference.
       optional hint in `skills/implementer/SKILL.md`'s dispatch prompt (`/artel:run-app` via
       `runtime.run`, explicitly not the `RUNTIME_OK` gate).
 - [ ] Port ops & utility skills: `init-branch`, `merge-conflicts`, `save-context`,
-      `restore-context` (store path → artel), `agents-md-generator`.
+      `restore-context` (store path → artel), `agents-md-generator`. Follow-up from Task 7: the
+      source `init-branch` ran a post-branch dependency-install/codegen step; no generic config
+      key covers it — decide in Phase 4/5 (init interview / hooks config) whether a setup-command
+      key is warranted.
 - [ ] Each skill resolves ticket context → invokes its agent → reports (no inlined work).
 - [ ] Phase-2 review follow-ups (fold into the matching skill ports): add `review/findings.json`
       and the ticket `verify/` evidence dir to ticket-parsing.md §3/§4 (with `run-reviewer` /

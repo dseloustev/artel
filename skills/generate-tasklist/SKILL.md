@@ -19,7 +19,7 @@ enough to start; use `tasklist` when the full PRD/plan chain has been produced.
 ## Ticket Resolution
 
 Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per
-`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2.
+`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2.
 
 Tasklist is **ticket-level**. If `PHASE_NUM` is non-null, ignore it and print the one-line notice
 `Note: phase argument ignored — tasklist is ticket-level; iterations are the phases.`

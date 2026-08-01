@@ -27,7 +27,7 @@ procedural shape (they stay config-driven instead).
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID` and `TICKET_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID` and `TICKET_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 Ideas are ticket-level only. If a phase suffix is present in the input, ignore it and note this in the final report.
 
@@ -71,12 +71,22 @@ Branch on `tracker.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`):
    renders both as "not applicable" rather than inventing values.
 
 **`"jira-mcp"`:**
+0. Adapter-unusable check first, per config.md's `jira-mcp` contract: if `tracker.mcpToolPrefix`
+   is empty, or the `<tracker.mcpToolPrefix>jira_get_issue` tool is not connected/reachable,
+   report the failure, then:
+   - if `<specs.dir>/<TICKET_ID>/idea.md` already exists, fall back to it — report that the
+     existing file is being used in place of a tracker fetch, and stop (do not overwrite it);
+   - otherwise, stop and ask the user how to proceed (fix the tracker connection, or re-invoke
+     with a description-file argument to bootstrap the idea by hand).
+   Do not attempt step 1 when this check fails.
 1. Call `<tracker.mcpToolPrefix>jira_get_issue` with `issueIdOrKey: TICKET_ID`. Capture
    `fields.summary`, `fields.description`, `fields.status.name`, `fields.priority.name`,
    `fields.labels`, `fields.components` (list of `{ name }`), `fields.reporter.displayName`,
    `fields.assignee.displayName`, `fields.issuetype.name`, `fields.fixVersions` (list of
-   `{ name }`), `fields.issuelinks` (direction + linked issue key + relationship type). On error
-   (404, 401, network), report the error and terminate without writing any files.
+   `{ name }`), `fields.issuelinks` (direction + linked issue key + relationship type). This is a
+   connected-server API error (404, 401, network failure mid-call) — distinct from step 0's
+   unreachable-tools case — so report the error and terminate without writing any files; there is
+   no local-file fallback here.
 2. Call `<tracker.mcpToolPrefix>jira_get_issue_comments` with `issueIdOrKey: TICKET_ID,
    maxResults: 100, startAt: 0`; if the response's `total` exceeds `startAt + comments.length`,
    keep paginating with `startAt += 100`. For each comment capture `author.displayName`,

@@ -15,7 +15,7 @@ approvals. Contract: `${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §1.
 
 ## Ticket Resolution
 
-Parse `$0` per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. Vision is **ticket-level**:
+Parse `$0` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. Vision is **ticket-level**:
 if `PHASE_NUM` is non-null, ignore it and print `Note: phase argument ignored — vision is
 ticket-level.` If `$0` is empty, read `<specs.dir>/.active_ticket`; if no identifier is
 available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it

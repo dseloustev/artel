@@ -56,7 +56,8 @@ The rules everything else obeys, plus the config mechanism they will reference.
       `restore-context` (store path → artel), `agents-md-generator`. Follow-up from Task 7: the
       source `init-branch` ran a post-branch dependency-install/codegen step; no generic config
       key covers it — decide in Phase 4/5 (init interview / hooks config) whether a setup-command
-      key is warranted.
+      key is warranted. Resolved in Phase 4: `setup.commands` added to config.md and the step
+      restored in `init-branch`.
 - [x] Each skill resolves ticket context → invokes its agent → reports (no inlined work), except
       the self-declared procedural workers (`sync-phases`, `generate-idea`, `merge-conflicts`,
       etc.), which have no matching agent and run their documented procedure inline instead.

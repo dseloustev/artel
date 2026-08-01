@@ -62,3 +62,15 @@ All notable changes to this project are documented here. The format follows
   `agents/reviewer.md`'s dangling "PR review approval" checkbox reference reworded to match the
   tasklist's actual `## Code Review Fixes` / `REVIEW_OK` mechanism (the source template never had
   such a checkbox); logged the ported-skills' dropped `allowed-tools:` frontmatter decision.
+- Generator skills: `skills/generate-idea`, `skills/generate-vision`, `skills/generate-tasklist`
+  — the tracker-import, technical-vision, and lean idea+vision-to-tasklist workers, ported and
+  genericized from the source project. `generate-idea` stays a procedural worker (no matching
+  agent, like `sync-phases`) and now branches on `tracker.adapter` (`"none"` gathers the
+  description from an argument or the user, matching `analysis`'s input gate; `"jira-mcp"` and
+  `"github-issues"` fetch via `<tracker.mcpToolPrefix>jira_get_issue(_comments)` and the `gh` CLI
+  respectively) with content translated to `language.docs` instead of hardcoded English/Jira;
+  its idea template moves to `skills/generate-idea/assets/templates/idea.template.md`.
+  `generate-vision` and `generate-tasklist` invoke the `vision-writer` and `tasklist-writer`
+  agents via the three-phase draft/ask/finalize model, writing `<specs.dir>/<TICKET_ID>/vision.md`
+  and `tasklist.md` respectively; cross-references to sibling skills use the installed
+  `/artel:<name>` form.

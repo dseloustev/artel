@@ -169,9 +169,9 @@ external actions taken unattended; path to `run-journal.md`.
   resuming the skill continues the run; an explicit user abort sets `pause_reason: "user-abort"`,
   `run_active: false`.
 - The only files this orchestrator writes directly: `<specs.dir>/.active_ticket`,
-  `.artel/run/<TICKET_ID>/run-state.json`, `.artel/run/<TICKET_ID>/run-journal.md`, the
-  `open-questions.md` status flips (same directory), and the description file during sync.
-  Everything else is delegated.
+  `.artel/run/<TICKET_ID>/run-state.json`, `.artel/run/<TICKET_ID>/run-journal.md`,
+  `.artel/run/<TICKET_ID>/runtime-observation.md`, the `open-questions.md` status flips (same
+  directory), and the description file during sync. Everything else is delegated.
 - Checkpoint commits & pushes are the only direct git mutations this orchestrator performs; every
   other external action goes through `pr-create`. The checkpoint branch guard and no-force rules
   are absolute.

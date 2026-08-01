@@ -25,3 +25,9 @@ All notable changes to this project are documented here. The format follows
 - Skill-orchestrator contract: `docs/orchestrator-common.md` — ticket resolution, phase-aware
   artifact paths, the description-file sync procedure, and the checkpoint-commit/autonomous-run
   tie-in, ported and genericized from the source project.
+- Deviation-protocol contract: `docs/deviation-protocol.md` — severity classification
+  (minor/major), the `implementation-notes.md` format, the escalation handshake, and reviewer
+  verification duties, ported and genericized from the source project.
+- Path-conventions contract: `docs/path-conventions.md` — the repo-relative-paths-only rule for
+  spec-trail artifact content, its rationale, scope, and citation-form conventions, ported and
+  genericized from the source project.

@@ -30,7 +30,7 @@ The rules everything else obeys, plus the config mechanism they will reference.
       `tech-writer`.
 - [ ] Strip source-project specifics (Flutter/Dart tool references, Jira project key,
       Bitbucket MCP tool names) → config lookups or adapter instructions.
-- [ ] Port and genericize the agent-crew contracts consumed by every agent: `deviation-protocol.md`,
+- [x] Port and genericize the agent-crew contracts consumed by every agent: `deviation-protocol.md`,
       `path-conventions.md` → `docs/`.
 
 ## Phase 3 — stage skills

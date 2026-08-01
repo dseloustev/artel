@@ -47,7 +47,7 @@ The plugin follows the standard Claude Code plugin layout. Skills become namespa
 | Ops & utility skills | `init-branch`, `merge-conflicts`, `add-automation`, `remove-automation`, `save-context`, `restore-context`, `issue-draft` (← `jira-issue-ru`), `agents-md-generator` | utility skills |
 | Agents | analyst, figma-analyst, researcher, planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, qa, validator, tech-writer | `.claude/agents/*.md` |
 | Hooks | session baseline, fast per-edit verify, stop gate (+ verify), sensitive guard | `.claude/hooks/*.py` |
-| Contracts | autonomous-run contract, orchestrator-common, ticket-parsing rules | `.claude/docs/`, `.claude/agents/docs/` |
+| Contracts | autonomous-run contract, orchestrator-common, ticket-parsing rules, deviation protocol, path conventions | `.claude/docs/`, `.claude/agents/docs/` |
 | Operator docs | workflow guide, skills reference | `.claude/docs/` |
 
 ### The skill–orchestrator contract (kept as-is)
@@ -142,3 +142,12 @@ entry-point skills run a short one-time init interview and write the file.
   trail under `specs.dir` purely human-readable documentation. `<specs.dir>/.active_ticket`
   stays where [ticket-parsing.md](ticket-parsing.md) already settled it — it is a phase pointer,
   not run bookkeeping. Schema and rules: [autonomous-run.md](autonomous-run.md).
+- **2026-08-01 — Agent contract references via `${CLAUDE_PLUGIN_ROOT}`.** Agent bodies address
+  plugin-shipped contracts as `${CLAUDE_PLUGIN_ROOT}/docs/<file>.md`: agents execute with the
+  host repo as working directory, and the plugin-root variable is Claude Code's documented way
+  to address bundled plugin files. Docs among themselves keep relative links.
+- **2026-08-01 — Ported agents ship without a `tools:` frontmatter restriction.** With
+  config-driven tracker/VCS/design adapters the required MCP tool names are unknowable at
+  plugin-authoring time; the source project already hit this (its figma-analyst dropped its
+  curated tool list because the list silently blocked MCP tools and ToolSearch). Agents inherit
+  the full toolset; their prompts constrain behavior.

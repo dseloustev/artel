@@ -31,6 +31,7 @@ always the number, group 2 is always the phase — never change.
 | `PROJ-NNNN-P` | `PROJ-NNNN` | `NNNN` | `P` | `PROJ-2052-1` → ticket=`PROJ-2052`, num=`2052`, phase=`1` |
 | `PROJ-NNNN-pP` | `PROJ-NNNN` | `NNNN` | `P` | `PROJ-2052-p3` → ticket=`PROJ-2052`, num=`2052`, phase=`3` |
 | `NNNN-P` | `PROJ-NNNN` | `NNNN` | `P` | `2052-1` → ticket=`PROJ-2052`, num=`2052`, phase=`1` |
+| `NNNN-pP` | `PROJ-NNNN` | `NNNN` | `P` | `2052-p3` → ticket=`PROJ-2052`, num=`2052`, phase=`3` |
 | `PROJ-NNNN` | `PROJ-NNNN` | `NNNN` | `null` | `PROJ-2052` → ticket=`PROJ-2052`, num=`2052`, phase=none |
 | `NNNN` | `PROJ-NNNN` | `NNNN` | `null` | `2052` → ticket=`PROJ-2052`, num=`2052`, phase=none |
 

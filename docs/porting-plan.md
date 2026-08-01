@@ -30,6 +30,8 @@ The rules everything else obeys, plus the config mechanism they will reference.
       `tech-writer`.
 - [ ] Strip source-project specifics (Flutter/Dart tool references, Jira project key,
       Bitbucket MCP tool names) → config lookups or adapter instructions.
+- [ ] Port and genericize the agent-crew contracts consumed by every agent: `deviation-protocol.md`,
+      `path-conventions.md` → `docs/`.
 
 ## Phase 3 — stage skills
 
@@ -81,6 +83,7 @@ The rules everything else obeys, plus the config mechanism they will reference.
 | `skills/{move-to-windsurf,restore-from-windsurf}` | — | skip: superseded by `save-context`/`restore-context` |
 | `agents/*.md` (crew of 12, incl. figma-analyst) | `agents/` | port + genericize (Phase 2) |
 | `agents/docs/ticket-parsing.md` | `docs/` | port + genericize (Phase 1) |
+| `agents/docs/{deviation-protocol,path-conventions}.md` | `docs/` | port + genericize (Phase 2) |
 | `docs/{autonomous-run,orchestrator-common}.md` | `docs/` | port + genericize (Phase 1) |
 | `docs/{workflow-guide,skills-reference}.md` | `docs/` | adapt (Phase 6) |
 | `hooks/*.py` | `hooks/` | port + config-driven verify (Phase 5) |

@@ -257,8 +257,8 @@ claude -p "/artel:feature-development <TICKET_ID> --mode=yolo" --output-format s
 ## 13. Design analysis stage (`figma-analysis`)
 
 Conditional chatty-head stage — gate 0.5 of `feature-development`, between `generate-idea` and the
-analysis interview — run only when `design.figma` is enabled (config.md) and `idea.md` contains a
-design-tool link (e.g. a Figma URL), or a URL is passed explicitly. Produces the ticket-level
+analysis interview — run only when `design.figma` is enabled (config.md) and either `idea.md`
+contains a design-tool link (e.g. a Figma URL) or a URL is passed explicitly. Produces the ticket-level
 `design-analysis.md` (+ `design/` evidence — see [ticket-parsing.md](ticket-parsing.md)) consumed
 by `analysis`, `researcher`, and `planner`.
 

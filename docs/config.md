@@ -84,6 +84,12 @@ accepts only `1`; it exists so later formats can migrate rather than guess.
 
 ## Key reference
 
+### Top-level
+
+| Key | Type | Default | Allowed values / notes | Consumed by |
+|---|---|---|---|---|
+| `version` | integer | `1` | Identifies the config format, not the plugin version. v0.1 accepts only `1`. | Config loader, init interview (format migrations) |
+
 ### `ticket` — identifier grammar
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
@@ -110,7 +116,7 @@ phase is capture group 2 or `null`.
 
 **Phase suffix.** Tickets may carry a phase suffix meaning "phase N of this ticket": `PROJ-123-2`
 is phase 2 of `PROJ-123`. Phase-scoped artifacts then live under
-`<specs.dir>/<TICKET>/phase-<N>/`, ticket-wide ones at `<specs.dir>/<TICKET>/`. Set
+`<specs.dir>/<TICKET_ID>/phase-<N>/`, ticket-wide ones at `<specs.dir>/<TICKET_ID>/`. Set
 `ticket.phaseSuffix: false` for projects that never split a ticket into phases: identifiers
 carrying a suffix are then rejected as malformed instead of being read as a phase, and every run
 is ticket-wide. Projects needing a different suffix spelling express it in `ticket.pattern`'s
@@ -124,7 +130,7 @@ second capture group; `phaseSuffix` only switches the feature on and off.
 | `tracker.mcpToolPrefix` | string | `""` | Required when `adapter` is `"jira-mcp"`. Full MCP tool prefix including trailing separator, e.g. `"mcp__tracker__"`. | The `jira-mcp` adapter's tool addressing |
 
 - **`none`** — artel never talks to a tracker. The ticket description is a local file the operator
-  writes (or the `generate-idea` skill produces) at `<specs.dir>/<TICKET>/idea.md`. Steps that
+  writes (or the `generate-idea` skill produces) at `<specs.dir>/<TICKET_ID>/idea.md`. Steps that
   would comment back or transition a ticket report `skipped (no tracker)`.
 - **`github-issues`** — the ticket number is the issue number in the host repo; issues are read
   and commented through the `gh` CLI, which must be installed and authenticated. This is
@@ -133,7 +139,7 @@ second capture group; `phaseSuffix` only switches the feature on and off.
 - **`jira-mcp`** — tools are addressed as `<tracker.mcpToolPrefix>jira_get_issue`,
   `<prefix>jira_add_comment` and so on, so no server name is hardcoded anywhere in the plugin.
   `ticket.projectKey` doubles as the Jira project key. If the prefix is empty or the tools are not
-  connected, the skill reports the failure and falls back to `<specs.dir>/<TICKET>/idea.md` when
+  connected, the skill reports the failure and falls back to `<specs.dir>/<TICKET_ID>/idea.md` when
   that file exists; otherwise it stops and asks.
 
 ### `vcs` — where pull requests go
@@ -200,7 +206,7 @@ connected the stage skips silently and the pipeline continues.
 |---|---|---|---|---|
 | `specs.dir` | string | `"specs/.current"` | Repo-relative path, no leading `/`, no `..` segments | Every artifact read and write |
 
-The trail is `<specs.dir>/<TICKET>/` for ticket-wide artifacts, `<specs.dir>/<TICKET>/phase-<N>/`
+The trail is `<specs.dir>/<TICKET_ID>/` for ticket-wide artifacts, `<specs.dir>/<TICKET_ID>/phase-<N>/`
 for phase-scoped ones, and `<specs.dir>/.active_ticket` for the in-flight identifier.
 
 ### `runtime` — optional runtime and automation commands

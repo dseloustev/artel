@@ -14,8 +14,8 @@ Repo scaffold, plugin manifest, marketplace file, docs. (This commit.)
 
 The rules everything else obeys, plus the config mechanism they will reference.
 
-- [ ] Define `.artel/config.json` schema (ticket grammar, tracker/VCS adapters, verify
-      commands, language, specs dir) + a documented default.
+- [x] Define `.artel/config.json` schema (ticket grammar, tracker/VCS adapters, verify
+      commands, language, specs dir) + a documented default → [config.md](config.md).
 - [ ] Port and genericize `ticket-parsing.md` (ticket-ID grammar → config-driven).
 - [ ] Port and genericize `autonomous-run.md` (run state, modes, caps) — host-writable state
       moves to `.artel/run/`.

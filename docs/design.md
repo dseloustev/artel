@@ -65,8 +65,8 @@ convention is already project-agnostic and ports unchanged.
 ## Genericization strategy
 
 Everything project-specific becomes per-project configuration that the installed plugin reads
-from the **host repo** (not from the plugin). Proposed: a single `artel.config.json` at the host
-repo root (exact name/location to be settled in Phase 1).
+from the **host repo** (not from the plugin): a single `.artel/config.json` at the host repo
+root. Full key reference and defaults: [config.md](config.md).
 
 | Hardcoded in source | Becomes config |
 |---|---|
@@ -87,12 +87,10 @@ entry-point skills run a short one-time init interview and write the file.
    written in Dart — unacceptable as a hard dependency for "any project". Options: rewrite in
    Python (hooks already require `python3`), rewrite as POSIX shell, or drop the CLI and fold
    its checks into hooks. *Leaning: Python rewrite, shipped under `hooks/` or `scripts/`.*
-2. **Config file name and shape.** `artel.config.json` vs `.artel/config.json` vs a section in
-   the host `CLAUDE.md`. *Leaning: `.artel/config.json` — keeps host root clean, gives the
-   plugin a natural place for run state too.*
-3. **Tracker adapters at v1.** Source supports Jira-via-MCP only. Ship v1 with `jira-mcp` +
-   `github-issues` + `none` (manual idea file), or Jira only? *Leaning: `none` + `github-issues`
-   first — they need no private MCP server; `jira-mcp` ports easily for parity.*
+2. ~~**Config file name and shape.**~~ Decided 2026-08-01: `.artel/config.json` in the host repo,
+   run state alongside it under `.artel/run/` — see decision log and [config.md](config.md).
+3. ~~**Tracker adapters at v1.**~~ Decided 2026-08-01: v1 ships `none` + `github-issues` +
+   `jira-mcp` — see decision log.
 4. **Run-state and journal paths.** Source keeps run state under the host `.claude/`; plugin
    should keep host-writable state out of the plugin cache dir. Candidate: `.artel/run/`.
 5. ~~**Figma analysis.**~~ Decided 2026-08-01: ships in v1, runtime-optional (skips silently
@@ -126,3 +124,15 @@ entry-point skills run a short one-time init interview and write the file.
   educates it), seeded from the source project and extended later from the internet.
   `rules/ast-index.md` goes there too; orchestrator index-refresh steps in artel become an
   optional config hook. Separate repo; out of scope for this porting plan beyond this note.
+- **2026-08-01 — Config lives at `.artel/config.json`** (open question 2). A dot-directory in the
+  host repo rather than `artel.config.json` at the root or a section of the host `CLAUDE.md`: it
+  keeps the host root clean, keeps machine-written configuration out of a human-authored doc, and
+  gives the plugin one natural home for host-writable **run state** (`.artel/run/`, open question
+  4) next to the config it belongs to. `.artel/config.json` is committed; `.artel/run/` is not.
+  Nothing host-writable is ever placed in the plugin install/cache directory. Schema and defaults:
+  [config.md](config.md).
+- **2026-08-01 — v1 tracker adapters: `none` + `github-issues` + `jira-mcp`** (open question 3).
+  `none` (ticket text from a local idea file) and `github-issues` (via the `gh` CLI) need no
+  private MCP server, so artel is usable in any repo on day one; `jira-mcp` ports over from the
+  source system almost unchanged and keeps parity for Jira shops, with the server addressed
+  through a configurable `tracker.mcpToolPrefix` instead of a hardcoded tool name.

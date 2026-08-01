@@ -169,3 +169,14 @@ entry-point skills run a short one-time init interview and write the file.
   `skills/qa` / `skills/validate` bodies now reference `<specs.releases>` instead of the literal.
   Where a project keeps its release-scope QA/validation artifacts is project-specific state, not
   workflow-structural, so it belongs in configuration alongside `specs.dir`, not hardcoded.
+- **2026-08-01 — Bitbucket `projectKey`/`repositorySlug` derived at runtime, not a config key.**
+  `pr-description` and `pr-create` (Phase 3, PR/digest skills) need a Bitbucket Server
+  `projectKey`/`repositorySlug` pair to address `bitbucket-mcp` PR-listing and PR-creation tools;
+  the source skills hardcoded `flutter`/`adguard-wallet`, verified once by hand from `.git/config`.
+  Unlike `specs.releases`, this did **not** become a new `docs/config.md` key: both values are
+  mechanically derivable from `git remote get-url origin` (Bitbucket Server clone-URL shape
+  `.../<projectKey>/<repositorySlug>.git`), mirroring the source's own verification method. The
+  git remote is the single source of truth for where the repo actually lives — a config-file copy
+  could drift from it after a repo move/rename/re-clone with nothing to catch the mismatch, whereas
+  deriving it at call time never can. `skills/pr-description`, `skills/pr-create` derive
+  `projectKey`/`repositorySlug` this way instead of hardcoding them or adding a new config key.

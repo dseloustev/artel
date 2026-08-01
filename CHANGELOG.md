@@ -45,3 +45,9 @@ All notable changes to this project are documented here. The format follows
   routed through `verify.fast`, transient-automation and sensitive-surface notes forward-referenced
   to Phase 5), and the QA plan/report agent, ported and genericized from the source project's agent
   crew.
+- Validation agents: `agents/validator.md`, `agents/tech-writer.md` — the release/ticket/phase
+  gate-checklist validator (gates genericized to config-driven degradation, e.g. `IMPLEMENT_STEP_OK`'s
+  `verify.commands` step and `RUNTIME_OK`'s `runtime.run`, forward-referencing the Phase-3 `run-app`
+  skill; `AUTOMATION_REMOVED` consistent with the reviewer's transient-automation treatment) and the
+  ticket summary/CHANGELOG tech-writer, ported and genericized from the source project's agent crew.
+  Completes the 12-agent crew (incl. `figma-analyst`).

@@ -38,3 +38,10 @@ All notable changes to this project are documented here. The format follows
 - Planning agents: `agents/planner.md`, `agents/task-planner.md`, `agents/vision-writer.md`,
   `agents/tasklist-writer.md` — architecture/plan, tasklist breakdown, technical vision, and
   iterative work-plan drafting, ported and genericized from the source project's agent crew.
+- Implementation agents: `agents/implementer.md`, `agents/reviewer.md`, `agents/qa.md` — the
+  task-by-task implementer (inner-loop and codegen steps forward-referenced to the Phase-3
+  `inner-loop` skill, generated-code rule genericized), the dual-mode (ticket/standalone)
+  reviewer (project-specific lenses renamed to project-agnostic Review lenses, static analysis
+  routed through `verify.fast`, transient-automation and sensitive-surface notes forward-referenced
+  to Phase 5), and the QA plan/report agent, ported and genericized from the source project's agent
+  crew.

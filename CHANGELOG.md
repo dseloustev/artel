@@ -31,3 +31,7 @@ All notable changes to this project are documented here. The format follows
 - Path-conventions contract: `docs/path-conventions.md` — the repo-relative-paths-only rule for
   spec-trail artifact content, its rationale, scope, and citation-form conventions, ported and
   genericized from the source project.
+- Analysis agents: `agents/analyst.md`, `agents/researcher.md`, `agents/figma-analyst.md` — the
+  PRD-interview, codebase-research, and optional Figma design-analysis agents, ported and
+  genericized from the source project, with paths resolved via `<specs.dir>`/`<TICKET_ID>` and
+  contracts cited via `${CLAUDE_PLUGIN_ROOT}/docs/`.

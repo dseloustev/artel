@@ -14,7 +14,7 @@ the Phase 2–3 porting precedent and the cross-references [autonomous-run.md](.
 
 - `skills/feature-development/SKILL.md` — full-pipeline orchestrator.
 - `skills/dev/SKILL.md` — lean-loop orchestrator.
-- `skills/init/SKILL.md` — first-run init interview (procedural worker).
+- `skills/setup/SKILL.md` — first-run config interview (procedural worker).
 - Two new config keys: `runtime.surface`, `setup.commands` ([config.md](../../config.md)).
 - Doc updates: config.md, autonomous-run.md, design.md decision log, porting-plan.md checkboxes,
   skills/README.md, plus a sweep of now-resolvable "(Phase 4)" forward-reference labels.
@@ -32,10 +32,13 @@ the Phase 2–3 porting precedent and the cross-references [autonomous-run.md](.
    `["lib/**/*.dart", "packages/*/lib/**/*.dart"]`. Surface set → gate 8 runs only when the
    phase's diff (vs default branch + worktree) matches, else recorded
    `skipped (no runtime surface)`. Surface absent with `runtime.run` set → the gate always runs.
-3. **The init interview is its own skill: `/artel:init`.** A self-declared procedural worker (no
+3. **The init interview is its own skill: `/artel:setup`.** A self-declared procedural worker (no
    agent). Both entry points invoke it when `.artel/config.json` is missing, then continue into
    their run; users can also invoke it manually to create or revise the config. No duplication,
-   à-la-carte access — consistent with `sync-phases`/`generate-idea` shaping.
+   à-la-carte access — consistent with `sync-phases`/`generate-idea` shaping. Named `setup`, not
+   `init`: Claude Code's built-in `/init` (the CLAUDE.md generator) already exists and artel's own
+   `init-branch` chains it, so an `artel:init` would collide cognitively; `setup` also matches the
+   new `setup.commands` key family.
 4. **`setup.commands` config key added now** (array of shell commands, default `[]`), closing the
    Phase-3 follow-up: `init-branch` regains its dropped post-branch dependency-install/codegen
    step, run when the key is non-empty and silently skipped otherwise. The init interview offers
@@ -67,7 +70,7 @@ Substitutions:
 | Branch-guard fallback `master` | fallback `main` |
 | Checkpoint staging | ticket's changed files + `<specs.dir>/<TICKET_ID>/**` + `.active_ticket`; never `git add -A`, never `.artel/run/**`, never plugin directories |
 
-New step 0 (small): the config gate — no `.artel/config.json` → `Skill: init`, then continue; plus
+New step 0 (small): the config gate — no `.artel/config.json` → `Skill: setup`, then continue; plus
 the run-start `vcs.mcpToolPrefix` validity check config.md promises entry points perform
 ("When the adapter is unusable").
 
@@ -87,7 +90,7 @@ verbatim:
   `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/SKILL.md` `## Checkpoint commits & pushes` —
   the same sharing shape as the source.
 
-## `init` skill
+## `setup` skill
 
 Self-declared procedural worker, `model: sonnet`. Flow:
 
@@ -120,7 +123,7 @@ Both are documented in config.md's key tables, the default-config JSON, and the 
 
 ## Doc updates
 
-- config.md — "When the config is missing" names `/artel:init`; new key rows.
+- config.md — "When the config is missing" names `/artel:setup`; new key rows.
 - autonomous-run.md — §5 runtime-row note mentions `runtime.surface`; §14's
   "(Phase 4 — see porting-plan.md)" parenthetical points at the shipped skill.
 - design.md — decision-log entries for the four decisions above.
@@ -141,6 +144,6 @@ Both are documented in config.md's key tables, the default-config JSON, and the 
 1. Doc-consistency pass: every `${CLAUDE_PLUGIN_ROOT}` and relative link resolves; no `AW-`,
    `make `, Dart/Flutter literals (same greps as prior phases).
 2. CLAUDE.md local-marketplace smoke test in a scratch host repo: `/artel:feature-development`,
-   `/artel:dev`, `/artel:init` surface under the `artel:` namespace; `/artel:init` end-to-end
+   `/artel:dev`, `/artel:setup` surface under the `artel:` namespace; `/artel:setup` end-to-end
    writes parseable config + `.gitignore` entries.
 3. The full pipeline dry-run stays Phase 6.

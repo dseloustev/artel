@@ -143,9 +143,26 @@ second capture group; `phaseSuffix` only switches the feature on and off.
 | `vcs.adapter` | string | `"github-cli"` | `"github-cli"` \| `"bitbucket-mcp"` | PR creation and update, PR description publishing, PR-comment handling |
 | `vcs.mcpToolPrefix` | string | `""` | Required when `adapter` is `"bitbucket-mcp"`, e.g. `"mcp__vcs__"`. | The `bitbucket-mcp` adapter's tool addressing |
 
+- **`github-cli`** — the hosting platform's API is reached through the `gh` CLI, which must be
+  installed and authenticated.
+- **`bitbucket-mcp`** — tools are addressed as `<vcs.mcpToolPrefix>bitbucket_create_pull_request`
+  and so on, so no server name is hardcoded anywhere in the plugin.
+
 Branching, committing and pushing always use plain `git`, whatever the adapter. The adapter only
-covers the hosting platform's API: `github-cli` shells out to `gh`; `bitbucket-mcp` addresses
-`<vcs.mcpToolPrefix>bitbucket_*` MCP tools.
+covers the hosting platform's API.
+
+**When the adapter is unusable.** There is no local-file fallback for VCS work — a pull request
+cannot be written to disk — so both failure modes stop rather than degrade:
+
+- **Empty `vcs.mcpToolPrefix` with `adapter: "bitbucket-mcp"`** is a configuration error in the
+  sense of reading rule 3: the skill reports the missing prefix and stops. Because the value is
+  knowable at run start, entry-point skills check it there and refuse to start the pipeline,
+  rather than failing hours later at the PR stage.
+- **Adapter tools unreachable at call time** (MCP server not connected, `gh` missing or
+  unauthenticated) — the skill reports what it tried to call and stops, then asks the user to fix
+  the connection. Nothing already done is discarded: the branch, its commits and the spec trail
+  stay in place, so the run resumes at the same stage once the adapter works, or the user opens
+  the PR by hand.
 
 ### `verify` — the quality gate
 

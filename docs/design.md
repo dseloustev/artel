@@ -155,3 +155,8 @@ entry-point skills run a short one-time init interview and write the file.
   (opus for design-heavy agents, sonnet for mechanical ones) are portable cost/capability
   tuning, not project specifics; each ported agent keeps its source value. Companion to the
   `tools:`-drop decision already logged.
+- **2026-08-01 — Ported skills drop `allowed-tools:` frontmatter.** Same rationale as the ported
+  agents' dropped `tools:`: with config-driven tracker/VCS/design adapters, the required MCP tool
+  names are unknowable at plugin-authoring time, and a curated `allowed-tools:` list silently
+  blocks MCP tools and ToolSearch. Skills keep `model:` and `argument-hint:` — those are portable
+  and don't name adapter-specific tools.

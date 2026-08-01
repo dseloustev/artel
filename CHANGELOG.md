@@ -51,3 +51,14 @@ All notable changes to this project are documented here. The format follows
   skill; `AUTOMATION_REMOVED` consistent with the reviewer's transient-automation treatment) and the
   ticket summary/CHANGELOG tech-writer, ported and genericized from the source project's agent crew.
   Completes the 12-agent crew (incl. `figma-analyst`).
+- Spec-stage skills: `skills/analysis`, `skills/researcher`, `skills/planner`, `skills/tasklist`
+  — the PRD-interview, research, planning, and tasklist-breakdown orchestrators, ported and
+  genericized from the source project's à-la-carte skills, invoking the `analyst`, `researcher`,
+  `planner`, and `task-planner` agents respectively via the `Agent` tool. Ticket resolution and
+  artifact paths follow `docs/orchestrator-common.md`/`docs/ticket-parsing.md`; open-questions
+  bookkeeping moves to `.artel/run/<TICKET_ID>/open-questions.md` per `docs/autonomous-run.md`;
+  contract references use `${CLAUDE_PLUGIN_ROOT}/docs/`. Folded-in follow-ups from the phase-2
+  review: `agents/planner.md`'s design-doc citation now resolves via `${CLAUDE_PLUGIN_ROOT}`;
+  `agents/reviewer.md`'s dangling "PR review approval" checkbox reference reworded to match the
+  tasklist's actual `## Code Review Fixes` / `REVIEW_OK` mechanism (the source template never had
+  such a checkbox); logged the ported-skills' dropped `allowed-tools:` frontmatter decision.

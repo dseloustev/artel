@@ -57,7 +57,9 @@ Path resolution follows `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. In summa
     - <verifiable criterion>
 ```
 
-4. If blocking issues exist, uncheck the "PR review approval" checkbox in the tasklist.
+4. There is no separate approval checkbox to toggle: blocking issues stay open as unchecked
+   `## Code Review Fixes` tasks until fixed, which is what the `REVIEW_OK` gate (validator agent)
+   checks.
 
 Phase scope: only add review fixes to the active phase's tasklist.
 

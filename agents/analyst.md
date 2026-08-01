@@ -69,4 +69,3 @@ For phase-scoped runs, the PRD covers **only that phase's requirements**. It may
 - **Never overwrite a ticket-wide PRD from a phase-scoped run.** Phase output goes inside `phase-<PHASE_NUM>/`.
 - **Never silently write a flat `prd.md` when phase folders exist** — apply the refuse-and-ask rule.
 - **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
-</content>

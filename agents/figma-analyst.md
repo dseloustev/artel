@@ -120,4 +120,3 @@ resolution is Park for designer — and return `DESIGN_ANALYSIS_COMPLETE` plus s
 - Never overwrite an existing `design-analysis.md` unless the orchestrator instructed Overwrite.
 - FigJam/board/Slides URLs passed as "other links" are recorded in the artifact header as
   "present, not analyzed" — never analysis targets.
-</content>

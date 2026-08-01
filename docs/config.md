@@ -65,6 +65,9 @@ placeholder the init interview replaces.
     "commands": [],
     "fast": ""
   },
+  "setup": {
+    "commands": []
+  },
   "language": {
     "docs": "en",
     "pr": "en"
@@ -186,6 +189,15 @@ Commands must be non-interactive, exit non-zero on failure, and be safe to re-ru
 `verify.commands` degrades the gate to `skipped` — it is never reported as `green`. An empty
 `verify.fast` makes the per-edit hook a no-op.
 
+### `setup` — post-branch setup
+
+| Key | Type | Default | Allowed values / notes | Consumed by |
+|---|---|---|---|---|
+| `setup.commands` | array of strings | `[]` | Ordered shell commands run once after a ticket branch is created (dependency install, code generation). Same execution rules as `verify.commands`: run from the host repo root, non-interactive, stop at the first non-zero exit. | `init-branch`'s post-branch setup step |
+
+An empty list silently skips the step — a project whose toolchain needs nothing after a branch
+switch simply leaves it unset.
+
 ### `language` — output languages
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
@@ -229,9 +241,16 @@ and unset ones degrade to `skipped`.
 | `runtime.drive` | string | absent | Command that drives the running app (UI automation) | `drive-app` |
 | `runtime.scaffold.add` | string | absent | Command that adds the transient automation scaffold | `add-automation` |
 | `runtime.scaffold.remove` | string | absent | Command that removes it again | `remove-automation` |
+| `runtime.surface` | array of strings | absent | Repo-relative glob patterns (`fnmatch` semantics, like the sensitive-paths policy) naming the files whose changes make the runtime gate worth running, e.g. `["lib/**/*.dart", "packages/*/lib/**/*.dart"]`. | The entry-point orchestrators' `RUNTIME_OK` gate decision (`feature-development`, `dev`) |
 
 An absent or empty command means the corresponding skill reports `not configured` and the
 `RUNTIME_OK` gate is recorded as `skipped`. Missing runtime configuration never blocks a run.
+
+`runtime.surface` is a filter, not a command: when set, the entry-point orchestrators run the
+`RUNTIME_OK` gate only when the run's diff (changed files vs the default branch plus the working
+tree) matches at least one glob, recording `RUNTIME_OK: skipped (no runtime surface)` otherwise.
+When absent with `runtime.run` configured, the gate always runs. It has no effect on manual
+`/artel:run-app` invocations.
 
 ## A filled example
 
@@ -261,6 +280,9 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
     ],
     "fast": "npm run lint -- --cache"
   },
+  "setup": {
+    "commands": ["npm ci"]
+  },
   "language": {
     "docs": "en",
     "pr": "es"
@@ -275,6 +297,7 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
   "runtime": {
     "run": "npm run dev -- --port 5173",
     "drive": "npm run e2e:drive",
+    "surface": ["src/**"],
     "scaffold": {
       "add": "npm run automation:add",
       "remove": "npm run automation:remove"

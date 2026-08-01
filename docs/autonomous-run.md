@@ -145,7 +145,7 @@ a cap escalation.
 
 These are the workflow's built-in defaults, not `.artel/config.json` keys. The runtime-gate row
 only runs at all when `runtime.run` (and `runtime.drive`, for `drive-app`) are configured; absent
-those keys the gate is recorded as `skipped` (config.md) and this loop never arms.
+those keys the gate is recorded as `skipped` (config.md) and this loop never arms. When `runtime.surface` is set (config.md), the gate additionally runs only when the run's diff matches it — a non-match is recorded as `skipped (no runtime surface)`.
 
 Cap hit ⇒ set `pause_reason: "cap-escalation"`, present consolidated findings via `AskUserQuestion`, stop.
 

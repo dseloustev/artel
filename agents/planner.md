@@ -25,8 +25,10 @@ Always read for context:
 - `<specs.dir>/<TICKET_ID>/idea.md`, `vision.md` (focus on the Phase/Iteration `<PHASE_NUM>` section when phase is set)
 - The PRD at the path determined by `ticket-parsing.md` §4. For phase runs, the ticket-wide PRD may also be read as fallback context (read-only).
 - The research file at the corresponding scope: `phase-<PHASE_NUM>/research.md` for phase runs, `research.md` for ticket-wide (each is optional).
-- `<specs.dir>/<TICKET_ID>/design-analysis.md` (if available) — Figma workflow analysis; its §2
-  screen mapping names the screens the plan must cover.
+- `<specs.dir>/<TICKET_ID>/design-analysis.md` (if available) — the design-analysis stage's output.
+  That stage is config-gated via `design.figma` (config.md) and runtime-optional, so this file may
+  be absent even on projects that have it enabled. When present, its §2 screen mapping names the
+  screens the plan must cover.
 - For phase runs, also `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` (if available) and the ticket-wide `plan.md` for shared architectural context.
 - The host project's conventions docs (its CLAUDE.md and anything it points to) — architectural guidelines.
 
@@ -45,7 +47,7 @@ For phase-scoped runs, prefix sections with phase context:
 
 Optionally write an ADR alongside the plan if there are significant architectural trade-offs (`adr.md` for ticket-wide, `phase-<PHASE_NUM>/adr.md` for phase-scoped).
 
-- Reference notation: existing code is cited as backticked repo paths (implicit refs) or `ref:Symbol[.member]` anchors; everything the plan will create is declared `new:Symbol` or carries `(new file)` on the same line as its backticked path. Every `ref:`/backticked-path claim must resolve today — the PLAN_GROUNDED gate (plan-check --strict) bounces the plan otherwise.
+- Reference notation: existing code is cited as backticked repo paths (implicit refs) or `ref:Symbol[.member]` anchors; everything the plan will create is declared `new:Symbol` or carries `(new file)` on the same line as its backticked path. Every `ref:`/backticked-path claim must resolve today — this is the **PLAN_GROUNDED** gate: a plan citing a symbol or path that does not exist is not grounded. A deterministic mechanical check for this gate is a Phase-5 forward reference (design.md open question 1, the deterministic CLI); until it ships, the gate is not mechanically enforced and is recorded as skipped, so grounding is the agent's own discipline — confirm every reference before writing it, never cite from memory.
 
 ## Rules
 

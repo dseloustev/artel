@@ -131,7 +131,7 @@ second capture group; `phaseSuffix` only switches the feature on and off.
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `tracker.adapter` | string | `"none"` | `"none"` \| `"github-issues"` \| `"jira-mcp"` | Ticket fetch at pipeline start, status comments, PR↔ticket linking |
+| `tracker.adapter` | string | `"none"` | `"none"` \| `"github-issues"` \| `"jira-mcp"` | Ticket fetch at pipeline start, status comments, PR↔ticket linking, `issue-draft`'s markup-dialect selection |
 | `tracker.mcpToolPrefix` | string | `""` | Required when `adapter` is `"jira-mcp"`. Full MCP tool prefix including trailing separator, e.g. `"mcp__tracker__"`. | The `jira-mcp` adapter's tool addressing |
 
 - **`none`** — artel never talks to a tracker. The ticket description is a local file the operator
@@ -179,7 +179,7 @@ cannot be written to disk — so both failure modes stop rather than degrade:
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `verify.commands` | array of strings | `[]` | Ordered shell commands forming the full gate. Run from the host repo root; the gate stops at the first non-zero exit. | Full-gate checks: inner loop, implementation checkpoints, validate stage, stop-gate hook |
+| `verify.commands` | array of strings | `[]` | Ordered shell commands forming the full gate. Run from the host repo root; the gate stops at the first non-zero exit. | Full-gate checks: inner loop, implementation checkpoints, validate stage, stop-gate hook, `deep-review`'s step-0 quality gate |
 | `verify.fast` | string | `""` | One quick command for per-edit feedback (lint/analyze of the touched scope, not the whole test suite). | Fast per-edit hook |
 
 Commands must be non-interactive, exit non-zero on failure, and be safe to re-run. An empty
@@ -294,8 +294,8 @@ There is no bundled fallback file — absence is a defined state, not an error.
 - **Entry-point skills** (`feature-development`, `dev`) find no `.artel/config.json`, run a
   one-time init interview covering ticket grammar, tracker, VCS, verify commands and languages,
   write `.artel/config.json`, and continue into the requested run. The interview happens once per
-  repo; afterwards the file is edited by hand. Implemented in Phase 4 — see
-  [porting-plan.md](porting-plan.md).
+  repo; afterwards the file is edited by hand (Phase 4 — see
+  [porting-plan.md](porting-plan.md)).
 - **À-la-carte stage skills** never interview. They run against the defaults above and note in
   their report that no config was found, so a single stage invocation is never blocked by a
   missing file.

@@ -34,7 +34,7 @@ When a phase is specified (e.g., `PROJ-123-1`):
 - `<specs.dir>/<TICKET_ID>/tasklist.md`
 - `<specs.dir>/<TICKET_ID>/qa.md`
 - Runtime-gate evidence, when configured (`runtime.run`, config.md) — produced by the `run-app`
-  skill (Phase 3; see porting-plan.md)
+  skill
 
 ### Phase-scoped (phase specified)
 - `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/prd.md` (with ticket-wide `prd.md` as read-only fallback)
@@ -43,8 +43,7 @@ When a phase is specified (e.g., `PROJ-123-1`):
 - `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/qa.md`
 - `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/summary.md`
 - Runtime-gate evidence, when configured (`runtime.run`, config.md), phase-scoped with the
-  ticket-wide file as read-only fallback — produced by the `run-app` skill (Phase 3; see
-  porting-plan.md)
+  ticket-wide file as read-only fallback — produced by the `run-app` skill
 
 ## Output
 
@@ -59,7 +58,7 @@ A brief report on which quality gates have been passed and what is preventing th
 | TASKLIST_READY | Tasklist exists and has `Status: TASKLIST_READY` |
 | IMPLEMENT_STEP_OK | All tasks are marked `[x]`, including the tasklist's Final Verification section: every command in `verify.commands` (config.md), in order, must exit clean; an empty list records that step `skipped`, never `green`. |
 | REVIEW_OK | No blocking review issues |
-| RUNTIME_OK | The host's runtime-gate evidence (produced by the `run-app` skill — Phase 3, see porting-plan.md), phase-scoped when validating a phase with the ticket-wide file as read-only fallback. Green requires gate-mode evidence, not merely an interactive run, or a recorded skip. `runtime.run` (config.md) absent or empty ⇒ recorded `skipped`; missing runtime configuration never blocks a run. |
+| RUNTIME_OK | The host's runtime-gate evidence (produced by the `run-app` skill), phase-scoped when validating a phase with the ticket-wide file as read-only fallback. Green requires gate-mode evidence, not merely an interactive run, or a recorded skip. `runtime.run` (config.md) absent or empty ⇒ recorded `skipped`; missing runtime configuration never blocks a run. |
 | RELEASE_READY | QA report exists with positive verdict |
 | DOCS_UPDATED | Summary document exists |
 | AUTOMATION_REMOVED | The transient scaffold artifacts introduced by the host's `runtime.scaffold.add` command (config.md) are gone — i.e. `runtime.scaffold.remove` was run (`/artel:remove-automation`) before merge. Red = the scaffold is still present. Ticket-wide, phase-independent; skip (green with note) for release scope. When `runtime.scaffold` is unconfigured there is nothing to check: recorded `skipped`. |

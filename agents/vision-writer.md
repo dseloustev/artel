@@ -50,8 +50,9 @@ Section 7.
    failure paths: state changes, navigation, sync patterns (TTL / delta / realtime), loading/error
    states. One pseudo-call code block per flow.
 5. **Security & privacy** — key material, credential/secret storage, database schema or migration
-   changes, and any other surface matched by the host's sensitive-path rules (ported in Phase 5,
-   categories configurable). **This section feeds HITL tagging**
+   changes, and any other surface matched by the host's sensitive-path rules (Phase 5 — see
+   `${CLAUDE_PLUGIN_ROOT}/docs/porting-plan.md`; categories configurable). **This section feeds
+   HITL tagging**
    (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4): name every touched sensitive surface
    explicitly. If none: the mandatory line `No sensitive surface touched.` — an omission is not an
    answer.

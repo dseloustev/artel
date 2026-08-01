@@ -120,8 +120,9 @@ Run three focused passes over the diff (single enriched review — no fan-out):
    interface/implementation signature parity, no infrastructure/API-client types leaking into the
    domain layer. Default severity: medium (high when a dependency direction is inverted).
 3. **security / sensitive surfaces** — any touch of paths matched by the host's sensitive-path
-   rules (ported in Phase 5, categories configurable — see porting-plan.md), plus anything the
-   vision or plan's risk/security section flags as sensitive. Default severity: **high**.
+   rules (Phase 5 — see `${CLAUDE_PLUGIN_ROOT}/docs/porting-plan.md`; categories configurable),
+   plus anything the vision or plan's risk/security section flags as sensitive. Default severity:
+   **high**.
    Coverage guarantee: any diff line under a sensitive path ⇒ at least one `security`-lens
    entry with `severity: "high"` in `findings.json`. When the touch itself is sound, the entry
    documents the surface touched and why it is acceptable — an audit entry, not necessarily a

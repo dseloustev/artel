@@ -35,14 +35,14 @@ The rules everything else obeys, plus the config mechanism they will reference.
 
 ## Phase 3 — stage skills
 
-- [ ] Port à-la-carte stage skills: `analysis`, `researcher`, `planner`, `tasklist`,
+- [x] Port à-la-carte stage skills: `analysis`, `researcher`, `planner`, `tasklist`,
       `generate-idea`, `generate-vision`, `generate-tasklist`, `implementer`, `run-reviewer`,
       `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `sync-phases`,
       `figma-analysis`, `change-digest`, `address-pr-comment`.
-- [ ] Port with rename: `flutter-inner-loop` → `inner-loop` (verify commands from config),
+- [x] Port with rename: `flutter-inner-loop` → `inner-loop` (verify commands from config),
       `wallet-review` → `deep-review` (dual reviewer; tracker/VCS via adapters),
       `jira-issue-ru` → `issue-draft` (output language from config).
-- [ ] Port runtime-gate skills as config-driven adapters: `run-app`, `drive-app` (launch/drive
+- [x] Port runtime-gate skills as config-driven adapters: `run-app`, `drive-app` (launch/drive
       commands from config; RUNTIME_OK degrades to "skipped" when unconfigured), plus
       `add-automation` / `remove-automation` (scaffold commands from config). Follow-up from
       Task 3: the source `implementer` skill had an on-demand runtime-check hint for
@@ -52,13 +52,13 @@ The rules everything else obeys, plus the config mechanism they will reference.
       `/artel:run-app` on-demand reference. Resolved in the run-app port: restored as a one-line
       optional hint in `skills/implementer/SKILL.md`'s dispatch prompt (`/artel:run-app` via
       `runtime.run`, explicitly not the `RUNTIME_OK` gate).
-- [ ] Port ops & utility skills: `init-branch`, `merge-conflicts`, `save-context`,
+- [x] Port ops & utility skills: `init-branch`, `merge-conflicts`, `save-context`,
       `restore-context` (store path → artel), `agents-md-generator`. Follow-up from Task 7: the
       source `init-branch` ran a post-branch dependency-install/codegen step; no generic config
       key covers it — decide in Phase 4/5 (init interview / hooks config) whether a setup-command
       key is warranted.
-- [ ] Each skill resolves ticket context → invokes its agent → reports (no inlined work).
-- [ ] Phase-2 review follow-ups (fold into the matching skill ports): add `review/findings.json`
+- [x] Each skill resolves ticket context → invokes its agent → reports (no inlined work).
+- [x] Phase-2 review follow-ups (fold into the matching skill ports): add `review/findings.json`
       and the ticket `verify/` evidence dir to ticket-parsing.md §3/§4 (with `run-reviewer` /
       `inner-loop`); uniform "(Phase 3)"/"(Phase 5)" forward-reference labels across agent
       bodies (figma-analyst's template path lacks one); planner.md's design-doc citation →

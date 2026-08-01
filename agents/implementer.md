@@ -63,7 +63,7 @@ Apply the changes via Write/Edit. Follow every convention in the host project's 
 Run the quality gates **before** claiming completion:
 
 1. **Inner loop** — run the bounded verify→fix→re-verify algorithm per
-   `${CLAUDE_PLUGIN_ROOT}/skills/inner-loop/SKILL.md` (forward reference — Phase 3) on the changed
+   `${CLAUDE_PLUGIN_ROOT}/skills/inner-loop/SKILL.md` on the changed
    paths: `verify.fast` (config.md) on the changed scope during iteration, then the full
    `verify.commands` gate (config.md) as the task-close (unscoped) pass; `MAX_VERIFY_ITERATIONS=4`; evidence to the
    ticket's `verify/` dir; exit 2 → stop-and-ask, never edit code to fix the gate. An empty

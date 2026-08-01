@@ -167,8 +167,8 @@ the aggregated `Deviations:` line (per the deviation protocol) and the loop coun
 
 ## 8. Stop hook interplay
 
-The Stop hook (registered on the `Stop` event, shipped with the plugin's own hooks — implemented
-in Phase 5, see [porting-plan.md](porting-plan.md)) blocks a session from ending while
+The Stop hook (registered on the `Stop` event, shipped with the plugin's own hooks; Phase 5 — see
+[porting-plan.md](porting-plan.md)) blocks a session from ending while
 `run_active` is true, `completed` is false, and `pause_reason` is null. Waiting for a human (any
 `pause_reason`) is a legitimate stop. The hook fails open on infra errors and disarms itself past
 the wall-clock budget (§5).
@@ -201,8 +201,8 @@ Three ranked modes control how much the run pauses for approval: `yolo=0 < plan-
 1. Collect candidate paths: every backticked file path and every `Files:` entry in the available
    artifacts (plan, tasklist, work list; idea/PRD as fallback).
 2. Match them against the sensitive-paths policy (glob-based categories, `fnmatch` semantics;
-   ships with generic defaults, project-extensible — see [porting-plan.md](porting-plan.md)
-   Phase 5). `forced_floor` = the highest floor among matched categories, else `null`.
+   ships with generic defaults, project-extensible (Phase 5)). `forced_floor` = the highest floor
+   among matched categories, else `null`.
 3. `suggested_mode`: `yolo` only when ALL hold — ≤ 3 files touched, no `open-questions.md`
    entries, no sensitive-category match, and the work mirrors an established pattern; otherwise
    `plan-gate`.
@@ -284,7 +284,7 @@ arming (docs only, no verify gate) and a **phase-end checkpoint** after each pha
 Bash actions, pre-approved at the approval pause (§4 exception), never pause, and are journaled as
 external actions (§11). The full procedure (branch guard, idempotence, the verify gate, explicit
 staging, push, journal) and the commit-subject table are defined in the `feature-development`
-skill (ported in Phase 4 — see [porting-plan.md](porting-plan.md); shared with `dev`).
+skill (Phase 4 — see [porting-plan.md](porting-plan.md); shared with `dev`).
 
 ## 15. Phase traversal & `.active_ticket`
 

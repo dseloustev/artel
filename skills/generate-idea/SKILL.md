@@ -67,8 +67,9 @@ Branch on `tracker.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`):
    vague input ("make it better", "fix stuff") the same way. Never guess, never write a
    placeholder idea.
 3. There is no tracker, so there is no issue-metadata block (type, status, priority, reporter,
-   assignee, labels, components, fix versions, linked issues) and no comment thread — Step 4
-   renders both as "not applicable" rather than inventing values.
+   assignee, labels, components, fix versions, linked issues) and no comment thread — Step 4's
+   `$METADATA` and `$COMMENTS_RENDERED` each render their no-tracker line instead (see Step 4)
+   rather than inventing values.
 
 **`"jira-mcp"`:**
 0. Adapter-unusable check first, per config.md's `jira-mcp` contract: if `tracker.mcpToolPrefix`
@@ -98,8 +99,8 @@ Branch on `tracker.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`):
    and terminate without writing any files.
 2. Fetch comments via `gh issue view <TICKET_NUM> --json comments`; each comment carries
    `author.login`, `createdAt`, `body`.
-3. There is no Jira-style type/priority/fix-versions/linked-issues metadata — Step 4 renders
-   those fields as "not applicable".
+3. There is no Jira-style type/priority/fix-versions/linked-issues metadata — Step 4's `$METADATA`
+   omits those fields entirely (see Step 4) rather than rendering a placeholder for each.
 
 ### Step 3: Translate to `language.docs`
 

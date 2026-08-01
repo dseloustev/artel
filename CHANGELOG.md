@@ -170,3 +170,25 @@ All notable changes to this project are documented here. The format follows
   cross-project store to `.artel/context/` in the host repo (sibling to `.artel/run/`,
   `docs/config.md` "Purpose and location"), gitignored like `.artel/run/`; logged with its
   narrowed-scope trade-off in `docs/design.md`'s decision log.
+- Design-analysis skill: `skills/figma-analysis` — the last Phase-3 stage skill, ported and
+  genericized from the source project, dispatching the already-ported `figma-analyst` agent.
+  Config-gated by `design.figma` (`docs/config.md`): disabled reports `skipped`; enabled but no
+  Figma MCP connected degrades silently and the pipeline continues, per
+  `docs/autonomous-run.md` §13 — resolving the source skill's stop-and-ask `ENV_ERROR` handling
+  in favor of the runtime-optional contract. Its `design-analysis.md` template moves to
+  `skills/figma-analysis/assets/templates/design-analysis.template.md` (genericizing the
+  Flutter-specific "go_router routes, Scope widgets, and BLoCs" §3 note into "routing and
+  state-management surfaces"), matching `agents/figma-analyst.md`'s existing citation and
+  completing the 30-skill Phase-3 roster. Forward-reference sweep: dropped stale "(Phase 3)"
+  labels off the now-landed `inner-loop` and `run-app` references (`agents/implementer.md`,
+  `agents/validator.md`) and normalized every remaining Phase-4/5 forward reference
+  (`agents/reviewer.md`, `agents/tasklist-writer.md`, `agents/task-planner.md`,
+  `agents/vision-writer.md`, `agents/planner.md`, `docs/config.md`, `docs/autonomous-run.md`) to
+  a uniform first-reference/bare-repeat "(Phase N — see .../porting-plan.md)" form. Folded-in
+  deferred minors: `generate-idea`'s no-tracker metadata prose now matches its own
+  `$METADATA`/`$COMMENTS_RENDERED` omit behavior instead of a stale "not applicable" promise;
+  `skills/README.md`'s per-skill enumeration replaced with a phase-complete summary;
+  `pr-description`/`pr-create`'s Bitbucket `projectKey`/`repositorySlug` derivation gains a
+  stop-and-ask clause for a missing/malformed git remote; `docs/config.md`'s
+  `tracker.adapter`/`verify.commands` Consumed-by columns now list `issue-draft`/`deep-review`.
+  Closes out Phase 3.

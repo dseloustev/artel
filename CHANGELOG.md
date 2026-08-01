@@ -162,9 +162,9 @@ All notable changes to this project are documented here. The format follows
   `restore-context` port as a matched pair (new decision below) with a `docs/`-subset mirror and a
   top-level loose-`specs/`-files mirror dropped — both keyed to fixed source-project filenames with
   no generic equivalent. `agents-md-generator` (a third-party community skill in the source
-  project, attribution dropped for frontmatter consistency with the rest of the crew) ports
-  essentially unchanged — its workflow and both `references/` templates were already
-  language/toolchain-agnostic — with its two template reads pointed at
+  project; metadata frontmatter dropped for consistency with the rest of the crew, attribution
+  kept as a footer line) ports essentially unchanged — its workflow and both `references/`
+  templates were already language/toolchain-agnostic — with its two template reads pointed at
   `${CLAUDE_PLUGIN_ROOT}/skills/agents-md-generator/references/`. New decision: the context store
   `save-context`/`restore-context` read and write moves from the source's user-level,
   cross-project store to `.artel/context/` in the host repo (sibling to `.artel/run/`,

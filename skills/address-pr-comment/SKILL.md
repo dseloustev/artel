@@ -18,7 +18,7 @@ This skill takes a link to **one specific pull-request comment**, fetches just t
 If `$0` is empty, error and terminate:
 
 ```
-Error: No comment URL provided. Usage: /address-pr-comment <pr-comment-url>
+Error: No comment URL provided. Usage: /artel:address-pr-comment <pr-comment-url>
 ```
 
 The URL shape depends on `vcs.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`):

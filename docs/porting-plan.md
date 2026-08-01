@@ -57,7 +57,9 @@ The rules everything else obeys, plus the config mechanism they will reference.
       source `init-branch` ran a post-branch dependency-install/codegen step; no generic config
       key covers it — decide in Phase 4/5 (init interview / hooks config) whether a setup-command
       key is warranted.
-- [x] Each skill resolves ticket context → invokes its agent → reports (no inlined work).
+- [x] Each skill resolves ticket context → invokes its agent → reports (no inlined work), except
+      the self-declared procedural workers (`sync-phases`, `generate-idea`, `merge-conflicts`,
+      etc.), which have no matching agent and run their documented procedure inline instead.
 - [x] Phase-2 review follow-ups (fold into the matching skill ports): add `review/findings.json`
       and the ticket `verify/` evidence dir to ticket-parsing.md §3/§4 (with `run-reviewer` /
       `inner-loop`); uniform "(Phase 3)"/"(Phase 5)" forward-reference labels across agent

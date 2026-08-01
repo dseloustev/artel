@@ -26,14 +26,18 @@ must test what actually matters.
 
 ## 2. Read the ticket documentation
 
-Read from `<specs.dir>/<TICKET_ID>/` — everything that exists, silently skipping what doesn't.
-Each file answers a different question the report needs:
+Read from `<specs.dir>/<TICKET_ID>/` — everything that exists, silently skipping what doesn't. One
+exception: `open-questions.md` lives outside the spec trail, at
+`.artel/run/<TICKET_ID>/open-questions.md` (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §3,
+written by `planner`/`researcher`/`tasklist`) — read it from there, silently skipping it too if
+missing. Each file answers a different question the report needs:
 
 | File | What to extract |
 |------|-----------------|
 | `idea.md`, `prd.md` | The **why**: problem, user-facing goal, requirements |
 | `vision.md`, `plan.md`, `adr.md` | Intended design, key decisions, **alternatives rejected** (prime quiz material) |
-| `research.md`, `open-questions.md` | Constraints discovered, how open questions were resolved |
+| `research.md` | Constraints discovered |
+| `.artel/run/<TICKET_ID>/open-questions.md` | How open questions were resolved |
 | `tasklist.md` (phase run: `phase-<N>/tasks.md`) | What was actually done, per-section notes, ratified deviations |
 | `implementation-notes.md`, `review.md`, `qa.md`, `summary.md` | Deviations from plan, review findings and their fixes, verification status |
 

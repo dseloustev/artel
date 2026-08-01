@@ -1,6 +1,7 @@
 ---
 name: drive-app
 description: "Drive the running app's UI via the host's configured runtime.drive command (navigate, tap, enter text, screenshot, verify — however the host implements it) and record evidence to the ticket dir. Requires the automation scaffold applied via /artel:add-automation. Interactive counterpart to /artel:run-app; the RUNTIME_OK gate never uses this skill. Absent/empty runtime.drive reports not configured."
+argument-hint: ""
 ---
 
 Drive-and-verify orchestrator for agent UI interaction. Config key: `runtime.drive`

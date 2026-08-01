@@ -52,9 +52,13 @@ The plugin follows the standard Claude Code plugin layout. Skills become namespa
 
 ### The skill–orchestrator contract (kept as-is)
 
-Workflow skills are **orchestrators, not workers**: they resolve ticket context, invoke the
-matching agent via the `Agent` tool, and report results. They never inline the agent's work.
-This contract is the backbone of the system and ports unchanged.
+Most workflow skills are **orchestrators, not workers**: they resolve ticket context, invoke the
+matching agent via the `Agent` tool, and report results, never inlining the agent's work. A
+self-declared subset of pure-procedure utility skills (e.g. `sync-phases`, `generate-idea`,
+`merge-conflicts`) has no matching agent to invoke and runs its documented procedure inline
+instead, keeping its procedural shape — each says so in its own body ("worker, not an
+orchestrator"). For every skill that does dispatch an agent, this contract is the backbone of the
+system and ports unchanged.
 
 ### The spec trail (kept as-is)
 
@@ -209,3 +213,9 @@ entry-point skills run a short one-time init interview and write the file.
   the same cost already accepted for `.artel/run/`, and consistent with "host-writable state only
   under `.artel/`" ([porting-plan.md](porting-plan.md) global constraints). `docs/config.md`'s
   "Purpose and location" section now lists the new subtree alongside `.artel/run/`.
+- **2026-08-01 — Figma analysis ships in v1, runtime-optional** (open question 5). Design
+  analysis is not deferred to a later release: it ships now, config-gated via `design.figma`
+  (`docs/config.md`, default `false`), and even when enabled it degrades gracefully rather than
+  blocking — a silent skip when no Figma MCP is connected, per
+  [autonomous-run.md](autonomous-run.md) §13. Implemented by the `figma-analysis` skill
+  dispatching the `figma-analyst` agent.

@@ -179,8 +179,8 @@ cannot be written to disk — so both failure modes stop rather than degrade:
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `verify.commands` | array of strings | `[]` | Ordered shell commands forming the full gate. Run from the host repo root; the gate stops at the first non-zero exit. | Full-gate checks: inner loop, implementation checkpoints, validate stage, stop-gate hook, `deep-review`'s step-0 quality gate |
-| `verify.fast` | string | `""` | One quick command for per-edit feedback (lint/analyze of the touched scope, not the whole test suite). | Fast per-edit hook |
+| `verify.commands` | array of strings | `[]` | Ordered shell commands forming the full gate. Run from the host repo root; the gate stops at the first non-zero exit. | Full-gate checks: inner loop, implementation checkpoints, validate stage, stop-gate hook, `deep-review`'s step-0 quality gate, `merge-conflicts`' post-resolution check |
+| `verify.fast` | string | `""` | One quick command for per-edit feedback (lint/analyze of the touched scope, not the whole test suite). | Fast per-edit hook, `inner-loop`'s fast-check step, `add-automation`/`remove-automation`'s post-change check |
 
 Commands must be non-interactive, exit non-zero on failure, and be safe to re-run. An empty
 `verify.commands` degrades the gate to `skipped` — it is never reported as `green`. An empty

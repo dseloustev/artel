@@ -15,3 +15,6 @@ All notable changes to this project are documented here. The format follows
 - Config contract: `docs/config.md` — the `.artel/config.json` schema (ticket grammar,
   tracker/VCS adapters, verify commands, languages, design toggle, specs dir, runtime commands)
   with annotated defaults, a filled example, and missing-file/precedence rules.
+- Ticket-parsing contract: `docs/ticket-parsing.md` — config-driven identifier parsing
+  (`ticket.pattern`/`projectKey`/`phaseSuffix`), the spec-trail directory layout, artifact path
+  resolution, and the refuse-and-ask write rules, ported and genericized from the source project.

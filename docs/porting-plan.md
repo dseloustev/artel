@@ -16,7 +16,8 @@ The rules everything else obeys, plus the config mechanism they will reference.
 
 - [x] Define `.artel/config.json` schema (ticket grammar, tracker/VCS adapters, verify
       commands, language, specs dir) + a documented default → [config.md](config.md).
-- [ ] Port and genericize `ticket-parsing.md` (ticket-ID grammar → config-driven).
+- [x] Port and genericize `ticket-parsing.md` (ticket-ID grammar → config-driven) →
+      [ticket-parsing.md](ticket-parsing.md).
 - [ ] Port and genericize `autonomous-run.md` (run state, modes, caps) — host-writable state
       moves to `.artel/run/`.
 - [ ] Port `orchestrator-common.md` (the skill-orchestrator contract).

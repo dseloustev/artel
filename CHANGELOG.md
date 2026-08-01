@@ -85,3 +85,23 @@ All notable changes to this project are documented here. The format follows
   `specs.releases` config key (default `"specs/releases"`, `docs/config.md`) and switched
   `agents/qa.md`, `agents/validator.md`, and the `qa`/`validate` skill bodies off the hardcoded
   `specs/releases/` literal, with the decision and rationale logged in `docs/design.md`.
+- PR and digest skills: `skills/docs-update`, `skills/pr-description`, `skills/pr-create`,
+  `skills/sync-phases`, `skills/change-digest`, `skills/address-pr-comment`, ported and
+  genericized from the source project's à-la-carte skills. `docs-update` (dispatches
+  `tech-writer`) and `pr-description` (dispatches `tech-writer`, gathering a tracker summary via
+  `tracker.adapter`, a git diff, and a style sample of merged PRs via `vcs.adapter` before
+  delegating the write) stay orchestrators; `pr-create`, `sync-phases`, and `change-digest` stay
+  procedural, matching their source shape (no agent dispatched in source). `pr-create` and
+  `pr-description` now branch on `vcs.adapter`/`tracker.adapter` instead of hardcoding a host —
+  Bitbucket `projectKey`/`repositorySlug` are derived from `git remote get-url origin` at runtime
+  rather than a new config key, since `docs/config.md` has no dedicated key for them.
+  `sync-phases` and `change-digest` had no VCS/tracker dependency to genericize in source (pure
+  file sync / local `git diff` respectively) and stay adapter-agnostic. `address-pr-comment`
+  stays its documented carve-out (no `Agent` delegation — the artifact is a plan-mode plan only
+  the main session can author) and now parses both a GitHub and a Bitbucket comment-URL shape
+  depending on `vcs.adapter`. Default-branch resolution in `pr-description`, `pr-create`, and
+  `change-digest` matches `agents/reviewer.md`'s existing standalone-mode pattern (`git
+  symbolic-ref`, no hardcoded `master`/`main` fallback) instead of reintroducing one.
+  `change-digest`'s self-contained HTML/quiz template
+  (`skills/change-digest/assets/report_template.html`) ports unchanged — it was already
+  project-agnostic.

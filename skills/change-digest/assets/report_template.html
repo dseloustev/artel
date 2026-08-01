@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TICKET_ID}} — {{TITLE}}</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1c2128; --muted: #57606a; --border: #d8dee4;
+    --accent: #0969da; --accent-bg: #ddf4ff; --ok: #1a7f37; --ok-bg: #dafbe1;
+    --bad: #cf222e; --bad-bg: #ffebe9; --code-bg: #f6f8fa; --card: #f9fafb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --border: #30363d;
+      --accent: #58a6ff; --accent-bg: #0c2d6b; --ok: #3fb950; --ok-bg: #12261e;
+      --bad: #f85149; --bad-bg: #3c1618; --code-bg: #161b22; --card: #161b22;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 2.5rem 1.5rem 6rem; }
+  h1 { font-size: 1.7rem; line-height: 1.3; margin: 0 0 .4rem; }
+  h2 {
+    font-size: 1.25rem; margin: 2.6rem 0 .8rem; padding-bottom: .35rem;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 1.05rem; margin: 1.6rem 0 .5rem; }
+  p { margin: .7rem 0; }
+  a { color: var(--accent); }
+  code, pre {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .875em; background: var(--code-bg);
+    border-radius: 5px;
+  }
+  code { padding: .15em .35em; }
+  pre { padding: .9rem 1rem; overflow-x: auto; line-height: 1.5; }
+  pre code { padding: 0; background: none; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--border); padding: .45rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  ul, ol { padding-left: 1.5rem; }
+  li { margin: .3rem 0; }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0 0; padding: 0; list-style: none;
+    font-size: .85rem;
+  }
+  .meta li {
+    background: var(--card); border: 1px solid var(--border); border-radius: 999px;
+    padding: .2rem .8rem; margin: 0; color: var(--muted);
+  }
+  .meta li b { color: var(--fg); font-weight: 600; }
+  .callout {
+    border-left: 4px solid var(--accent); background: var(--card);
+    padding: .8rem 1rem; margin: 1rem 0; border-radius: 0 8px 8px 0;
+  }
+  .decision { border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; margin: 1rem 0; background: var(--card); }
+  .decision h3 { margin-top: 0; }
+  .decision .rejected { color: var(--muted); }
+
+  /* ---- Quiz ---- */
+  #quiz { margin-top: 3.5rem; border-top: 3px double var(--border); padding-top: 1rem; }
+  .q { border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; margin: 1.1rem 0; background: var(--card); }
+  .q p.stem { margin: 0 0 .6rem; font-weight: 600; }
+  .q label {
+    display: block; padding: .45rem .7rem; margin: .3rem 0; border: 1px solid var(--border);
+    border-radius: 8px; cursor: pointer;
+  }
+  .q label:hover { border-color: var(--accent); }
+  .q label.correct { background: var(--ok-bg); border-color: var(--ok); }
+  .q label.incorrect { background: var(--bad-bg); border-color: var(--bad); }
+  .q .explain { display: none; margin: .6rem 0 0; padding: .6rem .8rem; border-radius: 8px; background: var(--accent-bg); font-size: .92rem; }
+  .q.checked .explain { display: block; }
+  .q.checked label { pointer-events: none; }
+  #quiz-controls { margin: 1.5rem 0; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  #check-btn, #retry-btn {
+    font: inherit; font-weight: 600; padding: .55rem 1.4rem; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+  }
+  #check-btn:disabled { opacity: .45; cursor: not-allowed; }
+  #retry-btn { background: transparent; color: var(--accent); display: none; }
+  #progress { color: var(--muted); font-size: .9rem; }
+  #result { display: none; padding: 1rem 1.2rem; border-radius: 10px; margin: 1rem 0; font-weight: 600; }
+  #result.pass { display: block; background: var(--ok-bg); border: 1px solid var(--ok); }
+  #result.fail { display: block; background: var(--bad-bg); border: 1px solid var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <h1>{{TICKET_ID}} — {{TITLE}}</h1>
+  <ul class="meta">
+    <li>branch <b>{{BRANCH}}</b></li>
+    <li><b>{{COMMITS}}</b> commits</li>
+    <li><b>{{FILES_CHANGED}}</b> files, <b>+{{INSERTIONS}}</b>/<b>−{{DELETIONS}}</b></li>
+    <li>scope: <b>{{SCOPE_NOTE}}</b></li>
+    <li>generated {{DATE}}</li>
+  </ul>
+
+  <h2 id="context">{{H_CONTEXT}}</h2>
+  <!-- SECTION: context — why this change exists (from idea.md / prd.md) -->
+
+  <h2 id="what-was-done">{{H_WHAT_WAS_DONE}}</h2>
+  <!-- SECTION: narrative of the change, grouped by concern, with real identifiers -->
+
+  <h2 id="decisions">{{H_DECISIONS}}</h2>
+  <!-- SECTION: key decisions & deviations; use .decision cards: chosen / rejected / why -->
+
+  <h2 id="change-map">{{H_CHANGE_MAP}}</h2>
+  <!-- SECTION: table of meaningful changed files/modules with one-line what & why -->
+
+  <h2 id="risks">{{H_RISKS}}</h2>
+  <!-- SECTION: risks & follow-ups -->
+
+  <section id="quiz">
+    <h2>{{H_QUIZ}}</h2>
+    <p>{{QUIZ_INTRO}}</p>
+    <div id="quiz-questions"></div>
+    <div id="quiz-controls">
+      <button id="check-btn" disabled>{{BTN_CHECK}}</button>
+      <button id="retry-btn">{{BTN_RETRY}}</button>
+      <span id="progress"></span>
+    </div>
+    <div id="result"></div>
+  </section>
+</main>
+
+<script>
+// Each entry: { q: string, options: [4 strings], correct: index, explain: string }
+const QUIZ_DATA = [
+  {{QUIZ_DATA}}
+];
+
+const T = {
+  progress: (a, t) => `{{T_PROGRESS}}`,   // e.g. `Answered ${a} of ${t}`
+  pass: (s, t) => `{{T_PASS}}`,           // e.g. `Quiz complete — ${s}/${t}. You own this change.`
+  fail: (s, t) => `{{T_FAIL}}`,           // e.g. `${s}/${t} — review the explanations and retry.`
+};
+const PASS_RATIO = 0.8;
+
+const container = document.getElementById('quiz-questions');
+const checkBtn = document.getElementById('check-btn');
+const retryBtn = document.getElementById('retry-btn');
+const progressEl = document.getElementById('progress');
+const resultEl = document.getElementById('result');
+
+function render() {
+  container.innerHTML = '';
+  resultEl.className = '';
+  retryBtn.style.display = 'none';
+  checkBtn.style.display = '';
+  QUIZ_DATA.forEach((item, qi) => {
+    const div = document.createElement('div');
+    div.className = 'q';
+    const stem = document.createElement('p');
+    stem.className = 'stem';
+    stem.textContent = (qi + 1) + '. ' + item.q;
+    div.appendChild(stem);
+    item.options.forEach((opt, oi) => {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'q' + qi;
+      input.value = oi;
+      input.addEventListener('change', updateProgress);
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(' ' + opt));
+      div.appendChild(label);
+    });
+    const explain = document.createElement('p');
+    explain.className = 'explain';
+    explain.textContent = item.explain;
+    div.appendChild(explain);
+    container.appendChild(div);
+  });
+  updateProgress();
+}
+
+function answered() {
+  return QUIZ_DATA.filter((_, qi) => document.querySelector(`input[name="q${qi}"]:checked`)).length;
+}
+
+function updateProgress() {
+  const a = answered();
+  progressEl.textContent = T.progress(a, QUIZ_DATA.length);
+  checkBtn.disabled = a < QUIZ_DATA.length;
+}
+
+checkBtn.addEventListener('click', () => {
+  let score = 0;
+  QUIZ_DATA.forEach((item, qi) => {
+    const qDiv = container.children[qi];
+    qDiv.classList.add('checked');
+    const chosen = document.querySelector(`input[name="q${qi}"]:checked`);
+    const labels = qDiv.querySelectorAll('label');
+    labels[item.correct].classList.add('correct');
+    if (chosen && Number(chosen.value) === item.correct) {
+      score++;
+    } else if (chosen) {
+      labels[Number(chosen.value)].classList.add('incorrect');
+    }
+  });
+  const total = QUIZ_DATA.length;
+  const pass = score >= Math.ceil(total * PASS_RATIO);
+  resultEl.className = pass ? 'pass' : 'fail';
+  resultEl.textContent = pass ? T.pass(score, total) : T.fail(score, total);
+  checkBtn.style.display = 'none';
+  retryBtn.style.display = '';
+  resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+retryBtn.addEventListener('click', render);
+render();
+</script>
+</body>
+</html>

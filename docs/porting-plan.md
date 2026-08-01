@@ -44,7 +44,12 @@ The rules everything else obeys, plus the config mechanism they will reference.
       `jira-issue-ru` → `issue-draft` (output language from config).
 - [ ] Port runtime-gate skills as config-driven adapters: `run-app`, `drive-app` (launch/drive
       commands from config; RUNTIME_OK degrades to "skipped" when unconfigured), plus
-      `add-automation` / `remove-automation` (scaffold commands from config).
+      `add-automation` / `remove-automation` (scaffold commands from config). Follow-up from
+      Task 3: the source `implementer` skill had an on-demand runtime-check hint for
+      mid-implementation debugging, distinct from the `RUNTIME_OK` completion gate; the port
+      dropped it (Dart/Flutter-specific, no `run-app` to point at yet) — when `run-app` lands,
+      decide whether `implementer` (agent + skill) should regain a generic `runtime.run` /
+      `/artel:run-app` on-demand reference.
 - [ ] Port ops & utility skills: `init-branch`, `merge-conflicts`, `save-context`,
       `restore-context` (store path → artel), `agents-md-generator`.
 - [ ] Each skill resolves ticket context → invokes its agent → reports (no inlined work).

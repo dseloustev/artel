@@ -160,3 +160,12 @@ entry-point skills run a short one-time init interview and write the file.
   names are unknowable at plugin-authoring time, and a curated `allowed-tools:` list silently
   blocks MCP tools and ToolSearch. Skills keep `model:` and `argument-hint:` — those are portable
   and don't name adapter-specific tools.
+- **2026-08-01 — Introduced `specs.releases` config key (default `"specs/releases"`).**
+  `agents/qa.md` and `agents/validator.md` kept a `specs/releases/<RELEASE_ID>` literal, each with
+  a caveat noting config.md had no dedicated key for it yet. Per the genericization strategy
+  ("everything project-specific becomes configuration"), added `specs.releases` to config.md's
+  `specs` section — repo-relative, sibling to `specs.dir` rather than nested inside it, since a
+  release spans multiple tickets. `agents/qa.md`, `agents/validator.md`, and the ported
+  `skills/qa` / `skills/validate` bodies now reference `<specs.releases>` instead of the literal.
+  Where a project keeps its release-scope QA/validation artifacts is project-specific state, not
+  workflow-structural, so it belongs in configuration alongside `specs.dir`, not hardcoded.

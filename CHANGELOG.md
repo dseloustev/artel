@@ -74,3 +74,14 @@ All notable changes to this project are documented here. The format follows
   agents via the three-phase draft/ask/finalize model, writing `<specs.dir>/<TICKET_ID>/vision.md`
   and `tasklist.md` respectively; cross-references to sibling skills use the installed
   `/artel:<name>` form.
+- Implement/verify stage skills: `skills/implementer`, `skills/run-reviewer`, `skills/qa`,
+  `skills/validate` — the task-by-task implementer (single-phase autonomous model, deviation
+  escalation handshake per `docs/deviation-protocol.md`, verify loop forward-referenced to the
+  Phase-3 `/artel:inner-loop` skill), and the one-shot review/QA/gate-check orchestrators
+  invoking the `reviewer`, `qa`, and `validator` agents respectively, ported and genericized from
+  the source project's à-la-carte skills. Agent-mapping verified against each agent file with no
+  disagreements. Folded-in follow-ups: `docs/ticket-parsing.md` §3/§4 now document the reviewer's
+  machine-readable `review/findings.json` output (ticket-wide and phase-scoped); introduced a
+  `specs.releases` config key (default `"specs/releases"`, `docs/config.md`) and switched
+  `agents/qa.md`, `agents/validator.md`, and the `qa`/`validate` skill bodies off the hardcoded
+  `specs/releases/` literal, with the decision and rationale logged in `docs/design.md`.

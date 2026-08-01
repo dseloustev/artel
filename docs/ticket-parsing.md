@@ -93,7 +93,9 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 ├── plan.md              # optional, ticket-wide overall plan
 ├── research.md          # optional, ticket-wide overall research
 ├── qa.md                # optional, ticket-wide overall QA report
-├── review.md            # optional, ticket-wide review
+├── review.md            # optional, ticket-wide review (always ticket-level, even for phase runs)
+├── review/              # optional, machine-readable review findings (reviewer agent)
+│   └── findings.json   # lens findings (convention/architecture/security) for a ticket-wide review run
 ├── adr.md               # optional, ticket-wide ADR
 ├── summary.md           # optional, ticket-wide summary
 ├── pr-description.md    # ticket-wide
@@ -105,6 +107,8 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
     ├── qa.md            # phase-scoped QA report
     ├── tasks.md         # phase-scoped task breakdown
     ├── implementation-notes.md # phase-scoped deviations log (optional)
+    ├── review/          # optional, machine-readable review findings for this phase (reviewer agent)
+    │   └── findings.json # lens findings scoped to this phase's review run
     ├── adr.md           # phase-scoped ADR (optional)
     └── summary.md       # phase-scoped summary (optional)
 ```
@@ -119,6 +123,7 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 |---|---|
 | Tasks | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` |
 | Implementation notes | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/implementation-notes.md` |
+| Review findings | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/review/findings.json` — machine-readable lens findings from the `reviewer` agent, scoped to this phase's review run (`review.md` itself stays ticket-level — see 4.2) |
 | PRD | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/prd.md` |
 | Plan | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/plan.md` |
 | Research | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/research.md` |
@@ -142,6 +147,7 @@ Create the `phase-<PHASE_NUM>/` subfolder lazily on first write.
 | QA | `<specs.dir>/<TICKET_ID>/qa.md` |
 | Summary | `<specs.dir>/<TICKET_ID>/summary.md` |
 | Review | `<specs.dir>/<TICKET_ID>/review.md` |
+| Review findings | `<specs.dir>/<TICKET_ID>/review/findings.json` — machine-readable lens findings from the `reviewer` agent (phase-scoped variant: 4.1) |
 | ADR | `<specs.dir>/<TICKET_ID>/adr.md` |
 | PR description | `<specs.dir>/<TICKET_ID>/pr-description.md` |
 | Post-feedback | `<specs.dir>/<TICKET_ID>/post_feedback.md` |

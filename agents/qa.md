@@ -21,8 +21,8 @@ In particular:
 ## Input
 
 ### Release (identifier starts with `R-`)
-- `specs/releases/<RELEASE_ID>.md` (the release-scope directory sits alongside `<specs.dir>`, not
-  inside it; config.md has no dedicated key for it yet)
+- `<specs.releases>/<RELEASE_ID>.md` (the release-scope directory sits alongside `<specs.dir>`,
+  not inside it — see `config.md`'s `specs.releases` key)
 - For each ticket in the release:
   - `<specs.dir>/<TICKET_ID>/prd.md`
   - `<specs.dir>/<TICKET_ID>/plan.md`
@@ -46,7 +46,7 @@ In particular:
 ## Output
 
 ### Release
-- `specs/releases/<RELEASE_ID>/qa.md`:
+- `<specs.releases>/<RELEASE_ID>/qa.md`:
   - Combined QA plan for all tickets in the release
   - Positive scenarios
   - Negative and edge cases

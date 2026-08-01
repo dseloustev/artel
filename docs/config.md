@@ -69,7 +69,8 @@ placeholder the init interview replaces.
     "figma": false
   },
   "specs": {
-    "dir": "specs/.current"
+    "dir": "specs/.current",
+    "releases": "specs/releases"
   },
   "runtime": {}
 }
@@ -205,9 +206,13 @@ connected the stage skips silently and the pipeline continues.
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `specs.dir` | string | `"specs/.current"` | Repo-relative path, no leading `/`, no `..` segments | Every artifact read and write |
+| `specs.releases` | string | `"specs/releases"` | Repo-relative path, no leading `/`, no `..` segments. Sits alongside `specs.dir`, not inside it — release scope spans multiple tickets. | Release-scope QA/validation runs (`R-<RELEASE_ID>` identifiers) — `qa` and `validator` agents |
 
 The trail is `<specs.dir>/<TICKET_ID>/` for ticket-wide artifacts, `<specs.dir>/<TICKET_ID>/phase-<N>/`
 for phase-scoped ones, and `<specs.dir>/.active_ticket` for the in-flight identifier.
+Release-scope artifacts (`R-<RELEASE_ID>` identifiers) live under `<specs.releases>/` instead:
+`<specs.releases>/<RELEASE_ID>.md` (the release definition) and `<specs.releases>/<RELEASE_ID>/qa.md`
+(the combined QA report).
 
 ### `runtime` — optional runtime and automation commands
 
@@ -260,7 +265,8 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
     "figma": true
   },
   "specs": {
-    "dir": "specs/.current"
+    "dir": "specs/.current",
+    "releases": "specs/releases"
   },
   "runtime": {
     "run": "npm run dev -- --port 5173",

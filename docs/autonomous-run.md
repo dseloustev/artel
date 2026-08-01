@@ -286,7 +286,8 @@ arming (docs only, no verify gate) and a **phase-end checkpoint** after each pha
 Bash actions, pre-approved at the approval pause (§4 exception), never pause, and are journaled as
 external actions (§11). The full procedure (branch guard, idempotence, the verify gate, explicit
 staging, push, journal) and the commit-subject table are defined in the `feature-development`
-skill (Phase 4 — see [porting-plan.md](porting-plan.md); shared with `dev`).
+skill (`../skills/feature-development/SKILL.md`, `## Checkpoint commits & pushes`; shared with
+`dev`).
 
 ## 15. Phase traversal & `.active_ticket`
 

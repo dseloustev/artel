@@ -219,3 +219,31 @@ entry-point skills run a short one-time init interview and write the file.
   blocking — a silent skip when no Figma MCP is connected, per
   [autonomous-run.md](autonomous-run.md) §13. Implemented by the `figma-analysis` skill
   dispatching the `figma-analyst` agent.
+- **2026-08-01 — Gate 3.5 (plan-check) ports as spec, skips until Phase 5.** The
+  `feature-development` port keeps the full bounce contract (bounce-line bookkeeping,
+  `MAX_PLAN_CHECK_BOUNCES = 2`, exit-code semantics) but the deterministic checker itself —
+  `scripts/plan_check.py`, the open-question-1 Python rewrite — ships in Phase 5. Until it
+  exists the gate journals `PLAN_GROUNDED: skipped (plan-check ships in Phase 5)` and proceeds:
+  an unshipped tool degrades exactly like an unconfigured gate, and the absence of a recorded
+  green means the gate re-runs for real once the tool lands.
+- **2026-08-01 — Runtime-surface detection becomes `runtime.surface`.** The source
+  orchestrators skipped the `RUNTIME_OK` launch when no `*.dart` under `lib/` /
+  `packages/*/lib/` changed — a Dart-specific test with no generic equivalent. Added an
+  optional `runtime.surface` config key (array of globs, config.md): set → the gate runs only
+  when the run's diff matches, else `skipped (no runtime surface)`; absent with `runtime.run`
+  configured → the gate always runs. The source behavior is expressible as
+  `["lib/**/*.dart", "packages/*/lib/**/*.dart"]`.
+- **2026-08-01 — `setup.commands` config key; init-branch regains its post-branch step**
+  (Phase-3 Task-7 follow-up). The source `init-branch` ran dependency install/codegen after
+  branch creation; the Phase-3 port dropped it for lack of a generic key. Added
+  `setup.commands` (array, `verify.commands` execution rules, default `[]`) and restored the
+  step in `init-branch` — fatal on failure, silently skipped when empty. The `setup` skill's
+  interview offers it as an optional extra.
+- **2026-08-01 — The init interview is `/artel:setup`, its own skill.** A self-declared
+  procedural worker both entry points invoke when `.artel/config.json` is missing and users
+  invoke manually to create or revise the config (revise pre-selects current values). Named
+  `setup`, not `init`: Claude Code's built-in `/init` (CLAUDE.md generator) already exists and
+  artel's own `init-branch` chains it, so an `artel:init` would collide cognitively; kinship
+  with `setup.commands` is a bonus. Writes one complete explicit config file (the config.md
+  "filled example" shape) as its last step — an aborted interview writes nothing — and
+  maintains the `.gitignore` entries for `.artel/run/` and `.artel/context/`.

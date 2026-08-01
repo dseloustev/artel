@@ -71,9 +71,11 @@ The rules everything else obeys, plus the config mechanism they will reference.
 
 ## Phase 4 — entry-point orchestrators
 
-- [ ] Port `feature-development` (full pipeline, one approval pause, resumability).
-- [ ] Port `dev` (lean loop: work-list confirmation → implement + review + runtime gate).
-- [ ] First-run init interview: no config found → interview → write `.artel/config.json`.
+- [x] Port `feature-development` (full pipeline, one approval pause, resumability).
+- [x] Port `dev` (lean loop: work-list confirmation → implement + review + runtime gate).
+- [x] First-run init interview: no config found → interview → write `.artel/config.json`.
+      Shipped as the `setup` skill (`/artel:setup`) — see design.md's decision log for the
+      naming.
 
 ## Phase 5 — hooks and gates
 

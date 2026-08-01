@@ -192,3 +192,19 @@ All notable changes to this project are documented here. The format follows
   stop-and-ask clause for a missing/malformed git remote; `docs/config.md`'s
   `tracker.adapter`/`verify.commands` Consumed-by columns now list `issue-draft`/`deep-review`.
   Closes out Phase 3.
+- Entry-point orchestrators: `skills/feature-development` (full pipeline: chatty head, one
+  approval pause, autonomous tail, completion gate, PR close-out) and `skills/dev` (lean loop:
+  input ladder, one work-list confirmation, implement + review + runtime gate), ported and
+  genericized from the source project. Run state, journal and open questions live at
+  `.artel/run/<TICKET_ID>/` per `docs/autonomous-run.md`; the shared
+  `## Checkpoint commits & pushes` procedure lives in `feature-development` (referenced by
+  `dev`, branch-guard fallback now `main`, verify gate via `verify.commands`, Dart-specific pin
+  restore dropped); gate 3.5's deterministic plan-check ports as contract but skips until the
+  Phase-5 `scripts/plan_check.py` ships; `ast-index` steps become the optional host
+  index-refresh hook; the runtime gate's Dart-specific surface test becomes the new
+  `runtime.surface` config key. New `skills/setup` — the one-time config interview both entry
+  points invoke when `.artel/config.json` is missing (also run manually to create or revise the
+  config; named `setup` to avoid colliding with the built-in `/init`). New config keys:
+  `runtime.surface` (globs gating when the runtime gate runs) and `setup.commands` (post-branch
+  install/codegen, restoring `init-branch`'s dropped source step — the parked Phase-3
+  follow-up). Decisions logged in `docs/design.md`.

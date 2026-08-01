@@ -20,7 +20,8 @@ The rules everything else obeys, plus the config mechanism they will reference.
       [ticket-parsing.md](ticket-parsing.md).
 - [x] Port and genericize `autonomous-run.md` (run state, modes, caps) — host-writable state
       moves to `.artel/run/` → [autonomous-run.md](autonomous-run.md).
-- [ ] Port `orchestrator-common.md` (the skill-orchestrator contract).
+- [x] Port `orchestrator-common.md` (the skill-orchestrator contract) →
+      [orchestrator-common.md](orchestrator-common.md).
 
 ## Phase 2 — agents
 

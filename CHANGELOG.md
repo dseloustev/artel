@@ -22,3 +22,6 @@ All notable changes to this project are documented here. The format follows
   collection, AFK/HITL tags, capped loops, modes and risk classification, the run journal,
   headless invocation, checkpoint commits, and phase traversal, ported and genericized with all
   host-writable run state relocated to `.artel/run/`.
+- Skill-orchestrator contract: `docs/orchestrator-common.md` — ticket resolution, phase-aware
+  artifact paths, the description-file sync procedure, and the checkpoint-commit/autonomous-run
+  tie-in, ported and genericized from the source project.

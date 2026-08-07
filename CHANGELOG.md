@@ -221,5 +221,5 @@ All notable changes to this project are documented here. The format follows
   `sensitive_guard` (PreToolUse; mode-floor denials during armed runs). Shipped default
   sensitive-paths policy (`hooks/sensitive-paths.json`: secrets/gate-config at full-gates,
   ci-cd at plan-gate) with wholesale host override at `.artel/sensitive-paths.json`; new
-  `verify.surface` config key; hook state under `.artel/run/.hooks/`; hooks inert until
-  `.artel/config.json` exists; stdlib `unittest` suite under `tests/`.
+  `verify.surface` config key; hook state under `.artel/run/.hooks/`; verify-layer hooks inert
+  until `.artel/config.json` exists; stdlib `unittest` suite under `tests/`.

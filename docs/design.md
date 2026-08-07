@@ -257,8 +257,10 @@ entry-point skills run a short one-time init interview and write the file.
   Dart-specific and `setup.commands` covers install/codegen generically. `plan_check.py` keeps
   the source anchor grammar, genericizes the backticked-path rule (any repo-relative token with
   a `/` and a file extension, Dart root whitelist dropped), and resolves symbols via `ast-index`
-  when on PATH, else `git grep -l -w` — no hard tool dependency. Phase-3 skill bodies keep
-  running config commands directly; `verify.py` is the hooks' engine, not a forced migration.
+  when it is on PATH **and usable** (an unindexed or non-JSON response falls back to
+  `git grep -l -w` per symbol), else `git grep -l -w` — no hard tool dependency. Phase-3 skill
+  bodies keep running config commands directly; `verify.py` is the hooks' engine, not a forced
+  migration.
 - **2026-08-07 — Finding keys are digit-stripped output lines.** The source stop gate diffed
   structured `file:line:rule` keys; generic commands emit arbitrary text. A key = a non-empty
   output line of a red stage, ANSI-stripped, digit-stripped, whitespace-collapsed, deduped,

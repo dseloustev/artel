@@ -108,7 +108,13 @@ Invocation: `--plan <path> [--strict]` — matching Gate 3.5 as shipped.
   hit; member refs `Foo.bar` resolve on `Foo`; one `ast-index update` retry for stale-index
   recovery, then a final re-check — no further retries), else fallback `git grep -l -w <name>`
   over tracked files (any hit = resolved). The anti-hallucination check keeps working in repos
-  without ast-index.
+  without ast-index. *(Erratum, fixed post-review: "the binary is on PATH" above is necessary
+  but not sufficient — the fallback to `git grep -l -w <name>` also applies per symbol whenever
+  ast-index's output is unusable, e.g. no index built yet (`ast-index` prints "Index not found.
+  Run 'ast-index rebuild' first." to stdout and exits 0) or non-JSON/non-list output. Only a
+  genuine empty-array response is a trustworthy miss eligible for the `ast-index update` retry;
+  an unusable response is routed straight to git grep instead of being reported as a
+  hallucination.)*
 - `data` keeps the source shape: `{"checked", "resolved", "new_declared", "unresolved":
   [{"ref", "reason"}]}` with reasons `"file not found"` / `"symbol not found"`. Exit 0 clean or
   unresolved-without-`--strict`; exit 1 unresolved with `--strict`; exit 2 `plan_not_found` /

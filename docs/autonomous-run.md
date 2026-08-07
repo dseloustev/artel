@@ -17,11 +17,15 @@ lives under `.artel/run/` in the host repo instead, matching config.md's descrip
 `.artel/`'s two directories:
 
 ```
-.artel/run/<TICKET_ID>/
-├── run-state.json          # orchestrator-owned run state (§2)
-├── run-journal.md          # append-only run journal (§11)
-├── open-questions.md       # question collection before the approval pause (§3)
-└── runtime-observation.md  # runtime-gate retry counter (§5)
+.artel/run/
+├── .hooks/                  # session baselines and verify-stop counters (dot-prefixed so it
+│                            # never collides with a ticket dir; hooks/hook_common.py STATE_DIR)
+└── <TICKET_ID>/
+    ├── run-state.json          # orchestrator-owned run state (§2)
+    ├── run-journal.md          # append-only run journal (§11)
+    ├── open-questions.md       # question collection before the approval pause (§3)
+    ├── runtime-observation.md  # runtime-gate retry counter (§5)
+    └── .stop-gate-blocks       # stop-gate's consecutive-block counter
 ```
 
 Always ticket-top-level, even for phase-scoped runs — `run-state.json`'s `ticket` field carries

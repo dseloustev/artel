@@ -187,8 +187,8 @@ cannot be written to disk — so both failure modes stop rather than degrade:
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `verify.commands` | array of strings | `[]` | Ordered shell commands forming the full gate. Run from the host repo root; the gate stops at the first non-zero exit. | Full-gate checks: inner loop, implementation checkpoints, validate stage, stop-gate hook, `deep-review`'s step-0 quality gate, `merge-conflicts`' post-resolution check |
-| `verify.fast` | string | `""` | One quick command for per-edit feedback (lint/analyze of the touched scope, not the whole test suite). | Fast per-edit hook, `inner-loop`'s fast-check step, `add-automation`/`remove-automation`'s post-change check |
+| `verify.commands` | array of strings | `[]` | Ordered shell commands forming the full gate. Run from the host repo root; the gate stops at the first non-zero exit. | Full-gate checks: inner loop, implementation checkpoints, validate stage, `deep-review`'s step-0 quality gate, `merge-conflicts`' post-resolution check |
+| `verify.fast` | string | `""` | One quick command for per-edit feedback (lint/analyze of the touched scope, not the whole test suite). | Fast per-edit and verify stop-gate hooks, `inner-loop`'s fast-check step, `add-automation`/`remove-automation`'s post-change check |
 | `verify.surface` | array of strings | absent | Repo-relative glob patterns (`fnmatch` semantics — `*` crosses `/` — like `runtime.surface`); a `!`-prefixed pattern excludes (generated files). A path counts when it matches ≥ 1 positive and 0 negative patterns; a list with only excludes implies `*` as the positive set. Absent → every changed file counts. | The per-edit and stop-gate hooks' changed-file filter |
 
 Commands must be non-interactive, exit non-zero on failure, and be safe to re-run. An empty

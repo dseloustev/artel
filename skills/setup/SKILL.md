@@ -37,27 +37,34 @@ arrive via the "Other" option.
   error (config.md reading rule 3), so re-ask rather than write one.
 - **Round 3 — quality gate and languages:** `verify.commands` (ordered list, one command per
   line; empty = no gate, recorded `skipped`), `verify.fast` (one quick per-edit command, or
-  empty), and `language.docs` / `language.pr` (IETF BCP 47 codes, default `en`).
+  empty; commands may carry a `{files}` token the hooks replace with the changed paths), and
+  `language.docs` / `language.pr` (IETF BCP 47 codes, default `en`).
 - **Round 4 — optional extras**, one multi-select question ("configure now, or leave inert?")
   offering: `setup.commands` (post-branch install/codegen), `design.figma` (the design-analysis
-  stage), the `runtime.*` commands (`run`, `drive`, `scaffold.add`, `scaffold.remove`), and
-  `runtime.surface` (globs gating when the runtime gate runs). Ask follow-up value questions
-  only for the selected ones; everything skipped keeps its inert default.
+  stage), the `runtime.*` commands (`run`, `drive`, `scaffold.add`, `scaffold.remove`),
+  `runtime.surface` (globs gating when the runtime gate runs), `verify.surface` (globs with
+  `!`-excludes filtering which edits the verify hooks check), and a `.artel/sensitive-paths.json`
+  scaffold (a copy of the plugin's default sensitive-paths policy, for projects that want to
+  extend it). Ask follow-up value questions only for the selected ones; everything skipped keeps
+  its inert default.
 
 ## 3. Validate
 
 Before writing: adapter names inside their allowed sets; `verify.commands` / `setup.commands` /
-`runtime.surface` are arrays of strings; MCP-adapter prefixes non-empty; language codes plausible
-BCP 47. A violation re-asks that round — never write a config that config.md's reading rules
-would reject at run start.
+`runtime.surface` / `verify.surface` are arrays of strings; MCP-adapter prefixes non-empty;
+language codes plausible BCP 47. A violation re-asks that round — never write a config that
+config.md's reading rules would reject at run start.
 
 ## 4. Write
 
 Write `.artel/config.json` — one complete, explicit file in the shape of config.md's "A filled
 example": `version: 1` first, then every section in that example's order, interviewed values
 filled in and untouched keys carrying their documented defaults. Strict JSON, UTF-8, no
-comments, no trailing commas. This is the skill's only write to the file and its last mutating
-step but one — an interview aborted earlier leaves no partial config behind.
+comments, no trailing commas. When the sensitive-paths scaffold was selected in Round 4, also
+copy `${CLAUDE_PLUGIN_ROOT}/hooks/sensitive-paths.json` to `.artel/sensitive-paths.json`
+(skip with a note if the host file already exists — never overwrite a policy). These are the
+skill's only writes and its last mutating steps but one — an interview aborted earlier leaves
+no partial config behind.
 
 ## 5. `.gitignore`
 

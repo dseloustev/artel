@@ -208,3 +208,18 @@ All notable changes to this project are documented here. The format follows
   `runtime.surface` (globs gating when the runtime gate runs) and `setup.commands` (post-branch
   install/codegen, restoring `init-branch`'s dropped source step — the parked Phase-3
   follow-up). Decisions logged in `docs/design.md`.
+- Hooks and gates (Phase 5): `scripts/verify.py` (deterministic envelope wrapper over
+  `verify.fast`/`verify.commands` — exit 0 clean / 1 findings / 2 environment error, digit-
+  stripped finding keys, `{files}` scoping) and `scripts/plan_check.py` (the plan-anchor checker
+  Gate 3.5 invokes; `ref:`/`new:` grammar ported, backticked-path rule genericized, symbols via
+  `ast-index` when present else `git grep`), resolving design.md open question 1 (`codegen`
+  dropped — `setup.commands` covers it). Five hooks ported from the source project and wired via
+  `hooks/hooks.json`: `session_baseline` (SessionStart findings baseline),
+  `fast_verify_post_edit` (PostToolUse feedback, never blocks), `verify_stop_gate` (Stop; blocks
+  only findings NEW vs the session baseline, 2-block cap with latch), `stop_gate` (Stop; blocks
+  while an autonomous run is active and incomplete, 5-block cap, 3h wall clock),
+  `sensitive_guard` (PreToolUse; mode-floor denials during armed runs). Shipped default
+  sensitive-paths policy (`hooks/sensitive-paths.json`: secrets/gate-config at full-gates,
+  ci-cd at plan-gate) with wholesale host override at `.artel/sensitive-paths.json`; new
+  `verify.surface` config key; hook state under `.artel/run/.hooks/`; hooks inert until
+  `.artel/config.json` exists; stdlib `unittest` suite under `tests/`.

@@ -87,10 +87,9 @@ entry-point skills run a short one-time init interview and write the file.
 
 ## Open questions
 
-1. **The deterministic CLI.** The source system's `agent` CLI (plan-check, gate verbs) is
-   written in Dart — unacceptable as a hard dependency for "any project". Options: rewrite in
-   Python (hooks already require `python3`), rewrite as POSIX shell, or drop the CLI and fold
-   its checks into hooks. *Leaning: Python rewrite, shipped under `hooks/` or `scripts/`.*
+1. ~~**The deterministic CLI.**~~ Decided 2026-08-07: Python rewrite of `verify` + `plan-check`
+   under `scripts/`; `codegen` dropped (`setup.commands` covers install/codegen) — see decision
+   log.
 2. ~~**Config file name and shape.**~~ Decided 2026-08-01: `.artel/config.json` in the host repo,
    run state alongside it under `.artel/run/` — see decision log and [config.md](config.md).
 3. ~~**Tracker adapters at v1.**~~ Decided 2026-08-01: v1 ships `none` + `github-issues` +
@@ -247,3 +246,42 @@ entry-point skills run a short one-time init interview and write the file.
   with `setup.commands` is a bonus. Writes one complete explicit config file (the config.md
   "filled example" shape) as its last step — an aborted interview writes nothing — and
   maintains the `.gitignore` entries for `.artel/run/` and `.artel/context/`.
+- **2026-08-07 — Open question 1: Python rewrite of `verify` + `plan-check`; `codegen` dropped.**
+  `scripts/plan_check.py` was effectively pre-decided — feature-development's Gate 3.5 already
+  calls it. `scripts/verify.py` wraps the configured `verify.fast`/`verify.commands` in the
+  source CLI's one-line JSON envelope (exit 0 clean / 1 findings / 2 environment error, kinds
+  `invalid_argument`/`timeout`/`spawn_failed`/`command_not_found`/`internal_error`), giving hooks
+  one deterministic contract over arbitrary commands: exit 126/127, a spawn failure, or a timeout
+  classify as environment errors, any other non-zero as findings. The source `codegen` verb is
+  not ported — its auto-detection rules (freezed/arb/API annotations) are inherently
+  Dart-specific and `setup.commands` covers install/codegen generically. `plan_check.py` keeps
+  the source anchor grammar, genericizes the backticked-path rule (any repo-relative token with
+  a `/` and a file extension, Dart root whitelist dropped), and resolves symbols via `ast-index`
+  when on PATH, else `git grep -l -w` — no hard tool dependency. Phase-3 skill bodies keep
+  running config commands directly; `verify.py` is the hooks' engine, not a forced migration.
+- **2026-08-07 — Finding keys are digit-stripped output lines.** The source stop gate diffed
+  structured `file:line:rule` keys; generic commands emit arbitrary text. A key = a non-empty
+  output line of a red stage, ANSI-stripped, digit-stripped, whitespace-collapsed, deduped,
+  prefixed `s<stage-index>:`, capped at 200 per stage — stable against shifting line numbers and
+  timing noise ("Done in 3.2s") at the accepted cost of deduping same-rule-same-file findings.
+  Keys are computed once in `verify.py`; hooks read them from the envelope.
+- **2026-08-07 — `verify.surface` config key + `{files}` placeholder.** Replaces the source
+  hooks' hardcoded `is_code_dart` filter: optional fnmatch globs (`!`-prefix excludes; only-
+  excludes implies `*`; absent → every changed file counts), deliberately separate from
+  `runtime.surface` (runtime and lintable surfaces are different sets). `verify.fast`/
+  `verify.commands` entries may carry `{files}`, replaced with the space-joined shell-quoted
+  changed paths; a blank `--files` value is an `invalid_argument`, never a silent widening to
+  unscoped.
+- **2026-08-07 — Sensitive-paths policy: shipped defaults + wholesale host override.** The
+  plugin ships `hooks/sensitive-paths.json` with three generic categories: `secrets`
+  (full-gates), `gate-config` (full-gates — an armed run must not rewrite its own gates or the
+  host's hook wiring), `ci-cd` (plan-gate). A host `.artel/sensitive-paths.json` replaces the
+  default wholesale — no merge semantics, the effective policy is always exactly one readable
+  file; the `setup` skill offers to scaffold it from the defaults. Broader nets (migrations,
+  lockfiles, infra) were rejected: too many innocent matches across ecosystems.
+- **2026-08-07 — Hook state at `.artel/run/.hooks/`; hooks inert until configured.** Session
+  baselines and verify-stop counters live in a dot-prefixed dir inside the already-gitignored
+  run tree (can never collide with a ticket dir); the per-ticket stop-gate counter stays at
+  `.artel/run/<TICKET>/.stop-gate-blocks` for source parity. The verify-layer hooks return 0
+  immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured plugin
+  leaves zero footprint in the host repo.

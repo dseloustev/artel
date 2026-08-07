@@ -23,7 +23,7 @@ maps to config lookups and artel path conventions.
   ([config.md](../../config.md)).
 - `tests/` — stdlib `unittest` suite over the pure-function core.
 - Doc updates: config.md, autonomous-run.md §10, design.md (open question 1 + decision log),
-  porting-plan.md (checkboxes + map row), skills/setup interview additions, CHANGELOG + version.
+  porting-plan.md (checkboxes + map row), skills/setup interview additions, CHANGELOG.
 
 ## Decisions (with rationale)
 
@@ -201,7 +201,10 @@ semantics including `!` negation; active-ticket resolution with phase-suffix str
   with the concrete policy file locations.
 - `skills/setup/SKILL.md`: interview gains an optional `verify.surface` question and the
   sensitive-policy scaffold offer.
-- `CHANGELOG.md` + `.claude-plugin/plugin.json` version bump (minor — new capability).
+- `CHANGELOG.md` entry under `[Unreleased]`. *(Erratum vs. the approved draft, which said to
+  bump the plugin version now: the repo accumulates all pre-release work under `[Unreleased]`
+  at version `0.1.0` and tags `v0.1.0` in Phase 6 — a mid-stream bump would be the first and
+  only one of its kind.)*
 
 ## Out of scope
 

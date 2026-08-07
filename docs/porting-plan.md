@@ -79,11 +79,15 @@ The rules everything else obeys, plus the config mechanism they will reference.
 
 ## Phase 5 — hooks and gates
 
-- [ ] Port Python hooks: `session_baseline`, `fast_verify_post_edit`, `stop_gate`,
+- [x] Port Python hooks: `session_baseline`, `fast_verify_post_edit`, `stop_gate`,
       `verify_stop_gate`, `sensitive_guard`, `hook_common`.
-- [ ] Wire via `hooks/hooks.json` with `${CLAUDE_PLUGIN_ROOT}` paths.
-- [ ] Verify commands come from config, not `make`/Dart assumptions.
-- [ ] Decide the deterministic-CLI question (design.md open question 1) and implement.
+- [x] Wire via `hooks/hooks.json` with `${CLAUDE_PLUGIN_ROOT}` paths.
+- [x] Verify commands come from config, not `make`/Dart assumptions — `scripts/verify.py` wraps
+      `verify.fast`/`verify.commands` in the envelope contract; new `verify.surface` key +
+      `{files}` placeholder (config.md).
+- [x] Decide the deterministic-CLI question (design.md open question 1) and implement — Python
+      `verify` + `plan-check` under `scripts/`; `codegen` dropped (see decision log and the map
+      below).
 
 ## Phase 6 — publish
 
@@ -109,7 +113,7 @@ The rules everything else obeys, plus the config mechanism they will reference.
 | `docs/{autonomous-run,orchestrator-common}.md` | `docs/` | port + genericize (Phase 1) |
 | `docs/{workflow-guide,skills-reference}.md` | `docs/` | adapt (Phase 6) |
 | `hooks/*.py` | `hooks/` | port + config-driven verify (Phase 5) |
-| `rules/sensitive-paths.json` | `hooks/` or `docs/` | port, categories configurable (Phase 5) |
-| `tools/agent/` (Dart CLI) | `scripts/` or `hooks/` | Python rewrite: `verify`, `plan-check`, `codegen`; `dcm` folds into `verify` stages (Phase 5) |
+| `rules/sensitive-paths.json` | `hooks/sensitive-paths.json` | generic default categories (secrets, gate-config, ci-cd); host override at `.artel/sensitive-paths.json` (Phase 5) |
+| `tools/agent/` (Dart CLI) | `scripts/` | Python rewrite: `verify`, `plan-check` (Phase 5); `codegen` dropped — detection rules were Dart-specific, `setup.commands` covers install/codegen; `dcm` subsumed by config-driven `verify.commands` |
 | `tools/launch_app.dart` + `tools/templates/` | — | replaced by config-driven launch/scaffold commands behind `run-app`/`drive-app`/`add-automation` (Phase 3/5) |
 | `rules/ast-index.md`, Dart MCP rules | `likbez` plugin | index-refresh in orchestrators becomes an optional config hook |

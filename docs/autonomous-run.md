@@ -169,8 +169,8 @@ the aggregated `Deviations:` line (per the deviation protocol) and the loop coun
 
 ## 8. Stop hook interplay
 
-The Stop hook (registered on the `Stop` event, shipped with the plugin's own hooks; Phase 5 — see
-[porting-plan.md](porting-plan.md)) blocks a session from ending while
+The Stop hook (registered on the `Stop` event — the plugin's `hooks/stop_gate.py`) blocks a
+session from ending while
 `run_active` is true, `completed` is false, and `pause_reason` is null. Waiting for a human (any
 `pause_reason`) is a legitimate stop. The hook fails open on infra errors and disarms itself past
 the wall-clock budget (§5).
@@ -203,8 +203,9 @@ Three ranked modes control how much the run pauses for approval: `yolo=0 < plan-
 1. Collect candidate paths: every backticked file path and every `Files:` entry in the available
    artifacts (plan, tasklist, work list; idea/PRD as fallback).
 2. Match them against the sensitive-paths policy (glob-based categories, `fnmatch` semantics;
-   ships with generic defaults, project-extensible (Phase 5)). `forced_floor` = the highest floor
-   among matched categories, else `null`.
+   shipped defaults in the plugin's `hooks/sensitive-paths.json`, replaced wholesale by a host
+   `.artel/sensitive-paths.json` when present — config.md, "Purpose and location").
+   `forced_floor` = the highest floor among matched categories, else `null`.
 3. `suggested_mode`: `yolo` only when ALL hold — ≤ 3 files touched, no `open-questions.md`
    entries, no sensitive-category match, and the work mirrors an established pattern; otherwise
    `plan-gate`.
@@ -217,8 +218,8 @@ Three ranked modes control how much the run pauses for approval: `yolo=0 < plan-
 
 **`gates_confirmed`:** immediately after the approval pause (feature-development §3 approve /
 dev §2 confirm) — or, in `yolo`, at the moment the pause would have occurred — the orchestrator
-appends `"TASKLIST_READY"`. The sensitive-path guard (a `PreToolUse` hook shipped with the
-plugin) denies writes to floored paths until it is present.
+appends `"TASKLIST_READY"`. The sensitive-path guard (the plugin's `hooks/sensitive_guard.py`,
+a `PreToolUse` hook) denies writes to floored paths until it is present.
 
 ## 11. Run journal
 

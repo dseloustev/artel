@@ -66,7 +66,10 @@ def changed_files(config):
             files.add(path.strip())
     except Exception:
         return []
-    return sorted(f for f in files if is_verifiable(f, config) and Path(f).is_file())
+    # Unconditional: hooks' own state under .artel/run/ (and .artel/config.json etc.) must
+    # never surface as a changed file, even when the host hasn't gitignored .artel/run/.
+    return sorted(f for f in files
+                  if not f.startswith('.artel/') and is_verifiable(f, config) and Path(f).is_file())
 
 
 def run_fast_verify(paths, timeout=240):

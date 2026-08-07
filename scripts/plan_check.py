@@ -3,9 +3,12 @@
 paths) against the filesystem and a symbol index; flag hallucinated references before
 implementation starts.
 
-Symbols resolve via `ast-index symbol <name> --format json` when that binary is on PATH
-(with one `ast-index update` stale-index retry), else via `git grep -l -w <name>` — the
-anti-hallucination check works in repos without ast-index.
+Symbols resolve via `ast-index symbol <name> --format json` when that binary is on PATH and its
+output is usable (with one `ast-index update` stale-index retry for a real miss), else via
+`git grep -l -w <name>` — used as the per-symbol fallback whenever ast-index is unusable (no
+index built, non-JSON output) too, so the anti-hallucination check works in repos without
+ast-index and does not misreport real symbols as hallucinations when the index is merely
+missing.
 
 Exit codes: 0 clean (or unresolved without --strict), 1 unresolved with --strict, 2 error.
 Contract: docs/superpowers/specs/2026-08-07-phase5-hooks-gates-design.md
@@ -62,19 +65,35 @@ def _run(cmd, timeout):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
 
-def _symbol_resolves_ast_index(name):
+def _classify_ast_index_output(returncode, stdout):
+    """Classify one `ast-index symbol <name> --format json` invocation.
+
+    'hit'      — valid JSON, a non-empty list: the symbol is indexed and found.
+    'miss'     — valid JSON, an empty list: a real, trustworthy indexed miss.
+    'unusable' — anything else (non-zero exit, non-JSON stdout, non-list JSON) — notably
+                 the no-index case, where ast-index prints
+                 "Index not found. Run 'ast-index rebuild' first." to stdout and exits 0.
+                 Callers must not treat 'unusable' as a miss; it carries no information
+                 about whether the symbol exists.
+    """
+    if returncode != 0:
+        return 'unusable'
+    try:
+        parsed = json.loads(stdout)
+    except ValueError:
+        return 'unusable'
+    if not isinstance(parsed, list):
+        return 'unusable'
+    return 'hit' if len(parsed) > 0 else 'miss'
+
+
+def _symbol_status_ast_index(name):
     base = name.split('.')[0]  # member refs like Foo.bar resolve on Foo
     try:
         proc = _run(['ast-index', 'symbol', base, '--format', 'json'], timeout=60)
     except Exception:
-        return False
-    if proc.returncode != 0:
-        return False
-    try:
-        parsed = json.loads(proc.stdout)
-        return isinstance(parsed, list) and len(parsed) > 0
-    except ValueError:
-        return False
+        return 'unusable'
+    return _classify_ast_index_output(proc.returncode, proc.stdout)
 
 
 def _symbol_resolves_git_grep(name):
@@ -87,17 +106,33 @@ def _symbol_resolves_git_grep(name):
 
 
 def resolve_pass(pending, have_ast_index):
+    """Returns (unresolved, ast_index_misses). `ast_index_misses` lists the symbol values
+    that came back as a real ast-index 'miss' (eligible for the single `ast-index update`
+    retry) — 'unusable' ast-index results are routed to git grep immediately in this same
+    pass and are never added, so a repo with no index does not thrash the retry."""
     unresolved = []
+    ast_index_misses = []
     for kind, value in pending:
         if '/' in value:
             if not Path(value).exists():  # file or directory
                 unresolved.append({'ref': value, 'reason': 'file not found'})
-        else:
-            resolves = (_symbol_resolves_ast_index(value) if have_ast_index
-                        else _symbol_resolves_git_grep(value))
-            if not resolves:
+            continue
+        if have_ast_index:
+            status = _symbol_status_ast_index(value)
+            if status == 'hit':
+                continue
+            if status == 'miss':
                 unresolved.append({'ref': value, 'reason': 'symbol not found'})
-    return unresolved
+                ast_index_misses.append(value)
+                continue
+            # 'unusable' — the index is missing/stale/unreadable; fall back to git grep for
+            # this symbol right away instead of reporting a hallucination.
+            if not _symbol_resolves_git_grep(value):
+                unresolved.append({'ref': value, 'reason': 'symbol not found'})
+        else:
+            if not _symbol_resolves_git_grep(value):
+                unresolved.append({'ref': value, 'reason': 'symbol not found'})
+    return unresolved, ast_index_misses
 
 
 def envelope(ok, elapsed_ms, data=None, error=None):
@@ -145,16 +180,20 @@ def main(argv):
     to_resolve = [(k, v) for k, v in anchors if k != 'new']
     have_ast_index = shutil.which('ast-index') is not None
 
-    unresolved = resolve_pass(to_resolve, have_ast_index)
-    if have_ast_index and any(u['reason'] == 'symbol not found' for u in unresolved):
-        # Index may be stale — refresh once and re-check only the still-pending anchors.
+    unresolved, ast_index_misses = resolve_pass(to_resolve, have_ast_index)
+    if ast_index_misses:
+        # Index may be stale — refresh once and re-check only the real ast-index misses.
+        # Anchors that fell back to git grep because ast-index was unusable are excluded
+        # (see resolve_pass): retrying those against the same unusable index would just
+        # thrash without new information.
         try:
             _run(['ast-index', 'update'], timeout=600)
         except Exception:
             pass
-        pending = [(k, v) for k, v in to_resolve
-                   if any(u['ref'] == v for u in unresolved)]
-        unresolved = resolve_pass(pending, have_ast_index)
+        retry_set = set(ast_index_misses)
+        pending = [(k, v) for k, v in to_resolve if v in retry_set]
+        retried_unresolved, _ = resolve_pass(pending, have_ast_index)
+        unresolved = [u for u in unresolved if u['ref'] not in retry_set] + retried_unresolved
 
     data = {
         'checked': len(to_resolve),

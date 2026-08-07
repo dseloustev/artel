@@ -16,6 +16,11 @@ repo**. Skills, agents and hooks read it instead of hardcoding literals; see
 The `.artel/` directory is artel's whole footprint in the host repo:
 
 - `.artel/config.json` — this file, committed.
+- `.artel/sensitive-paths.json` — optional host override of the sensitive-paths policy the
+  `sensitive_guard` hook enforces (categories of globs with mode floors,
+  [autonomous-run.md](autonomous-run.md) §10). When present it replaces the plugin's shipped
+  default policy (`hooks/sensitive-paths.json`) wholesale. Committed, like the config; the
+  `setup` skill offers to scaffold it from the shipped defaults.
 - `.artel/run/` — host-writable run state and journals (contract defined separately, alongside
   the autonomous-run rules). Not committed; add it to the host `.gitignore`.
 - `.artel/context/` — the `save-context`/`restore-context` store: a durable, host-repo-local

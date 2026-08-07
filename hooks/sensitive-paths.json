@@ -1,0 +1,39 @@
+{
+  "categories": [
+    {
+      "name": "secrets",
+      "floor": "full-gates",
+      "globs": [
+        ".env*",
+        "*/.env*",
+        "*.pem",
+        "*.key",
+        "*.p12",
+        "*secret*",
+        "*credential*",
+        "*id_rsa*"
+      ]
+    },
+    {
+      "name": "gate-config",
+      "floor": "full-gates",
+      "globs": [
+        ".claude/*",
+        ".artel/config.json",
+        ".artel/sensitive-paths.json"
+      ]
+    },
+    {
+      "name": "ci-cd",
+      "floor": "plan-gate",
+      "globs": [
+        ".github/workflows/*",
+        ".gitlab-ci.yml",
+        "Jenkinsfile",
+        ".circleci/*",
+        "azure-pipelines.yml",
+        "bitbucket-pipelines.yml"
+      ]
+    }
+  ]
+}

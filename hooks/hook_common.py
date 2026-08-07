@@ -55,7 +55,7 @@ def changed_files(config):
         out = subprocess.run(['git', 'diff', '--name-only', 'HEAD'],
                              capture_output=True, text=True, timeout=30)
         files.update(l.strip() for l in out.stdout.splitlines() if l.strip())
-        out = subprocess.run(['git', 'status', '--porcelain'],
+        out = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all'],
                              capture_output=True, text=True, timeout=30)
         for line in out.stdout.splitlines():
             if len(line) < 4:
@@ -75,7 +75,10 @@ def run_fast_verify(paths, timeout=240):
            '--timeout', str(timeout)]
     if paths:
         cmd += ['--files', ','.join(paths)]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 30)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 30)
+    except Exception:
+        return 2, {}
     try:
         return proc.returncode, json.loads(proc.stdout.strip().splitlines()[-1])
     except Exception:
@@ -106,7 +109,7 @@ def resolve_active_ticket(config):
         return None
     try:
         lines = pointer.read_text(encoding='utf-8').strip().splitlines()
-    except OSError:
+    except (OSError, ValueError):
         return None
     first = lines[0].strip() if lines else ''
     if not first:

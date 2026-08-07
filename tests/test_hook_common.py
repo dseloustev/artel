@@ -83,6 +83,12 @@ class TestResolveActiveTicket(unittest.TestCase):
         config = {'ticket': {'projectKey': 'AW'}, 'specs': {'dir': 'my/specs'}}
         self.assertEqual(h.resolve_active_ticket(config), 'AW-77')
 
+    def test_invalid_utf8_returns_none(self):
+        d = Path('specs/.current')
+        d.mkdir(parents=True, exist_ok=True)
+        (d / '.active_ticket').write_bytes(b'\xff\xfe garbage')
+        self.assertIsNone(h.resolve_active_ticket({}))
+
 
 if __name__ == '__main__':
     unittest.main()

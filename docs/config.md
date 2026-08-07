@@ -184,10 +184,19 @@ cannot be written to disk — so both failure modes stop rather than degrade:
 |---|---|---|---|---|
 | `verify.commands` | array of strings | `[]` | Ordered shell commands forming the full gate. Run from the host repo root; the gate stops at the first non-zero exit. | Full-gate checks: inner loop, implementation checkpoints, validate stage, stop-gate hook, `deep-review`'s step-0 quality gate, `merge-conflicts`' post-resolution check |
 | `verify.fast` | string | `""` | One quick command for per-edit feedback (lint/analyze of the touched scope, not the whole test suite). | Fast per-edit hook, `inner-loop`'s fast-check step, `add-automation`/`remove-automation`'s post-change check |
+| `verify.surface` | array of strings | absent | Repo-relative glob patterns (`fnmatch` semantics — `*` crosses `/` — like `runtime.surface`); a `!`-prefixed pattern excludes (generated files). A path counts when it matches ≥ 1 positive and 0 negative patterns; a list with only excludes implies `*` as the positive set. Absent → every changed file counts. | The per-edit and stop-gate hooks' changed-file filter |
 
 Commands must be non-interactive, exit non-zero on failure, and be safe to re-run. An empty
 `verify.commands` degrades the gate to `skipped` — it is never reported as `green`. An empty
 `verify.fast` makes the per-edit hook a no-op.
+
+Any command may contain the literal token `{files}`: callers that pass an explicit file scope
+(the hooks; `scripts/verify.py --files`) replace it with the space-joined, shell-quoted paths,
+so `"eslint {files}"` checks only what changed. A command without the token always runs
+unscoped. Exit codes `126`/`127`, a spawn failure, or a timeout classify as an environment
+error (exit 2 — fix the toolchain); any other non-zero exit is findings (exit 1).
+`verify.surface` filters which changed files the hooks act on, e.g.
+`["lib/**/*.dart", "!*.g.dart", "!*.freezed.dart"]` for the source project's behavior.
 
 ### `setup` — post-branch setup
 
@@ -278,7 +287,8 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
       "npm run typecheck",
       "npm test -- --run"
     ],
-    "fast": "npm run lint -- --cache"
+    "fast": "npm run lint -- --cache",
+    "surface": ["src/**", "!src/generated/**"]
   },
   "setup": {
     "commands": ["npm ci"]

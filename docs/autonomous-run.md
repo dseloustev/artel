@@ -6,8 +6,8 @@ Shared contract for the autonomous `feature-development` and `dev` orchestrators
 skills/agents they drive. Ticket-ID parsing, the spec-trail directory layout, and
 `.active_ticket` are defined in [ticket-parsing.md](ticket-parsing.md) — this document does not
 restate that grammar, only consumes its `<TICKET_ID>` / `<N>` tokens. Config keys referenced
-below are the ones [config.md](config.md) defines. Operator-facing narrative docs (workflow
-guide, skills reference) ship later — see [porting-plan.md](porting-plan.md).
+below are the ones [config.md](config.md) defines. Operator-facing narrative docs:
+[workflow-guide.md](workflow-guide.md) and [skills-reference.md](skills-reference.md).
 
 ## Host-writable state: `.artel/run/`
 
@@ -45,7 +45,8 @@ updates it in place, it does not relocate it.
   chatty head of the pipeline. After the one approval pause, the run is silent.
 - **One approval pause.** `feature-development`: plan+tasklist approval. `dev`: work-list confirmation.
   The approved artifact is the anchor for the deviation protocol — the escalation rule for
-  implementation-time divergences from the approved plan/tasklist, ported in a later phase.
+  implementation-time divergences from the approved plan/tasklist
+  ([deviation-protocol.md](deviation-protocol.md)).
 - **Mid-run interruptions are exceptional**, limited to: a deviation escalation (per the deviation
   protocol above), a `[HITL: …]` task, a loop-cap escalation, the PR-gate pause, or an environment
   error. Nothing else may call `AskUserQuestion` after the pause.

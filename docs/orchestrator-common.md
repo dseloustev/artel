@@ -32,9 +32,10 @@ Orchestrators:
 - Invoke stage skills via the `Skill` tool and agents via the `Agent` tool, passing the resolved
   identifier so the phase is preserved.
 - **Index refresh** (optional): if the host project maintains a code-symbol index, refreshing it
-  after implementation is an optional host hook, not an `.artel/config.json` key — its mechanics
-  are defined in a later phase (see [porting-plan.md](porting-plan.md)). Silently absent when the
-  host has not wired one up; nothing is reported as missing.
+  after implementation is an optional host hook, not an `.artel/config.json` key — the plugin
+  defines no mechanics for it; the host wires one up itself (its own hooks or CLAUDE.md
+  instructions). Silently absent when the host has not wired one up; nothing is reported as
+  missing.
 - Report status to the user.
 - Never write code themselves.
 
@@ -97,5 +98,5 @@ contract adds two orchestrator-written files to the artifact list above:
 human-readable spec trail (see [autonomous-run.md](autonomous-run.md)'s introduction).
 
 Orchestrators surface, but do not implement, the deviation protocol — the escalation rule for
-implementation-time divergences from the approved plan/tasklist, ported in a later phase
-([autonomous-run.md](autonomous-run.md) §1).
+implementation-time divergences from the approved plan/tasklist, defined in
+[deviation-protocol.md](deviation-protocol.md) (see also [autonomous-run.md](autonomous-run.md) §1).

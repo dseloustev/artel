@@ -63,8 +63,8 @@ In particular:
 - **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
 - **HITL tagging** (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4): tag any task that requires a human decision
   as `- [ ] [HITL: <reason>] <task text>`. Mandatory triggers: sensitive surfaces — paths matched
-  by the host's sensitive-path rules (Phase 5 — see `${CLAUDE_PLUGIN_ROOT}/docs/porting-plan.md`;
-  categories configurable), plus anything
+  by the host's sensitive-paths policy (the plugin's `hooks/sensitive-paths.json` defaults,
+  replaced wholesale by a host `.artel/sensitive-paths.json` when present), plus anything
   the vision's risk section names — irreversible external actions, and any "user must
   decide/provide X" recorded in the PRD's Resolved Questions or the vision's Security & privacy
   section. Untagged tasks are AFK (autonomous). Prefer AFK; a HITL tag must state its reason.

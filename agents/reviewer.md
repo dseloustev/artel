@@ -119,8 +119,9 @@ Run three focused passes over the diff (single enriched review — no fan-out):
    cross-cutting singletons unless the conventions docs call for them), repository
    interface/implementation signature parity, no infrastructure/API-client types leaking into the
    domain layer. Default severity: medium (high when a dependency direction is inverted).
-3. **security / sensitive surfaces** — any touch of paths matched by the host's sensitive-path
-   rules (Phase 5 — see `${CLAUDE_PLUGIN_ROOT}/docs/porting-plan.md`; categories configurable),
+3. **security / sensitive surfaces** — any touch of paths matched by the host's sensitive-paths
+   policy (the plugin's `hooks/sensitive-paths.json` defaults, replaced wholesale by a host
+   `.artel/sensitive-paths.json` when present),
    plus anything the vision or plan's risk/security section flags as sensitive. Default severity:
    **high**.
    Coverage guarantee: any diff line under a sensitive path ⇒ at least one `security`-lens

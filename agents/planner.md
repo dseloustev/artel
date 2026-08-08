@@ -47,7 +47,7 @@ For phase-scoped runs, prefix sections with phase context:
 
 Optionally write an ADR alongside the plan if there are significant architectural trade-offs (`adr.md` for ticket-wide, `phase-<PHASE_NUM>/adr.md` for phase-scoped).
 
-- Reference notation: existing code is cited as backticked repo paths (implicit refs) or `ref:Symbol[.member]` anchors; everything the plan will create is declared `new:Symbol` or carries `(new file)` on the same line as its backticked path. Every `ref:`/backticked-path claim must resolve today — this is the **PLAN_GROUNDED** gate: a plan citing a symbol or path that does not exist is not grounded. A deterministic mechanical check for this gate is the deterministic CLI (Phase 5 — see `${CLAUDE_PLUGIN_ROOT}/docs/porting-plan.md`; design decision at `${CLAUDE_PLUGIN_ROOT}/docs/design.md` open question 1); until it ships, the gate is not mechanically enforced and is recorded as skipped, so grounding is the agent's own discipline — confirm every reference before writing it, never cite from memory.
+- Reference notation: existing code is cited as backticked repo paths (implicit refs) or `ref:Symbol[.member]` anchors; everything the plan will create is declared `new:Symbol` or carries `(new file)` on the same line as its backticked path. Every `ref:`/backticked-path claim must resolve today — this is the **PLAN_GROUNDED** gate: a plan citing a symbol or path that does not exist is not grounded. The deterministic mechanical check for this gate is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict`, run by the `feature-development` orchestrator at gate 3.5; mechanical enforcement never replaces discipline — confirm every reference before writing it, never cite from memory.
 
 ## Rules
 

@@ -8,6 +8,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Operator docs (Phase 6): `docs/workflow-guide.md` (the narrative operator guide — quickstart,
+  concepts, end-to-end walkthrough, recipes, troubleshooting) and `docs/skills-reference.md`
+  (per-skill lookup: purpose, invocation, reads/writes, pauses, notes for all 33 skills),
+  adapted from the source project's operator docs to plugin reality: `/artel:` command forms,
+  config-driven adapters and gates, `.artel/run/` state paths, and the `scripts/verify.py` /
+  `scripts/plan_check.py` gate engines in place of the source's Dart CLI.
+- Flutter smoke-test guide: `docs/testing-flutter.md` — installing the plugin from a local
+  checkout into a separate Flutter project, a known-good Flutter `.artel/config.json`, six
+  ordered smoke-test scenarios (spec stage, dry run, hooks, lean loop, full pipeline, gate
+  scripts), pass criteria, cleanup, and troubleshooting.
+
 - Project skeleton: plugin manifest, single-plugin marketplace file, repo scaffold
   (`skills/`, `agents/`, `hooks/`, `docs/`).
 - Documentation: README, design doc (architecture, genericization strategy, open questions,
@@ -223,3 +234,14 @@ All notable changes to this project are documented here. The format follows
   ci-cd at plan-gate) with wholesale host override at `.artel/sensitive-paths.json`; new
   `verify.surface` config key; hook state under `.artel/run/.hooks/`; verify-layer hooks inert
   until `.artel/config.json` exists; stdlib `unittest` suite under `tests/`.
+
+### Changed
+
+- Documentation refresh to post-porting reality: README status flipped from "early scaffolding"
+  to ported-pre-publish with a complete component table and repo layout (`scripts/`, `tests/`);
+  `hooks/README.md` rewritten to describe the five shipped hooks, their state paths, and the
+  escape hatch; stale "ship later"/"ported in a later phase"/"(Phase 5)" forward references
+  resolved across `docs/autonomous-run.md`, `docs/orchestrator-common.md`, `agents/planner.md`,
+  `agents/task-planner.md`, `agents/tasklist-writer.md`, `agents/vision-writer.md`, and
+  `agents/reviewer.md` — each now cites the shipped artifact (deviation protocol, sensitive-paths
+  policy, `plan_check.py`) instead of the porting plan.

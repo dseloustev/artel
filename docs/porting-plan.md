@@ -91,10 +91,24 @@ The rules everything else obeys, plus the config mechanism they will reference.
 
 ## Phase 6 — publish
 
-- [ ] End-to-end dry run in a scratch repo (a trivial non-Dart project).
-- [ ] Operator docs: adapt `workflow-guide.md` + `skills-reference.md` to plugin reality.
+- [ ] End-to-end dry run in a scratch repo (a trivial non-Dart project). A Flutter-host smoke
+      test is documented separately in [testing-flutter.md](testing-flutter.md) (parity with
+      the source system); the non-Dart run remains the genericization proof.
+- [x] Operator docs: adapt `workflow-guide.md` + `skills-reference.md` to plugin reality →
+      [workflow-guide.md](workflow-guide.md), [skills-reference.md](skills-reference.md).
+      Alongside: README refreshed to ported-pre-publish reality, `hooks/README.md` rewritten to
+      describe the shipped hooks, stale "later phase"/"Phase 5" forward references resolved
+      across contracts and agent bodies.
 - [ ] Push to GitHub, verify `/plugin marketplace add dseloustev/artel` install path.
 - [ ] Tag `v0.1.0`.
+
+Known finding for the dry run (from the docs reader-test, 2026-08-08): under
+`tracker.adapter: "none"`, `feature-development`'s gate 0 relies on a description file or an
+existing `idea.md` but never invokes `generate-idea` to create one, while `generate-vision`
+(gate 2) hard-requires `idea.md` — so a `"none"`-tracker pipeline run without a prior
+`/artel:generate-idea` errors at the vision gate. [testing-flutter.md](testing-flutter.md)
+routes around it (seed with `generate-idea` first); decide in the dry run whether gate 0 should
+invoke `generate-idea`'s local-description path itself.
 
 ## Source → plugin map
 

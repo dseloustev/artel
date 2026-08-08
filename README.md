@@ -16,17 +16,22 @@ idea → PRD → vision → plan → tasklist → ⏸ approval → implement →
 
 ## Status
 
-⚠️ **Early scaffolding.** The plugin is being ported from a private production setup and is not
-yet functional. See [docs/porting-plan.md](docs/porting-plan.md) for what lands when.
+🚧 **Ported, pre-publish.** All components are in place — the porting from the private
+production setup ([docs/porting-plan.md](docs/porting-plan.md), Phases 0–5) is complete; what
+remains is Phase 6: end-to-end validation and publishing. Until the repo is public, install
+from a local checkout — see [docs/testing-flutter.md](docs/testing-flutter.md).
 
 ## What ships in the plugin
 
 | Component | What it does |
 |---|---|
-| **Workflow skills** | Orchestrator slash commands: `/artel:feature-development` (full pipeline), `/artel:dev` (lean loop), plus each stage à la carte (`analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`) |
-| **Agents** | The crew: analyst, researcher, planner, task-planner, implementer, reviewer, QA, validator, vision/tasklist/tech writers |
-| **Hooks** | Quality gates: session baseline, fast per-edit verification, latching stop gate, sensitive-path guard |
-| **Docs** | Operator guide, skills reference, autonomous-run contract — the rules the pipeline obeys |
+| **Entry points** | `/artel:feature-development` (full pipeline, one approval pause), `/artel:dev` (lean loop), `/artel:setup` (one-time config interview) |
+| **Stage skills** | Each pipeline stage à la carte: `analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `figma-analysis`, `generate-idea`/`-vision`/`-tasklist`, `inner-loop`, `run-app`, `drive-app`, `sync-phases` |
+| **Ops & utility skills** | `init-branch`, `merge-conflicts`, `deep-review`, `issue-draft`, `change-digest`, `address-pr-comment`, `add-automation`/`remove-automation`, `save-context`/`restore-context`, `agents-md-generator` |
+| **Agents** | The crew of 12: analyst, figma-analyst, researcher, planner, task-planner, implementer, reviewer, QA, validator, vision/tasklist/tech writers |
+| **Hooks** | Quality gates ([hooks/README.md](hooks/README.md)): session baseline, fast per-edit verification, latching verify stop gate, run stop gate, sensitive-path guard |
+| **Scripts** | Deterministic gate engines: `scripts/verify.py` (JSON-envelope wrapper over the configured verify commands), `scripts/plan_check.py` (plan-anchor grounding check) |
+| **Docs** | Operator guide, skills reference, and the contracts the pipeline obeys (autonomous run, ticket parsing, config, deviation protocol, path conventions) |
 
 Core design properties:
 
@@ -46,6 +51,10 @@ Core design properties:
 /plugin install artel@artel
 ```
 
+Then, in the host repo, run `/artel:setup` (or let the first `/artel:feature-development` /
+`/artel:dev` invocation trigger it) to write `.artel/config.json` — the per-project
+configuration every skill reads ([docs/config.md](docs/config.md)).
+
 ## Repository layout
 
 ```
@@ -55,18 +64,36 @@ artel/
 │   └── marketplace.json   # single-plugin marketplace (install straight from this repo)
 ├── skills/                # workflow skills (one folder per skill, SKILL.md inside)
 ├── agents/                # agent definitions (one .md per agent)
-├── hooks/                 # hooks.json + Python gate scripts
-├── docs/                  # design doc, porting plan, operator guide
+├── hooks/                 # hooks.json + Python gate scripts + default sensitive-paths policy
+├── scripts/               # deterministic gate engines (verify.py, plan_check.py)
+├── tests/                 # stdlib unittest suite for hooks and scripts
+├── docs/                  # operator guide, skills reference, contracts, design doc, porting plan
 ├── CHANGELOG.md
 └── README.md
 ```
 
 ## Documentation
 
+Operator-facing:
+
+- [docs/workflow-guide.md](docs/workflow-guide.md) — the narrative guide: which command to
+  reach for, how a full run unfolds, what to do when something stops
+- [docs/skills-reference.md](docs/skills-reference.md) — per-skill lookup table: purpose,
+  invocation, reads/writes, pause behavior
+- [docs/config.md](docs/config.md) — the `.artel/config.json` schema and defaults
+- [docs/testing-flutter.md](docs/testing-flutter.md) — how to smoke-test the plugin on a
+  separate Flutter project
+
+Contracts and internals:
+
 - [docs/design.md](docs/design.md) — what Artel is, architecture, genericization strategy,
-  open questions
+  decision log
 - [docs/porting-plan.md](docs/porting-plan.md) — phased plan for porting the source material
   into the plugin
+- [docs/autonomous-run.md](docs/autonomous-run.md) · [docs/ticket-parsing.md](docs/ticket-parsing.md)
+  · [docs/orchestrator-common.md](docs/orchestrator-common.md)
+  · [docs/deviation-protocol.md](docs/deviation-protocol.md)
+  · [docs/path-conventions.md](docs/path-conventions.md) — the rules the pipeline obeys
 - [CHANGELOG.md](CHANGELOG.md)
 
 ## License

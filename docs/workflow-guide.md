@@ -152,7 +152,7 @@ names and their globs are in the policy file; the classifier procedure is
 
 ### The hooks that enforce the contract
 
-Five hooks — registered across `SessionStart`, `PreToolUse`, `PostToolUse`, and `Stop` — turn
+Six hooks — registered across `SessionStart`, `PreToolUse`, `PostToolUse`, and `Stop` — turn
 the contract from a promise into enforcement ([hooks/README.md](../hooks/README.md)):
 
 - **Run stop gate** (`stop_gate.py`, `autonomous-run.md §8`) — blocks a session from ending
@@ -168,6 +168,11 @@ the contract from a promise into enforcement ([hooks/README.md](../hooks/README.
   so pre-existing findings don't block). Details, caps, and the escape hatch are in
   hooks/README.md. With no `.artel/config.json` or an empty `verify.fast`, this layer is a
   no-op.
+- **Knowledge mirror** (`knowledge_mirror.py`) — optional, driven by `knowledge.adapter` /
+  `knowledge.baseUrl`: posts each deliberation artifact written under `<specs.dir>/<TICKET>/`
+  to a kartoteka artifact store as it is written. Additive and best-effort — files on disk stay
+  primary, nothing blocks, nothing retries, every attempt is logged to
+  `.artel/run/.hooks/knowledge-mirror.log`. Inert unless configured.
 
 ### The deterministic gate scripts
 

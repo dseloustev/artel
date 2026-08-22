@@ -337,6 +337,10 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
     "dir": "specs/.current",
     "releases": "specs/releases"
   },
+  "knowledge": {
+    "adapter": "kartoteka",
+    "baseUrl": "http://127.0.0.1:8734"
+  },
   "runtime": {
     "run": "npm run dev -- --port 5173",
     "drive": "npm run e2e:drive",

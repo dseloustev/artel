@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -132,11 +133,14 @@ class _Capture(BaseHTTPRequestHandler):
         pass  # the test's own output is the only output that helps
 
 
-def _run_hook(repo, hook_input):
-    """Run the hook as the harness runs it: cwd = host repo root, JSON on stdin."""
+def _run_hook(repo, hook_input, env=None):
+    """Run the hook as the harness runs it: cwd = host repo root, JSON on stdin.
+    `env=None` inherits this process's environment unchanged; pass an explicit
+    mapping to test the hook's behavior under a modified one (e.g. a proxy)."""
     return subprocess.run(
         [sys.executable, str(HOOK)],
         cwd=repo, input=json.dumps(hook_input), text=True, capture_output=True,
+        env=env,
     )
 
 
@@ -185,7 +189,24 @@ class TestEndToEnd(unittest.TestCase):
             repo = _host_repo(tmp, {'adapter': 'none', 'baseUrl': self.base})
             result = _run_hook(repo, HOOK_INPUT)
         self.assertEqual(result.returncode, 0, result.stderr)
+        # Not just "nothing received": a hook that crashed immediately would also
+        # send nothing and exit 0 under the fail-open wrapper. stderr empty is what
+        # tells a cleanly-gated no-op apart from a crash the wrapper swallowed.
+        self.assertEqual(result.stderr, '')
         self.assertEqual(_Capture.received, [])
+
+    def test_reaches_loopback_despite_http_proxy_env(self):
+        # Regression: urlopen's default opener honours http_proxy/https_proxy, so
+        # without post_artifact's explicit empty ProxyHandler this POST would be
+        # routed at a proxy host instead of the loopback server -- silently handing
+        # the mirrored document's content off-box. Fails without the fix.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base})
+            env = {**os.environ, 'http_proxy': 'http://127.0.0.1:9'}
+            result = _run_hook(repo, HOOK_INPUT, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(_Capture.received), 1)
+        self.assertEqual(_Capture.received[0]['path'], '/api/artifacts')
 
     def test_oversize_file_sends_nothing_and_logs(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -216,6 +237,44 @@ class TestFailOpen(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = _run_hook(tmp, HOOK_INPUT)  # no .artel/config.json at all
         self.assertEqual(result.returncode, 0, result.stderr)
+        # See test_adapter_off_sends_nothing: a crash swallowed by the fail-open
+        # wrapper also exits 0 with nothing sent, so stderr is what distinguishes
+        # "correctly inert" from "crashed silently."
+        self.assertEqual(result.stderr, '')
+
+
+class TestMisconfiguredLogging(unittest.TestCase):
+    # Regression pair for the main() reordering: gating on the config error before
+    # matching the path used to make a host with adapter "kartoteka" and an empty
+    # baseUrl log one line per edit of *anything*, forever. The path is now matched
+    # first, so these two behaviors are asserted separately -- one line of misconduct
+    # each, matching the "one assertion" discipline applied to the fail-open tests above.
+
+    def test_non_mirrorable_path_writes_no_log_line(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': ''})
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            non_mirrorable = {
+                'tool_name': 'Write',
+                'tool_input': {'file_path': 'lib/main.dart'},
+            }
+            result = _run_hook(repo, non_mirrorable)
+            # Must be checked inside the TemporaryDirectory block: once it exits, `repo`
+            # (and any log under it) is gone regardless of what the hook wrote, which
+            # would make this assertion pass unconditionally.
+            self.assertFalse(log.exists())
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_mirrorable_path_writes_exactly_one_misconfigured_line(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': ''})
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            result = _run_hook(repo, HOOK_INPUT)  # specs/.current/AW-1234/prd.md
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(log.is_file())
+            lines = log.read_text(encoding='utf-8').strip().splitlines()
+        self.assertEqual(len(lines), 1)
+        self.assertIn('misconfigured', lines[0])
 
 
 if __name__ == '__main__':

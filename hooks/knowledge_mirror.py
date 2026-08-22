@@ -3,7 +3,6 @@ artifact store. Best-effort by contract — never blocks, never retries."""
 import json
 import re
 import sys
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -116,13 +115,24 @@ def log(line):
 
 
 def post_artifact(base_url, payload):
+    # Deferred: this module is imported on every Edit/Write in every host repo, and
+    # the import alone is ~28ms of the ~63ms a no-op invocation costs. Pay it only on
+    # the path that actually has something to send.
+    import urllib.request
     request = urllib.request.Request(
         base_url + '/api/artifacts',
         data=json.dumps(payload).encode('utf-8'),
         headers={'Content-Type': 'application/json'},
         method='POST',
     )
-    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+    # An explicit empty ProxyHandler, not urlopen's default opener: the default one
+    # installs ProxyHandler(getproxies()), so it honours http_proxy/https_proxy from
+    # the environment and would route this "loopback" POST -- the full text of every
+    # mirrored document -- through a configured proxy host. The trust boundary this
+    # hook promises is "nothing leaves the machine"; this is what keeps that true on a
+    # host with a corporate proxy exported, regardless of no_proxy.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
         return response.status
 
 
@@ -131,16 +141,20 @@ def main():
         return 0  # unconfigured host: hooks stay inert
     config = h.load_config()
     base_url, error = knowledge_base_url(config)
-    if error:
-        log('misconfigured -- ' + error)
-        return 0
-    if base_url is None:
-        return 0
+    if base_url is None and error is None:
+        return 0  # adapter off: the cheapest path, checked before stdin or a path match
     rel = h.relpath_from_tool_input(h.read_hook_input())
     if not rel:
         return 0
     identity = artifact_identity(rel, config)
     if identity is None:
+        return 0
+    if error:
+        # Only now, not at the top: gating on the error before matching the path made
+        # a misconfigured-but-on host log one line per edit of anything, forever. This
+        # way it logs once per edit of something that was actually going to be
+        # mirrored -- still noisy, but proportionate to the problem.
+        log('misconfigured -- ' + error)
         return 0
     ticket_key, stage, name = identity
     try:

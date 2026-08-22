@@ -220,10 +220,26 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
 
     def test_a_drained_queue_is_a_documented_branch_not_a_stall(self):
         empty = self.doc.split('## 5. When the queue is empty')[1].split('## 6.')[0]
-        self.assertIn('- every row `done` — the iteration work is complete. Report', empty)
+        self.assertIn('- every **child** row `done` — the iteration work is complete.',
+                      empty)
         self.assertIn('`queue drained: iteration work complete`', empty)
         step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
         self.assertIn('`queue drained: iteration work complete`', step_one)
+
+    def test_the_drained_branch_tolerates_a_parent_left_in_backlog(self):
+        # build_rows mirrors every `I<N>: …` parent `backlog`, and only a child
+        # completing promotes one to `done`. An iteration already fully `- [x]`
+        # at mirror time therefore leaves its parent `backlog` for good. Read on
+        # rows rather than children, bullet 1 was false for such a ticket while
+        # bullet 2 was true, so the repair ran, found no iteration with an
+        # unfinished child, and had no terminating case -- C2's non-termination
+        # again, on exactly the resumed runs bullet 2 was written for.
+        empty = self.doc.split('## 5. When the queue is empty')[1].split('## 6.')[0]
+        self.assertIn('An `I<N>: …` parent', empty)
+        self.assertIn('still `backlog` because its iteration was already complete', empty)
+        self.assertIn('is not a stall: mark it `done` and treat the queue as drained.',
+                      empty)
+        self.assertIn('there is nothing left to promote — take the', empty)
 
 
 class TestLocalOnlyReachesTheImplementer(unittest.TestCase):

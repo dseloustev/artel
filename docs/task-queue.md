@@ -153,14 +153,19 @@ record is the only trail that divergence leaves.
 not by itself a completion and not by itself a stall — check `task_list(ticket_key)`
 and report which of these four it is:
 
-- every row `done` — the iteration work is complete. Report
-  `queue drained: iteration work complete` and continue to `## Final Verification`
-  from the file (§6). This is the normal end of a successful ticket, not a stall.
+- every **child** row `done` — the iteration work is complete. An `I<N>: …` parent
+  still `backlog` because its iteration was already complete when it was mirrored
+  is not a stall: mark it `done` and treat the queue as drained. Report
+  `queue drained: iteration work complete`, then
+  continue from the file — the first incomplete `- [ ]` in scope (§6).
+  This is the normal end of a successful ticket, not a stall.
 - rows in `backlog` with none `ready` — a promotion did not happen, or an
   iteration was already complete when it was promoted into. Repair it rather than
   reporting a stall: promote every `I<N> · ` child of the lowest-numbered
   iteration that still has an unfinished child, then claim again. If every child
-  of that iteration is already `done`, promote the next one and repeat.
+  of that iteration is already `done`, promote the next one and repeat. If no
+  iteration has an unfinished child, there is nothing left to promote — take the
+  first bullet.
 - rows in `blocked` — a HITL task or an aborted task is waiting on the user.
 - rows in `in_progress` — a holder is still working, or stalled and left the row
   held. `actor` names the holder and `updated_at` says how long ago. Report it;
@@ -193,12 +198,15 @@ scope for the first incomplete `- [ ]` under that heading; `task_ready` is not
 called at all, because it can only ever answer for iteration work.
 
 **So `task_ready` returning nothing does not mean there is nothing to do.** It
-means no *iteration* work is ready. When every row is `done`, the iteration work
-is finished and the run continues to `## Final Verification` from the file —
+means no *iteration* work is ready. When every child row is `done`, the iteration
+work is finished and the run
+continues from the file — the first incomplete `- [ ]` in scope —
 report `queue drained: iteration work complete` so the orchestrator can tell that
-from a stall. §5 covers the cases where rows remain.
+from a stall. §5 covers the cases where rows remain, including a parent left
+`backlog` by an iteration that was already complete when it was mirrored.
 
-**And when that section is complete too** — or the tasklist carries none — there
-is nothing left to work. Report the ticket complete and return; do not loop and
+**And when the file has no incomplete `- [ ]` in scope either** — every section
+complete, or the tasklist carrying none — there is nothing left to work at all.
+Report the ticket complete and return; do not loop and
 do not re-claim. This is the only state in which reporting completion is right,
 and it is a state read off the file, never inferred from an empty queue.

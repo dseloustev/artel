@@ -1,7 +1,7 @@
 """The `--local` flag is spelled identically everywhere it appears.
 
 Not a behaviour test: these are prompts, and there is no code path to exercise.
-It guards one token across six files -- the drift this repo has already had once
+It guards one token across eight files -- the drift this repo has already had once
 ("docs: fix stale knowledge-mirror hook counts and the setup interview gap").
 Prose is deliberately not asserted on; only the spelling is.
 """
@@ -20,6 +20,8 @@ SKILL_FILES = (
 DOC_FILES = (
     'docs/config.md',
     'docs/skills-reference.md',
+    'docs/orchestrator-common.md',
+    'docs/knowledge-consultation.md',
 )
 
 # The plausible drifts. Each is a real spelling somebody would reach for.

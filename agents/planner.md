@@ -52,6 +52,12 @@ Optionally write an ADR alongside the plan if there are significant architectura
 ## Rules
 
 - Adhere to the layers and restrictions from the host project's conventions docs.
+- **Quoted material stays quoted.** Where `research.md` carries an attributed quotation from
+  the institutional record — above all one marked **⚠ NON-CURRENT** — it stays attributed in the
+  plan and never becomes a plain step. A rejected or superseded decision is a fact about what
+  was once decided, not a licence to implement it: `implementer` reads your plan as
+  instructions, which is exactly the hop the quotation rule exists to survive
+  (`${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §5).
 - Clearly describe the trade-offs made.
 - **Phase scope:** When working on a specific phase, focus only on that phase's architecture.
 - **Dependencies:** For phase plans, clearly document what must be completed before this phase.

@@ -38,15 +38,31 @@ PHASE_DIR = re.compile(r'phase-\d+\Z')
 MAX_BYTES = 1048576
 TIMEOUT_SECONDS = 2
 
+# A large error page (an HTML 500 page from some intermediary, say) must not
+# bloat the log; a few hundred characters is enough of kartoteka's own JSON
+# body ("both guards describe what the caller got wrong...") to act on.
+ERROR_BODY_LIMIT = 300
+
 
 def knowledge_base_url(config):
-    """(base_url, error). Adapter off -> (None, None). On but unusable ->
-    (None, message): the mirror reports and continues, where vcs would stop
-    the run — a pull request cannot be written to disk, but these files are
-    already on disk."""
+    """(base_url, error). Adapter off ("none", or the section absent) ->
+    (None, None), silently. Anything else unusable -> (None, message): the
+    mirror reports and continues, where vcs would stop the run — a pull
+    request cannot be written to disk, but these files are already on disk.
+
+    An adapter value that is neither "none" nor "kartoteka" (a typo like
+    "kartoteca") is one of those unusable cases, not a third silent state:
+    config.md's reading rule 3 calls a name outside its allowed set a
+    configuration error, and treating it the same as "none" would make a
+    misspelled adapter mirror nothing, forever, with no request, no log line
+    and no stderr to notice by.
+    """
     knowledge = config.get('knowledge') or {}
-    if knowledge.get('adapter') != 'kartoteka':
+    adapter = knowledge.get('adapter', 'none')
+    if adapter == 'none':
         return None, None
+    if adapter != 'kartoteka':
+        return None, 'knowledge.adapter must be "none" or "kartoteka", got {!r}'.format(adapter)
     base = (knowledge.get('baseUrl') or '').strip().rstrip('/')
     if not base:
         return None, 'knowledge.adapter is "kartoteka" but knowledge.baseUrl is empty'
@@ -136,6 +152,22 @@ def post_artifact(base_url, payload):
         return response.status
 
 
+def _read_rejection_body(exc):
+    """Best-effort, truncated body of an HTTPError. kartoteka answers 400 with
+    an explanatory JSON body deliberately -- its own source comment reads
+    "both guards describe what the caller got wrong, and an agent reading a
+    bare 400 learns nothing." Discarding it here would throw that reasoning
+    away and make a permanent contract rejection indistinguishable in the log
+    from a transient outage."""
+    try:
+        body = exc.read().decode('utf-8', errors='replace').strip()
+    except Exception:
+        return ''
+    if len(body) > ERROR_BODY_LIMIT:
+        body = body[:ERROR_BODY_LIMIT] + '...(truncated)'
+    return body
+
+
 def main():
     if not h.CONFIG_PATH.exists():
         return 0  # unconfigured host: hooks stay inert
@@ -167,8 +199,19 @@ def main():
     payload = {'ticket_key': ticket_key, 'stage': stage,
                'name': name, 'content': content}
     try:
+        import urllib.error  # deferred with urllib.request, same reasoning
         status = post_artifact(base_url, payload)
         log('ok {} {} {} {}'.format(ticket_key, stage, name, status))
+    except urllib.error.HTTPError as exc:
+        # A permanent contract rejection -- not a transient outage, so it will
+        # not self-heal on the next edit and the log has to say so distinctly.
+        # Two real ways to land here: kartoteka's ticket-key grammar requires
+        # a project key of two-or-more characters while config.md allows a
+        # one-character ticket.projectKey, and an operator who lowers
+        # workspace.max_artifact_bytes below this hook's 1 MiB guard gets a
+        # 400 the guard cannot predict.
+        body = _read_rejection_body(exc)
+        log('reject {} {} {} -- HTTP {} {}'.format(ticket_key, stage, name, exc.code, body))
     except Exception as exc:  # fail open: the files on disk are the fallback
         log('fail {} {} -- {}'.format(ticket_key, name, exc))
     return 0

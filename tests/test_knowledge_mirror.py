@@ -133,6 +133,25 @@ class _Capture(BaseHTTPRequestHandler):
         pass  # the test's own output is the only output that helps
 
 
+class _RejectingCapture(BaseHTTPRequestHandler):
+    """Answers every POST with a configurable non-2xx status and body, the way
+    kartoteka's own 400 carries an explanatory JSON body rather than an empty
+    one. Tests set `status`/`body` before running the hook against it."""
+    status = 400
+    body = b'{"detail": "rejected"}'
+
+    def do_POST(self):
+        length = int(self.headers.get('Content-Length') or 0)
+        self.rfile.read(length)
+        self.send_response(self.status)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(self.body)
+
+    def log_message(self, *args):
+        pass  # the test's own output is the only output that helps
+
+
 def _run_hook(repo, hook_input, env=None):
     """Run the hook as the harness runs it: cwd = host repo root, JSON on stdin.
     `env=None` inherits this process's environment unchanged; pass an explicit
@@ -220,6 +239,98 @@ class TestEndToEnd(unittest.TestCase):
             self.assertIn('over', log.read_text(encoding='utf-8'))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(_Capture.received, [])
+
+    def test_unrecognized_adapter_value_sends_nothing_but_logs(self):
+        # config.md's reading rule 3: an adapter name outside its allowed set
+        # is a configuration error. Silently treating "kartoteca" the same as
+        # "none" would make a typo mirror nothing, forever, with no request
+        # and nothing in the log to notice by -- this is what makes it land
+        # in the log line instead.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteca', 'baseUrl': self.base})
+            result = _run_hook(repo, HOOK_INPUT)
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            line = log.read_text(encoding='utf-8')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(_Capture.received, [])
+        self.assertIn('kartoteca', line)
+
+    def test_adapter_none_writes_nothing_at_all(self):
+        # Distinct from test_adapter_off_sends_nothing: this checks the log
+        # file too, so "none" reads the same as an absent section below --
+        # neither one leaves so much as a log line behind, unlike the
+        # unrecognized-adapter case just above.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'none', 'baseUrl': self.base})
+            result = _run_hook(repo, HOOK_INPUT)
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            self.assertFalse(log.exists())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(_Capture.received, [])
+
+    def test_absent_knowledge_section_writes_nothing_at_all(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / '.artel').mkdir()
+            (repo / '.artel' / 'config.json').write_text(json.dumps({
+                'version': 1,
+                'ticket': {'projectKey': 'AW'},
+                'specs': {'dir': 'specs/.current'},
+                # no 'knowledge' key at all
+            }), encoding='utf-8')
+            ticket = repo / 'specs' / '.current' / 'AW-1234'
+            ticket.mkdir(parents=True)
+            (ticket / 'prd.md').write_text('# PRD\n\nThe body.\n', encoding='utf-8')
+            result = _run_hook(repo, HOOK_INPUT)
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            self.assertFalse(log.exists())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(_Capture.received, [])
+
+
+class TestHttpRejectionLogging(unittest.TestCase):
+    """A 400 is not a transient outage: F2's fix reads the response body kartoteka
+    sends deliberately (its own source comment: "both guards describe what the
+    caller got wrong, and an agent reading a bare 400 learns nothing") and puts a
+    truncated form of it in the log, distinct from a plain `fail` line."""
+
+    def setUp(self):
+        _RejectingCapture.status = 400
+        _RejectingCapture.body = b'{"detail": "rejected"}'
+        self.server = HTTPServer(('127.0.0.1', 0), _RejectingCapture)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = 'http://127.0.0.1:{}'.format(self.server.server_port)
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def test_400_body_reaches_the_log(self):
+        explanation = 'ticket_key must have a project key of two or more characters'
+        _RejectingCapture.body = json.dumps({'detail': explanation}).encode('utf-8')
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base})
+            result = _run_hook(repo, HOOK_INPUT)
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            line = log.read_text(encoding='utf-8')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '')
+        self.assertIn('reject', line)
+        self.assertIn(explanation, line)
+
+    def test_long_error_body_is_truncated(self):
+        long_detail = 'x' * 5000
+        _RejectingCapture.body = json.dumps({'detail': long_detail}).encode('utf-8')
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base})
+            result = _run_hook(repo, HOOK_INPUT)
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            line = log.read_text(encoding='utf-8')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('truncated', line)
+        # The raw body alone is ~5000 chars; a truncated log line must be a
+        # small fraction of that, not merely "shorter than the whole thing."
+        self.assertLess(len(line), 1000)
 
 
 class TestFailOpen(unittest.TestCase):

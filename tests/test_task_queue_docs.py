@@ -1,0 +1,70 @@
+"""The task-queue tool names are spelled identically everywhere they appear.
+
+Not a behaviour test: these are prompts, and there is no code path to exercise.
+Same guard as tests/test_knowledge_consultation_docs.py, for the same reason --
+a tool name that drifts in one prompt fails at call time in a session nobody is
+watching, and prose review does not catch a single changed underscore.
+"""
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+QUEUE_DOC = 'docs/task-queue.md'
+
+# The four kartoteka MCP tools this integration calls. Exact spellings.
+TOOL_NAMES = ('task_create', 'task_update', 'task_list', 'task_ready')
+
+# Plausible drifts. Each is a real name somebody would reach for.
+NEAR_MISSES = ('task_claim', 'task_next', 'tasks_ready', 'task_get',
+               'task_ready_claim', 'tasks_create')
+
+# Files that describe the loop and must agree with the reference doc.
+LOOP_FILES = (QUEUE_DOC,)
+
+
+class TestQueueDoc(unittest.TestCase):
+    def test_reference_doc_exists(self):
+        self.assertTrue((ROOT / QUEUE_DOC).is_file(), QUEUE_DOC + ' is missing')
+
+    def test_reference_doc_spells_every_tool(self):
+        text = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+        for name in TOOL_NAMES:
+            self.assertIn(name, text, QUEUE_DOC + ' never mentions ' + name)
+
+    def test_no_file_uses_a_near_miss_spelling(self):
+        for rel in LOOP_FILES:
+            text = (ROOT / rel).read_text(encoding='utf-8')
+            for wrong in NEAR_MISSES:
+                self.assertNotIn(wrong, text,
+                                 '{} uses {}, not a real kartoteka tool'.format(rel, wrong))
+
+    def test_gating_table_covers_all_four_rows(self):
+        text = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+        for fragment in ('local-only run requested',
+                         'its MCP tools are not available in this session',
+                         'became unreachable mid-run'):
+            self.assertIn(fragment, text, QUEUE_DOC + ' is missing: ' + fragment)
+
+    def test_local_flag_is_spelled_the_one_way(self):
+        text = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+        self.assertIn('`--local`', text)
+        for wrong in ('--no-kartoteka', '--local-only', '--offline', '--no-knowledge'):
+            self.assertNotIn(wrong, text)
+
+    def test_doc_says_where_the_local_flag_actually_exists(self):
+        # dev carries no --local by a deliberate decision that
+        # test_knowledge_consultation_docs.py pins. Gating dev's re-mirror on a
+        # flag it cannot receive would make row 1 unreachable while implying it
+        # applied, so the doc has to say which orchestrators hold the flag.
+        text = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+        self.assertIn('test_dev_does_not_carry_the_flag', text)
+        self.assertIn('rows 2-4', text)
+
+    def test_dev_skill_still_carries_no_local_flag(self):
+        self.assertNotIn('--local',
+                         (ROOT / 'skills/dev/SKILL.md').read_text(encoding='utf-8'))
+
+
+if __name__ == '__main__':
+    unittest.main()

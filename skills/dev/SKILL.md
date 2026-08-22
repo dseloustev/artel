@@ -77,6 +77,18 @@ an external action. No verify gate here (`verify.commands`) — docs only, no co
 
 ### 4. Implement (autonomous)
 
+**Re-mirror first.** Per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 rows 2-4
+(this skill carries no local-only flag, so row 1 cannot apply — do not add one here)
+and §2, on the queue path run:
+
+    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+
+and `task_create` the rows it emits. The step is create-only and idempotent, so
+this repairs a tasklist that was hand-edited or generated before the queue was
+reachable, and never resets a `done` row or undoes a promotion. Exit `2` → report
+and continue on the fallback path. On phase-scoped runs this lands after
+`sync-phases`, which is what keeps `tasklist.md` current when it is read.
+
 **Phase traversal:** explicit `<TICKET_ID>-<N>` in `$0` → run exactly that phase (one pass of
 steps 4–7.5). Ticket-wide `$0` with a multi-phase `tasklist.md` (Progress Report table / `##
 Iteration N` headers) → loop the remaining incomplete phases in order; each iteration: write

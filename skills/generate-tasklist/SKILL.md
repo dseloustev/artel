@@ -137,6 +137,22 @@ User's answers:
 3. Return the single confirmation line.
 ```
 
+### Phase 4: Mirror the tasklist into the task queue
+
+Per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, decide whether the queue path
+applies. On the fallback path, skip this phase silently and continue.
+
+On the queue path, run:
+
+    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+
+Exit `0` → follow `docs/task-queue.md` §2 steps 2–3: `task_create` each iteration
+row, then each of its children with `parent_id` set to the iteration's
+`task_id`, in the order emitted. Surface every `data.warnings` line.
+
+Exit `2` → print `error.kind` and `error.message`, mirror nothing, and continue.
+A failed mirror never blocks the run: the file on disk is the fallback.
+
 ### Completion
 
 When the agent returns its confirmation line, print it verbatim plus:

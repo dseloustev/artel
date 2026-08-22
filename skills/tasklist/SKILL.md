@@ -19,3 +19,19 @@ The prompt must also instruct: apply the HITL tagging rule from your agent defin
 (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4) and set `Status: TASKLIST_READY` in the output file.
 This skill never asks the user; any open question the breakdown surfaces goes to
 `.artel/run/<TICKET_ID>/open-questions.md` (§3 format, `from: tasklist`).
+
+### Mirror the tasklist into the task queue
+
+Per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, decide whether the queue path
+applies. On the fallback path, skip this step silently and continue.
+
+On the queue path, run:
+
+    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+
+Exit `0` → follow `docs/task-queue.md` §2 steps 2–3: `task_create` each iteration
+row, then each of its children with `parent_id` set to the iteration's
+`task_id`, in the order emitted. Surface every `data.warnings` line.
+
+Exit `2` → print `error.kind` and `error.message`, mirror nothing, and continue.
+A failed mirror never blocks the run: the file on disk is the fallback.

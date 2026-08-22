@@ -19,8 +19,14 @@ TOOL_NAMES = ('task_create', 'task_update', 'task_list', 'task_ready')
 NEAR_MISSES = ('task_claim', 'task_next', 'tasks_ready', 'task_get',
                'task_ready_claim', 'tasks_create')
 
+MIRROR_FILES = (
+    'skills/generate-tasklist/SKILL.md',
+    'skills/tasklist/SKILL.md',
+    'skills/dev/SKILL.md',
+)
+
 # Files that describe the loop and must agree with the reference doc.
-LOOP_FILES = (QUEUE_DOC,)
+LOOP_FILES = (QUEUE_DOC,) + MIRROR_FILES
 
 
 class TestQueueDoc(unittest.TestCase):
@@ -64,6 +70,23 @@ class TestQueueDoc(unittest.TestCase):
     def test_dev_skill_still_carries_no_local_flag(self):
         self.assertNotIn('--local',
                          (ROOT / 'skills/dev/SKILL.md').read_text(encoding='utf-8'))
+
+
+class TestMirrorStep(unittest.TestCase):
+    def test_every_producer_runs_the_mirror_step(self):
+        for rel in MIRROR_FILES:
+            text = (ROOT / rel).read_text(encoding='utf-8')
+            self.assertIn('scripts/tasklist_tasks.py', text,
+                          rel + ' never invokes the parser')
+            self.assertIn('docs/task-queue.md', text,
+                          rel + ' does not point at the reference doc')
+
+    def test_mirror_step_names_the_script_the_one_way(self):
+        for rel in MIRROR_FILES:
+            text = (ROOT / rel).read_text(encoding='utf-8')
+            self.assertIn(
+                'python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py', text,
+                rel + ' does not invoke the script the plugin-root way')
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
 ---
 name: researcher
 description: "Gather technical context and create a research document for the ticket"
-argument-hint: "[ticket-id] or [ticket-id]-[phase]"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [--local]"
 model: sonnet
 ---
 
@@ -10,6 +10,11 @@ model: sonnet
 Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 **Path resolution and the refuse-and-ask rule live in `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5.** The `researcher` subagent already understands them — this skill does not duplicate path tables.
+
+`--local` flag: skip the institutional-knowledge consultation for this run and research
+from the codebase alone. Pass it through to the `researcher` agent in both phases.
+Default is to consult; see `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §1
+for how it resolves against `knowledge.adapter` and tool availability.
 
 ## Execute
 

@@ -1,7 +1,7 @@
 ---
 name: analysis
 description: "Initialize feature: create a ticket and draft the PRD"
-argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file]"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--local]"
 model: sonnet
 ---
 
@@ -10,6 +10,11 @@ model: sonnet
 Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 **Path resolution and the refuse-and-ask rule live in `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5.** The `analyst` subagent already understands them — this skill does not duplicate path tables.
+
+`--local` flag: skip the institutional-knowledge consultation for this run and work
+from the repository and the user alone. Pass it through to the `analyst` agent.
+Default is to consult; see `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §1
+for how it resolves against `knowledge.adapter` and tool availability.
 
 ## Execute
 

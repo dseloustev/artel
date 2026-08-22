@@ -1,7 +1,7 @@
 ---
 name: dev
 description: "Lean autonomous dev workflow: mini-interview -> one work-list confirmation -> autonomous implement + review + runtime gate"
-argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates]"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates] [--local]"
 model: sonnet
 ---
 
@@ -14,6 +14,11 @@ QA / docs gates. `--step` = legacy step-by-step mode (per-task confirmations, no
 writes). `--mode=full-gates` aliases `--step`; `--mode=yolo` skips the step-2 confirmation
 (proceed on the presented work list as-is); default `plan-gate` keeps it. Mode contract:
 autonomous-run.md §10.
+
+`--local` flag: skip the institutional-knowledge consultation for this whole run and pass
+the flag down to every sub-skill that accepts it (`analysis`, `researcher`). Default is to
+consult; `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §1 resolves it against
+`knowledge.adapter` and tool availability.
 
 ## Workflow
 

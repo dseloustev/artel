@@ -1,7 +1,7 @@
 ---
 name: feature-development
 description: "End-to-end autonomous feature workflow: interview -> PRD -> vision -> plan -> tasks -> ONE approval pause -> autonomous implementation, review, QA, docs"
-argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates] [--dry-run]"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]"
 model: sonnet
 ---
 
@@ -21,7 +21,11 @@ file describes the default autonomous mode. `--mode=full-gates` is an alias for 
 `--mode=yolo|plan-gate` selects the autonomous mode per `autonomous-run.md` §10 (default:
 `plan-gate`); the classifier may raise it, never lower it. `--dry-run`: execute the chatty head
 (steps 1–2) and the step-3 presentation, print the resolved mode + reasons and the intended
-external actions, then stop — write no `run-state.json`, never arm.
+external actions, then stop — write no `run-state.json`, never arm. `--local`: skip the institutional-knowledge
+consultation for this whole run and pass the flag down to every sub-skill that accepts it
+(`analysis`, `researcher`). Default is to consult;
+`${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §1 resolves it against
+`knowledge.adapter` and tool availability.
 
 ## Workflow
 

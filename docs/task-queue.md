@@ -101,7 +101,8 @@ before this step, which `dev`'s existing step order already does.
                 no  → task_update(parent "I<N>: …", done)
                       every "I<N+1> · " child: backlog → ready
                 no I<N+1> exists → checkbox work is complete; Final Verification
-    abort     red gate or DEVIATION -> task_update(task_id, blocked)
+    abort     red gate, any DEVIATION halt, or Abort task ->
+                task_update(task_id, blocked)
                 never left in_progress: task_ready offers `ready` rows only,
                 so a held row wedges the iteration permanently
 
@@ -139,6 +140,8 @@ these it is, rather than reporting the ticket complete:
 - rows in `backlog` — an iteration is waiting on a promotion that did not happen;
 - rows in `blocked` — a HITL task or an aborted task is waiting on the user;
 - rows in `in_progress` — a holder is still working, or stalled and left the row
-  held. `actor` names the holder and `updated_at` says how long ago; a stalled
-  claim is cleared with `task_update(task_id, status="ready")`, which also clears
-  the holder. Never clear one that another agent is actively working.
+  held. `actor` names the holder and `updated_at` says how long ago. Report it;
+  do not clear another agent's claim on your own judgement. Nothing available
+  here separates a slow verify loop from a dead holder, and clearing a live
+  claim puts two agents on one task — the outcome the store's atomic claim
+  exists to prevent. Releasing it is the user's call.

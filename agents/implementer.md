@@ -61,6 +61,7 @@ index, if the host has wired one up (see
 `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §1) — else Grep; an anchor
 that doesn't resolve is a Major deviation to halt and report per
 `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`, not something to invent.
+On the queue path, release the claim first — see **Rules**, below.
 
 If the task carries a `[HITL: …]` tag, do not implement. On the queue path,
 `task_update(task_id, status="blocked")` first. Either way return the single line
@@ -113,7 +114,7 @@ ticket's queue wedges silently. Call `task_update(task_id, status="blocked")`
 before returning the `DEVIATION` report, the same move a claimed HITL task makes
 and for the same reason: it needs a human before anyone works it again. Do not
 return it to `ready` instead — the next agent would re-claim it and hit the same
-red gate.
+stop.
 
 ### Step 6 — Report
 
@@ -125,6 +126,7 @@ Return: task title, files changed (with the actual diff), then the two mandatory
 ## Rules
 
 - **HITL boundary** — never implement a `[HITL: …]`-tagged task; on the queue path set it `blocked` with `task_update`, then return `HITL: <reason>` and let the orchestrator pause.
+- **Release the claim on any exit that is not a completion** — on the queue path a task you hold must never be left `in_progress` when you stop working it. That covers Step 5's red gate, any `DEVIATION` halt (including an unresolved `ref:` anchor in Step 1), and the protocol's **Abort task** outcome. `task_update(task_id, status="blocked")` before returning, every time. `task_ready` offers `ready` rows only, so a held row is never re-offered and §3's promotion never fires while a sibling is unfinished — one missed release wedges the ticket's queue silently.
 - **Queue before file** — on the queue path the claim from `task_ready` decides what to work on, never a scan of `tasklist.md`. The file stays current as the fallback's input (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md`), not as the work list.
 - **Phase boundary** — if a phase is set, never touch tasks from other phases.
 - **One task per cycle** — complete the current task before picking the next.

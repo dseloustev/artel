@@ -199,5 +199,39 @@ class TestCountClaimsAreNotStale(unittest.TestCase):
         self.assertIn('Four-phase model', text)
 
 
+class TestEveryNonCompletionExitReleasesTheClaim(unittest.TestCase):
+    """One uncovered exit wedges the queue exactly as the red-gate one did.
+
+    agents/implementer.md halts with a DEVIATION report from three places, not
+    one, and deviation-protocol.md's Abort task outcome returns control with no
+    queue update at all.
+    """
+
+    def setUp(self):
+        self.agent = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+
+    def test_rules_carry_the_release_as_a_standing_rule(self):
+        rules = self.agent.split('## Rules')[1]
+        self.assertIn('Release the claim on any exit that is not a completion', rules)
+
+    def test_step_one_anchor_halt_points_at_the_release_rule(self):
+        step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
+        self.assertIn('release the claim first', step_one)
+
+    def test_queue_doc_abort_line_names_more_than_the_red_gate(self):
+        self.assertIn('any DEVIATION halt, or Abort task', self.doc)
+
+
+class TestStalledClaimIsNotClearedUnilaterally(unittest.TestCase):
+    """actor + updated_at cannot tell a slow verify loop from a dead holder."""
+
+    def test_empty_queue_section_forbids_clearing_another_agents_claim(self):
+        section = (ROOT / QUEUE_DOC).read_text(encoding='utf-8').split(
+            '## 5. When the queue is empty')[1]
+        self.assertIn('do not clear another agent', section)
+        self.assertNotIn('status="ready"', section)
+
+
 if __name__ == '__main__':
     unittest.main()

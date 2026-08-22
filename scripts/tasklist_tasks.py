@@ -170,21 +170,32 @@ def build_rows(iterations):
     return rows, warnings
 
 
+def _normalized(title):
+    """Match the store's own normalisation before comparing.
+
+    kartoteka collapses whitespace runs and strips the ends before enforcing
+    UNIQUE(ticket_key, title), so comparing raw titles here would pass a pair
+    the store then silently merges.
+    """
+    return re.sub(r'\s+', ' ', title).strip()
+
+
 def find_collisions(rows):
     """Titles appearing more than once, first-seen order.
 
     Fatal rather than a warning: kartoteka's create_task would return the first
     row for the second title and write no event, so a collision is a silent
     merge of distinct work -- exactly what putting the iteration in the title
-    exists to prevent. Catches post-truncation collisions and duplicated
-    checkbox text alike.
+    exists to prevent. Catches post-truncation collisions, duplicated checkbox
+    text, and pairs that differ only inside a whitespace run.
     """
     counts = {}
     repeated = []
     for row in rows:
         for title in [row['title']] + [child['title'] for child in row['children']]:
-            counts[title] = counts.get(title, 0) + 1
-            if counts[title] == 2:
+            key = _normalized(title)
+            counts[key] = counts.get(key, 0) + 1
+            if counts[key] == 2:
                 repeated.append(title)
     return repeated
 

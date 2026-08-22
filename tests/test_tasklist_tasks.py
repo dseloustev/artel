@@ -229,6 +229,23 @@ class TestTitleCap(unittest.TestCase):
         self.assertEqual(tasklist_tasks.find_collisions(rows),
                          ['I1 · lib/a.dart · Same task'])
 
+    def test_titles_differing_only_inside_a_whitespace_run_collide(self):
+        # kartoteka normalises whitespace before its UNIQUE check, so this pair
+        # passed the guard here and merged in the store -- the exact silent
+        # merge the guard exists to prevent.
+        iterations, _ = tasklist_tasks.parse_tasklist(
+            self._long_tasklist('Wire  the adapter', 'Wire the adapter'))
+        rows, _ = tasklist_tasks.build_rows(iterations)
+        self.assertEqual(tasklist_tasks.find_collisions(rows),
+                         ['I1 · lib/a.dart · Wire the adapter'])
+
+    def test_a_tab_and_a_space_are_the_same_separator(self):
+        iterations, _ = tasklist_tasks.parse_tasklist(
+            '## Iteration 1: Tabs\n\n### `lib/a.dart`\n'
+            '- [ ] Wire\tthe adapter\n- [ ] Wire the adapter\n')
+        rows, _ = tasklist_tasks.build_rows(iterations)
+        self.assertEqual(len(tasklist_tasks.find_collisions(rows)), 1)
+
 
 SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'tasklist_tasks.py'
 

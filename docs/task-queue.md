@@ -12,9 +12,11 @@ two copies drifting apart hands the same task to two agents.
 consulting prior tickets and decisions — is `docs/knowledge-consultation.md`,
 and it stays read-only.
 
-**The queue is authoritative for what to work on next.** `tasklist.md` remains
-current as a rendered view, because §4's fallback reads it and a fallback
-pointed at a file claiming nothing is done would redo the whole ticket.
+**The queue is authoritative for which iteration task to work next** — and only
+for that. §6 lists the four sections it never holds, every one of which is worked
+from the file on both paths. The tasklist in scope stays current as a rendered
+view besides, because §4's fallback reads it and a fallback pointed at a file
+claiming nothing is done would redo the whole ticket.
 
 ## 1. Whether to use the queue at all
 
@@ -88,8 +90,9 @@ before this step, which both orchestrators' existing step order already does.
                 → first child of an iteration: task_update(parent, in_progress)
     guard     title contains "[HITL:" → task_update(task_id, blocked),
                 return `HITL: <reason>`, do not implement
-    work      implement; flip the checkbox in tasklist.md and update the
-              Progress Report table, exactly as before
+    work      implement; flip the checkbox in the tasklist in scope
+              (tasklist.md, or phase-<N>/tasks.md on a phase-scoped run)
+              and update the Progress Report table, exactly as before
     report    task_update(task_id, status="done")
     promote   task_list(ticket_key) → any "I<N> · " sibling not done?
                 yes → stop here
@@ -132,9 +135,9 @@ also clears the holder.
 
 ## 4. The fallback path
 
-Scan `tasklist.md` for the first incomplete `- [ ]` within scope and proceed
-exactly as artel did before the queue existed, flipping the checkbox on
-completion.
+Scan the tasklist in scope (`tasklist.md`, or `phase-<N>/tasks.md` on a
+phase-scoped run) for the first incomplete `- [ ]` and proceed exactly as artel
+did before the queue existed, flipping the checkbox on completion.
 
 **Record which path the run took**, in the ticket's `implementation-notes.md`
 alongside the deviation record. A run that switches paths mid-ticket leaves the

@@ -49,7 +49,7 @@ is missing. Unconfigured gates degrade to `skipped`, never to fake green: an emp
 | Just research + plan | `/artel:researcher PROJ-XXXX` then `/artel:planner PROJ-XXXX` |
 | Check a plan for hallucinated references | `python3 <plugin-root>/scripts/plan_check.py --plan specs/.current/PROJ-XXXX/plan.md --strict` |
 | Just the tasklist | `/artel:tasklist PROJ-XXXX` (from plan) or `/artel:generate-tasklist PROJ-XXXX` (from idea+vision) |
-| Mirror a tasklist into the kartoteka task queue | `python3 <plugin-root>/scripts/tasklist_tasks.py --tasklist specs/.current/PROJ-XXXX/tasklist.md --ticket-key PROJ-XXXX` |
+| Parse a tasklist into task-queue rows (JSON; mirrors nothing) | `python3 <plugin-root>/scripts/tasklist_tasks.py --tasklist specs/.current/PROJ-XXXX/tasklist.md --ticket-key PROJ-XXXX` |
 | Implement the next open task | `/artel:implementer PROJ-XXXX` |
 | Review / runtime-check / QA / gate-status | `/artel:run-reviewer PROJ-XXXX` · `/artel:run-app --gate` · `/artel:qa PROJ-XXXX` · `/artel:validate PROJ-XXXX` |
 | PR description / open the PR | `/artel:pr-description PROJ-XXXX` · `/artel:pr-create PROJ-XXXX` |

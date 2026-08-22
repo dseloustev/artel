@@ -118,10 +118,22 @@ class TestWriteDirectionIsNoLongerClaimedAbsent(unittest.TestCase):
     def test_no_longer_claims_the_hook_is_the_only_write_path(self):
         self.assertNotIn('and through nothing else', self.text)
 
-    def test_artifacts_and_tasks_are_no_longer_one_rule(self):
-        self.assertNotIn('ignore the `## artifacts` and\n  `## tasks` blocks', self.text)
-        self.assertIn('`## artifacts`', self.text)
-        self.assertIn('`## tasks`', self.text)
+    def test_artifacts_are_a_lagging_mirror_and_tasks_are_authoritative(self):
+        """Both blocks are ignored here; the doc has to say why each one is.
+
+        Was an assertNotIn on the old text's exact line wrapping -- which any
+        reflow satisfies -- plus two assertIns on tokens the paragraph could not
+        lose. The substantive claim is the asymmetry: `## artifacts` is skipped
+        because the files on disk are ahead of it, `## tasks` because the queue
+        is authoritative but out of scope during an interview or a scan.
+        """
+        block = self.text.split('`## artifacts` block')[1].split(
+            '- **`search_knowledge')[0]
+        self.assertIn('which can lag the files', block)
+        self.assertIn('those files are authoritative', block)
+        self.assertIn('The `## tasks` block is **not** a lagging mirror:', block)
+        self.assertIn('the queue is authoritative for what to work on', block)
+        self.assertIn('ignore it as out of scope, not as stale', block)
 
 
 if __name__ == '__main__':

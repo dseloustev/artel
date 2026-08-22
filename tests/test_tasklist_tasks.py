@@ -89,7 +89,15 @@ class TestParseTasklist(unittest.TestCase):
     def test_progress_report_table_produces_no_children(self):
         # The table rows are not checkboxes, and `## Progress Report` closes any
         # open iteration. Pinned because a looser checkbox regex would eat them.
-        self.assertEqual(len(self.iterations), 2)
+        # Counting iterations duplicated the test above and never looked at a
+        # single child, which is where a leaked table row would actually land.
+        texts = [c['text'] for it in self.iterations for c in it['children']]
+        self.assertEqual(5, len(texts))
+        for text in texts:
+            self.assertNotIn('|', text, 'table row leaked into a child: ' + text)
+            for cell in ('Scaffold the adapter', 'Wire it in', '⬜ Pending', 'Legend'):
+                self.assertNotIn(cell, text,
+                                 'table cell leaked into a child: ' + text)
 
     def test_final_verification_checkboxes_are_not_iteration_children(self):
         # `## Final Verification` is a `##` heading, so it closes iteration 2.
@@ -207,12 +215,17 @@ class TestTitleCap(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertIn('truncated', warnings[0])
 
-    def test_truncation_is_deterministic_across_runs(self):
-        text = self._long_tasklist('A' * 600, 'B')
-        first, _ = tasklist_tasks.build_rows(tasklist_tasks.parse_tasklist(text)[0])
-        second, _ = tasklist_tasks.build_rows(tasklist_tasks.parse_tasklist(text)[0])
-        self.assertEqual(first[0]['children'][0]['title'],
-                         second[0]['children'][0]['title'])
+    def test_truncation_is_a_plain_prefix_cut(self):
+        # Was: build the same input twice and compare, which no pure function
+        # can fail. What has to hold is WHICH characters survive -- the title is
+        # the idempotency key, so a hash suffix or a mid-string ellipsis would
+        # re-key every long row and mirror it a second time.
+        iterations, _ = tasklist_tasks.parse_tasklist(
+            self._long_tasklist('A' * 600, 'B'))
+        rows, _ = tasklist_tasks.build_rows(iterations)
+        untruncated = 'I1 · lib/a.dart · ' + 'A' * 600
+        self.assertEqual(untruncated[:tasklist_tasks.MAX_TITLE_CHARS],
+                         rows[0]['children'][0]['title'])
 
     def test_two_titles_colliding_after_truncation_are_found(self):
         iterations, _ = tasklist_tasks.parse_tasklist(
@@ -245,6 +258,41 @@ class TestTitleCap(unittest.TestCase):
             '- [ ] Wire\tthe adapter\n- [ ] Wire the adapter\n')
         rows, _ = tasklist_tasks.build_rows(iterations)
         self.assertEqual(len(tasklist_tasks.find_collisions(rows)), 1)
+
+
+class TestGateRemediationSectionsAreNotMirrored(unittest.TestCase):
+    """The queue holds iteration work and nothing else.
+
+    `implementer` is dispatched for these three sections too, and works them
+    from the file -- `agents/implementer.md` Step 1 and docs/task-queue.md §6.
+    A parser that emitted rows for them would file gate remediation behind a
+    promotion that never comes, because nothing is their parent iteration.
+    There was a test for `## Final Verification` and none for these three, and
+    that gap is what let the too-broad "queue before file" rule through review.
+    """
+
+    SECTIONS = ('## Code Review Fixes', '## Runtime Fixes', '## Verify Fixes')
+
+    def _children(self, extra):
+        iterations, _ = tasklist_tasks.parse_tasklist(TASKLIST + extra)
+        self.assertEqual(2, len(iterations), 'the two real iterations, and no more')
+        return [c['text'] for it in iterations for c in it['children']]
+
+    def test_bare_checkboxes_under_a_fix_heading_are_not_children(self):
+        for heading in self.SECTIONS:
+            with self.subTest(heading):
+                extra = '\n{}\n\n- [ ] **Task 1: fix what the gate found**\n'.format(heading)
+                self.assertNotIn('**Task 1: fix what the gate found**',
+                                 self._children(extra))
+
+    def test_a_fix_heading_with_a_section_is_not_mirrored_either(self):
+        # The `### ` gate is what skips a bare checkbox, so a fix list that
+        # happened to group its items by file would otherwise sail through it.
+        for heading in self.SECTIONS:
+            with self.subTest(heading):
+                extra = ('\n{}\n\n### `lib/a.dart`\n'
+                         '- [ ] fix what the gate found\n'.format(heading))
+                self.assertNotIn('fix what the gate found', self._children(extra))
 
 
 SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'tasklist_tasks.py'

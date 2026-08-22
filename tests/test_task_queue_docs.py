@@ -52,11 +52,29 @@ class TestQueueDoc(unittest.TestCase):
                                  '{} uses {}, not a real kartoteka tool'.format(rel, wrong))
 
     def test_gating_table_covers_all_four_rows(self):
-        text = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
-        for fragment in ('local-only run requested',
-                         'its MCP tools are not available in this session',
-                         'became unreachable mid-run'):
-            self.assertIn(fragment, text, QUEUE_DOC + ' is missing: ' + fragment)
+        # Was three fragments matched against the whole file, one of which
+        # belongs to the fifth case rather than to any row, and rows 2 and 3
+        # were never checked at all. Each row's behaviour is asserted here, in
+        # the row itself, so a dropped or reordered row fails.
+        section = (ROOT / QUEUE_DOC).read_text(encoding='utf-8').split(
+            '## 1. Whether to use the queue at all')[1].split('## 2.')[0]
+        rows = [ln for ln in section.splitlines()
+                if ln.startswith('|') and not ln.startswith('|---')][1:]
+        self.assertEqual(4, len(rows), 'the gating table must carry exactly four rows')
+        self.assertIn('local-only run requested', rows[0])
+        self.assertIn('Fallback path', rows[0])
+        self.assertIn('Record nothing', rows[1])
+        self.assertIn('Fallback path', rows[1])
+        self.assertIn('Queue path', rows[2])
+        self.assertNotIn('Fallback path', rows[2])
+        self.assertIn('its MCP tools are not available in this session', rows[3])
+        self.assertIn('Fallback path', rows[3])
+
+    def test_the_fifth_case_is_documented_outside_the_table(self):
+        # The daemon dying mid-ticket has no row: it is not a starting state.
+        section = (ROOT / QUEUE_DOC).read_text(encoding='utf-8').split(
+            '## 1. Whether to use the queue at all')[1].split('## 2.')[0]
+        self.assertIn('became unreachable mid-run', section)
 
     def test_local_flag_is_spelled_the_one_way(self):
         text = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
@@ -114,9 +132,15 @@ class TestClaimLoop(unittest.TestCase):
     def test_hitl_boundary_survives_the_queue(self):
         # The HITL rule predates the queue and must not be lost in the rewrite:
         # a claimed HITL task is set blocked and returned, never implemented.
+        # Scoped to Step 1's HITL sentence: `blocked` appears half a dozen times
+        # in this file now, so an unscoped assertIn passed with the whole clause
+        # deleted -- it pinned the word, not the rule.
         text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
-        self.assertIn('HITL: <reason>', text)
-        self.assertIn('blocked', text)
+        step_one = text.split('### Step 1')[1].split('### Step 2')[0]
+        sentence = step_one.split('If the task carries a `[HITL: …]` tag')[1]
+        self.assertIn('do not implement', sentence)
+        self.assertIn('status="blocked"', sentence)
+        self.assertIn('HITL: <reason>', sentence)
 
     def test_fallback_path_is_still_described(self):
         text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')

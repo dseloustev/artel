@@ -19,6 +19,11 @@
             "type": "command",
             "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/fast_verify_post_edit.py\"",
             "timeout": 150
+          },
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/knowledge_mirror.py\"",
+            "timeout": 15
           }
         ]
       }

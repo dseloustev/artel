@@ -1,7 +1,10 @@
 """PostToolUse(Edit|Write|MultiEdit): mirror artel's spec trail into a kartoteka
 artifact store. Best-effort by contract — never blocks, never retries."""
+import json
 import re
 import sys
+import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -95,3 +98,71 @@ def artifact_identity(rel, config):
     stage = STAGE_OVERRIDES.get(stem, stem)
     name = filename if phase is None else '{}.{}'.format(phase, filename)
     return ticket_key, stage, name
+
+
+LOG_PATH = h.STATE_DIR / 'knowledge-mirror.log'
+
+
+def log(line):
+    """One line per attempt. A silent mirror that has been failing for a week
+    is worse than no mirror: it looks like a complete trail."""
+    try:
+        h.STATE_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        with LOG_PATH.open('a', encoding='utf-8') as handle:
+            handle.write('{} {}\n'.format(stamp, line))
+    except OSError:
+        pass  # the log is a convenience; failing to write it changes nothing
+
+
+def post_artifact(base_url, payload):
+    request = urllib.request.Request(
+        base_url + '/api/artifacts',
+        data=json.dumps(payload).encode('utf-8'),
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+        return response.status
+
+
+def main():
+    if not h.CONFIG_PATH.exists():
+        return 0  # unconfigured host: hooks stay inert
+    config = h.load_config()
+    base_url, error = knowledge_base_url(config)
+    if error:
+        log('misconfigured -- ' + error)
+        return 0
+    if base_url is None:
+        return 0
+    rel = h.relpath_from_tool_input(h.read_hook_input())
+    if not rel:
+        return 0
+    identity = artifact_identity(rel, config)
+    if identity is None:
+        return 0
+    ticket_key, stage, name = identity
+    try:
+        content = Path(rel).read_text(encoding='utf-8')
+    except (OSError, ValueError):
+        return 0  # deleted, binary, or unreadable between the write and here
+    if len(content.encode('utf-8')) > MAX_BYTES:
+        log('skip {} {} -- over {} bytes'.format(ticket_key, name, MAX_BYTES))
+        return 0
+    payload = {'ticket_key': ticket_key, 'stage': stage,
+               'name': name, 'content': content}
+    try:
+        status = post_artifact(base_url, payload)
+        log('ok {} {} {} {}'.format(ticket_key, stage, name, status))
+    except Exception as exc:  # fail open: the files on disk are the fallback
+        log('fail {} {} -- {}'.format(ticket_key, name, exc))
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except Exception as exc:  # fail open
+        print('knowledge_mirror hook error (allowing): {}'.format(exc), file=sys.stderr)
+        sys.exit(0)

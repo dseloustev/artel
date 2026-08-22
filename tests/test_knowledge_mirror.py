@@ -1,5 +1,10 @@
+import json
+import subprocess
 import sys
+import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
@@ -99,6 +104,118 @@ class TestSizeGuard(unittest.TestCase):
 
     def test_timeout_is_two_seconds(self):
         self.assertEqual(km.TIMEOUT_SECONDS, 2)
+
+
+HOOK = Path(__file__).resolve().parent.parent / 'hooks' / 'knowledge_mirror.py'
+
+HOOK_INPUT = {
+    'tool_name': 'Write',
+    'tool_input': {'file_path': 'specs/.current/AW-1234/prd.md'},
+}
+
+
+class _Capture(BaseHTTPRequestHandler):
+    received = []
+
+    def do_POST(self):
+        length = int(self.headers.get('Content-Length') or 0)
+        _Capture.received.append({
+            'path': self.path,
+            'body': json.loads(self.rfile.read(length).decode('utf-8')),
+        })
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(b'{"artifact_id": 1, "version": 1}')
+
+    def log_message(self, *args):
+        pass  # the test's own output is the only output that helps
+
+
+def _run_hook(repo, hook_input):
+    """Run the hook as the harness runs it: cwd = host repo root, JSON on stdin."""
+    return subprocess.run(
+        [sys.executable, str(HOOK)],
+        cwd=repo, input=json.dumps(hook_input), text=True, capture_output=True,
+    )
+
+
+def _host_repo(tmp, knowledge):
+    repo = Path(tmp)
+    (repo / '.artel').mkdir()
+    (repo / '.artel' / 'config.json').write_text(json.dumps({
+        'version': 1,
+        'ticket': {'projectKey': 'AW'},
+        'specs': {'dir': 'specs/.current'},
+        'knowledge': knowledge,
+    }), encoding='utf-8')
+    ticket = repo / 'specs' / '.current' / 'AW-1234'
+    ticket.mkdir(parents=True)
+    (ticket / 'prd.md').write_text('# PRD\n\nThe body.\n', encoding='utf-8')
+    return repo
+
+
+class TestEndToEnd(unittest.TestCase):
+    def setUp(self):
+        _Capture.received = []
+        self.server = HTTPServer(('127.0.0.1', 0), _Capture)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = 'http://127.0.0.1:{}'.format(self.server.server_port)
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def test_posts_the_exact_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base})
+            result = _run_hook(repo, HOOK_INPUT)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(_Capture.received), 1)
+        self.assertEqual(_Capture.received[0]['path'], '/api/artifacts')
+        self.assertEqual(_Capture.received[0]['body'], {
+            'ticket_key': 'AW-1234',
+            'stage': 'prd',
+            'name': 'prd.md',
+            'content': '# PRD\n\nThe body.\n',
+        })
+
+    def test_adapter_off_sends_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'none', 'baseUrl': self.base})
+            result = _run_hook(repo, HOOK_INPUT)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(_Capture.received, [])
+
+    def test_oversize_file_sends_nothing_and_logs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base})
+            big = 'x' * (km.MAX_BYTES + 1)
+            (repo / 'specs' / '.current' / 'AW-1234' / 'prd.md').write_text(
+                big, encoding='utf-8')
+            result = _run_hook(repo, HOOK_INPUT)
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            self.assertTrue(log.is_file())
+            self.assertIn('over', log.read_text(encoding='utf-8'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(_Capture.received, [])
+
+
+class TestFailOpen(unittest.TestCase):
+    def test_unreachable_server_exits_zero_and_logs(self):
+        # Port 1 on loopback refuses instantly; nothing must propagate.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:1'})
+            result = _run_hook(repo, HOOK_INPUT)
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            self.assertIn('fail', log.read_text(encoding='utf-8'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '')  # no blocking hook JSON, ever
+
+    def test_unconfigured_host_exits_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = _run_hook(tmp, HOOK_INPUT)  # no .artel/config.json at all
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == '__main__':

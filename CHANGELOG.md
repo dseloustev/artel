@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-22
+
 ### Added
 
 - **Knowledge consultation — the read half of the kartoteka adapter.** With

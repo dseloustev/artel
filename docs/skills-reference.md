@@ -39,7 +39,7 @@ Entry template:
 - **Purpose:** End-to-end autonomous orchestrator that carries a ticket from idea through PRD,
   vision, plan, tasklist, implementation, review, runtime check, QA, docs, and PR — with exactly
   one approval pause.
-- **Invocation:** `/artel:feature-development [ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates] [--dry-run]`
+- **Invocation:** `/artel:feature-development [ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]`
 - **Reads:** `.artel/config.json` (missing → invokes `setup` first); whichever ticket artifacts
   already exist (`idea.md`, `prd.md`, `vision.md`, `plan.md`, `tasklist.md`) — skip-if-exists
   governs each gate; `.artel/run/<TICKET_ID>/open-questions.md`; `run-state.json` /

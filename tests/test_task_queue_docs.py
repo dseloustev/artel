@@ -164,7 +164,11 @@ class TestAbortedClaimIsReleased(unittest.TestCase):
         self.agent = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
 
     def test_agent_sets_an_aborted_task_blocked(self):
-        self.assertIn('status="blocked"', self.agent)
+        # Scoped to the abort paragraph on purpose. The pre-existing HITL guard
+        # also contains status="blocked", so an unscoped assertIn passes even
+        # with this whole paragraph deleted -- it pinned nothing.
+        paragraph = self.agent.split('**Release the claim on the way out.**')[1]
+        self.assertIn('status="blocked"', paragraph)
 
     def test_agent_no_longer_leaves_an_aborted_task_in_progress(self):
         self.assertNotIn('leave the task `in_progress`', self.agent)

@@ -8,8 +8,9 @@ because both need the identical rules, and §5 is one where two copies drifting
 apart is unsafe rather than untidy.
 
 **This file is read-only toward kartoteka.** Nothing here writes. artel's spec
-trail reaches kartoteka through the `PostToolUse` hook (`hooks/knowledge_mirror.py`)
-and through nothing else.
+trail reaches kartoteka through the `PostToolUse` hook
+(`hooks/knowledge_mirror.py`); its task queue is the other write direction and
+is `docs/task-queue.md`. Consultation itself writes nothing.
 
 **And artel never reads its own in-flight trail from kartoteka.** This ticket's
 `prd.md`, `plan.md` and `research.md` are read from disk, as they always have
@@ -57,10 +58,13 @@ Then:
   **canonical key, never the phase suffix**: a run of `AW-1234-2` calls
   `related("AW-1234")`. kartoteka joins on the bare key its Jira documents carry,
   so the phase form would silently return nothing.
-  When the key is *this run's own* ticket, ignore the `## artifacts` and
-  `## tasks` blocks in the reply. That is artel's own trail coming back through
-  the mirror, which can lag the files sitting beside you, and those files are
-  authoritative — do not follow up with `artifact_get` on any of it.
+  When the key is *this run's own* ticket, ignore the `## artifacts` block. That
+  is artel's own spec trail coming back through the hook, which can lag the files
+  sitting beside you, and those files are authoritative — do not follow up with
+  `artifact_get` on any of it. The `## tasks` block is **not** a lagging mirror:
+  since `docs/task-queue.md` the queue is authoritative for what to work on. It
+  is still of no use during an interview or a scan, so ignore it here too — but
+  ignore it as out of scope, not as stale.
 - **`search_knowledge(<query>)`** — for discovery, where the ticket key is not
   the handle: the subject of the work, a subsystem name, a risk area.
 

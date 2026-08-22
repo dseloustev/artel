@@ -196,6 +196,11 @@ interactive Overwrite/Abort prompts fire only on manual invocation. `sync-phases
 orchestrators on phase-scoped runs: at run start (extract `phase-N/tasks.md` when missing) and after
 the phase's gates pass (sync status back to `tasklist.md`).
 
+- **Task-queue mirror** — `dev` and `feature-development` re-mirror `tasklist.md`
+  into the kartoteka task queue on entry to implementation, after `sync-phases`
+  on phase-scoped runs (`docs/task-queue.md` §2). Create-only and idempotent; a
+  failure reports and falls back rather than blocking the run.
+
 `pr-description` is the exception to skip-if-exists: invoked by `feature-development` at run completion
 (after all gates are green, before `completed: true`), it always regenerates `pr-description.md` — the
 branch diff is its input, so an existing file is stale by definition. It is prompt-free; external-fetch

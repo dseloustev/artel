@@ -103,5 +103,26 @@ class LocalFlagSpelling(unittest.TestCase):
                     self.assertNotIn(wrong, text)
 
 
+class TestWriteDirectionIsNoLongerClaimedAbsent(unittest.TestCase):
+    """The doc used to say artel reaches kartoteka through the hook and nothing
+    else, and that this run's own `## tasks` block is a lagging mirror whose
+    files are authoritative. The task queue makes both false, and a stale
+    justification is what the next reader builds on."""
+
+    def setUp(self):
+        self.text = (ROOT / 'docs/knowledge-consultation.md').read_text(encoding='utf-8')
+
+    def test_points_at_the_write_direction(self):
+        self.assertIn('docs/task-queue.md', self.text)
+
+    def test_no_longer_claims_the_hook_is_the_only_write_path(self):
+        self.assertNotIn('and through nothing else', self.text)
+
+    def test_artifacts_and_tasks_are_no_longer_one_rule(self):
+        self.assertNotIn('ignore the `## artifacts` and\n  `## tasks` blocks', self.text)
+        self.assertIn('`## artifacts`', self.text)
+        self.assertIn('`## tasks`', self.text)
+
+
 if __name__ == '__main__':
     unittest.main()

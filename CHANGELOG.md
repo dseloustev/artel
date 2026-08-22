@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Task queue integration with kartoteka.** `tasklist.md` is mirrored into
+  kartoteka's `tasks` table through `task_create`, and `implementer` takes its
+  next task from `task_ready` and reports through `task_update` rather than
+  scanning for the first `- [ ]`. Iterations become parent rows and checkboxes
+  their children; the queue is authoritative for what to work on, while
+  `tasklist.md` stays current as the offline fallback. Gated by
+  `knowledge.adapter` plus tool presence, with `--local` forcing the fallback —
+  no new config key. New `scripts/tasklist_tasks.py` does the parsing and
+  contacts nothing; everything reaching kartoteka goes through MCP tools.
+  See `docs/task-queue.md` and
+  `docs/superpowers/specs/2026-08-22-artel-task-queue-design.md`.
+
 ## [0.2.0] - 2026-08-22
 
 ### Added

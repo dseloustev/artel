@@ -177,7 +177,7 @@ the contract from a promise into enforcement ([hooks/README.md](../hooks/README.
 
 ### The deterministic gate scripts
 
-Two Python scripts under the plugin's `scripts/` expose the quality gates as JSON-envelope
+Three Python scripts under the plugin's `scripts/` expose the quality gates as JSON-envelope
 commands with a strict exit-code contract: `0` clean, `1` findings (code issues to fix), `2`
 environment error (bad toolchain/invocation — **never** edit app code in response;
 `verify.py`'s closed `error.kind` list is `invalid_argument` / `timeout` / `spawn_failed` /

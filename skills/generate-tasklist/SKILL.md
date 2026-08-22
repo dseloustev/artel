@@ -65,7 +65,7 @@ place" — a tasklist partway through implementation is better merged by hand.
 
 ## Execute
 
-Three-phase model, matching `analysis` and `planner`:
+Four-phase model, matching `analysis` and `planner`:
 
 1. **Phase 1:** `tasklist-writer` agent drafts the tasklist and returns clarifying questions.
 2. **Phase 2:** Orchestrator asks the user via `AskUserQuestion` (if any).

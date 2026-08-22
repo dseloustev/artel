@@ -72,6 +72,14 @@ promotion, which is what makes `dev`'s re-mirror a repair rather than a hazard.
 mirrors under `AW-1234`, the same rule `docs/knowledge-consultation.md` §2 states
 for `related()`.
 
+**Iteration N is phase N.** `generate-tasklist` writes the tasklist ticket-wide
+and calls its iterations phases; `sync-phases` maps `phase-<N>/tasks.md` onto
+iteration N. So a phase-scoped run claims only `I<N> · ` tasks for its own phase.
+If `task_ready` hands it one from another phase, return that task with
+`task_update(task_id, status="ready")` — which clears the holder — and report
+that the queue is ahead of this run's phase rather than crossing the boundary
+`agents/implementer.md`'s `## Phase support` rule forbids.
+
 **`phase-<N>/tasks.md` is never mirrored.** It is an extract of one iteration
 that `sync-phases` syncs back to the ticket-wide tasklist; mirroring both would
 create two rows per checkbox. On phase-scoped runs `sync-phases` therefore runs
@@ -93,6 +101,9 @@ before this step, which `dev`'s existing step order already does.
                 no  → task_update(parent "I<N>: …", done)
                       every "I<N+1> · " child: backlog → ready
                 no I<N+1> exists → checkbox work is complete; Final Verification
+    abort     red gate or DEVIATION -> task_update(task_id, blocked)
+                never left in_progress: task_ready offers `ready` rows only,
+                so a held row wedges the iteration permanently
 
 `actor` is `artel@<hostname>`. Two agents on one host are indistinguishable in
 this field; kartoteka renders it as "self-reported, unverified" and nothing
@@ -114,14 +125,20 @@ Scan `tasklist.md` for the first incomplete `- [ ]` within scope and proceed
 exactly as artel did before the queue existed, flipping the checkbox on
 completion.
 
-**Record which path the run took.** A run that switches paths mid-ticket leaves
-the checkbox marks ahead of the queue statuses and nothing reconciles them. The
+**Record which path the run took**, in the ticket's `implementation-notes.md`
+alongside the deviation record. A run that switches paths mid-ticket leaves the
+checkbox marks ahead of the queue statuses and nothing reconciles them. The
 record is the only trail that divergence leaves.
 
 ## 5. When the queue is empty
 
 `task_ready` returning nothing on the queue path means no work is `ready` — not
-that the ticket is finished. Check `task_list(ticket_key)`: rows still in
-`backlog` mean an iteration is waiting on a promotion that did not happen, and
-rows in `blocked` mean a HITL task is waiting on the user. Report which, rather
-than reporting the ticket complete.
+that the ticket is finished. Check `task_list(ticket_key)` and report which of
+these it is, rather than reporting the ticket complete:
+
+- rows in `backlog` — an iteration is waiting on a promotion that did not happen;
+- rows in `blocked` — a HITL task or an aborted task is waiting on the user;
+- rows in `in_progress` — a holder is still working, or stalled and left the row
+  held. `actor` names the holder and `updated_at` says how long ago; a stalled
+  claim is cleared with `task_update(task_id, status="ready")`, which also clears
+  the holder. Never clear one that another agent is actively working.

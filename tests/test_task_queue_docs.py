@@ -150,5 +150,50 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
         self.assertNotIn('`dev` and `feature-development` re-mirror', bullet)
 
 
+class TestAbortedClaimIsReleased(unittest.TestCase):
+    """A red gate must not leave a task held forever.
+
+    task_ready claims `ready` rows only, and §3's promotion needs every sibling
+    done, so a task left `in_progress` by an abort is never re-claimed and its
+    iteration never advances -- with §5 reporting neither, because it knew only
+    `backlog` and `blocked`.
+    """
+
+    def setUp(self):
+        self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+        self.agent = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+
+    def test_agent_sets_an_aborted_task_blocked(self):
+        self.assertIn('status="blocked"', self.agent)
+
+    def test_agent_no_longer_leaves_an_aborted_task_in_progress(self):
+        self.assertNotIn('leave the task `in_progress`', self.agent)
+
+    def test_empty_queue_section_covers_the_in_progress_state(self):
+        section = self.doc.split('## 5. When the queue is empty')[1]
+        self.assertIn('in_progress', section)
+
+    def test_path_record_names_a_destination(self):
+        section = self.doc.split('## 4. The fallback path')[1].split('## 5.')[0]
+        self.assertIn('implementation-notes.md', section)
+
+    def test_doc_states_the_iteration_to_phase_mapping(self):
+        self.assertIn('Iteration N is phase N', self.doc)
+
+
+class TestCountClaimsAreNotStale(unittest.TestCase):
+    """A document that miscounts its own contents misleads the next reader."""
+
+    def test_workflow_guide_counts_three_scripts(self):
+        text = (ROOT / 'docs/workflow-guide.md').read_text(encoding='utf-8')
+        self.assertNotIn('Two Python scripts', text)
+        self.assertIn('Three Python scripts', text)
+
+    def test_generate_tasklist_counts_four_phases(self):
+        text = (ROOT / 'skills/generate-tasklist/SKILL.md').read_text(encoding='utf-8')
+        self.assertNotIn('Three-phase model', text)
+        self.assertIn('Four-phase model', text)
+
+
 if __name__ == '__main__':
     unittest.main()

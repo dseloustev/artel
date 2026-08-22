@@ -101,10 +101,19 @@ ticket, and if no `I<N> · ` sibling is left undone, mark the `I<N>: …` parent
 
 A red gate is never "done" — if the loop stopped-and-asked (verify budget
 exhausted, no-progress, exit-2 environment error, or out-of-scope baseline
-residual), leave the task `in_progress`, leave the checkbox unflipped, and return
-a `DEVIATION` report (`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §4,
-`Blocked by:` naming the stop reason, e.g. `verify budget exhausted` or
-`environment error <kind>`) instead of a completion.
+residual), leave the checkbox unflipped and return a `DEVIATION` report
+(`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §4, `Blocked by:` naming the
+stop reason, e.g. `verify budget exhausted` or `environment error <kind>`) instead
+of a completion.
+
+**Release the claim on the way out.** On the queue path an aborted task must not
+stay `in_progress`: `task_ready` claims `ready` rows only, so a held row is never
+offered again, and §3's promotion never fires while a sibling is unfinished — the
+ticket's queue wedges silently. Call `task_update(task_id, status="blocked")`
+before returning the `DEVIATION` report, the same move a claimed HITL task makes
+and for the same reason: it needs a human before anyone works it again. Do not
+return it to `ready` instead — the next agent would re-claim it and hit the same
+red gate.
 
 ### Step 6 — Report
 

@@ -43,11 +43,20 @@ In particular:
 Decide the path per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1.
 
 **Queue path.** Call `task_ready(actor="artel@<hostname>", ticket_key=<TICKET_KEY>)`,
-using the canonical key without the phase suffix. Nothing returned → do not
-report the ticket complete; follow `docs/task-queue.md` §5 and report whether
-work is waiting on a promotion or on the user. A task returned is now held by
+using the canonical key without the phase suffix. Nothing returned → consult
+`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §5. Every row `done` is the normal end
+of iteration work: report `queue drained: iteration work complete` and continue
+from the file per §6. Rows still `backlog`, `blocked` or `in_progress` mean the
+queue is stalled, not finished — report which. A task returned is now held by
 you and `in_progress`. If it is the first child of its iteration, also
 `task_update` the `I<N>: …` parent to `in_progress`.
+
+**A fix-list dispatch is file-scan work, on either path.** When the orchestrator's
+prompt names `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` or the
+Final Verification gate, do not call `task_ready` at all — those sections are never
+mirrored (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6).
+Find the first incomplete `- [ ]` under the named section and work it exactly as
+before the queue existed.
 
 **Fallback path.** Find the first incomplete `- [ ]` task within scope (phase or
 ticket), exactly as before the queue existed.
@@ -127,7 +136,7 @@ Return: task title, files changed (with the actual diff), then the two mandatory
 
 - **HITL boundary** — never implement a `[HITL: …]`-tagged task; on the queue path set it `blocked` with `task_update`, then return `HITL: <reason>` and let the orchestrator pause.
 - **Release the claim on any exit that is not a completion** — on the queue path a task you hold must never be left `in_progress` when you stop working it. That covers Step 5's red gate, any `DEVIATION` halt (including an unresolved `ref:` anchor in Step 1), and the protocol's **Abort task** outcome. `task_update(task_id, status="blocked")` before returning, every time. `task_ready` offers `ready` rows only, so a held row is never re-offered and §3's promotion never fires while a sibling is unfinished — one missed release wedges the ticket's queue silently.
-- **Queue before file** — on the queue path the claim from `task_ready` decides what to work on, never a scan of `tasklist.md`. The file stays current as the fallback's input (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md`), not as the work list.
+- **Queue before file, for iteration work only** — on the queue path a claim from `task_ready` decides which `## Iteration N:` task to work, never a scan of `tasklist.md`. Everything else in the tasklist is file-scan work on both paths, because it is never mirrored: `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` and `## Final Verification` all sit outside the iterations, and `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6 says how to recognise a dispatch that means them. The file stays current as the fallback's input, not as the iteration work list.
 - **Phase boundary** — if a phase is set, never touch tasks from other phases.
 - **One task per cycle** — complete the current task before picking the next.
 - **Deviation protocol** — during implementation (post-approval), any divergence from the approved proposal follows `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`: minor → most conservative option, record in `implementation-notes.md` § Deviations, continue; major or unsure → halt before applying the deviating change and return a `DEVIATION` report (protocol §4) instead of a completion. Every completion message ends with a `Deviations:` line (`none` or `D1 (minor), …`).

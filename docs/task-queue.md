@@ -133,10 +133,13 @@ record is the only trail that divergence leaves.
 
 ## 5. When the queue is empty
 
-`task_ready` returning nothing on the queue path means no work is `ready` — not
-that the ticket is finished. Check `task_list(ticket_key)` and report which of
-these it is, rather than reporting the ticket complete:
+`task_ready` returning nothing on the queue path means no work is `ready`. That is
+not by itself a completion and not by itself a stall — check `task_list(ticket_key)`
+and report which of these four it is:
 
+- every row `done` — the iteration work is complete. Report
+  `queue drained: iteration work complete` and continue to `## Final Verification`
+  from the file (§6). This is the normal end of a successful ticket, not a stall.
 - rows in `backlog` — an iteration is waiting on a promotion that did not happen;
 - rows in `blocked` — a HITL task or an aborted task is waiting on the user;
 - rows in `in_progress` — a holder is still working, or stalled and left the row
@@ -145,3 +148,31 @@ these it is, rather than reporting the ticket complete:
   here separates a slow verify loop from a dead holder, and clearing a live
   claim puts two agents on one task — the outcome the store's atomic claim
   exists to prevent. Releasing it is the user's call.
+
+## 6. What the queue does not hold
+
+Only `## Iteration N:` work is mirrored. The parser closes the current iteration
+at any `##` heading, so four sections of a tasklist never become rows and never
+will:
+
+| Section | Worked by |
+|---|---|
+| `## Code Review Fixes` | file scan, on either path |
+| `## Runtime Fixes` | file scan, on either path |
+| `## Verify Fixes` | file scan, on either path |
+| `## Final Verification` | file scan, on either path |
+
+This is deliberate: they are gate remediation and the end-of-feature gate, not
+planned iteration work, and they are appended after the mirror has run.
+
+**Recognise such a dispatch by the section the orchestrator names**: the review
+gate's fixes, the runtime gate's fixes, the checkpoint's verify fixes, or the
+Final Verification gate. On either path the implementer scans the tasklist in
+scope for the first incomplete `- [ ]` under that heading; `task_ready` is not
+called at all, because it can only ever answer for iteration work.
+
+**So `task_ready` returning nothing does not mean there is nothing to do.** It
+means no *iteration* work is ready. When every row is `done`, the iteration work
+is finished and the run continues to `## Final Verification` from the file —
+report `queue drained: iteration work complete` so the orchestrator can tell that
+from a stall. §5 covers the cases where rows remain.

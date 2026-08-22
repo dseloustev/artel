@@ -100,3 +100,80 @@ def parse_tasklist(text):
                 'hitl': hitl.group(1).strip() if hitl else None,
             })
     return iterations, warnings
+
+
+def _capped(title):
+    """(title, was_truncated). Truncation is a plain prefix cut so it is stable
+    across runs -- an unstable one would change the key and duplicate the row."""
+    if len(title) <= MAX_TITLE_CHARS:
+        return title, False
+    return title[:MAX_TITLE_CHARS], True
+
+
+def build_rows(iterations):
+    """(rows, warnings) — the mirror payload, in document order.
+
+    Document order is load-bearing downstream: kartoteka's task_ready claims
+    `ORDER BY task_id LIMIT 1` and the table has no priority column, so
+    insertion order IS queue order. Mirroring in document order is what gives
+    the queue the tasklist's dependency order for free.
+    """
+    rows = []
+    warnings = []
+    for index, iteration in enumerate(iterations):
+        number = iteration['number']
+        parent_title, truncated = _capped('I{}: {}'.format(number, iteration['name']))
+        if truncated:
+            warnings.append('iteration {} title truncated to {} chars'.format(
+                number, MAX_TITLE_CHARS))
+        parts = []
+        if iteration['goal']:
+            parts.append('Goal: ' + iteration['goal'])
+        if iteration['test']:
+            parts.append('Test: ' + iteration['test'])
+        children = []
+        for child in iteration['children']:
+            title, truncated = _capped('I{} · {} · {}'.format(
+                number, child['section'], child['text']))
+            if truncated:
+                warnings.append('task title truncated to {} chars: {}'.format(
+                    MAX_TITLE_CHARS, title))
+            section = child['section'] + (' (new file)' if child['new_file'] else '')
+            description = ['Section: ' + section]
+            if child['hitl']:
+                description.append('HITL: ' + child['hitl'])
+            if child['done']:
+                status = 'done'
+            elif index == 0:
+                # The FIRST iteration in document order, which is `Iteration 1`
+                # under the template's contiguous-from-1 rule. Positional rather
+                # than `number == 1` so a hand-trimmed tasklist still mirrors
+                # something claimable instead of an all-backlog queue.
+                status = 'ready'
+            else:
+                status = 'backlog'
+            children.append({'title': title, 'status': status,
+                             'description': '\n'.join(description),
+                             'hitl': child['hitl']})
+        rows.append({'title': parent_title, 'status': 'backlog',
+                     'description': '\n\n'.join(parts), 'children': children})
+    return rows, warnings
+
+
+def find_collisions(rows):
+    """Titles appearing more than once, first-seen order.
+
+    Fatal rather than a warning: kartoteka's create_task would return the first
+    row for the second title and write no event, so a collision is a silent
+    merge of distinct work -- exactly what putting the iteration in the title
+    exists to prevent. Catches post-truncation collisions and duplicated
+    checkbox text alike.
+    """
+    counts = {}
+    repeated = []
+    for row in rows:
+        for title in [row['title']] + [child['title'] for child in row['children']]:
+            counts[title] = counts.get(title, 0) + 1
+            if counts[title] == 2:
+                repeated.append(title)
+    return repeated

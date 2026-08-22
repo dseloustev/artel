@@ -110,5 +110,98 @@ class TestParseTasklist(unittest.TestCase):
                           ' Ungrouped task'])
 
 
+class TestBuildRows(unittest.TestCase):
+    def setUp(self):
+        iterations, _ = tasklist_tasks.parse_tasklist(TASKLIST)
+        self.rows, self.warnings = tasklist_tasks.build_rows(iterations)
+
+    def test_parent_title_carries_the_iteration_number(self):
+        self.assertEqual(self.rows[0]['title'], 'I1: Scaffold the adapter')
+
+    def test_parent_rows_are_never_ready(self):
+        # claim_ready_task filters on status alone and would hand an iteration
+        # row to an agent as if it were work. Nothing in kartoteka enforces this.
+        self.assertEqual([r['status'] for r in self.rows], ['backlog', 'backlog'])
+
+    def test_parent_description_carries_goal_and_test(self):
+        self.assertEqual(self.rows[0]['description'],
+                         'Goal: Add the adapter file without wiring it in.\n\n'
+                         'Test: The module compiles.')
+
+    def test_child_title_is_iteration_section_text(self):
+        self.assertEqual(self.rows[0]['children'][0]['title'],
+                         'I1 · lib/wallet/adapter.dart · Create the adapter class')
+
+    def test_after_changes_block_does_not_collide_across_iterations(self):
+        # The template repeats this line verbatim in every iteration. Mirrored
+        # flat it would resolve to iteration 1's row and create_task would
+        # return it unchanged -- a silent merge of distinct work.
+        first = self.rows[0]['children'][2]['title']
+        second = self.rows[1]['children'][1]['title']
+        self.assertNotEqual(first, second)
+        self.assertEqual(first,
+                         'I1 · After changes · Run `verify.fast` (config.md) — must pass clean')
+        self.assertEqual(second,
+                         'I2 · After changes · Run `verify.fast` (config.md) — must pass clean')
+        self.assertEqual(tasklist_tasks.find_collisions(self.rows), [])
+
+    def test_new_file_marker_lands_in_description_not_title(self):
+        child = self.rows[0]['children'][0]
+        self.assertNotIn('(new file)', child['title'])
+        self.assertEqual(child['description'],
+                         'Section: lib/wallet/adapter.dart (new file)')
+
+    def test_first_iteration_children_are_ready_later_are_backlog(self):
+        self.assertEqual([c['status'] for c in self.rows[0]['children']],
+                         ['ready', 'done', 'ready'])
+        self.assertEqual(self.rows[1]['children'][1]['status'], 'backlog')
+
+    def test_hitl_in_a_later_iteration_is_backlog_not_ready(self):
+        # A HITL tag never changes the iteration gate. It is never mirrored
+        # `blocked` either -- claiming one is what triggers the pause.
+        child = self.rows[1]['children'][0]
+        self.assertEqual(child['status'], 'backlog')
+        self.assertEqual(child['hitl'], 'touches a sensitive surface')
+        self.assertIn('[HITL: touches a sensitive surface]', child['title'])
+        self.assertIn('HITL: touches a sensitive surface', child['description'])
+
+
+class TestTitleCap(unittest.TestCase):
+    def _long_tasklist(self, first, second):
+        return ('## Iteration 1: Long\n\n### `lib/a.dart`\n'
+                '- [ ] {}\n- [ ] {}\n'.format(first, second))
+
+    def test_title_is_capped_and_reported(self):
+        iterations, _ = tasklist_tasks.parse_tasklist(
+            self._long_tasklist('A' * 600, 'B'))
+        rows, warnings = tasklist_tasks.build_rows(iterations)
+        title = rows[0]['children'][0]['title']
+        self.assertEqual(len(title), tasklist_tasks.MAX_TITLE_CHARS)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn('truncated', warnings[0])
+
+    def test_truncation_is_deterministic_across_runs(self):
+        text = self._long_tasklist('A' * 600, 'B')
+        first, _ = tasklist_tasks.build_rows(tasklist_tasks.parse_tasklist(text)[0])
+        second, _ = tasklist_tasks.build_rows(tasklist_tasks.parse_tasklist(text)[0])
+        self.assertEqual(first[0]['children'][0]['title'],
+                         second[0]['children'][0]['title'])
+
+    def test_two_titles_colliding_after_truncation_are_found(self):
+        iterations, _ = tasklist_tasks.parse_tasklist(
+            self._long_tasklist('A' * 600 + ' one', 'A' * 600 + ' two'))
+        rows, _ = tasklist_tasks.build_rows(iterations)
+        collisions = tasklist_tasks.find_collisions(rows)
+        self.assertEqual(len(collisions), 1)
+        self.assertTrue(collisions[0].startswith('I1 · lib/a.dart · AAA'))
+
+    def test_duplicate_checkbox_text_in_one_section_is_a_collision(self):
+        iterations, _ = tasklist_tasks.parse_tasklist(
+            self._long_tasklist('Same task', 'Same task'))
+        rows, _ = tasklist_tasks.build_rows(iterations)
+        self.assertEqual(tasklist_tasks.find_collisions(rows),
+                         ['I1 · lib/a.dart · Same task'])
+
+
 if __name__ == '__main__':
     unittest.main()

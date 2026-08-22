@@ -38,9 +38,11 @@ Use the Agent tool with `subagent_type: "implementer"`, description `"Implement 
 Implement the next incomplete task now, per your agent definition's workflow:
 1. Take the next task per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 and §3 — a
    `task_ready` claim on the queue path, the first `- [ ]` in scope on the fallback
-   path. The **Task queue** field above is §1's `--local` input. If it carries a
-   `[HITL: …]` tag, STOP and return `HITL: <reason>` instead of implementing — the
-   orchestrator owns that pause.
+   path. The **Task queue** field above is §1's `--local` input. A dispatch naming
+   `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` or Final Verification
+   is file-scan work on either path — those sections are never mirrored (§6), so do
+   not call `task_ready` for one. If the task carries a `[HITL: …]` tag, STOP and
+   return `HITL: <reason>` instead of implementing — the orchestrator owns that pause.
 2. Implement directly (no proposal step). Apply the verify loop (max MAX_VERIFY_ITERATIONS = 4) via
    the `/artel:inner-loop` skill: run the gate sequence from your agent configuration (inner loop on
    changed paths → codegen if needed → unscoped verify green).

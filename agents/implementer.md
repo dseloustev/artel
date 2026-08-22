@@ -60,7 +60,8 @@ mirrored (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6).
 Find the first incomplete `- [ ]` under the named section and work it exactly as
 before the queue existed. Nothing is claimed, so Step 5's `task_update` and
 promotion have nothing to act on either: close it by flipping the checkbox and
-reporting.
+reporting. A dispatch that names no section but whose only incomplete `- [ ]` sits
+under one of those headings is the same work, and takes the same route.
 
 **Fallback path.** Find the first incomplete `- [ ]` task within scope (phase or
 ticket), exactly as before the queue existed. A dispatch carrying **Task queue:**

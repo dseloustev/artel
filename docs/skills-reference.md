@@ -256,8 +256,9 @@ Entry template:
 
 - **Purpose:** Implement the next incomplete tasklist task, verify it, and flip its checkbox.
 - **Invocation:** `/artel:implementer [ticket-id] or [ticket-id]-[phase] [--local]`
-- **Reads:** the phase tasks file or `tasklist.md` (first `- [ ]` task in scope), `idea.md`,
-  `vision.md`.
+- **Reads:** on the queue path a `task_ready` claim from kartoteka, else the phase tasks
+  file or `tasklist.md` (first `- [ ]` task in scope) — `--local` forces the file
+  ([task-queue.md](task-queue.md) §1); `idea.md`, `vision.md`.
 - **Writes:** (via the agent) the source changes for the task; the tasklist checkbox and
   Progress Report; deviation records per [deviation-protocol.md](deviation-protocol.md).
 - **Pauses:** never directly on completion — returns `HITL: <reason>` for the caller to pause

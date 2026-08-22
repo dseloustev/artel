@@ -8,6 +8,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Knowledge consultation — the read half of the kartoteka adapter.** With
+  `knowledge.adapter: "kartoteka"` and the kartoteka MCP tools in the session, the `analyst`
+  consults the institutional-knowledge index before its interview and the `researcher` consults
+  it during its scan, so a decision the team already took is neither re-asked nor
+  re-litigated. `research.md` gains a **Prior Decisions** section; the PRD gains no new section
+  and instead cites into its existing Resolved Questions and Assumptions.
+
+  The contract is `docs/knowledge-consultation.md`, spelled once and referenced by both agents.
+  Config declares intent, the session supplies capability, and every disagreement between them
+  is reported in the agent's own output rather than failing silently. `--local` on `analysis`,
+  `researcher`, `feature-development` and `dev` forces a knowledge-free run.
+
+  **Nothing here writes.** The `PostToolUse` mirror hook remains the only path from artel into
+  kartoteka, and agents read this ticket's own spec trail from disk, never from kartoteka's
+  best-effort mirror of it.
 - Knowledge mirror: `hooks/knowledge_mirror.py` (`PostToolUse` on `Edit|Write|MultiEdit`) posts
   each deliberation artifact written under `<specs.dir>/<TICKET>/` — `prd.md`, `plan.md`,
   `adr.md`, `review.md` and twelve others — to a kartoteka artifact store, which versions it by

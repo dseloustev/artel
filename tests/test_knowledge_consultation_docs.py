@@ -45,6 +45,11 @@ class LocalFlagSpelling(unittest.TestCase):
                 self.assertEqual(1, len(hints), 'exactly one argument-hint line')
                 self.assertIn('--local', hints[0])
 
+    def test_the_docs_document_the_flag(self):
+        for rel in DOC_FILES:
+            with self.subTest(rel):
+                self.assertIn('--local', read(rel))
+
     def test_no_near_miss_spellings_anywhere(self):
         for rel in SKILL_FILES + DOC_FILES:
             with self.subTest(rel):

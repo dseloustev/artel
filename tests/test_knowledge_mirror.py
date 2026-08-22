@@ -72,5 +72,34 @@ class TestArtifactIdentity(unittest.TestCase):
         self.assertIsNone(km.artifact_identity('specs/.current/AW-9/plan.md', config))
 
 
+class TestKnowledgeBaseUrl(unittest.TestCase):
+    def test_absent_section_is_off(self):
+        self.assertEqual(km.knowledge_base_url({}), (None, None))
+
+    def test_adapter_none_is_off(self):
+        config = {'knowledge': {'adapter': 'none', 'baseUrl': 'http://127.0.0.1:8734'}}
+        self.assertEqual(km.knowledge_base_url(config), (None, None))
+
+    def test_adapter_on_with_empty_base_url_reports(self):
+        # Reading rule 3 calls this a configuration error, but a knowledge
+        # mirror reports and continues where vcs would stop the run.
+        url, error = km.knowledge_base_url({'knowledge': {'adapter': 'kartoteka'}})
+        self.assertIsNone(url)
+        self.assertIn('baseUrl', error)
+
+    def test_usable_adapter_returns_url_without_trailing_slash(self):
+        config = {'knowledge': {'adapter': 'kartoteka',
+                                'baseUrl': 'http://127.0.0.1:8734/'}}
+        self.assertEqual(km.knowledge_base_url(config), ('http://127.0.0.1:8734', None))
+
+
+class TestSizeGuard(unittest.TestCase):
+    def test_limit_matches_kartoteka_default(self):
+        self.assertEqual(km.MAX_BYTES, 1048576)
+
+    def test_timeout_is_two_seconds(self):
+        self.assertEqual(km.TIMEOUT_SECONDS, 2)
+
+
 if __name__ == '__main__':
     unittest.main()

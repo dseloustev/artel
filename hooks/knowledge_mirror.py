@@ -27,6 +27,29 @@ STAGE_OVERRIDES = {'tasks': 'tasklist'}
 
 PHASE_DIR = re.compile(r'phase-\d+\Z')
 
+# A guard, never the authority: kartoteka enforces the real max_artifact_bytes,
+# so the two disagreeing costs at worst a skipped-and-logged artifact the
+# server would have accepted. This is why a second copy of the constant is
+# acceptable here and is not the meta-key-names situation, where two copies of
+# one value must agree or the index lies. If it ever has to track a raised
+# server limit it becomes a `knowledge` config key, not a smarter guess.
+MAX_BYTES = 1048576
+TIMEOUT_SECONDS = 2
+
+
+def knowledge_base_url(config):
+    """(base_url, error). Adapter off -> (None, None). On but unusable ->
+    (None, message): the mirror reports and continues, where vcs would stop
+    the run — a pull request cannot be written to disk, but these files are
+    already on disk."""
+    knowledge = config.get('knowledge') or {}
+    if knowledge.get('adapter') != 'kartoteka':
+        return None, None
+    base = (knowledge.get('baseUrl') or '').strip().rstrip('/')
+    if not base:
+        return None, 'knowledge.adapter is "kartoteka" but knowledge.baseUrl is empty'
+    return base, None
+
 
 def _ticket_matcher(config):
     ticket_cfg = config.get('ticket') or {}

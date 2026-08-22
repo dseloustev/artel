@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Knowledge mirror: `hooks/knowledge_mirror.py` (`PostToolUse` on `Edit|Write|MultiEdit`) posts
+  each deliberation artifact written under `<specs.dir>/<TICKET>/` — `prd.md`, `plan.md`,
+  `adr.md`, `review.md` and twelve others — to a kartoteka artifact store, which versions it by
+  content hash. New config: `knowledge.adapter` (`"none"` default, `"kartoteka"`) and
+  `knowledge.baseUrl`. Additive and best-effort by design: the spec-trail files on disk stay
+  primary, the hook never blocks a write and never retries, and every attempt is logged to
+  `.artel/run/.hooks/knowledge-mirror.log`. Gate evidence, machine-readable findings, derived
+  reports and everything under `.artel/` are deliberately not mirrored.
 - Operator docs (Phase 6): `docs/workflow-guide.md` (the narrative operator guide — quickstart,
   concepts, end-to-end walkthrough, recipes, troubleshooting) and `docs/skills-reference.md`
   (per-skill lookup: purpose, invocation, reads/writes, pauses, notes for all 33 skills),

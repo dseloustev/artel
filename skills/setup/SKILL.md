@@ -47,13 +47,20 @@ arrive via the "Other" option.
   scaffold (a copy of the plugin's default sensitive-paths policy, for projects that want to
   extend it). Ask follow-up value questions only for the selected ones; everything skipped keeps
   its inert default.
+- **Round 5 — knowledge mirror** (optional): "Do you run a kartoteka daemon that should receive
+  this project's spec trail? If so, its base URL (e.g. `http://127.0.0.1:8734`)." Empty answer →
+  `knowledge.adapter: "none"`, `knowledge.baseUrl: ""`. A URL → `adapter: "kartoteka"` and
+  that URL. Mention that the mirror is additive and best-effort: the spec-trail files stay
+  primary and a daemon that is down never fails a run.
 
 ## 3. Validate
 
-Before writing: adapter names inside their allowed sets; `verify.commands` / `setup.commands` /
-`runtime.surface` / `verify.surface` are arrays of strings; MCP-adapter prefixes non-empty;
-language codes plausible BCP 47. A violation re-asks that round — never write a config that
-config.md's reading rules would reject at run start.
+Before writing: adapter names inside their allowed sets — `tracker.adapter` (`none` /
+`github-issues` / `jira-mcp`), `vcs.adapter` (`github-cli` / `bitbucket-mcp`), `knowledge.adapter`
+(`none` / `kartoteka`); `verify.commands` / `setup.commands` / `runtime.surface` /
+`verify.surface` are arrays of strings; MCP-adapter prefixes non-empty; language codes plausible
+BCP 47. A violation re-asks that round — never write a config that config.md's reading rules
+would reject at run start.
 
 ## 4. Write
 

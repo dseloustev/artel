@@ -81,6 +81,7 @@ root. Full key reference and defaults: [config.md](config.md).
 | Russian PR descriptions / Jira comments | `language.docs`, `language.pr` |
 | Figma design analysis | optional module, enabled only when `design.figma: true` |
 | `specs/.current/` location | `specs.dir` (default keeps `specs/.current/`) |
+| Spec trail readable only on the machine that produced it | `knowledge.adapter`: `kartoteka` \| `none` (+ base URL) |
 
 Skills and agents reference config values instead of literals. When no config exists, the
 entry-point skills run a short one-time init interview and write the file.
@@ -287,3 +288,16 @@ entry-point skills run a short one-time init interview and write the file.
   `.artel/run/<TICKET>/.stop-gate-blocks` for source parity. The verify-layer hooks return 0
   immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured plugin
   leaves zero footprint in the host repo.
+- **2026-08-22 — The kartoteka mirror is a hook, not a step in each producing skill.**
+  artel's spec trail is unreachable to any later agent asking why a decision was made; the
+  fix is to dual-write it into a kartoteka artifact store (that project's spec §11). The
+  mirror could have been an `artifact_put` call in each of the nine producing skills and
+  agents, which is how the consuming project's spec described it and which would have made
+  `stage` intentional and populated `author_agent`. It is a `PostToolUse` hook instead,
+  because an agent-executed side effect happens only when the agent remembers, and this one
+  is *invisible* when skipped — nothing breaks, the trail is quietly incomplete. artel
+  already puts must-not-be-skipped work in hooks. Two consequences accepted: a hook is a
+  subprocess and cannot call MCP tools, so it posts to the HTTP facade of the same service;
+  and `PostToolUse` input does not carry the subagent name, so `author_agent` is always null
+  (the field is nullable and self-reported on that side). Design:
+  the consuming project's `2026-08-22-artel-dual-write-design.md`.

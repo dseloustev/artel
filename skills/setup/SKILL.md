@@ -47,6 +47,11 @@ arrive via the "Other" option.
   scaffold (a copy of the plugin's default sensitive-paths policy, for projects that want to
   extend it). Ask follow-up value questions only for the selected ones; everything skipped keeps
   its inert default.
+- **Knowledge mirror** (optional): "Do you run a kartoteka daemon that should receive this
+  project's spec trail? If so, its base URL (e.g. `http://127.0.0.1:8734`)." Empty answer →
+  `knowledge.adapter: "none"`, `knowledge.baseUrl: ""`. A URL → `adapter: "kartoteka"` and
+  that URL. Mention that the mirror is additive and best-effort: the spec-trail files stay
+  primary and a daemon that is down never fails a run.
 
 ## 3. Validate
 

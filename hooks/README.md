@@ -1,10 +1,10 @@
 # hooks/
 
-Quality gates: `hooks.json` registers five Python hooks via `${CLAUDE_PLUGIN_ROOT}` paths.
+Quality gates: `hooks.json` registers six Python hooks via `${CLAUDE_PLUGIN_ROOT}` paths.
 Requires `python3` on the host. Verify commands come from host config
 (`.artel/config.json` — [config.md](../docs/config.md)), never hardcoded.
 
-Two layers:
+Three layers:
 
 - **Run layer** — enforces the autonomous-run contract
   ([autonomous-run.md](../docs/autonomous-run.md)):
@@ -30,6 +30,14 @@ Two layers:
     session baseline** stay red; after `MAX_CONSECUTIVE_BLOCKS = 2` it latches open with a
     loud warning. Escape hatch: delete `.artel/run/.hooks/baseline-<session_id>.json` to
     re-baseline on the next stop.
+- **Knowledge layer** — optional, driven by `knowledge.adapter` / `knowledge.baseUrl`
+  (config.md):
+  - `knowledge_mirror.py` (`PostToolUse` on `Edit|Write|MultiEdit`) — posts each
+    deliberation artifact written under `<specs.dir>/<TICKET>/` to a kartoteka artifact
+    store as it is written. Additive and best-effort: files on disk stay primary, nothing
+    blocks, nothing retries, every attempt is logged to
+    `.artel/run/.hooks/knowledge-mirror.log`. Inert unless `knowledge.adapter` is
+    `"kartoteka"`.
 
 Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines, verify-stop
 counters) — never inside the plugin directory. The verify-layer hooks return immediately when

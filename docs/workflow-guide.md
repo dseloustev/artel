@@ -120,6 +120,12 @@ paths; `remove-automation` also pushes when an upstream exists). Everything else
 files: `init-branch` creates a branch but never commits; `merge-conflicts` stages and stops;
 `implementer` changes source but leaves committing to the orchestrators' checkpoints.
 
+One thing writes **outside** the repo: with `knowledge.adapter: "kartoteka"` configured
+([config.md](config.md)), the `knowledge_mirror` hook posts each deliberation artifact to that
+daemon's artifact store as it is written. It is additive — the files under `<specs.dir>` stay
+primary — and it never blocks a write or fails a run. Every attempt is logged to
+`.artel/run/.hooks/knowledge-mirror.log`; with the default `adapter: "none"` nothing is sent.
+
 ### Modes and the risk floor
 
 A run resolves to one of three modes, ranked `yolo` < `plan-gate` < `full-gates`

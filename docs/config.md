@@ -84,6 +84,10 @@ placeholder the init interview replaces.
     "dir": "specs/.current",
     "releases": "specs/releases"
   },
+  "knowledge": {
+    "adapter": "none",
+    "baseUrl": ""
+  },
   "runtime": {}
 }
 ```
@@ -243,6 +247,30 @@ for phase-scoped ones, and `<specs.dir>/.active_ticket` for the in-flight identi
 Release-scope artifacts (`R-<RELEASE_ID>` identifiers) live under `<specs.releases>/` instead:
 `<specs.releases>/<RELEASE_ID>.md` (the release definition) and `<specs.releases>/<RELEASE_ID>/qa.md`
 (the combined QA report).
+
+### `knowledge` — the institutional-memory mirror
+
+| Key | Type | Default | Allowed values / notes | Consumed by |
+|---|---|---|---|---|
+| `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook |
+| `knowledge.baseUrl` | string | `""` | Required when `adapter` is `"kartoteka"`. Origin only, no trailing path — e.g. `http://127.0.0.1:8734`. | The `knowledge_mirror` hook's request addressing |
+
+- **`none`** — nothing is mirrored. The spec trail stays on disk, exactly as it always has.
+- **`kartoteka`** — as each deliberation artifact is written under `<specs.dir>`, a
+  `PostToolUse` hook posts it to that kartoteka daemon's artifact store, which versions it by
+  content hash. The mirror is **additive and best-effort**: the files on disk stay primary and
+  authoritative, the hook never blocks a write, and it never retries — the next edit re-posts,
+  and an unchanged re-post writes no row. This is unlike `vcs.adapter`, where an unusable
+  adapter stops the run; a pull request cannot be written to disk, but these files already are.
+
+Which artifacts are mirrored, and which are deliberately not, is fixed in the hook rather than
+configured: the deliberation documents (`prd.md`, `plan.md`, `adr.md`, `review.md`, …) go, and
+gate evidence, machine-readable findings, derived reports and transient adapter state do not.
+Everything under `.artel/` is outside `<specs.dir>` and never leaves the machine.
+
+An adapter of `"kartoteka"` with an empty `baseUrl` is a configuration error under reading rule
+3, but the hook **reports it to `.artel/run/.hooks/knowledge-mirror.log` and continues** rather
+than stopping the run.
 
 ### `runtime` — optional runtime and automation commands
 

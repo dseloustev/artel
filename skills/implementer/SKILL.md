@@ -24,13 +24,17 @@ Use the Agent tool with `subagent_type: "implementer"`, description `"Implement 
 
 ```
 Implement the next incomplete task now, per your agent definition's workflow:
-1. Read context; find the first `- [ ]` task in scope. If it carries a `[HITL: …]` tag, STOP and
-   return `HITL: <reason>` instead of implementing — the orchestrator owns that pause.
+1. Take the next task per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 and §3 — a
+   `task_ready` claim on the queue path, the first `- [ ]` in scope on the fallback
+   path. If it carries a `[HITL: …]` tag, STOP and return `HITL: <reason>` instead of
+   implementing — the orchestrator owns that pause.
 2. Implement directly (no proposal step). Apply the verify loop (max MAX_VERIFY_ITERATIONS = 4) via
    the `/artel:inner-loop` skill: run the gate sequence from your agent configuration (inner loop on
    changed paths → codegen if needed → unscoped verify green).
 3. Do not mark the task complete on a red gate. Flip the checkbox, update the Progress Report, and
    report per your completion contract.
+4. On the queue path, report with `task_update` and run the promotion step
+   (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3) before returning.
 
 For on-demand runtime checks: when a change's effect is unclear from tests alone and `runtime.run`
 (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`) is configured, you may launch via the `/artel:run-app`

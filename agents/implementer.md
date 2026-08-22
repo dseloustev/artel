@@ -38,17 +38,33 @@ In particular:
 
 ## Workflow
 
-### Step 1 — Read context
+### Step 1 — Take the next task
 
-Read the tasklist, `vision` / `idea` files, and the host project's conventions docs (its CLAUDE.md
-and anything it points to), and find the first incomplete `- [ ]` task within scope (phase or
-ticket). Design the approach so no stated must-follow rule in those conventions docs is violated.
-If a plan exists, resolve its `ref:` anchors touching this task using the host's optional
-code-symbol index, if the host has wired one up (see
-`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §1) — else Grep; an anchor that doesn't resolve
-is a Major deviation to halt and report per `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`, not
-something to invent. If the task line carries a `[HITL: …]` tag, do not implement — return the
-single line `HITL: <reason>` and stop.
+Decide the path per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1.
+
+**Queue path.** Call `task_ready(actor="artel@<hostname>", ticket_key=<TICKET_KEY>)`,
+using the canonical key without the phase suffix. Nothing returned → do not
+report the ticket complete; follow `docs/task-queue.md` §5 and report whether
+work is waiting on a promotion or on the user. A task returned is now held by
+you and `in_progress`. If it is the first child of its iteration, also
+`task_update` the `I<N>: …` parent to `in_progress`.
+
+**Fallback path.** Find the first incomplete `- [ ]` task within scope (phase or
+ticket), exactly as before the queue existed.
+
+Either way, record which path this run took (`docs/task-queue.md` §4), then read
+the tasklist, `vision` / `idea` files, and the host project's conventions docs
+(its CLAUDE.md and anything it points to). Design the approach so no stated
+must-follow rule in those conventions docs is violated. If a plan exists, resolve
+its `ref:` anchors touching this task using the host's optional code-symbol
+index, if the host has wired one up (see
+`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §1) — else Grep; an anchor
+that doesn't resolve is a Major deviation to halt and report per
+`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`, not something to invent.
+
+If the task carries a `[HITL: …]` tag, do not implement. On the queue path,
+`task_update(task_id, status="blocked")` first. Either way return the single line
+`HITL: <reason>` and stop — the orchestrator owns the pause.
 
 ### Step 2 — Plan internally
 
@@ -74,11 +90,21 @@ Run the quality gates **before** claiming completion:
 
 ### Step 5 — Close the task
 
-Only when the last unscoped verify is green: flip the checkbox to `- [x]`, update the Progress Report
-table when present. A red gate is never "done" — if the loop stopped-and-asked (verify budget
-exhausted, no-progress, exit-2 environment error, or out-of-scope baseline residual), return a
-`DEVIATION` report (`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §4, `Blocked by:` naming the
-stop reason, e.g. `verify budget exhausted` or `environment error <kind>`) instead of a completion.
+Only when the last unscoped verify is green: flip the checkbox to `- [x]` and
+update the Progress Report table when present. `tasklist.md` is kept current on
+both paths — it is what the fallback reads.
+
+On the queue path, then `task_update(task_id, status="done")` and run the
+promotion step in `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3: `task_list` the
+ticket, and if no `I<N> · ` sibling is left undone, mark the `I<N>: …` parent
+`done` and promote every `I<N+1> · ` child from `backlog` to `ready`.
+
+A red gate is never "done" — if the loop stopped-and-asked (verify budget
+exhausted, no-progress, exit-2 environment error, or out-of-scope baseline
+residual), leave the task `in_progress`, leave the checkbox unflipped, and return
+a `DEVIATION` report (`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §4,
+`Blocked by:` naming the stop reason, e.g. `verify budget exhausted` or
+`environment error <kind>`) instead of a completion.
 
 ### Step 6 — Report
 
@@ -89,7 +115,8 @@ Return: task title, files changed (with the actual diff), then the two mandatory
 
 ## Rules
 
-- **HITL boundary** — never implement a `[HITL: …]`-tagged task; return `HITL: <reason>` and let the orchestrator pause.
+- **HITL boundary** — never implement a `[HITL: …]`-tagged task; on the queue path set it `blocked` with `task_update`, then return `HITL: <reason>` and let the orchestrator pause.
+- **Queue before file** — on the queue path the claim from `task_ready` decides what to work on, never a scan of `tasklist.md`. The file stays current as the fallback's input (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md`), not as the work list.
 - **Phase boundary** — if a phase is set, never touch tasks from other phases.
 - **One task per cycle** — complete the current task before picking the next.
 - **Deviation protocol** — during implementation (post-approval), any divergence from the approved proposal follows `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`: minor → most conservative option, record in `implementation-notes.md` § Deviations, continue; major or unsure → halt before applying the deviating change and return a `DEVIATION` report (protocol §4) instead of a completion. Every completion message ends with a `Deviations:` line (`none` or `D1 (minor), …`).

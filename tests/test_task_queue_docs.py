@@ -25,8 +25,13 @@ MIRROR_FILES = (
     'skills/dev/SKILL.md',
 )
 
+CLAIM_FILES = (
+    'agents/implementer.md',
+    'skills/implementer/SKILL.md',
+)
+
 # Files that describe the loop and must agree with the reference doc.
-LOOP_FILES = (QUEUE_DOC,) + MIRROR_FILES
+LOOP_FILES = (QUEUE_DOC,) + MIRROR_FILES + CLAIM_FILES
 
 
 class TestQueueDoc(unittest.TestCase):
@@ -87,6 +92,34 @@ class TestMirrorStep(unittest.TestCase):
             self.assertIn(
                 'python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py', text,
                 rel + ' does not invoke the script the plugin-root way')
+
+
+class TestClaimLoop(unittest.TestCase):
+    def test_implementer_claims_reports_and_promotes(self):
+        text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        for name in ('task_ready', 'task_update', 'task_list'):
+            self.assertIn(name, text, 'agents/implementer.md never calls ' + name)
+
+    def test_both_claim_files_point_at_the_reference_doc(self):
+        for rel in CLAIM_FILES:
+            text = (ROOT / rel).read_text(encoding='utf-8')
+            self.assertIn('docs/task-queue.md', text,
+                          rel + ' does not point at the reference doc')
+
+    def test_actor_is_spelled_the_one_way(self):
+        text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        self.assertIn('artel@<hostname>', text)
+
+    def test_hitl_boundary_survives_the_queue(self):
+        # The HITL rule predates the queue and must not be lost in the rewrite:
+        # a claimed HITL task is set blocked and returned, never implemented.
+        text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        self.assertIn('HITL: <reason>', text)
+        self.assertIn('blocked', text)
+
+    def test_fallback_path_is_still_described(self):
+        text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        self.assertIn('first incomplete `- [ ]`', text)
 
 
 if __name__ == '__main__':

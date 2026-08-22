@@ -122,5 +122,33 @@ class TestClaimLoop(unittest.TestCase):
         self.assertIn('first incomplete `- [ ]`', text)
 
 
+class TestMirrorAttributionIsAccurate(unittest.TestCase):
+    """Docs must not credit a skill with a mirror step it does not have.
+
+    docs/autonomous-run.md once claimed feature-development re-mirrors on entry
+    to implementation; it has no mirror step at all, and the claim contradicted
+    docs/task-queue.md §2, which it cited.
+    """
+
+    def test_only_the_three_mirroring_skills_invoke_the_parser(self):
+        carriers = {rel for rel in (
+            'skills/generate-tasklist/SKILL.md',
+            'skills/tasklist/SKILL.md',
+            'skills/dev/SKILL.md',
+            'skills/feature-development/SKILL.md',
+            'skills/implementer/SKILL.md',
+        ) if 'tasklist_tasks.py' in (ROOT / rel).read_text(encoding='utf-8')}
+        self.assertEqual(carriers, {
+            'skills/generate-tasklist/SKILL.md',
+            'skills/tasklist/SKILL.md',
+            'skills/dev/SKILL.md',
+        })
+
+    def test_autonomous_run_does_not_credit_feature_development_with_a_remirror(self):
+        text = (ROOT / 'docs/autonomous-run.md').read_text(encoding='utf-8')
+        bullet = text.split('**Task-queue mirror**')[1].split('\n- ')[0]
+        self.assertNotIn('`dev` and `feature-development` re-mirror', bullet)
+
+
 if __name__ == '__main__':
     unittest.main()

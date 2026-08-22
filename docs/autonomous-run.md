@@ -196,10 +196,12 @@ interactive Overwrite/Abort prompts fire only on manual invocation. `sync-phases
 orchestrators on phase-scoped runs: at run start (extract `phase-N/tasks.md` when missing) and after
 the phase's gates pass (sync status back to `tasklist.md`).
 
-- **Task-queue mirror** — `dev` and `feature-development` re-mirror `tasklist.md`
-  into the kartoteka task queue on entry to implementation, after `sync-phases`
-  on phase-scoped runs (`docs/task-queue.md` §2). Create-only and idempotent; a
-  failure reports and falls back rather than blocking the run.
+- **Task-queue mirror** — `generate-tasklist` and `tasklist` mirror `tasklist.md`
+  into the kartoteka task queue as they write it, and `dev` re-mirrors on entry to
+  implementation, after `sync-phases` on phase-scoped runs (`docs/task-queue.md` §2).
+  `feature-development` mirrors through the `tasklist` skill it calls and has no
+  re-mirror step of its own. Create-only and idempotent; a failure reports and falls
+  back rather than blocking the run.
 
 `pr-description` is the exception to skip-if-exists: invoked by `feature-development` at run completion
 (after all gates are green, before `completed: true`), it always regenerates `pr-description.md` — the

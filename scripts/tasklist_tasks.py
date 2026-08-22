@@ -14,7 +14,11 @@ instead of duplicating the work list.
 Exit codes: 0 parsed (JSON on stdout), 2 error (error envelope, nothing to mirror).
 Contract: docs/superpowers/specs/2026-08-22-artel-task-queue-design.md
 """
+import json
 import re
+import sys
+import time
+from pathlib import Path
 
 # kartoteka's tasks.MAX_TITLE_CHARS. A second copy of a constant is acceptable
 # here for the same reason knowledge_mirror.py's MAX_BYTES is: this is a guard,
@@ -177,3 +181,72 @@ def find_collisions(rows):
             if counts[title] == 2:
                 repeated.append(title)
     return repeated
+
+
+def envelope(ok, elapsed_ms, data=None, error=None):
+    out = {'ok': ok, 'verb': 'tasklist-tasks', 'elapsed_ms': elapsed_ms}
+    if error is not None:
+        out['error'] = error
+    else:
+        out['data'] = data
+    return json.dumps(out)
+
+
+def main(argv):
+    start = time.monotonic()
+
+    def elapsed():
+        return int((time.monotonic() - start) * 1000)
+
+    def fail(kind, message):
+        print(envelope(False, elapsed(), error={'kind': kind, 'message': message}))
+        return 2
+
+    tasklist_path = None
+    ticket_key = None
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == '--tasklist':
+            i += 1
+            tasklist_path = argv[i] if i < len(argv) else None
+        elif arg == '--ticket-key':
+            i += 1
+            ticket_key = argv[i] if i < len(argv) else None
+        else:
+            return fail('invalid_argument', 'unknown flag: {}'.format(arg))
+        i += 1
+    if not tasklist_path:
+        return fail('invalid_argument', 'missing required --tasklist <path>')
+    if not ticket_key:
+        return fail('invalid_argument', 'missing required --ticket-key <KEY>')
+
+    tasklist_file = Path(tasklist_path)
+    if not tasklist_file.is_file():
+        return fail('tasklist_not_found', 'tasklist not found: {}'.format(tasklist_path))
+
+    iterations, warnings = parse_tasklist(tasklist_file.read_text(encoding='utf-8'))
+    if not iterations:
+        return fail('tasklist_malformed',
+                    'no `## Iteration N:` sections in {}'.format(tasklist_path))
+    rows, row_warnings = build_rows(iterations)
+    collisions = find_collisions(rows)
+    if collisions:
+        return fail('title_collision',
+                    'titles are the idempotency key and these repeat: {}'.format(
+                        '; '.join(collisions)))
+    print(envelope(True, elapsed(), data={
+        'ticket_key': ticket_key,
+        'warnings': warnings + row_warnings,
+        'iterations': rows,
+    }))
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Exception as exc:
+        print(json.dumps({'ok': False, 'verb': 'tasklist-tasks', 'elapsed_ms': 0,
+                          'error': {'kind': 'internal_error', 'message': str(exc)}}))
+        sys.exit(2)

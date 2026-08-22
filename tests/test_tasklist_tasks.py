@@ -203,5 +203,72 @@ class TestTitleCap(unittest.TestCase):
                          ['I1 · lib/a.dart · Same task'])
 
 
+SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'tasklist_tasks.py'
+
+
+def run_cli(*args):
+    import json
+    import subprocess
+    proc = subprocess.run([sys.executable, str(SCRIPT)] + list(args),
+                          capture_output=True, text=True)
+    return proc.returncode, json.loads(proc.stdout)
+
+
+class TestCli(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def _write(self, text):
+        path = Path(self.tmp.name) / 'tasklist.md'
+        path.write_text(text, encoding='utf-8')
+        return str(path)
+
+    def test_ok_envelope_carries_ticket_key_and_rows(self):
+        code, out = run_cli('--tasklist', self._write(TASKLIST),
+                            '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 0)
+        self.assertTrue(out['ok'])
+        self.assertEqual(out['verb'], 'tasklist-tasks')
+        self.assertEqual(out['data']['ticket_key'], 'AW-1234')
+        self.assertEqual(len(out['data']['iterations']), 2)
+        self.assertEqual(out['data']['warnings'], [])
+
+    def test_missing_file_exits_2_tasklist_not_found(self):
+        code, out = run_cli('--tasklist', '/nonexistent/tasklist.md',
+                            '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 2)
+        self.assertFalse(out['ok'])
+        self.assertEqual(out['error']['kind'], 'tasklist_not_found')
+
+    def test_no_iterations_exits_2_rather_than_mirroring_nothing(self):
+        # A tasklist either yields a complete row set or yields nothing. Half a
+        # work list read as a whole one is indistinguishable from a short ticket.
+        code, out = run_cli('--tasklist', self._write('# Empty\n\nNo iterations.\n'),
+                            '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'tasklist_malformed')
+
+    def test_collision_exits_2_and_names_the_titles(self):
+        text = ('## Iteration 1: Dupes\n\n### `lib/a.dart`\n'
+                '- [ ] Same task\n- [ ] Same task\n')
+        code, out = run_cli('--tasklist', self._write(text), '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'title_collision')
+        self.assertIn('I1 · lib/a.dart · Same task', out['error']['message'])
+
+    def test_missing_ticket_key_exits_2_invalid_argument(self):
+        code, out = run_cli('--tasklist', self._write(TASKLIST))
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_argument')
+
+    def test_unknown_flag_exits_2_invalid_argument(self):
+        code, out = run_cli('--tasklist', self._write(TASKLIST),
+                            '--ticket-key', 'AW-1234', '--strict')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_argument')
+
+
 if __name__ == '__main__':
     unittest.main()

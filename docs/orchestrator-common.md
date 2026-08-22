@@ -36,6 +36,15 @@ Orchestrators:
   defines no mechanics for it; the host wires one up itself (its own hooks or CLAUDE.md
   instructions). Silently absent when the host has not wired one up; nothing is reported as
   missing.
+- **Knowledge consultation** (optional): when `knowledge.adapter` is `kartoteka`
+  ([config.md](config.md)) and the kartoteka MCP tools are present in the session, the `analyst`
+  and `researcher` agents consult the institutional-knowledge index before doing their own work.
+  Unlike the index refresh above this one *is* an `.artel/config.json` key, because the index is
+  single-project and an undeclared one must not be consulted. `analysis` and `researcher` accept
+  `--local` to force a knowledge-free run, and `feature-development` accepts it and passes it down
+  to both; `dev` does not, because it never invokes either of them. The contract is
+  [knowledge-consultation.md](knowledge-consultation.md); it never writes, and it never blocks a
+  gate.
 - Report status to the user.
 - Never write code themselves.
 

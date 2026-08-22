@@ -39,7 +39,7 @@ Entry template:
 - **Purpose:** End-to-end autonomous orchestrator that carries a ticket from idea through PRD,
   vision, plan, tasklist, implementation, review, runtime check, QA, docs, and PR — with exactly
   one approval pause.
-- **Invocation:** `/artel:feature-development [ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates] [--dry-run]`
+- **Invocation:** `/artel:feature-development [ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]`
 - **Reads:** `.artel/config.json` (missing → invokes `setup` first); whichever ticket artifacts
   already exist (`idea.md`, `prd.md`, `vision.md`, `plan.md`, `tasklist.md`) — skip-if-exists
   governs each gate; `.artel/run/<TICKET_ID>/open-questions.md`; `run-state.json` /
@@ -154,10 +154,12 @@ Entry template:
 ### analysis
 
 - **Purpose:** Run the upfront requirements interview and draft the ticket's PRD.
-- **Invocation:** `/artel:analysis [ticket-id] or [ticket-id]-[phase] [description-file]`
+- **Invocation:** `/artel:analysis [ticket-id] or [ticket-id]-[phase] [description-file] [--local]`
 - **Reads:** `idea.md` (or the `$1` description file) as the interview seed;
   `design-analysis.md` when present; the `analyst` agent explores the codebase before asking
-  anything.
+  anything, and consults the institutional-knowledge index when `knowledge.adapter` is
+  `kartoteka` and its MCP tools are in the session (config.md; `--local` forces this off for
+  one run). Answers found there close Resolved Questions with a citation instead of being asked.
 - **Writes:** (via the agent) the PRD at the phase-aware path (ticket-parsing.md §4) with
   `Status: PRD_READY`; `<specs.dir>/.active_ticket`.
 - **Pauses:** repeatedly, via `AskUserQuestion`, in batches of up to 4 questions until the agent
@@ -186,11 +188,15 @@ Entry template:
 ### researcher
 
 - **Purpose:** Gather codebase/technical context and produce the ticket's research document.
-- **Invocation:** `/artel:researcher [ticket-id] or [ticket-id]-[phase]`
+- **Invocation:** `/artel:researcher [ticket-id] or [ticket-id]-[phase] [--local]`
 - **Reads:** PRD (phase-scoped with ticket-wide fallback), `idea.md`, `vision.md`, and the phase
-  tasks file when one exists; the codebase (scan only).
-- **Writes:** (via the agent) `research.md` (or `phase-<N>/research.md`); unresolved questions
-  to `.artel/run/<TICKET_ID>/open-questions.md` (`from: researcher`) with proposed defaults.
+  tasks file when one exists; the codebase (scan only); and the institutional-knowledge index
+  when `knowledge.adapter` is `kartoteka` and its MCP tools are in the session (config.md;
+  `--local` forces this off for one run).
+- **Writes:** (via the agent) `research.md` (or `phase-<N>/research.md`), whose **Prior
+  Decisions** section records what the knowledge index held — or states that nothing was found,
+  or that consultation did not happen and why; unresolved questions to
+  `.artel/run/<TICKET_ID>/open-questions.md` (`from: researcher`) with proposed defaults.
 - **Pauses:** never — this skill never asks the user (autonomous-run.md §3); questions are
   recorded with defaults and research proceeds on them.
 - **Notes:** orchestrator (dispatches the `researcher` agent in a phased

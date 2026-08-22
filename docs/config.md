@@ -272,6 +272,37 @@ An adapter of `"kartoteka"` with an empty `baseUrl` is a configuration error und
 3, but the hook **reports it to `.artel/run/.hooks/knowledge-mirror.log` and continues** rather
 than stopping the run.
 
+#### The read half
+
+`knowledge.adapter` gates two things, not one. Beyond the mirror above, it declares that this
+project's agents may **consult** kartoteka before working: the `analyst` before its interview,
+the `researcher` during its scan. The full contract is `docs/knowledge-consultation.md`.
+
+Reading goes over kartoteka's **MCP tools** (`search_knowledge`, `related`, `index_status`),
+not over `baseUrl`. There is no MCP URL in this config: the host wires the kartoteka MCP server
+into its own session, and `knowledge.adapter` says whether this project wants it used. So the
+config declares intent and the session supplies capability, and the two can disagree:
+
+| `--local` | `knowledge.adapter` | kartoteka MCP tools | Behavior |
+|---|---|---|---|
+| **yes** | either | either | No consultation. Recorded as `local-only run requested` |
+| no | `none` / absent | absent | No consultation, silently |
+| no | `none` / absent | present | No consultation, silently — an undeclared capability is not used |
+| no | `kartoteka` | present | **Consult and cite** |
+| no | `kartoteka` | **absent** | No consultation, and the agent records that it was configured but unavailable |
+
+The fourth row is the working configuration; the fifth is the one worth knowing about, because
+it is how a correct `.artel/config.json` still produces no citations — the MCP server is not
+wired into the session. The agent says so in its own output rather than leaving you to guess.
+
+The third row is why the adapter still matters when the tools are present: kartoteka is
+single-project, so an index wired up for another project would otherwise be consulted for this
+one.
+
+**Nothing in the read half writes**, and agents never read this ticket's own `prd.md` or
+`plan.md` back from kartoteka — those are read from disk, because kartoteka's copy is a
+best-effort mirror that can lag.
+
 ### `runtime` — optional runtime and automation commands
 
 All `runtime` keys are optional and adapter-shaped: a project supplies whichever commands it has,

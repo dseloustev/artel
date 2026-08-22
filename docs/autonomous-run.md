@@ -69,6 +69,7 @@ Path: `.artel/run/<TICKET_ID>/run-state.json` (always ticket-top-level, even for
   "counters": { "verify": 0, "review_rounds": 0, "escalations": 0, "correction_rounds": 0 },  // reporting aggregate only (exception: correction_rounds — authoritative here, preserved across resume; §5)
   "effective_mode": "plan-gate", // "yolo" | "plan-gate" — resolved per §10 (full-gates never arms a run)
   "requested_mode": null,        // the --mode value, or null when not passed
+  "requested_local": false,      // true when --local was passed (knowledge-consultation.md §1)
   "suggested_mode": "plan-gate", // classifier suggestion (§10)
   "forced_floor": null,          // highest matched floor from the sensitive-paths policy, or null (§10)
   "mode_reasons": [],            // human-readable classifier reasons
@@ -88,6 +89,13 @@ Transitions:
   by the Stop hook (§8). On resume, the orchestrator rewrites `started_at`.
 
 The `counters` object is a reporting aggregate; authoritative counters live in the loop artifacts (§5).
+
+`requested_local` is **carried, not re-derived.** The mode fields are recomputed on every resume
+(§10) because the classifier can see everything it needs in the artifacts; `--local` it cannot —
+it is a user's opt-out for this run, and a resumed run has no argument list left to read it from.
+So the orchestrator writes it at arm time and hands it to every sub-skill that consults
+(`analysis`, `researcher`) on a resumed gate exactly as it did on the first pass. Losing it is
+silent: the run simply starts consulting again, and only a citation nobody asked for shows it.
 
 ## 3. Question collection — `open-questions.md`
 

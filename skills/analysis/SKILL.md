@@ -1,7 +1,7 @@
 ---
 name: analysis
 description: "Initialize feature: create a ticket and draft the PRD"
-argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file]"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--local]"
 model: sonnet
 ---
 
@@ -10,6 +10,13 @@ model: sonnet
 Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 **Path resolution and the refuse-and-ask rule live in `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5.** The `analyst` subagent already understands them — this skill does not duplicate path tables.
+
+`--local` flag: skip the institutional-knowledge consultation for this run and work
+from the repository and the user alone. The agent cannot see your arguments, so it
+learns this from the **Knowledge consultation** field of the Context block below —
+set it from whether `--local` appeared in the invocation, and set it on every spawn.
+Default is to consult; see `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §1
+for how it resolves against `knowledge.adapter` and tool availability.
 
 ## Execute
 
@@ -45,6 +52,7 @@ You are running the requirements interview for <TICKET_ID>{phase ? ", Phase <PHA
 
 - **Ticket ID:** <TICKET_ID> / **Ticket Number:** <TICKET_NUM> / **Phase:** <PHASE_NUM> (or "all phases" when ticket-wide)
 - **Description file:** [path or "none"]
+- **Knowledge consultation:** <"local-only (--local was passed)" | "enabled">
 
 ## Instructions — Explore, then interview (do NOT draft the PRD yet)
 
@@ -54,7 +62,12 @@ You are running the requirements interview for <TICKET_ID>{phase ? ", Phase <PHA
    (if present), and the description file if provided.
 3. EXPLORE FIRST: search the codebase (per your agent definition) so every question is grounded —
    never ask what the repo already answers.
-4. Build the design-tree question list per your agent definition's Interview duties, then return the
+4. CONSULT THE RECORD, on the same principle: per your agent definition's Interview duties and
+   `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md`, resolve the gate (§1) — the
+   **Knowledge consultation** field above is its `--local` input — then `index_status`,
+   `related(<canonical ticket key>)` and up to four `search_knowledge` queries drawn from
+   `idea.md` (§§2–3). What the record already answers is not a question either.
+5. Build the design-tree question list per your agent definition's Interview duties, then return the
    FIRST batch of at most 4 questions (most load-bearing first), or `NO_QUESTIONS` if the idea is
    already unambiguous.
 
@@ -88,7 +101,9 @@ Interview complete. Write the PRD now:
 1. Follow the PRD structure from your agent definition's Output section (goal/context, user
    stories, metrics, risks, out of scope, assumptions, resolved questions).
 2. Record every Q&A pair in `## Resolved Questions`, parked items in `## Assumptions`, exclusions in
-   `## Out of Scope`. `## Open Questions` must be empty.
+   `## Out of Scope`. `## Open Questions` must be empty. A question the institutional record
+   answered is recorded there too, in the cited form your agent definition's Output section gives —
+   status and ⚠ NON-CURRENT marker included.
 3. Set `Status: PRD_READY` and save to the path from Phase 1.
 4. Return a summary: goals, key decisions, scope, count of resolved questions and assumptions.
 ```

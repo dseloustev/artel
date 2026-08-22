@@ -29,13 +29,15 @@ is considered, exactly as in `docs/knowledge-consultation.md` §1.
 | no | `kartoteka` | **absent** | Fallback path (§4). Record: `kartoteka is configured for this project but its MCP tools are not available in this session` |
 
 **Where `--local` is available.** The flag exists on the orchestrators that carry
-it — `feature-development`, `analysis`, `researcher`. `skills/dev/SKILL.md`
-deliberately has none, pinned by
+it — `feature-development`, `analysis`, `researcher` — and on
+`skills/implementer/SKILL.md`, which receives it from its caller rather than from
+the user. `skills/dev/SKILL.md` deliberately has none, pinned by
 `tests/test_knowledge_consultation_docs.py::test_dev_does_not_carry_the_flag`. An
-orchestrator holding the flag passes `local-only run requested` into the
-implementer's dispatch; `implementer` reads that instruction rather than parsing a
-flag of its own. Where no orchestrator carries the flag — a `dev` run — rows 2-4
-alone decide.
+orchestrator holding the flag passes it down to the implementer skill, which sets
+the **Task queue:** field of the agent's dispatch to
+`local-only (--local was passed)`; `agents/implementer.md` reads that field rather
+than parsing a flag of its own. Where no orchestrator carries the flag — a `dev`
+run — rows 2-4 alone decide.
 
 A fifth case the read path does not have: the adapter is on, the tools are
 present, and a call fails at runtime because the daemon stopped mid-ticket. Fall
@@ -49,7 +51,7 @@ present when the host has wired the kartoteka MCP server into this session.
 ## 2. Mirroring the tasklist
 
 Run by `generate-tasklist` and `tasklist` after `tasklist.md` is written, and by
-`dev` on entry to implementation.
+`dev` and `feature-development` alike on entry to implementation.
 
 1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <path> --ticket-key <TICKET_KEY>`
    Exit `0` → continue. Exit `2` → report `error.kind` and `error.message`, mirror
@@ -66,24 +68,17 @@ the script emits.
 **The step is create-only and safe to re-run.** `task_create` is idempotent on
 `(ticket_key, title)` *and discards* a changed status or description, returning
 the stored row. A re-mirror never resets a `done` row and never undoes a
-promotion, which is what makes `dev`'s re-mirror a repair rather than a hazard.
+promotion, which is what makes the orchestrators' re-mirror a repair rather than
+a hazard.
 
 **Use the canonical ticket key, never the phase suffix** — a run of `AW-1234-2`
 mirrors under `AW-1234`, the same rule `docs/knowledge-consultation.md` §2 states
 for `related()`.
 
-**Iteration N is phase N.** `generate-tasklist` writes the tasklist ticket-wide
-and calls its iterations phases; `sync-phases` maps `phase-<N>/tasks.md` onto
-iteration N. So a phase-scoped run claims only `I<N> · ` tasks for its own phase.
-If `task_ready` hands it one from another phase, return that task with
-`task_update(task_id, status="ready")` — which clears the holder — and report
-that the queue is ahead of this run's phase rather than crossing the boundary
-`agents/implementer.md`'s `## Phase support` rule forbids.
-
 **`phase-<N>/tasks.md` is never mirrored.** It is an extract of one iteration
 that `sync-phases` syncs back to the ticket-wide tasklist; mirroring both would
 create two rows per checkbox. On phase-scoped runs `sync-phases` therefore runs
-before this step, which `dev`'s existing step order already does.
+before this step, which both orchestrators' existing step order already does.
 
 ## 3. Claiming, reporting and promoting
 
@@ -114,6 +109,21 @@ Siblings are found by the `I<N> · ` title prefix rather than by `parent_id`,
 because `task_list` does not render the parent. `task_ready` and `task_update`
 do return it.
 
+**Iteration N is phase N.** `generate-tasklist` writes the tasklist ticket-wide
+and calls its iterations phases; `sync-phases` maps `phase-<N>/tasks.md` onto
+iteration N. So a phase-scoped run claims only `I<N> · ` tasks for its own phase.
+If `task_ready` hands it one from another phase, return that task with
+`task_update(task_id, status="ready")` — which clears the holder — and report
+that the queue offered work from another phase, most often an earlier one this
+run is not authorised to finish, rather than crossing the boundary
+`agents/implementer.md`'s `## Phase support` rule forbids.
+
+**A wrong-phase claim is the one exception to releasing a held task `blocked`.**
+Every other exit that is not a completion goes to `blocked`, because the task
+needs a human before anyone works it again. This one does not: you never touched
+it, nothing about it is wrong, and the run that owns its phase has to be able to
+claim it. `blocked` would strand that phase until someone cleared it by hand.
+
 **A HITL task is claimable on purpose.** Mirroring it `blocked` would deadlock
 promotion: a child that is never completed means the iteration never finishes
 and nothing is ever promoted. Claiming one is what triggers the pause. The
@@ -140,8 +150,12 @@ and report which of these four it is:
 - every row `done` — the iteration work is complete. Report
   `queue drained: iteration work complete` and continue to `## Final Verification`
   from the file (§6). This is the normal end of a successful ticket, not a stall.
-- rows in `backlog` — an iteration is waiting on a promotion that did not happen;
-- rows in `blocked` — a HITL task or an aborted task is waiting on the user;
+- rows in `backlog` with none `ready` — a promotion did not happen, or an
+  iteration was already complete when it was promoted into. Repair it rather than
+  reporting a stall: promote every `I<N> · ` child of the lowest-numbered
+  iteration that still has an unfinished child, then claim again. If every child
+  of that iteration is already `done`, promote the next one and repeat.
+- rows in `blocked` — a HITL task or an aborted task is waiting on the user.
 - rows in `in_progress` — a holder is still working, or stalled and left the row
   held. `actor` names the holder and `updated_at` says how long ago. Report it;
   do not clear another agent's claim on your own judgement. Nothing available
@@ -151,8 +165,9 @@ and report which of these four it is:
 
 ## 6. What the queue does not hold
 
-Only `## Iteration N:` work is mirrored. The parser closes the current iteration
-at any `##` heading, so four sections of a tasklist never become rows and never
+Only iteration work is mirrored — the `## Iteration N:` sections, or `## Phase N:`,
+which the parser accepts as the same heading. It closes the current iteration at
+any other `##` heading, so four sections of a tasklist never become rows and never
 will:
 
 | Section | Worked by |

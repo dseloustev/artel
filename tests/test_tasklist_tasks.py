@@ -110,6 +110,33 @@ class TestParseTasklist(unittest.TestCase):
                           ' Ungrouped task'])
 
 
+class TestPhaseDialect(unittest.TestCase):
+    """`## Phase N:` and `## Iteration N:` are the same heading.
+
+    sync-phases already reads both (`## Phase N: Title` or `## Iteration N: Title`)
+    and task-planner mandates no template, so a tasklist written with the other
+    keyword parsed as zero iterations and exited 2 -- mirroring nothing while the
+    run carried on believing the queue held its work list.
+    """
+
+    def _rows(self, keyword):
+        text = TASKLIST.replace('## Iteration ', '## {} '.format(keyword))
+        iterations, warnings = tasklist_tasks.parse_tasklist(text)
+        rows, row_warnings = tasklist_tasks.build_rows(iterations)
+        return rows, warnings + row_warnings
+
+    def test_phase_headings_parse_identically_to_iteration_headings(self):
+        self.assertEqual(self._rows('Phase'), self._rows('Iteration'))
+
+    def test_the_title_prefix_stays_i_n_whatever_the_input_dialect(self):
+        # The prefix is the idempotency key. Following the input keyword would
+        # mirror one tasklist as two disjoint row sets after a reworded heading.
+        rows, _ = self._rows('Phase')
+        self.assertEqual(rows[0]['title'], 'I1: Scaffold the adapter')
+        self.assertEqual(rows[0]['children'][0]['title'],
+                         'I1 · lib/wallet/adapter.dart · Create the adapter class')
+
+
 class TestBuildRows(unittest.TestCase):
     def setUp(self):
         iterations, _ = tasklist_tasks.parse_tasklist(TASKLIST)

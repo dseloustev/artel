@@ -197,11 +197,14 @@ orchestrators on phase-scoped runs: at run start (extract `phase-N/tasks.md` whe
 the phase's gates pass (sync status back to `tasklist.md`).
 
 - **Task-queue mirror** — `generate-tasklist` and `tasklist` mirror `tasklist.md`
-  into the kartoteka task queue as they write it, and `dev` re-mirrors on entry to
-  implementation, after `sync-phases` on phase-scoped runs (`docs/task-queue.md` §2).
-  `feature-development` mirrors through the `tasklist` skill it calls and has no
-  re-mirror step of its own. Create-only and idempotent; a failure reports and falls
-  back rather than blocking the run.
+  into the kartoteka task queue as they write it, and both entry-point
+  orchestrators re-mirror on entry to implementation, after `sync-phases` on
+  phase-scoped runs (`docs/task-queue.md` §2):
+  `dev` and `feature-development` alike run the parser and `task_create` its rows.
+  The re-mirror is what covers a resumed run and a tasklist written before the
+  adapter was reachable, neither of which re-runs the skill that wrote it.
+  Create-only and idempotent; a failure reports and falls back rather than
+  blocking the run.
 
 `pr-description` is the exception to skip-if-exists: invoked by `feature-development` at run completion
 (after all gates are green, before `completed: true`), it always regenerates `pr-description.md` — the

@@ -26,7 +26,12 @@ from pathlib import Path
 # costs at worst a rejected row the server would have accepted.
 MAX_TITLE_CHARS = 500
 
-ITERATION_RE = re.compile(r'^##\s+Iteration\s+(\d+)\s*:\s*(.+?)\s*$')
+# Either keyword: `generate-tasklist` writes `## Iteration N:`, `sync-phases` and
+# `task-planner` both treat `## Phase N:` as the same heading, and no agent prompt
+# mandates one over the other. The emitted title prefix stays `I<N>` for both --
+# it is the idempotency key, so letting it follow the input dialect would mirror
+# one tasklist as two disjoint sets of rows the day someone reworded a heading.
+ITERATION_RE = re.compile(r'^##\s+(?:Iteration|Phase)\s+(\d+)\s*:\s*(.+?)\s*$')
 HEADING_2_RE = re.compile(r'^##\s+')
 SECTION_RE = re.compile(r'^###\s+(.+?)\s*$')
 CHECKBOX_RE = re.compile(r'^\s*-\s+\[([ xX])\]\s+(.+?)\s*$')
@@ -51,7 +56,8 @@ def _section(raw):
 def parse_tasklist(text):
     """(iterations, warnings) for a tasklist.md, in document order.
 
-    Only checkboxes inside an `## Iteration N:` block and under a `### ` section
+    Only checkboxes inside an `## Iteration N:` block (or `## Phase N:`, the same
+    heading under the other keyword) and under a `### ` section
     are collected. That exclusion is load-bearing twice: the Progress Report
     table sits under its own `##` heading, and `## Final Verification`'s
     checkboxes are the end-of-feature gate rather than claimable work.
@@ -228,7 +234,8 @@ def main(argv):
     iterations, warnings = parse_tasklist(tasklist_file.read_text(encoding='utf-8'))
     if not iterations:
         return fail('tasklist_malformed',
-                    'no `## Iteration N:` sections in {}'.format(tasklist_path))
+                    'no `## Iteration N:` or `## Phase N:` sections in {}'.format(
+                        tasklist_path))
     rows, row_warnings = build_rows(iterations)
     collisions = find_collisions(rows)
     if collisions:

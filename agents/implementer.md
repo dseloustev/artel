@@ -59,7 +59,8 @@ Find the first incomplete `- [ ]` under the named section and work it exactly as
 before the queue existed.
 
 **Fallback path.** Find the first incomplete `- [ ]` task within scope (phase or
-ticket), exactly as before the queue existed.
+ticket), exactly as before the queue existed. A dispatch carrying **Task queue:**
+local-only takes this path regardless of adapter or tool availability.
 
 Either way, record which path this run took (`docs/task-queue.md` §4), then read
 the tasklist, `vision` / `idea` files, and the host project's conventions docs
@@ -135,7 +136,7 @@ Return: task title, files changed (with the actual diff), then the two mandatory
 ## Rules
 
 - **HITL boundary** — never implement a `[HITL: …]`-tagged task; on the queue path set it `blocked` with `task_update`, then return `HITL: <reason>` and let the orchestrator pause.
-- **Release the claim on any exit that is not a completion** — on the queue path a task you hold must never be left `in_progress` when you stop working it. That covers Step 5's red gate, any `DEVIATION` halt (including an unresolved `ref:` anchor in Step 1), and the protocol's **Abort task** outcome. `task_update(task_id, status="blocked")` before returning, every time. `task_ready` offers `ready` rows only, so a held row is never re-offered and §3's promotion never fires while a sibling is unfinished — one missed release wedges the ticket's queue silently.
+- **Release the claim on any exit that is not a completion** — on the queue path a task you hold must never be left `in_progress` when you stop working it. That covers Step 5's red gate, any `DEVIATION` halt (including an unresolved `ref:` anchor in Step 1), and the protocol's **Abort task** outcome. `task_update(task_id, status="blocked")` before returning, every time. `task_ready` offers `ready` rows only, so a held row is never re-offered and §3's promotion never fires while a sibling is unfinished — one missed release wedges the ticket's queue silently. **One exception:** a claim `task_ready` handed you from another phase goes back with `task_update(task_id, status="ready")`, not `blocked` — you never worked it, and the run that owns its phase has to be able to claim it (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3).
 - **Queue before file, for iteration work only** — on the queue path a claim from `task_ready` decides which `## Iteration N:` task to work, never a scan of `tasklist.md`. Everything else in the tasklist is file-scan work on both paths, because it is never mirrored: `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` and `## Final Verification` all sit outside the iterations, and `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6 says how to recognise a dispatch that means them. The file stays current as the fallback's input, not as the iteration work list.
 - **Phase boundary** — if a phase is set, never touch tasks from other phases.
 - **One task per cycle** — complete the current task before picking the next.

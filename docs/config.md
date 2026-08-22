@@ -274,9 +274,10 @@ than stopping the run.
 
 #### The read half
 
-`knowledge.adapter` gates two things, not one. Beyond the mirror above, it declares that this
+`knowledge.adapter` gates three things, not one. Beyond the mirror above, it declares that this
 project's agents may **consult** kartoteka before working: the `analyst` before its interview,
-the `researcher` during its scan. The full contract is `docs/knowledge-consultation.md`.
+the `researcher` during its scan. The full contract is `docs/knowledge-consultation.md`. The
+third is the task queue — `#### The task queue` below.
 
 Reading goes over kartoteka's **MCP tools** (`search_knowledge`, `related`, `index_status`),
 not over `baseUrl`. There is no MCP URL in this config: the host wires the kartoteka MCP server
@@ -302,6 +303,28 @@ one.
 **Nothing in the read half writes**, and agents never read this ticket's own `prd.md` or
 `plan.md` back from kartoteka — those are read from disk, because kartoteka's copy is a
 best-effort mirror that can lag.
+
+#### The task queue
+
+The same key gates a third thing, and this one does write. With the adapter on and the
+tools present, the tasklist is mirrored into kartoteka's task store as it is written, and
+`implementer` claims its next iteration task from there instead of scanning `tasklist.md`.
+The full contract is `docs/task-queue.md`; its §1 resolves the gate exactly as the read
+table above does, with the two `none` rows collapsed into one.
+
+Four more **MCP tools** carry it, wired into the session the same way and named nowhere in
+this config:
+
+| Tool | Used for |
+|---|---|
+| `task_create` | mirroring one tasklist row into the queue (idempotent on title) |
+| `task_ready` | claiming the next ready task for this actor |
+| `task_update` | reporting a task `done`, `blocked` or released back to `ready` |
+| `task_list` | reading the ticket's rows, for promotion and for an empty-queue report |
+
+Absent tools degrade the same way the read half's do: the run continues from `tasklist.md`
+and records that it did. Only iteration work is ever mirrored — gate-remediation sections
+and `## Final Verification` are always worked from the file (`docs/task-queue.md` §6).
 
 ### `runtime` — optional runtime and automation commands
 

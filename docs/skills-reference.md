@@ -255,7 +255,7 @@ Entry template:
 ### implementer
 
 - **Purpose:** Implement the next incomplete tasklist task, verify it, and flip its checkbox.
-- **Invocation:** `/artel:implementer [ticket-id] or [ticket-id]-[phase]`
+- **Invocation:** `/artel:implementer [ticket-id] or [ticket-id]-[phase] [--local]`
 - **Reads:** the phase tasks file or `tasklist.md` (first `- [ ]` task in scope), `idea.md`,
   `vision.md`.
 - **Writes:** (via the agent) the source changes for the task; the tasklist checkbox and

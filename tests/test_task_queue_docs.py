@@ -23,6 +23,7 @@ MIRROR_FILES = (
     'skills/generate-tasklist/SKILL.md',
     'skills/tasklist/SKILL.md',
     'skills/dev/SKILL.md',
+    'skills/feature-development/SKILL.md',
 )
 
 CLAIM_FILES = (
@@ -123,14 +124,15 @@ class TestClaimLoop(unittest.TestCase):
 
 
 class TestMirrorAttributionIsAccurate(unittest.TestCase):
-    """Docs must not credit a skill with a mirror step it does not have.
+    """Docs must credit exactly the skills that carry a mirror step.
 
     docs/autonomous-run.md once claimed feature-development re-mirrors on entry
-    to implementation; it has no mirror step at all, and the claim contradicted
-    docs/task-queue.md §2, which it cited.
+    to implementation while it had no mirror step at all. It has one now, so the
+    claim is checked against the skill file rather than against a phrasing.
+    `implementer` is the one that must stay out: it claims, it never mirrors.
     """
 
-    def test_only_the_three_mirroring_skills_invoke_the_parser(self):
+    def test_exactly_the_mirroring_skills_invoke_the_parser(self):
         carriers = {rel for rel in (
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
@@ -142,12 +144,52 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
             'skills/dev/SKILL.md',
+            'skills/feature-development/SKILL.md',
         })
 
-    def test_autonomous_run_does_not_credit_feature_development_with_a_remirror(self):
+    def test_autonomous_run_credits_both_orchestrators_with_the_remirror(self):
+        # Was an assertNotIn on one former phrasing, which the next rewording
+        # would have satisfied by accident. The claim is positive now, and it is
+        # checked against the file it is a claim about.
         text = (ROOT / 'docs/autonomous-run.md').read_text(encoding='utf-8')
         bullet = text.split('**Task-queue mirror**')[1].split('\n- ')[0]
-        self.assertNotIn('`dev` and `feature-development` re-mirror', bullet)
+        self.assertIn('`dev` and `feature-development` alike run the parser', bullet)
+        skill = (ROOT / 'skills/feature-development/SKILL.md').read_text(encoding='utf-8')
+        self.assertIn('scripts/tasklist_tasks.py', skill,
+                      'the bullet credits a re-mirror feature-development does not have')
+
+
+class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
+    """`--local` has to survive the hop from orchestrator to agent.
+
+    docs/task-queue.md §1 row 1 is the whole opt-out, and it was unreachable:
+    feature-development passed `--local` to `analysis` and `researcher` only, and
+    neither the implementer skill nor its agent had a field to receive it. The
+    field is the carrier -- the agent cannot see the invocation's arguments.
+    """
+
+    def test_the_dispatch_prompt_carries_the_task_queue_field(self):
+        text = (ROOT / 'skills/implementer/SKILL.md').read_text(encoding='utf-8')
+        self.assertIn('- **Task queue:** <"local-only (--local was passed)" | "enabled">',
+                      text)
+
+    def test_the_skill_accepts_the_flag_it_forwards(self):
+        hints = [ln for ln in
+                 (ROOT / 'skills/implementer/SKILL.md').read_text(encoding='utf-8').splitlines()
+                 if ln.startswith('argument-hint:')]
+        self.assertEqual(1, len(hints), 'exactly one argument-hint line')
+        self.assertIn('--local', hints[0])
+
+    def test_the_agent_reads_the_field_rather_than_a_flag(self):
+        step_one = (ROOT / 'agents/implementer.md').read_text(
+            encoding='utf-8').split('### Step 1')[1].split('### Step 2')[0]
+        self.assertIn('A dispatch carrying **Task queue:**', step_one)
+
+    def test_feature_development_passes_it_to_the_implementer_dispatch(self):
+        gate = (ROOT / 'skills/feature-development/SKILL.md').read_text(
+            encoding='utf-8').split('| 5 | `IMPLEMENT_STEP_OK`')[1].split('\n')[0]
+        self.assertIn('--local', gate)
+        self.assertIn('**Task queue:**', gate)
 
 
 class TestAbortedClaimIsReleased(unittest.TestCase):
@@ -197,6 +239,16 @@ class TestCountClaimsAreNotStale(unittest.TestCase):
         text = (ROOT / 'skills/generate-tasklist/SKILL.md').read_text(encoding='utf-8')
         self.assertNotIn('Three-phase model', text)
         self.assertIn('Four-phase model', text)
+
+    def test_config_counts_three_things_gated_by_the_adapter(self):
+        # It gated two until the queue landed, and the section it points at
+        # listed the three read tools and none of the four task tools -- so a
+        # reader configuring `kartoteka` could not tell what else switched on.
+        text = (ROOT / 'docs/config.md').read_text(encoding='utf-8')
+        self.assertNotIn('gates two things', text)
+        self.assertIn('gates three things', text)
+        for name in TOOL_NAMES:
+            self.assertIn(name, text, 'docs/config.md never mentions ' + name)
 
 
 class TestEveryNonCompletionExitReleasesTheClaim(unittest.TestCase):

@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: "Implement the following task from the tasklist according to the agreed plan"
-argument-hint: "[ticket-id] or [ticket-id]-[phase]"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [--local]"
 model: sonnet
 ---
 
@@ -10,6 +10,14 @@ model: sonnet
 Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 **Path resolution and the refuse-and-ask rule live in `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5.** The `implementer` subagent already understands them — this skill does not duplicate path tables.
+
+`--local` flag: work this task from the tasklist file alone, never from the kartoteka
+task queue. The agent cannot see your arguments, so it learns this from the
+**Task queue** field of the prompt below — set it from whether `--local` appeared in
+the invocation (an orchestrator that was invoked with it passes it down), and set it
+on every spawn. Default is the queue; see
+`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 for how it resolves against
+`knowledge.adapter` and tool availability.
 
 ## Execute
 
@@ -23,11 +31,16 @@ Use the Agent tool with `subagent_type: "implementer"`, description `"Implement 
 <TICKET_ID>"`, and a prompt passing TICKET_ID / TICKET_NUM / PHASE_NUM plus:
 
 ```
+## Context
+
+- **Task queue:** <"local-only (--local was passed)" | "enabled">
+
 Implement the next incomplete task now, per your agent definition's workflow:
 1. Take the next task per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 and §3 — a
    `task_ready` claim on the queue path, the first `- [ ]` in scope on the fallback
-   path. If it carries a `[HITL: …]` tag, STOP and return `HITL: <reason>` instead of
-   implementing — the orchestrator owns that pause.
+   path. The **Task queue** field above is §1's `--local` input. If it carries a
+   `[HITL: …]` tag, STOP and return `HITL: <reason>` instead of implementing — the
+   orchestrator owns that pause.
 2. Implement directly (no proposal step). Apply the verify loop (max MAX_VERIFY_ITERATIONS = 4) via
    the `/artel:inner-loop` skill: run the gate sequence from your agent configuration (inner loop on
    changed paths → codegen if needed → unscoped verify green).

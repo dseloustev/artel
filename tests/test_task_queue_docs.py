@@ -183,6 +183,49 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
                       'the bullet credits a re-mirror feature-development does not have')
 
 
+class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
+    """The queue holds `## Iteration N:` work and nothing else.
+
+    "Queue before file" was written unqualified. None of the four sections below
+    is ever mirrored, so on the queue path the three fix loops claimed nothing
+    and applied no fix -- each gate re-ran to its cap and escalated -- and
+    `## Final Verification` never came up at all, which is the state every
+    successful ticket ends in.
+    """
+
+    GATE_SECTIONS = ('## Code Review Fixes', '## Runtime Fixes', '## Verify Fixes',
+                     '## Final Verification')
+
+    def setUp(self):
+        self.agent = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+
+    def test_the_rule_is_scoped_to_iteration_work(self):
+        rules = self.agent.split('## Rules')[1]
+        self.assertIn('**Queue before file, for iteration work only**', rules)
+
+    def test_step_one_sends_a_fix_list_dispatch_to_the_file(self):
+        step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
+        paragraph = step_one.split('**A fix-list dispatch is file-scan work')[1].split(
+            '**Fallback path.**')[0]
+        self.assertIn('do not call `task_ready` at all', paragraph)
+        for section in self.GATE_SECTIONS[:3]:
+            self.assertIn(section, paragraph)
+        self.assertIn('Final Verification', paragraph)
+
+    def test_the_doc_lists_every_section_the_queue_never_holds(self):
+        section = self.doc.split('## 6. What the queue does not hold')[1]
+        for name in self.GATE_SECTIONS:
+            self.assertIn('| `' + name + '` | file scan, on either path |', section)
+
+    def test_a_drained_queue_is_a_documented_branch_not_a_stall(self):
+        empty = self.doc.split('## 5. When the queue is empty')[1].split('## 6.')[0]
+        self.assertIn('- every row `done` — the iteration work is complete. Report', empty)
+        self.assertIn('`queue drained: iteration work complete`', empty)
+        step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
+        self.assertIn('`queue drained: iteration work complete`', step_one)
+
+
 class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
     """`--local` has to survive the hop from orchestrator to agent.
 

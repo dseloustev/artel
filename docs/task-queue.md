@@ -4,9 +4,10 @@ How artel's execution agents take work from the host project's kartoteka task
 queue, and what they do when it is not there.
 
 Referenced by `agents/implementer.md`, `skills/implementer/SKILL.md`,
-`skills/generate-tasklist/SKILL.md`, `skills/tasklist/SKILL.md` and
-`skills/dev/SKILL.md`. Spelled here once because they need identical rules and
-two copies drifting apart hands the same task to two agents.
+`skills/generate-tasklist/SKILL.md`, `skills/tasklist/SKILL.md`,
+`skills/dev/SKILL.md` and `skills/feature-development/SKILL.md`. Spelled here
+once because they need identical rules and two copies drifting apart hands the
+same task to two agents.
 
 **This file is the write direction toward kartoteka.** The read direction —
 consulting prior tickets and decisions — is `docs/knowledge-consultation.md`,
@@ -90,6 +91,8 @@ before this step, which both orchestrators' existing step order already does.
                 → first child of an iteration: task_update(parent, in_progress)
     guard     title contains "[HITL:" → task_update(task_id, blocked),
                 return `HITL: <reason>`, do not implement
+    phase     claimed row belongs to another phase -> task_update(task_id, ready)
+                the one release that is not blocked; nothing was worked
     work      implement; flip the checkbox in the tasklist in scope
               (tasklist.md, or phase-<N>/tasks.md on a phase-scoped run)
               and update the Progress Report table, exactly as before
@@ -194,3 +197,8 @@ means no *iteration* work is ready. When every row is `done`, the iteration work
 is finished and the run continues to `## Final Verification` from the file —
 report `queue drained: iteration work complete` so the orchestrator can tell that
 from a stall. §5 covers the cases where rows remain.
+
+**And when that section is complete too** — or the tasklist carries none — there
+is nothing left to work. Report the ticket complete and return; do not loop and
+do not re-claim. This is the only state in which reporting completion is right,
+and it is a state read off the file, never inferred from an empty queue.

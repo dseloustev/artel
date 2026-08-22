@@ -49,14 +49,18 @@ of iteration work: report `queue drained: iteration work complete` and continue
 from the file per §6. Rows still `backlog`, `blocked` or `in_progress` mean the
 queue is stalled, not finished — report which. A task returned is now held by
 you and `in_progress`. If it is the first child of its iteration, also
-`task_update` the `I<N>: …` parent to `in_progress`.
+`task_update` the `I<N>: …` parent to `in_progress`. On a phase-scoped run, read
+the `I<N> · ` prefix before working it: a claim from another phase goes straight
+back, per §3, and that is the one release that is not `blocked`.
 
 **A fix-list dispatch is file-scan work, on either path.** When the orchestrator's
 prompt names `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` or the
 Final Verification gate, do not call `task_ready` at all — those sections are never
 mirrored (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6).
 Find the first incomplete `- [ ]` under the named section and work it exactly as
-before the queue existed.
+before the queue existed. Nothing is claimed, so Step 5's `task_update` and
+promotion have nothing to act on either: close it by flipping the checkbox and
+reporting.
 
 **Fallback path.** Find the first incomplete `- [ ]` task within scope (phase or
 ticket), exactly as before the queue existed. A dispatch carrying **Task queue:**
@@ -102,7 +106,8 @@ Run the quality gates **before** claiming completion:
 ### Step 5 — Close the task
 
 Only when the last unscoped verify is green: flip the checkbox to `- [x]` and
-update the Progress Report table when present. `tasklist.md` is kept current on
+update the Progress Report table when present. The tasklist in scope
+(`tasklist.md`, or `phase-<N>/tasks.md` on a phase-scoped run) is kept current on
 both paths — it is what the fallback reads.
 
 On the queue path, then `task_update(task_id, status="done")` and run the

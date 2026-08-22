@@ -18,7 +18,8 @@ All notable changes to this project are documented here. The format follows
   The contract is `docs/knowledge-consultation.md`, spelled once and referenced by both agents.
   Config declares intent, the session supplies capability, and every disagreement between them
   is reported in the agent's own output rather than failing silently. `--local` on `analysis`,
-  `researcher`, `feature-development` and `dev` forces a knowledge-free run.
+  `researcher` and `feature-development` forces a knowledge-free run; `dev` does not take it,
+  because it invokes neither consulting skill.
 
   **Nothing here writes.** The `PostToolUse` mirror hook remains the only path from artel into
   kartoteka, and agents read this ticket's own spec trail from disk, never from kartoteka's

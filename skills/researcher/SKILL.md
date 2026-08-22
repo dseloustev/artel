@@ -12,7 +12,10 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT
 **Path resolution and the refuse-and-ask rule live in `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5.** The `researcher` subagent already understands them — this skill does not duplicate path tables.
 
 `--local` flag: skip the institutional-knowledge consultation for this run and research
-from the codebase alone. Pass it through to the `researcher` agent in both phases.
+from the codebase alone. The agent cannot see your arguments, so it learns this from the
+**Knowledge consultation** field of the Context block — set it from whether `--local`
+appeared in the invocation, in the Phase 1 prompt **and** again in the Phase 3 resume
+message, since the resume is where the consultation actually happens.
 Default is to consult; see `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §1
 for how it resolves against `knowledge.adapter` and tool availability.
 
@@ -39,6 +42,7 @@ You are preparing to research ticket <TICKET_ID>{phase ? ", Phase <PHASE_NUM>" :
 - **Ticket ID:** <TICKET_ID>
 - **Ticket Number:** <TICKET_NUM>
 - **Phase:** <PHASE_NUM> (or "all phases" when ticket-wide)
+- **Knowledge consultation:** <"local-only (--local was passed)" | "enabled">
 
 ## Instructions — Question Extraction Only
 
@@ -88,19 +92,25 @@ question, append an entry to .artel/run/<TICKET_ID>/open-questions.md (format:
 ${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md §3, from: researcher) with your proposed default, then proceed on the
 defaults."]
 
+## Context
+
+- **Knowledge consultation:** <"local-only (--local was passed)" | "enabled">
+
 ## Research Steps — Proceed Now
 
 1. Incorporate the user's answers into your understanding.
 2. Scan the codebase for components, endpoints, contracts, patterns, limitations, and risks. Scope to the active phase when one is set.
-3. Document at the path you determined in Phase 1:
+3. Alongside that scan, consult the institutional record per your agent definition's Step 2 and `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1) — the **Knowledge consultation** field above is its `--local` input — then `index_status`, `related(<canonical ticket key>)` and up to four `search_knowledge` queries (§§2–3).
+4. Document at the path you determined in Phase 1:
    - existing endpoints and contracts
    - layers and dependencies
    - patterns used
    - limitations and risks
    - resolved questions (with user answers)
+   - prior decisions — what the record held, or that nothing was filed, or that the gate said not to consult and why; never omitted when the adapter is on (agent definition, Step 3)
    - new technical questions discovered during research
    - (phase runs only) a Phase Scope section at the top
-4. Do not change code; only gather information.
+5. Do not change code; only gather information.
 
 ## Important Rules
 

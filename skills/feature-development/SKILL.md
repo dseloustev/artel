@@ -51,9 +51,9 @@ phase checkpoint.
 |---|------|----------------------------------|
 | 0 | `IDEA_READY` — `idea.md` exists | `tracker.adapter` ≠ `"none"` → `Skill: generate-idea` with `$0`. `"none"` (local-only) → rely on the `$1` description file or an existing `idea.md`; if neither exists, the analysis input gate stops and asks. |
 | 0.5 | `DESIGN_ANALYZED` — `design-analysis.md` has `Status: DESIGN_ANALYZED`, or `idea.md` has no `figma.com/design` link | `design.figma` disabled (config.md) → skip silently. Enabled → Grep `idea.md` for `figma.com/design`. Link present → `Skill: figma-analysis` with `$0` (chatty head — its Major-findings handshake may ask; on `DESIGN_BLOCKED` — returned by the skill or already recorded in an existing artifact's `Status:` — stop the pipeline and report the parked findings). No link → skip silently. |
-| 1 | `PRD_READY` — PRD `Status: PRD_READY` | `Skill: analysis` with `$0 $1` — runs the upfront interview (chatty by design). |
+| 1 | `PRD_READY` — PRD `Status: PRD_READY` | `Skill: analysis` with `$0 $1`, plus `--local` when this run was invoked with it — runs the upfront interview (chatty by design). |
 | 2 | `VISION_READY` — `vision.md` `Status: VISION_READY` | `Skill: generate-vision` with `$0` — consumes the PRD; ends with its one wholesale checkpoint. |
-| 3 | plan drafted — `plan.md` exists | `Skill: researcher` then `Skill: planner` (both `$0`) — **silent**: their questions land in `.artel/run/<TICKET_ID>/open-questions.md` (autonomous-run.md §3). |
+| 3 | plan drafted — `plan.md` exists | `Skill: researcher` then `Skill: planner` (both `$0`; `researcher` also takes `--local` when this run was invoked with it) — **silent**: their questions land in `.artel/run/<TICKET_ID>/open-questions.md` (autonomous-run.md §3). |
 | 3.5 | `PLAN_GROUNDED` — plan-check green | Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict`, where `<plan-path>` is the phase-aware plan path per ticket-parsing.md §4. Exit 0 → proceed. Exit 1 → append/update `**Plan-check bounces:** N` at the bottom of `<plan-path>`, and while `N <= MAX_PLAN_CHECK_BOUNCES = 2`: `SendMessage` the `data.unresolved` list to the `planner` agent ("resolve or declare `new:`"), regenerate, re-run the check. Planner regeneration rewrites `<plan-path>` and drops the bounce line with it; after each regeneration re-append `**Plan-check bounces:** N` (N = bounces performed so far) before re-running the check. Third failure → stop and ask (chatty head — plain `AskUserQuestion`, no `pause_reason`) without writing N=3 — the file shows `**Plan-check bounces:** 2` at the stop. Exit 2 → environment error: stop-and-ask pointing at setup, never a bounce. |
 | 4 | `TASKLIST_READY` — tasklist `Status: TASKLIST_READY` | `Skill: tasklist` with `$0` — silent, HITL-tagged. |
 | 4.5 | phase extraction (phase runs only) | `Skill: sync-phases` with `$0` — creates `phase-<N>/tasks.md` when missing. |
@@ -84,11 +84,14 @@ Run the risk classifier (autonomous-run.md §10) over plan + tasklist. `forced_f
 "full-gates"` ⇒ stop here: report the matched sensitive categories and instruct the user to
 re-run with `--step`. Otherwise write `.artel/run/<TICKET_ID>/run-state.json` per
 autonomous-run.md §2: `run_active: true`, `completed: false`, `pause_reason: null`, fresh
-`started_at`, zeroed counters, plus the six mode fields (§10), with `gates_confirmed:
-["TASKLIST_READY"]`. Announce the effective mode and reasons. On resume, re-derive the mode
-fields before re-arming — never trust stale ones. From here the run is silent except deviations,
-HITL tasks, and cap escalations. Create `.artel/run/<TICKET_ID>/run-journal.md` with the
-run-start entry (autonomous-run.md §11): mode resolution, reasons, HITL tags count.
+`started_at`, zeroed counters, `requested_local` (§2 — the `--local` opt-out, recorded because
+a resumed run has no argument list left to read it from), plus the six mode fields (§10), with
+`gates_confirmed: ["TASKLIST_READY"]`. Announce the effective mode and reasons. On resume,
+re-derive the mode fields before re-arming — never trust stale ones, and carry `requested_local`
+forward unchanged: it is the user's opt-out, not a classifier output. From here the run is
+silent except deviations, HITL tasks, and cap escalations. Create
+`.artel/run/<TICKET_ID>/run-journal.md` with the run-start entry (autonomous-run.md §11): mode
+resolution, reasons, HITL tags count.
 
 Then run the **planning checkpoint** (see `## Checkpoint commits & pushes`): commit
 `<specs.dir>/<TICKET_ID>/**` + `<specs.dir>/.active_ticket` and push — subject `docs: <TICKET_ID>

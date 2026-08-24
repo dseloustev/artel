@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **The automation skills' file-list and verify steps.** `add-automation` /
+  `remove-automation` derive the scaffold's paths from `git status --porcelain`,
+  which collapses a new directory into one `?? dir/` entry — breaking the
+  rollback (`rm -f` refuses a directory), the commit's exact-paths check, and any
+  `{files}` scope; both now read `--porcelain -uall -z`. Both also ran
+  `verify.fast` as a raw string, so a config carrying `{files}` sent the literal
+  token to the shell and failed a correct scaffold; they now substitute their own
+  changed paths. `add-automation` no longer claims a failed apply leaves nothing
+  to roll back, and `remove-automation` gained the default-branch guard its
+  counterpart already had, since it commits and pushes.
+
 ## [0.3.0] - 2026-08-23
 
 ### Added

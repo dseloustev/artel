@@ -200,10 +200,13 @@ Commands must be non-interactive, exit non-zero on failure, and be safe to re-ru
 `verify.fast` makes the per-edit hook a no-op.
 
 Any command may contain the literal token `{files}`: callers that pass an explicit file scope
-(the hooks; `scripts/verify.py --files`) replace it with the space-joined, shell-quoted paths,
-so `"eslint {files}"` checks only what changed. A command without the token always runs
-unscoped. Exit codes `126`/`127`, a spawn failure, or a timeout classify as an environment
-error (exit 2 — fix the toolchain); any other non-zero exit is findings (exit 1).
+(the hooks; `scripts/verify.py --files`; `add-automation`/`remove-automation`, whose scope is the
+scaffold's own changed paths) replace it with the space-joined, shell-quoted paths, so
+`"eslint {files}"` checks only what changed. A command without the token always runs unscoped. A
+caller that has a scope and skips the substitution passes the literal token to the shell — a
+failure that looks like findings but is an invocation bug. Exit codes `126`/`127`, a spawn
+failure, or a timeout classify as an environment error (exit 2 — fix the toolchain); any other
+non-zero exit is findings (exit 1).
 `verify.surface` filters which changed files the hooks act on, e.g.
 `["lib/**/*.dart", "!*.g.dart", "!*.freezed.dart"]` for the source project's behavior.
 

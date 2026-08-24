@@ -33,20 +33,31 @@ stop.
 
 ## 3. Apply
 
-Run `runtime.scaffold.add` via Bash. Capture `{command, exit_code, output}`. Non-zero exit → stop
-and report the output; nothing to roll back yet since preflight already proved the tree clean.
+Run `runtime.scaffold.add` via Bash. Capture `{command, exit_code, output}`. Non-zero exit → the
+command may still have written part of the scaffold before it failed, so preflight's clean tree
+proves nothing about the tree now: re-check `git status --porcelain -uall -z`. Empty → nothing to
+undo. Non-empty → roll back with the step-4.3 procedure. Report the output and stop either way.
 
 ## 4. Verify
 
-1. Determine what changed: `git status --porcelain` (modified + untracked paths) — this is how
-   the skill learns the scaffold's file list without the host ever declaring one. Empty diff with
+1. Determine what changed: `git status --porcelain -uall -z` (modified + untracked paths) — this
+   is how the skill learns the scaffold's file list without the host ever declaring one. Both
+   flags matter: plain `--porcelain` collapses a newly created directory into one `?? dir/` entry,
+   which `rm -f` refuses, which never matches the per-file paths `git show --stat` prints in
+   step 5, and which hands a directory to a `{files}` linter; `-z` returns paths unquoted, where
+   `--porcelain` wraps any name containing a space in double quotes. Empty diff with
    exit `0` → the command idempotently no-op'd because the scaffold was already applied; report
    "already applied" and stop before step 5 (skip the commit — nothing new to commit).
 2. Run `verify.fast` (config.md) — the generic replacement for a project-specific analyzer pass.
+   If the command carries a `{files}` token, replace it with the step-4.1 paths, space-joined and
+   shell-quoted — the same substitution `scripts/verify.py` performs, and the scope this skill is
+   uniquely able to supply; a command without the token runs unscoped. Passing the token through
+   unsubstituted sends a literal `{files}` to the shell, which fails a scaffold that is correct.
    An unconfigured `verify.fast` degrades this check to skipped, never green (config.md).
 3. On failure: roll back — `git checkout -- <paths>` for tracked paths that were merely modified
-   (safe: preflight proved them clean), `rm -f <paths>` for new untracked paths — using the exact
-   path list from step 4.1. Report the findings, stop.
+   (safe: preflight proved them clean), `rm -f <paths>` for new untracked paths, then remove any
+   directories those paths created and left empty — using the exact path list from step 4.1.
+   Report the findings, stop.
 
 ## 5. Commit
 

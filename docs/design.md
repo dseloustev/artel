@@ -288,6 +288,24 @@ entry-point skills run a short one-time init interview and write the file.
   `.artel/run/<TICKET>/.stop-gate-blocks` for source parity. The verify-layer hooks return 0
   immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured plugin
   leaves zero footprint in the host repo.
+- **2026-08-24 — The automation skills derive their file list with `-uall -z`, and substitute
+  `{files}` themselves.** Both skills learn what the host's scaffold command touched by diffing
+  `git status --porcelain`, which turned out to be the wrong reading of that command for the job:
+  it collapses a newly created directory into a single `?? dir/` entry, and `test_driver/` is
+  exactly what the source project's scaffold creates. That one entry then breaks three downstream
+  steps — `rm -f` refuses a directory, so the verify-failure rollback leaves the tree dirty; the
+  per-file paths `git show --stat` prints never match it, so the commit's "exactly those paths"
+  check cannot pass; and a `{files}` linter is handed a directory. `-uall` expands it, `-z` drops
+  the quoting `--porcelain` applies to names with spaces. Separately, both skills ran `verify.fast`
+  as a raw config string while holding the very file scope the `{files}` token wants: with the
+  source project's own config (which carries the token twice) the literal reached the shell and
+  failed a correct scaffold. Skill bodies run config commands directly (the 2026-08-07 decision
+  above), so they own the substitution `scripts/verify.py` would otherwise do for them. Also
+  closed here: `add-automation` claimed a failed apply left "nothing to roll back" because
+  preflight had proved the tree clean, which says nothing about a command that fails part-way
+  through writing; and `remove-automation` had no default-branch guard despite committing *and*
+  pushing — the one realistic way to meet the scaffold on the default branch is a branch merged
+  with `AUTOMATION_REMOVED` red, and the fix for that is a branch and a PR, not a push to main.
 - **2026-08-22 — The kartoteka mirror is a hook, not a step in each producing skill.**
   artel's spec trail is unreachable to any later agent asking why a decision was made; the
   fix is to dual-write it into a kartoteka artifact store (that project's spec §11). The

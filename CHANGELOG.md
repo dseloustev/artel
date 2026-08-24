@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-24
+
 ### Fixed
 
 - **The automation skills' file-list and verify steps.** `add-automation` /

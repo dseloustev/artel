@@ -42,12 +42,14 @@ single-project, and a queue wired up for another checkout must not be written to
 1. `task_list(ticket_key=<TICKET_ID> or omitted, status=<status> or omitted)`.
 2. Render a table — `task_id`, title, status, actor, last activity — with iteration parents
    (titles `I<N>: …`) first, each followed by its children (`I<N> · …`). Flag `[HITL:` titles.
-3. Diagnose per `docs/task-queue.md` §5 and name the state in one line:
-   - every child `done` → **drained** — iteration work complete;
+3. Diagnose per `docs/task-queue.md` §5 — but where §5 answers for one empty claim, a listing
+   can be in several of its states at once, so report **every** line that applies, in this
+   order, and say "nothing to report" only when none does:
+   - any `blocked` → **blocked** — list them; a HITL title is waiting on the user;
+   - any `in_progress` → **held** — actor and how long since `updated_at`, per row;
    - `backlog` rows and none `ready` → **promotion pending** — name the lowest-numbered
      iteration with an unfinished child; the implementer's next claim repairs it;
-   - any `blocked` → **blocked** — list them; a HITL title is waiting on the user;
-   - any `in_progress` → **held** — actor and how long since `updated_at`, per row.
+   - every child `done` → **drained** — iteration work complete.
 4. **Report only.** `list` never promotes, never releases, never edits a file. If the user wants
    a held row cleared, that is `release`.
 

@@ -9,6 +9,16 @@
             "timeout": 120
           }
         ]
+      },
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/using_artel.py\"",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [

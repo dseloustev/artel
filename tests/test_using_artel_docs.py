@@ -63,5 +63,23 @@ class TestRouter(unittest.TestCase):
         self.assertIn('<SUBAGENT-STOP>', read(ROUTER))
 
 
+class TestHookRegistration(unittest.TestCase):
+    def test_hooks_json_registers_the_router_hook_on_session_start(self):
+        groups = json.loads(read('hooks/hooks.json'))['hooks']['SessionStart']
+        matchers = [group.get('matcher')
+                    for group in groups
+                    for hook in group['hooks']
+                    if 'hooks/using_artel.py' in hook['command']]
+        self.assertEqual(matchers, ['startup|clear|compact'])
+
+    def test_router_hook_has_a_short_timeout(self):
+        groups = json.loads(read('hooks/hooks.json'))['hooks']['SessionStart']
+        timeouts = [hook['timeout']
+                    for group in groups
+                    for hook in group['hooks']
+                    if 'hooks/using_artel.py' in hook['command']]
+        self.assertEqual(timeouts, [10])
+
+
 if __name__ == '__main__':
     unittest.main()

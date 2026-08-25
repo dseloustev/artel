@@ -1,10 +1,10 @@
 # hooks/
 
-Quality gates: `hooks.json` registers six Python hooks via `${CLAUDE_PLUGIN_ROOT}` paths.
+Quality gates: `hooks.json` registers seven Python hooks via `${CLAUDE_PLUGIN_ROOT}` paths.
 Requires `python3` on the host. Verify commands come from host config
 (`.artel/config.json` — [config.md](../docs/config.md)), never hardcoded.
 
-Three layers:
+Four layers:
 
 - **Run layer** — enforces the autonomous-run contract
   ([autonomous-run.md](../docs/autonomous-run.md)):
@@ -38,8 +38,16 @@ Three layers:
     blocks, nothing retries, every attempt is logged to
     `.artel/run/.hooks/knowledge-mirror.log`. Inert unless `knowledge.adapter` is
     `"kartoteka"`.
+- **Session layer** — turn-one routing, no gate:
+  - `using_artel.py` (`SessionStart`, matcher `startup|clear|compact`) — injects the
+    `using-artel` router skill (frontmatter stripped) plus three host-status lines
+    (`config: present`, `knowledge.adapter` with `baseUrl`, the raw `.active_ticket`
+    pointer) as `additionalContext`, so the routing rule is in context on turn one and comes
+    back after `/clear` and compaction. Prints nothing without `.artel/config.json`; any
+    error goes to stderr and the hook still exits 0 — a session never fails to start
+    because of it.
 
 Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines, verify-stop
-counters) — never inside the plugin directory. The verify-layer hooks return immediately when
-`.artel/config.json` does not exist, so an installed-but-unconfigured plugin leaves zero
-footprint; `hook_common.py` is the shared helper library, not a registered hook.
+counters) — never inside the plugin directory. The verify-layer and session-layer hooks return
+immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured plugin
+leaves zero footprint; `hook_common.py` is the shared helper library, not a registered hook.

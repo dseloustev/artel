@@ -22,11 +22,6 @@ ROUTER_MAX_BYTES = 10240
 
 SKILL_REF = re.compile(r'/artel:([a-z0-9-]+)')
 
-# Skills the router routes to that ship later in this same change. Drop this
-# tuple once both skills exist on disk.
-PLANNED_SKILLS = ('knowledge', 'tasks')
-
-
 def read(rel):
     return (ROOT / rel).read_text(encoding='utf-8')
 
@@ -49,7 +44,7 @@ class TestRouter(unittest.TestCase):
                           ROUTER + ' has no route to /artel:' + name)
 
     def test_router_names_only_skills_that_exist(self):
-        names = set(skill_names()) | set(PLANNED_SKILLS)
+        names = set(skill_names())
         for ref in sorted(set(SKILL_REF.findall(read(ROUTER)))):
             self.assertIn(ref, names,
                           ROUTER + ' routes to /artel:' + ref + ', which does not exist')
@@ -118,6 +113,51 @@ class TestKnowledgeSkill(unittest.TestCase):
         text = read(KNOWLEDGE)
         self.assertIn('At most four `search_knowledge` calls', text)
         self.assertIn('⚠ NON-CURRENT', text)
+
+
+# The write-side kartoteka tools the tasks skill calls. Exact spellings.
+WRITE_TOOLS = ('task_create', 'task_update', 'task_list')
+# Same near-miss list as tests/test_task_queue_docs.py.
+WRITE_NEAR_MISSES = ('task_claim', 'task_next', 'tasks_ready', 'task_get',
+                     'task_ready_claim', 'tasks_create')
+
+
+class TestTasksSkill(unittest.TestCase):
+    def test_skill_exists(self):
+        self.assertTrue((ROOT / TASKS).is_file(), TASKS + ' is missing')
+
+    def test_spells_every_queue_tool(self):
+        text = read(TASKS)
+        for name in WRITE_TOOLS:
+            self.assertIn(name, text, TASKS + ' never mentions ' + name)
+
+    def test_uses_no_near_miss_spelling(self):
+        text = read(TASKS)
+        for wrong in WRITE_NEAR_MISSES:
+            self.assertNotIn(wrong, text, TASKS + ' uses ' + wrong)
+
+    def test_never_claims(self):
+        # task_ready may be named only to say it is never called.
+        lines = [line for line in read(TASKS).splitlines() if 'task_ready' in line]
+        self.assertTrue(lines, TASKS + ' should state that it never calls task_ready')
+        for line in lines:
+            self.assertIn('never', line, TASKS + ' names task_ready outside a never-clause: ' + line)
+
+    def test_add_goes_through_the_mirror_script(self):
+        text = read(TASKS)
+        self.assertIn('scripts/tasklist_tasks.py', text)
+        self.assertIn('--raw', text)
+
+    def test_carries_the_gate_messages(self):
+        text = read(TASKS)
+        self.assertIn('declare it with `/artel:setup`', text)
+        self.assertIn('kartoteka is configured for this project but its MCP tools are not '
+                      'available in this session', text)
+        self.assertNotIn('--force', text)
+
+    def test_release_confirms(self):
+        text = read(TASKS)
+        self.assertIn('AskUserQuestion', text)
 
 
 if __name__ == '__main__':

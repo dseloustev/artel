@@ -9,10 +9,13 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - **`using-artel`, the session router.** A `SessionStart` hook (`startup|clear|compact`)
-  injects a routing table over every skill — plus `knowledge.adapter` and the active ticket —
+  injects a routing table over every skill — plus `knowledge.adapter`, the active ticket and
+  whether the `ast-index` CLI is on PATH —
   whenever `.artel/config.json` exists, so "start work on PROJ-123" reaches
   `/artel:init-branch` on turn one and survives compaction. Carries `<SUBAGENT-STOP>`; lists no
-  agents; tells the model an entry point is already the process. Inert without a config.
+  agents; tells the model an entry point is already the process. Inert without a config. With
+  the `ast-index` CLI present, code navigation routes to the `ast-index` plugin's skill before
+  any grep.
 - **`/artel:knowledge` and `/artel:tasks`, the conversational front doors to kartoteka.**
   `knowledge` searches prior decisions, lists what is filed under a ticket, or reports index
   freshness — read-only, under the consultation contract's budget and citation rules. `tasks`

@@ -40,9 +40,10 @@ Four layers:
     `"kartoteka"`.
 - **Session layer** — turn-one routing, no gate:
   - `using_artel.py` (`SessionStart`, matcher `startup|clear|compact`) — injects the
-    `using-artel` router skill (frontmatter stripped) plus three host-status lines
+    `using-artel` router skill (frontmatter stripped) plus four host-status lines
     (`config: present`, `knowledge.adapter` with `baseUrl`, the raw `.active_ticket`
-    pointer) as `additionalContext`, so the routing rule is in context on turn one and comes
+    pointer, and whether the `ast-index` CLI is on PATH — `shutil.which`, no subprocess) as
+    `additionalContext`, so the routing rule is in context on turn one and comes
     back after `/clear` and compaction. Prints nothing without `.artel/config.json`; any
     error goes to stderr and the hook still exits 0 — a session never fails to start
     because of it.

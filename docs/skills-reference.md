@@ -40,9 +40,10 @@ Entry template:
   skill before any other response — the plugin's analogue of `superpowers:using-superpowers`.
 - **Invocation:** `/artel:using-artel` — normally never typed: the `using_artel` `SessionStart`
   hook ([hooks/README.md](../hooks/README.md)) injects its body (frontmatter stripped) plus a
-  three-line host status on `startup|clear|compact` whenever `.artel/config.json` exists.
+  four-line host status on `startup|clear|compact` whenever `.artel/config.json` exists.
 - **Reads:** nothing itself; the hook reads `.artel/config.json` (`knowledge.adapter`,
-  `knowledge.baseUrl`, `specs.dir`) and `<specs.dir>/.active_ticket`.
+  `knowledge.baseUrl`, `specs.dir`) and `<specs.dir>/.active_ticket`, and checks whether the
+  `ast-index` CLI is on PATH.
 - **Writes:** nothing.
 - **Pauses:** never.
 - **Notes:** a routing table over every other skill, kept complete both ways by
@@ -50,7 +51,11 @@ Entry template:
   Carries `<SUBAGENT-STOP>` so dispatched agents ignore it. States precedence: user
   instructions > artel skills for artel's domain > generic process skills; an entry point is a
   complete process and is never wrapped in brainstorming or plan-writing skills. Lists no
-  agents — every agent is reached through its skill. Not injected without a config.
+  agents — every agent is reached through its skill. Not injected without a config. Routes
+  code navigation — find a class, its usages or callers, the project's structure — to the
+  `ast-index` plugin's `/ast-index:ast-index` (and index creation to `/ast-index:initialize`)
+  only when the status line says the CLI is on PATH; the index is then the first search tool,
+  before grep.
 
 ---
 

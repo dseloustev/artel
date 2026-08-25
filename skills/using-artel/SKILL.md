@@ -97,6 +97,22 @@ is not declared for this project and point at `/artel:setup`.
 | a task marked done or blocked | `/artel:tasks done <id>` · `/artel:tasks block <id>` |
 | a task a dead agent left held released | `/artel:tasks release <id>` |
 
+**Code navigation — the AST index**
+
+Only when the status line says `ast-index: on PATH` (the host installed the `ast-index` plugin
+and its CLI). Then the index is the first tool for any code search — before grep, ripgrep or the
+Search tool — and its result is the complete answer; grep only for regex patterns, string
+literals, comment text, or after an empty result.
+
+| The user wants… | Run |
+|---|---|
+| a class, symbol or file found, or its usages / implementations / callers | `/ast-index:ast-index` |
+| the project's structure, conventions, frameworks or module dependencies | `/ast-index:ast-index` |
+| the index created for this checkout, or it reports "Index not found" | `/ast-index:initialize` |
+| the index refreshed after a pull or merge | `ast-index update` (per `/ast-index:ast-index`) |
+
+With `not on PATH`, code navigation is not routed here — use the ordinary tools.
+
 ## Precedence
 
 1. The user's instructions (`CLAUDE.md`, a direct request) win over these tables.
@@ -116,6 +132,7 @@ a skill that resolves ticket context first; use the skill.
 | "I'll read `tasklist.md` to see what's next" | With the adapter on, the queue is authoritative — `/artel:tasks list`. |
 | "I'll call `search_knowledge` myself" | `/artel:knowledge` keeps the search budget, the citations and the ⚠ NON-CURRENT markers. |
 | "I'll `task_create` it directly" | `/artel:tasks add` keeps `tasklist.md` and the queue in step; a bare row breaks promotion. |
+| "I'll grep for that class" | With the index on PATH, `/ast-index:ast-index` answers in milliseconds; grep is for regex, literals and comments. |
 | "This change is small, I'll just implement it" | Small is what `/artel:dev` is for — gates included. |
 | "I'll brainstorm first, then run the pipeline" | The pipeline interviews. Run it. |
 | "I'll ask a clarifying question first" | The skill asks its own. Route first. |

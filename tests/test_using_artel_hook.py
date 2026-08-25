@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 HOOKS = Path(__file__).resolve().parent.parent / 'hooks'
@@ -75,6 +76,11 @@ class TestConfiguredHost(unittest.TestCase):
         (specs / '.active_ticket').write_text('\nAW-1234-2\n', encoding='utf-8')
         self.assertIn('active ticket: AW-1234-2', self.context())
 
+    def test_reports_whether_ast_index_is_on_path(self):
+        ctx = self.context()
+        self.assertIn('- ast-index: ', ctx)
+        self.assertTrue('ast-index: on PATH' in ctx or 'ast-index: not on PATH' in ctx)
+
 
 class TestPureFunctions(unittest.TestCase):
     def test_strip_frontmatter_removes_the_leading_block(self):
@@ -89,6 +95,14 @@ class TestPureFunctions(unittest.TestCase):
         self.assertIn('knowledge.adapter: none', status)
         self.assertIn('active ticket: none', status)
         self.assertIn('config: present', status)
+
+    def test_host_status_reports_ast_index_on_path(self):
+        with mock.patch.object(ua.shutil, 'which', return_value='/opt/homebrew/bin/ast-index'):
+            self.assertIn('- ast-index: on PATH', ua.host_status({}))
+
+    def test_host_status_reports_ast_index_missing(self):
+        with mock.patch.object(ua.shutil, 'which', return_value=None):
+            self.assertIn('- ast-index: not on PATH', ua.host_status({}))
 
 
 class TestFailOpen(unittest.TestCase):

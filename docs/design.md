@@ -346,3 +346,15 @@ entry-point skills run a short one-time init interview and write the file.
   claimed by an implementer with no checkbox to flip). There is no `claim` verb — claiming is
   the implementer's — and `release` shows holder and age and asks first, because
   `docs/task-queue.md` §5 makes clearing a claim the user's call.
+- **2026-08-25 — The router names one other plugin: `ast-index`.** Cross-plugin routing stays
+  out of scope in general (likbez is not routed), but the AST index is different in kind: artel
+  already depends on its CLI — `scripts/plan_check.py` resolves plan anchors through it — the
+  index is project-agnostic, and the requests it answers ("find usages of X", "what is the
+  project structure") are the ones a session in an artel repo makes before every stage. So
+  `using-artel` carries a code-navigation group pointing at `/ast-index:ast-index` and
+  `/ast-index:initialize`, gated on a fourth host-status line the hook computes with
+  `shutil.which('ast-index')` — the CLI on PATH is the practical prerequisite the ast-index
+  skill itself states, and whether the plugin's skill is installed is not knowable from a hook.
+  With the CLI absent the group is inert, exactly like the kartoteka group with
+  `knowledge.adapter: none`. The pipeline's own agents are unchanged: the source project's
+  mandatory-ast-index rule went to likbez (2026-08-01) and stays there.

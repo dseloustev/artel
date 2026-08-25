@@ -218,5 +218,15 @@ class TestDocs(unittest.TestCase):
         self.assertIn('/artel:tasks', text)
 
 
+class TestRouterCodeNavigation(unittest.TestCase):
+    def test_router_routes_code_navigation_to_the_ast_index(self):
+        text = read(ROUTER)
+        self.assertIn('/ast-index:ast-index', text)
+        self.assertIn('/ast-index:initialize', text)
+
+    def test_router_gates_the_group_on_the_status_line(self):
+        self.assertIn('ast-index: on PATH', read(ROUTER))
+
+
 if __name__ == '__main__':
     unittest.main()

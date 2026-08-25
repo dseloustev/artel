@@ -1,7 +1,8 @@
 """SessionStart(startup|clear|compact): inject the `using-artel` router skill plus a
-three-line host status into the session. Inert without .artel/config.json. Fails open —
+four-line host status into the session. Inert without .artel/config.json. Fails open —
 a session must never fail to start because of a convenience."""
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -45,6 +46,12 @@ def active_ticket_pointer(config):
     return None
 
 
+def ast_index_status():
+    """Whether the ast-index CLI is on PATH — the practical prerequisite for routing code
+    navigation to the ast-index plugin's skill. Presence only: no subprocess at session start."""
+    return 'on PATH' if shutil.which('ast-index') else 'not on PATH'
+
+
 def host_status(config):
     knowledge = config.get('knowledge') or {}
     adapter = knowledge.get('adapter') or 'none'
@@ -58,6 +65,7 @@ def host_status(config):
         '- config: present (.artel/config.json)',
         '- ' + adapter_line,
         '- active ticket: ' + ticket,
+        '- ast-index: ' + ast_index_status(),
     ])
 
 

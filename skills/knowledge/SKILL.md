@@ -8,7 +8,10 @@ model: sonnet
 Worker, not an orchestrator — no agent matches this job; it runs inline (like `sync-phases` and
 `setup`). It is the conversational front door to the read side of
 `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md`; that contract's §2 (what to call), §3
-(budget) and §5 (the injection rule) apply here unchanged. Its §4 does not: the pipeline's
+(budget) and §5 (the injection rule) apply here, with one deliberate difference from §2: the
+`## tasks` block of a `related` result is summarised rather than ignored, because a person
+asking about a ticket wants its queue state, which an interview or a scan does not (§3b below).
+Its §4 does not apply: the pipeline's
 consultation writes a record into `prd.md` / `research.md` because later stages read them; this
 skill answers a person and **writes nothing** — no file under `<specs.dir>`, no `artifact_put`.
 

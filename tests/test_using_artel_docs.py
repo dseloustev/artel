@@ -81,5 +81,44 @@ class TestHookRegistration(unittest.TestCase):
         self.assertEqual(timeouts, [10])
 
 
+# The read-side kartoteka tools the knowledge skill calls. Exact spellings.
+READ_TOOLS = ('search_knowledge', 'related', 'index_status', 'artifact_list', 'artifact_get')
+READ_NEAR_MISSES = ('knowledge_search', 'search_knowledge_base', 'related_docs',
+                    'index_state', 'artifacts_list', 'artifact_read')
+
+
+class TestKnowledgeSkill(unittest.TestCase):
+    def test_skill_exists(self):
+        self.assertTrue((ROOT / KNOWLEDGE).is_file(), KNOWLEDGE + ' is missing')
+
+    def test_spells_every_read_tool(self):
+        text = read(KNOWLEDGE)
+        for name in READ_TOOLS:
+            self.assertIn(name, text, KNOWLEDGE + ' never mentions ' + name)
+
+    def test_uses_no_near_miss_spelling(self):
+        text = read(KNOWLEDGE)
+        for wrong in READ_NEAR_MISSES:
+            self.assertNotIn(wrong, text, KNOWLEDGE + ' uses ' + wrong)
+
+    def test_never_writes(self):
+        text = read(KNOWLEDGE)
+        self.assertIn('**writes nothing**', text)
+        for name in ('task_create', 'task_update', 'task_ready'):
+            self.assertNotIn(name, text, KNOWLEDGE + ' mentions the write tool ' + name)
+
+    def test_carries_the_gate_messages(self):
+        text = read(KNOWLEDGE)
+        self.assertIn('declare it with `/artel:setup`', text)
+        self.assertIn('kartoteka is configured for this project but its MCP tools are not '
+                      'available in this session', text)
+        self.assertNotIn('--force', text)
+
+    def test_keeps_the_search_budget_and_the_marker(self):
+        text = read(KNOWLEDGE)
+        self.assertIn('At most four `search_knowledge` calls', text)
+        self.assertIn('⚠ NON-CURRENT', text)
+
+
 if __name__ == '__main__':
     unittest.main()

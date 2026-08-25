@@ -94,6 +94,7 @@ Contracts and internals:
 - [docs/autonomous-run.md](docs/autonomous-run.md) · [docs/ticket-parsing.md](docs/ticket-parsing.md)
   · [docs/orchestrator-common.md](docs/orchestrator-common.md)
   · [docs/deviation-protocol.md](docs/deviation-protocol.md)
+  · [docs/code-navigation.md](docs/code-navigation.md)
   · [docs/path-conventions.md](docs/path-conventions.md) — the rules the pipeline obeys
 - [CHANGELOG.md](CHANGELOG.md)
 

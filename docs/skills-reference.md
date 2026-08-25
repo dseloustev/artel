@@ -482,7 +482,9 @@ Entry template:
   approved merge.
 - **Invocation:** `/artel:merge-conflicts [branch-name]`
 - **Reads:** the conflicted files, both branch versions (`git show <branch>:<file>` /
-  `git show HEAD:<file>`), `git diff --stat`.
+  `git show HEAD:<file>`), `git diff --stat`; the host's optional code-symbol index to locate
+  symbols that moved between the two sides ([code-navigation.md](code-navigation.md)),
+  silently absent otherwise.
 - **Writes:** resolved files, staged but not committed; never hand-edits generated files
   (regenerates via the host's own regeneration command instead).
 - **Pauses:** enters plan mode with a per-file resolution strategy for approval before applying
@@ -655,7 +657,9 @@ Entry template:
 - **Invocation:** `/artel:agents-md-generator`
 - **Reads:** the host repo's manifests (`package.json`, `go.mod`, `pyproject.toml`,
   `pubspec.yaml`, …), docs, existing `AGENTS.md` files, package scripts/Makefile/CI; the
-  skill's two bundled templates (root and module).
+  skill's two bundled templates (root and module); the host's optional code-symbol index
+  for repo shape, detected conventions and module dependencies
+  ([code-navigation.md](code-navigation.md) §2), silently absent otherwise.
 - **Writes:** `<repo-root>/AGENTS.md` (≤ 60 lines) and `<module>/AGENTS.md` (≤ 40 lines) —
   create or update only these.
 - **Pauses:** never.

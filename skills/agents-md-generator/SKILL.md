@@ -65,6 +65,22 @@ Run this skill when:
   - `pom.xml`, `build.gradle`
 - Locate `docs/`, `README.md`, existing `AGENTS.md`.
 
+**Use the host's optional code-symbol index for the shape questions** — index-first per
+`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; it is silently absent otherwise, and the
+marker-file scan above is the whole answer then. Three of its commands are built for exactly
+this step and each replaces a directory crawl:
+
+- `map` — top directories by size with symbol counts, and `map --module <path>` to drill in.
+  This is the navigation section of a root `AGENTS.md`, derived rather than guessed.
+- `conventions` — detected architecture (Clean, feature-sliced, MVVM, …), frameworks (DI,
+  async, network, DB, UI, testing) and naming patterns with counts. Report what the repo
+  demonstrably does; never assume a stack.
+- `deps` / `dependents` — real module dependency edges, which is what tells a directory apart
+  from a module in step 2.
+
+Everything written into an `AGENTS.md` must come from the repo's own content (manifests, docs,
+the index), never from a fixed stack assumption — the index makes that discipline cheap.
+
 ---
 
 ### 2. Detect module boundaries

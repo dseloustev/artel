@@ -358,3 +358,25 @@ entry-point skills run a short one-time init interview and write the file.
   With the CLI absent the group is inert, exactly like the kartoteka group with
   `knowledge.adapter: none`. The pipeline's own agents are unchanged: the source project's
   mandatory-ast-index rule went to likbez (2026-08-01) and stays there.
+- **2026-08-25 — Code navigation gets its own contract; the pipeline's agents do use the index
+  after all.** The entry above closed with "the pipeline's own agents are unchanged." That was
+  right about the *rule* — the source project's mandatory-ast-index policy is likbez's and stays
+  there — and wrong about the mechanics. Six agents already reached for "the host's optional
+  code-symbol index," and every one of them pointed at `orchestrator-common.md` §1, which
+  documents only the post-implementation *refresh* hook. There was no contract anywhere for
+  *querying* an index: no availability probe, no index-before-grep rule, no staleness handling,
+  no command mapping. The pointer was dangling for the case it was cited for most.
+  [code-navigation.md](code-navigation.md) is that contract, shaped like
+  [knowledge-consultation.md](knowledge-consultation.md) — numbered sections agents cite as `§N`.
+  It is also the second sanctioned exception to the genericization rule, and a narrower one than
+  the router: §2 names `ast-index` and its commands because an index-first rule without commands
+  is unactionable, every *other* section is tool-neutral, and a host with a different index
+  answers §1 with its own probe and §2 with its own table. Agents keep saying "the host's
+  optional code-symbol index" and cite the file; the concrete names live in exactly one place,
+  which is what the test guards. Newly wired: `reviewer` (resolve a diff's symbols before
+  judging it — `changed`, `usages`, `implementations`), `tech-writer`, `vision-writer`
+  (grounding, and finding what to reuse), `agents-md-generator` (`map` / `conventions` / `deps`
+  are built for repo-shape discovery) and `merge-conflicts` Phase 3 (locating moved symbols).
+  Deliberately not wired: `qa`, `validator`, `task-planner` read artifacts, not code — and
+  `merge-conflicts` Phase 5 keeps its Grep, because a conflict marker is a string literal, which
+  §3 makes the worked example of when *not* to use the index.

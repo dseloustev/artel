@@ -25,9 +25,9 @@ In particular:
 - `<specs.dir>/<TICKET_ID>/design-analysis.md` (if available) — Figma workflow analysis: flow
   graph and screen-to-code mapping.
 - For phase runs, `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` if it exists.
-- Codebase, configs, existing docs. Use the host's optional code-symbol index, if the host has
-  wired one up, to accelerate the scan (see `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md`
-  §1); it is silently absent otherwise, and Glob/Grep are the fallback.
+- Codebase, configs, existing docs. Use the host's optional code-symbol index to accelerate the
+  scan, index-first per `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; it is silently absent
+  otherwise, and Glob/Grep are the fallback.
 
 ---
 

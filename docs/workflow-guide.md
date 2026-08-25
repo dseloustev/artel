@@ -290,7 +290,8 @@ start, and each phase closes with the `verify.commands` gate + a checkpoint comm
   tasks.
 - *Gate 6 — index.* Optional host index-refresh hook
   ([orchestrator-common.md](orchestrator-common.md) §1); silently absent when the host has not
-  wired one up.
+  wired one up. Refreshing is the only part that is a host hook — how the stages above and
+  below *read* an index is [code-navigation.md](code-navigation.md), which needs no wiring.
 - *Gate 7 — review.* [`run-reviewer`](skills-reference.md#run-reviewer) writes `review.md`;
   Blocking / Important findings route to an implementer fix round, then a re-review, with capped
   review rounds (`autonomous-run.md §5`).

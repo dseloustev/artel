@@ -6,6 +6,40 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`docs/code-navigation.md` — the query-side contract for a code-symbol index.** Six agents
+  already reached for "the host's optional code-symbol index" and all of them pointed at
+  `orchestrator-common.md` §1, which documents only the post-implementation *refresh* hook —
+  nothing about reading an index. The new file is that contract, shaped like
+  `knowledge-consultation.md`: §1 availability (`command -v`, silently absent, never a
+  config key — an index is project-agnostic), §2 the reference implementation and its command
+  table, §3 index-before-grep and the literal/regex/comment exceptions, §4 staleness with one
+  update-and-retry, §5 the grounding rule the `PLAN_GROUNDED` gate and the deviation protocol
+  rest on. It is the second sanctioned exception to the genericization rule and narrower than
+  the router's: only §2 names `ast-index`, every agent keeps the generic phrasing and cites the
+  file.
+
+### Changed
+
+- **Five more agents and skills now navigate code through the index.** `reviewer` resolves a
+  diff's symbols before judging it (`changed --base`, `usages`, `implementations`, `callers` —
+  a diff shows changed lines, not what depends on them); `tech-writer` derives key code changes
+  instead of grepping for them; `vision-writer` grounds every cited path and uses the index to
+  find what to reuse; `agents-md-generator` discovers repo shape, conventions and module
+  dependencies from `map` / `conventions` / `deps` rather than a directory crawl;
+  `merge-conflicts` Phase 3 locates symbols that moved between the two sides. `analyst`,
+  `researcher`, `planner`, `implementer` and `figma-analyst` keep their wording and re-point
+  from `orchestrator-common.md` §1 to the new contract.
+- `orchestrator-common.md` §1 now says which half it owns: refreshing is the host hook,
+  querying is `code-navigation.md`.
+
+### Unchanged (deliberately)
+
+- `qa`, `validator` and `task-planner` read artifacts, not code. `merge-conflicts` Phase 5 keeps
+  its Grep — a conflict marker is a string literal, which §3 makes the worked example of when
+  *not* to reach for the index.
+
 ## [0.4.0] - 2026-08-25
 
 ### Added

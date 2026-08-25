@@ -35,7 +35,10 @@ Orchestrators:
   after implementation is an optional host hook, not an `.artel/config.json` key — the plugin
   defines no mechanics for it; the host wires one up itself (its own hooks or CLAUDE.md
   instructions). Silently absent when the host has not wired one up; nothing is reported as
-  missing.
+  missing. **Refreshing is this bullet; querying is not.** How agents *read* an index that
+  exists — the availability probe, the index-before-grep rule, staleness, and the grounding
+  rule the anti-hallucination gates rest on — is [code-navigation.md](code-navigation.md),
+  and that contract needs no host hook at all.
 - **Knowledge consultation** (optional): when `knowledge.adapter` is `kartoteka`
   ([config.md](config.md)) and the kartoteka MCP tools are present in the session, the `analyst`
   and `researcher` agents consult the institutional-knowledge index before doing their own work.

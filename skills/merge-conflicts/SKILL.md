@@ -86,6 +86,16 @@ intent, and intelligently combining changes. Utility procedure — no agent, no 
   files (e.g., bug fixes in code that was refactored and moved elsewhere on the current branch)
 - Check for **renamed or deleted files** that may affect resolution
 
+**Find where the code went, don't guess.** This is symbol work, so it is index work: use the
+host's optional code-symbol index, index-first per
+`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; Grep is the fallback and it is silently absent
+otherwise. `symbol <name> --fuzzy` / `class <name>` locate a symbol that moved, `usages` and
+`callers` show who now depends on it, and `refs` gives definition, imports and usages in one
+view — which is the whole question when deciding whether a hunk from the source branch still
+belongs where it was written. A merge is a checkout that just changed underneath the index:
+if a symbol you can see in the diff does not come back, take §4's one `update` and retry
+before concluding it was deleted.
+
 ### Write Resolution Plan
 
 For each conflicting file, document:
@@ -139,6 +149,9 @@ git add <resolved-file>
 Run via Grep tool across the whole tree (no language-specific file filter — the host project may
 use any file types):
 - Pattern: `<<<<<<<`
+
+Grep is correct here and stays Grep even with an index available: a conflict marker is a string
+literal, not a symbol (`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §3).
 
 If any conflict markers remain, resolve them before proceeding.
 

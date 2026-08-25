@@ -24,7 +24,10 @@ In particular:
 - `<specs.dir>/<TICKET_ID>/plan.md`
 - `<specs.dir>/<TICKET_ID>/tasklist.md`
 - `<specs.dir>/<TICKET_ID>/qa.md` (if any)
-- key code changes (via Read/Glob/Grep)
+- key code changes — the host's optional code-symbol index first (`changed --base
+  <default-branch>` names the symbols this work touched, `outline` summarises a file without
+  reading it whole), per `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; Read/Glob/Grep are the
+  fallback and it is silently absent otherwise
 - current `CHANGELOG.md`
 
 ### Phase-scoped (phase specified)
@@ -34,7 +37,10 @@ In particular:
 - `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/qa.md` (if any)
 - `<specs.dir>/<TICKET_ID>/idea.md` — for context
 - `<specs.dir>/<TICKET_ID>/vision.md` — for context
-- key code changes (via Read/Glob/Grep)
+- key code changes — the host's optional code-symbol index first (`changed --base
+  <default-branch>` names the symbols this work touched, `outline` summarises a file without
+  reading it whole), per `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; Read/Glob/Grep are the
+  fallback and it is silently absent otherwise
 - current `CHANGELOG.md`
 
 ## Output

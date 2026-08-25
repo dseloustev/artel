@@ -109,7 +109,17 @@ Compare the three-dot diff against the two-dot diff. If the two-dot diff shows d
 
 ## Review lenses (both modes)
 
-Run three focused passes over the diff (single enriched review — no fan-out):
+Run three focused passes over the diff (single enriched review — no fan-out).
+
+**Resolve the diff before you judge it.** A diff shows the lines that changed, not what depends
+on them — and every lens below asks a question the hunk itself cannot answer. Use the host's
+optional code-symbol index, index-first per `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`;
+Grep is the fallback and it is silently absent otherwise. `changed --base <default-branch>` lists
+the symbols this branch touches, `usages` / `refs` give a changed signature's blast radius,
+`implementations` and `hierarchy` show whether a modified interface left its implementors behind,
+and `callers` tells you who reaches a function whose contract moved. A finding must name a symbol
+that exists (§5): a layer violation asserted against a class nobody can find is noise in a gate a
+human trusts.
 
 1. **convention-fit** — apply the host project's conventions docs (its CLAUDE.md and anything it
    points to). Findings already caught by `verify.fast` / `verify.commands` (config.md) are

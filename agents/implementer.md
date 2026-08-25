@@ -72,9 +72,10 @@ the tasklist, `vision` / `idea` files, and the host project's conventions docs
 (its CLAUDE.md and anything it points to). Design the approach so no stated
 must-follow rule in those conventions docs is violated. If a plan exists, resolve
 its `ref:` anchors touching this task using the host's optional code-symbol
-index, if the host has wired one up (see
-`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §1) — else Grep; an anchor
-that doesn't resolve is a Major deviation to halt and report per
+index — else Grep — per
+`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; an anchor that misses gets the
+one update-and-retry that §4 prescribes before you believe it, and an anchor
+that doesn't resolve after that is a Major deviation to halt and report per
 `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`, not something to invent.
 On the queue path, release the claim first — see **Rules**, below.
 

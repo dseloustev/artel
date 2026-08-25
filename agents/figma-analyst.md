@@ -69,11 +69,11 @@ in one section only) is a **Major** finding; an unpaired state variant is **Mino
 
 ### 5. Map to code
 
-Use the host's optional code-symbol index, if the host has wired one up, for code search — see
-`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §1; it is silently absent otherwise, and Grep
-is the fallback (also use Grep for regex, or for string literals / comments the index does not
-cover). Before reading any file over 500 lines, prefer an outline/symbol view of it if the index
-supports one, and read only the targeted slice via offset/limit.
+Use the host's optional code-symbol index for code search, index-first per
+`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; it is silently absent otherwise, and Grep is the
+fallback (also use Grep for regex, or for string literals / comments the index does not cover —
+§3). Before reading any file over 500 lines, prefer an outline/symbol view of it if the index
+supports one (§2), and read only the targeted slice via offset/limit.
 
 For each logical screen, produce a verdict: **exists as-is** (repo path) / **needs modification**
 (repo path + what changes) / **new screen** (proposed location per the host project's conventions

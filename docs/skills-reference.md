@@ -287,7 +287,10 @@ Entry template:
   file or `tasklist.md` (first `- [ ]` task in scope) — `--local` forces the file
   ([task-queue.md](task-queue.md) §1); `idea.md`, `vision.md`.
 - **Writes:** (via the agent) the source changes for the task; the tasklist checkbox and
-  Progress Report; deviation records per [deviation-protocol.md](deviation-protocol.md).
+  Progress Report; deviation records per [deviation-protocol.md](deviation-protocol.md); the
+  task's report — diff, verify evidence, decisions — at
+  `.artel/run/<TICKET_ID>/reports/NNN-<slug>.md`, so the completion message itself stays a
+  short contract (task, changed paths, `Report:` path, `Verify iterations:`, `Deviations:`).
 - **Pauses:** never directly on completion — returns `HITL: <reason>` for the caller to pause
   on; a `DEVIATION` report is presented by the skill itself via `AskUserQuestion` (recommended
   option first, Abort-task always offered) — pipeline callers only bracket that call with
@@ -325,18 +328,27 @@ Entry template:
 ### run-reviewer
 
 - **Purpose:** Review the ticket's changes and classify findings as Blocking / Important /
-  Nice-to-have.
-- **Invocation:** `/artel:run-reviewer [ticket-id] or [ticket-id]-[phase]`
+  Nice-to-have; with `--task`, review one task's diff right after its implementer returned.
+- **Invocation:** `/artel:run-reviewer [ticket-id] or [ticket-id]-[phase]
+  [--task "<task title>" --report <path> --package <path>]`
 - **Reads:** input artifacts and the priority taxonomy, resolved internally by the `reviewer`
-  agent (PRD/plan/conventions in ticket mode).
+  agent (PRD/plan/conventions in ticket mode). In task mode: the task's text from the
+  tasklist, the implementer's report and the diff package `scripts/review_package.py` wrote
+  (all three flags required — never a fallback to the ticket review).
 - **Writes:** (via the agent) `review.md` with `**Review round:** N` (always ticket-level, even
   for phase runs); the machine-readable `review/findings.json` (phase-aware —
   ticket-parsing.md §4); in ticket mode, a tasklist write-back under `## Code Review Fixes`.
+  Task mode writes `.artel/run/<TICKET_ID>/reports/NNN-<slug>-review.md` and the same
+  `## Code Review Fixes` write-back, and nothing else — no `review.md`, no round bump, no
+  lenses.
 - **Pauses:** never.
 - **Notes:** orchestrator (dispatches the `reviewer` agent). Capped at `MAX_REVIEW_ROUNDS`
   (autonomous-run.md §5) — the cap is enforced by the calling orchestrators, which loop it
-  against implementer fix rounds until clean or capped. `deep-review` drives the same
-  `reviewer` agent in standalone mode for a separate, non-pipeline dual-review workflow.
+  against implementer fix rounds until clean or capped. Task mode is the `review.perTask`
+  gate of autonomous-run.md §16 (off by default; one fix round, `MAX_TASK_REVIEW_ROUNDS = 1`,
+  no per-task re-review — open fix tasks are handed to the phase review). `deep-review` drives
+  the same `reviewer` agent in standalone mode for a separate, non-pipeline dual-review
+  workflow.
 
 ### run-app
 

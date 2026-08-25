@@ -43,8 +43,9 @@ arrive via the "Other" option.
   offering: `setup.commands` (post-branch install/codegen), `design.figma` (the design-analysis
   stage), the `runtime.*` commands (`run`, `drive`, `scaffold.add`, `scaffold.remove`),
   `runtime.surface` (globs gating when the runtime gate runs), `verify.surface` (globs with
-  `!`-excludes filtering which edits the verify hooks check), and a `.artel/sensitive-paths.json`
-  scaffold (a copy of the plugin's default sensitive-paths policy, for projects that want to
+  `!`-excludes filtering which edits the verify hooks check), `review.perTask` (a review of
+  each task's diff before the next task starts — one extra reviewer seat per task; the phase
+  review runs either way), and a `.artel/sensitive-paths.json` scaffold (a copy of the plugin's default sensitive-paths policy, for projects that want to
   extend it). Ask follow-up value questions only for the selected ones; everything skipped keeps
   its inert default.
 - **Round 5 — knowledge mirror** (optional): "Do you run a kartoteka daemon that should receive
@@ -58,8 +59,8 @@ arrive via the "Other" option.
 Before writing: adapter names inside their allowed sets — `tracker.adapter` (`none` /
 `github-issues` / `jira-mcp`), `vcs.adapter` (`github-cli` / `bitbucket-mcp`), `knowledge.adapter`
 (`none` / `kartoteka`); `verify.commands` / `setup.commands` / `runtime.surface` /
-`verify.surface` are arrays of strings; MCP-adapter prefixes non-empty; language codes plausible
-BCP 47. A violation re-asks that round — never write a config that config.md's reading rules
+`verify.surface` are arrays of strings; `review.perTask` and `design.figma` are booleans;
+MCP-adapter prefixes non-empty; language codes plausible BCP 47. A violation re-asks that round — never write a config that config.md's reading rules
 would reject at run start.
 
 ## 4. Write

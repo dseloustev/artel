@@ -380,3 +380,41 @@ entry-point skills run a short one-time init interview and write the file.
   Deliberately not wired: `qa`, `validator`, `task-planner` read artifacts, not code — and
   `merge-conflicts` Phase 5 keeps its Grep, because a conflict marker is a string literal, which
   §3 makes the worked example of when *not* to use the index.
+- **2026-08-25 — Superpowers' subagent-driven development is not adopted as a mode; three of
+  its mechanics are.** Assessed `superpowers:subagent-driven-development` (v6.3.0) against the
+  pipeline. Its premise — a controller session that dispatches a fresh worker per task and
+  reviews each one — is artel's founding shape already (`dev` / `feature-development` loop
+  `Skill: implementer`, which spawns the agent and keeps its id for resumes), and its
+  compaction ledger is weaker than `run-state.json` + the journal + the Stop hook. Its
+  "rulings, not stalls" rule is the opposite of the deviation protocol's major → ask, and stays
+  out. What it had and artel lacked: (1) the implementer returned "files changed (with the
+  actual diff)" — every task's diff sat in the orchestrator's context for the rest of the run,
+  the single biggest lever on how often a long run compacts; now the diff, evidence and
+  reasoning go to `.artel/run/<TICKET_ID>/reports/NNN-<slug>.md` and the completion is a
+  short contract (autonomous-run.md §1, "Bulk stays in files"); (2) nothing forbade a worker
+  from spawning its own reviewer, which superpowers observed duplicating the controller's
+  review at full cost every time — the implementer and reviewer agents now carry a no-subagent
+  rule; (3) no review between tasks inside a phase, so a misread acceptance criterion could be
+  built on by every later task before the phase review saw it — that became the opt-in gate
+  below. Not borrowed: batching same-shape tasks (conflicts with one claim per task on the
+  queue), per-dispatch model tiering (a cost knob, not a workflow change; the agents keep their
+  frontmatter `model:`), and the brief-file extraction (the agent reads its task from the
+  tasklist it already owns).
+- **2026-08-25 — Per-task review is `review.perTask`, off by default, one fix round, no
+  re-review, and it feeds the phase review rather than replacing it.** The gate reuses every
+  existing shape: findings land under `## Code Review Fixes` in the phase-aware tasklist (the
+  section the phase review, the implementer's fix-list rule and the `REVIEW_OK` validator
+  already understand), the fix round is a normal fix-list implementer dispatch counted toward
+  `counters.correction_rounds`, and whatever the round leaves unchecked is the phase review's
+  from there — so there is no second loop, no second cap artifact and no per-task re-review
+  (`MAX_TASK_REVIEW_ROUNDS = 1`). Off by default because it is one reviewer seat per task and
+  `task-planner` is told to make tasks small. Two mechanics it needed that did not exist: the
+  implementer does not commit, so a task has no `BASE..HEAD` — `scripts/review_package.py`
+  snapshots the working tree through a throwaway index (`read-tree --empty`, `add -A`,
+  `write-tree` under `GIT_INDEX_FILE`), so the real index and the checkpoint's explicit
+  staging are never touched, and writes the diff package to a file the reviewer reads; and the
+  `reviewer` agent gained a **task** mode that grades one task's diff against that task's own
+  acceptance criteria, writes `NNN-<slug>-review.md` beside the implementer's report, and
+  deliberately does not write `review.md`, bump `**Review round:**`, run the lenses or write
+  `findings.json` — those are the phase review's, and a per-task gate that touched them would
+  corrupt its counters.

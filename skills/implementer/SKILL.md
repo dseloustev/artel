@@ -84,7 +84,10 @@ continue; major or unsure → halt and return a DEVIATION report instead of a co
 
 ### Completion
 
-Relay the agent's completion message, always including its `Verify iterations: N` and `Deviations:`
-lines. When the caller is an orchestrator running in autonomous mode, it — not this skill — updates
+Relay the agent's completion message as it is — the short contract: task, changed paths, the
+`Report: <path>` line, and always its `Verify iterations: N` and `Deviations:` lines. Do not open
+the report file to expand it into your own output; the diff and evidence live there so that
+they never enter the caller's context (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §1). When
+the caller is an orchestrator running in autonomous mode, it — not this skill — updates
 `.artel/run/<TICKET_ID>/run-state.json` around the escalation (set/clear `pause_reason:
 "deviation-escalation"`).

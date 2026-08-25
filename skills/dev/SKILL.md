@@ -101,9 +101,18 @@ every sub-skill. Single-phase work → one pass ending at step 7.5.
 
 Loop `Skill: implementer` with `$0` (or `$0 $1` when driving from a description file) until every
 task is `- [x]`. Handle returns exactly as `feature-development` step 5 does: completions →
-aggregate `Deviations:` / `Verify iterations:`; `HITL:` → `pause_reason: "hitl-task"`, ask, clear,
-resume; `DEVIATION` escalation → bracket with `pause_reason: "deviation-escalation"`; aborted task
-→ `pause_reason: "cap-escalation"`, stop and report that the plan needs revision.
+aggregate `Deviations:` / `Verify iterations:` and journal the `Report:` path (never open the
+report — autonomous-run.md §1, "Bulk stays in files"); `HITL:` → `pause_reason: "hitl-task"`,
+ask, clear, resume; `DEVIATION` escalation → bracket with `pause_reason:
+"deviation-escalation"`; aborted task → `pause_reason: "cap-escalation"`, stop and report that
+the plan needs revision.
+
+**Per-task review** (`review.perTask: true` in config.md; off by default): wrap every
+iteration-task dispatch in autonomous-run.md §16 — `scripts/review_package.py snapshot` before
+the implementer, `diff` + `Skill: run-reviewer --task …` after its completion, at most one
+`## Code Review Fixes` implementer round (`MAX_TASK_REVIEW_ROUNDS = 1`, counted toward
+`counters.correction_rounds`), one `task review` journal entry. Fix-list dispatches are never
+gated this way.
 
 ### 5. Refresh the code index (optional host hook)
 

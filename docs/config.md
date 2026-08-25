@@ -21,8 +21,9 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   [autonomous-run.md](autonomous-run.md) §10). When present it replaces the plugin's shipped
   default policy (`hooks/sensitive-paths.json`) wholesale. Committed, like the config; the
   `setup` skill offers to scaffold it from the shipped defaults.
-- `.artel/run/` — host-writable run state and journals (contract defined separately, alongside
-  the autonomous-run rules). Not committed; add it to the host `.gitignore`.
+- `.artel/run/` — host-writable run state, journals and the per-task worker reports (contract
+  defined separately, alongside the autonomous-run rules). Not committed; add it to the host
+  `.gitignore`.
 - `.artel/context/` — the `save-context`/`restore-context` store: a durable, host-repo-local
   mirror of root docs (`CLAUDE.md`, `CHANGELOG.md`) and the spec trail (`<specs.dir>/<TICKET_ID>/`,
   `<specs.dir>/.active_ticket`), used to declutter or archive the working tree and bring it back
@@ -70,6 +71,9 @@ placeholder the init interview replaces.
     "commands": [],
     "fast": ""
   },
+  "review": {
+    "perTask": false
+  },
   "setup": {
     "commands": []
   },
@@ -93,7 +97,7 @@ placeholder the init interview replaces.
 ```
 
 The defaults are deliberately inert: no tracker calls, no quality gate, no runtime gate, no
-design stage. Out of the box artel runs the pipeline and records every unconfigured gate as
+design stage, no per-task review. Out of the box artel runs the pipeline and records every unconfigured gate as
 `skipped` rather than `green`. Configuring a key is what turns its gate on.
 
 `version` (integer, default `1`) identifies the config format, not the plugin version. v0.1
@@ -209,6 +213,17 @@ failure, or a timeout classify as an environment error (exit 2 — fix the toolc
 non-zero exit is findings (exit 1).
 `verify.surface` filters which changed files the hooks act on, e.g.
 `["lib/**/*.dart", "!*.g.dart", "!*.freezed.dart"]` for the source project's behavior.
+
+### `review` — the review gates
+
+| Key | Type | Default | Allowed values / notes | Consumed by |
+|---|---|---|---|---|
+| `review.perTask` | boolean | `false` | `true` adds a review of each iteration task's diff right after its implementer returns ([autonomous-run.md](autonomous-run.md) §16): the `reviewer` agent in task mode, Blocking / Important findings written under `## Code Review Fixes`, one fix round, no per-task re-review. Adds one reviewer seat per task; the phase review still runs. | `dev` step 4, `feature-development` gate 5 |
+
+The phase review (`run-reviewer` after every task in the phase is done) is not configurable
+here — it always runs. `review.perTask` only decides whether each task is also gated on its
+own before the next one is dispatched. Any value other than a JSON boolean is a configuration
+error under reading rule 3.
 
 ### `setup` — post-branch setup
 
@@ -391,6 +406,9 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
     ],
     "fast": "npm run lint -- --cache",
     "surface": ["src/**", "!src/generated/**"]
+  },
+  "review": {
+    "perTask": true
   },
   "setup": {
     "commands": ["npm ci"]

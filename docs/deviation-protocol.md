@@ -98,6 +98,11 @@ Orchestrators (`dev`, `feature-development`) aggregate these lines and always in
 deviations line in their final report — the user must never have to open the notes file to
 learn that something diverged.
 
+The line closes a short contract, not a narrative: the completion names the task, the changed
+paths and a `Report:` path, and the diff, evidence and the deviations' detail live in that
+report (`.artel/run/<TICKET_ID>/reports/`, [autonomous-run.md](autonomous-run.md) §1). The
+`Deviations:` line is the one piece of the detail that must also travel in the message.
+
 ## 6. Review duties
 
 In ticket mode the `reviewer` agent:

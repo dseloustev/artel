@@ -135,8 +135,34 @@ stop.
 
 ### Step 6 — Report
 
-Return: task title, files changed (with the actual diff), then the two mandatory closing lines:
-`Verify iterations: N` and the `Deviations:` line per `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §5.
+The bulk goes to a file; the return message is a short contract
+(`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §1, "Bulk stays in files"). Everything you
+return stays in the orchestrator's context for the rest of the run — a diff pasted into the
+completion is re-read on every later turn and is the fastest way to force a compaction.
+
+**Report file** — `.artel/run/<TICKET_ID>/reports/NNN-<slug>.md` (`<TICKET_ID>` without the
+phase suffix — the run directory is ticket-top-level; create the directory if it is missing).
+`NNN` is the highest `NNN-` prefix already in the directory plus one, `001` when it is empty;
+`<slug>` is the task title in kebab-case, capped at ~40 characters. The report carries:
+
+- the task (section heading and title; phase when set) and the Step-2 approach
+- files changed, with the actual diff (`git diff` of the touched paths, plus new files in full)
+- verify evidence: the iteration count and the path of the last envelope in the ticket's
+  `verify/` dir
+- the queue path taken and the claim id, when any
+- the deviations in full (`implementation-notes.md` stays the durable record — this is the
+  per-task view)
+- anything the reviewer should know that the diff does not show (a decision taken, a risk left)
+
+On a `DEVIATION` halt write the report as well — what was attempted and why it stopped — and
+return the protocol's report (`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §4) with the
+report path added; the orchestrator acts on the halt message itself, so the specifics stay in it.
+
+**Return message** — under ten lines, in this order: task title (with its section when it is
+a fix-list task); the files changed as **paths only**; `Report: <path>`; then the two mandatory
+closing lines, `Verify iterations: N` and the `Deviations:` line per
+`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §5. No diff, no test output, no narration of
+the work — all of that is in the report.
 
 ---
 
@@ -147,6 +173,7 @@ Return: task title, files changed (with the actual diff), then the two mandatory
 - **Queue before file, for iteration work only** — on the queue path a claim from `task_ready` decides which `## Iteration N:` task to work, never a scan of `tasklist.md`. Everything else in the tasklist is file-scan work on both paths, because it is never mirrored: `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` and `## Final Verification` all sit outside the iterations, and `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6 says how to recognise a dispatch that means them. The file stays current as the fallback's input, not as the iteration work list.
 - **Phase boundary** — if a phase is set, never touch tasks from other phases.
 - **One task per cycle** — complete the current task before picking the next.
+- **No subagents** — do all of this task's work yourself: never spawn a helper to implement part of it, and never spawn a reviewer to check it. Review is the orchestrator's, dispatched against your report after you return (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16 per task when configured, the phase review always); a reviewer you spawn duplicates that seat at full cost and its verdict counts for nothing. Self-review means reading your own diff before Step 6.
 - **Deviation protocol** — during implementation (post-approval), any divergence from the approved proposal follows `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`: minor → most conservative option, record in `implementation-notes.md` § Deviations, continue; major or unsure → halt before applying the deviating change and return a `DEVIATION` report (protocol §4) instead of a completion. Every completion message ends with a `Deviations:` line (`none` or `D1 (minor), …`).
 - **Code optimization** — apply the host project's conventions docs' code-quality guidance (duplicates, oversized functions, magic numbers, dead code, SRP). Decompose proactively when a proposal would violate these rules.
 - **Generated code is read-only** — never hand-edit files the host marks as generated (analyzer/linter exclusion lists, generated-file headers). Fix the generating source and re-run the host's codegen step (Step 4.2); never pass generated paths to verify/format.

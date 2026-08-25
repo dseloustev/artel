@@ -6,6 +6,46 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Opt-in per-task review — `review.perTask` (default `false`).** With it on, both
+  orchestrators gate every iteration task on its own diff before dispatching the next one
+  (`docs/autonomous-run.md` §16): `scripts/review_package.py snapshot` before the implementer,
+  `diff` after it, `run-reviewer --task` on the package. The `reviewer` agent's new **task**
+  mode grades the diff against that task's acceptance criteria and the implementer's report,
+  writes `NNN-<slug>-review.md`, and appends Blocking / Important findings under
+  `## Code Review Fixes` — the section the phase review already uses — for one fix round
+  (`MAX_TASK_REVIEW_ROUNDS = 1`, counted toward `correction_rounds`); anything left open is the
+  phase review's. Task mode never writes `review.md`, bumps the round or runs the lenses.
+- **`scripts/review_package.py`.** The implementer does not commit, so a task has no
+  `BASE..HEAD`; the script snapshots the working tree (tracked + untracked, `.gitignore`
+  honoured) through a temporary index — the real index, HEAD and the checkpoint's explicit
+  staging are untouched — and writes a `# Review package` file (stat + diff, ten lines of
+  context), printing one line with the file count so the diff never enters the caller's
+  context. Exit 2 outside a repo or on an unknown base.
+
+### Changed
+
+- **The implementer's completion is a short contract; the diff goes to a report file.** The
+  agent used to return "files changed (with the actual diff)", so every task's diff stayed in
+  the orchestrator's context for the rest of the run. It now writes
+  `.artel/run/<TICKET_ID>/reports/NNN-<slug>.md` (approach, diff, verify evidence, queue claim,
+  deviations in full) and returns under ten lines: task, changed paths, `Report:`,
+  `Verify iterations:`, `Deviations:`. Orchestrators journal the path and never open the file.
+  New principle in `autonomous-run.md` §1: "Bulk stays in files."
+- **`implementer` and `reviewer` agents never spawn subagents.** Review is the orchestrator's
+  seat; a worker-spawned reviewer duplicates it at full cost and its verdict counts for
+  nothing. The reviewer is also explicitly read-only on the checkout.
+- `run-reviewer` accepts `--task "<title>" --report <path> --package <path>`; all three are
+  required together and there is no fallback to the ticket review. `setup` offers
+  `review.perTask` among the Round-4 extras and validates it as a boolean.
+
+### Unchanged (deliberately)
+
+- Superpowers' subagent-driven development is not adopted as a mode — artel already is one
+  (`docs/design.md`, decision log 2026-08-25). Its "rulings, not stalls" rule, same-shape task
+  batching, per-dispatch model tiering and brief-file extraction stay out.
+
 ## [0.5.0] - 2026-08-25
 
 ### Added

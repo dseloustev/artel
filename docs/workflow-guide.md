@@ -287,7 +287,10 @@ start, and each phase closes with the `verify.commands` gate + a checkpoint comm
 (`autonomous-run.md §14`) before the next phase begins:
 
 - *Gate 5 — implement.* Loops [`implementer`](skills-reference.md#implementer) over the open
-  tasks.
+  tasks. Each completion is a short contract pointing at a report under
+  `.artel/run/<TICKET_ID>/reports/`; with `review.perTask: true` (config.md) every task's diff
+  is also reviewed before the next task starts (`autonomous-run.md §16`) — findings land under
+  `## Code Review Fixes` for one fix round, then the phase review owns whatever is left.
 - *Gate 6 — index.* Optional host index-refresh hook
   ([orchestrator-common.md](orchestrator-common.md) §1); silently absent when the host has not
   wired one up. Refreshing is the only part that is a host hook — how the stages above and

@@ -25,6 +25,10 @@ lives under `.artel/run/` in the host repo instead, matching config.md's descrip
     ├── run-journal.md          # append-only run journal (§11)
     ├── open-questions.md       # question collection before the approval pause (§3)
     ├── runtime-observation.md  # runtime-gate retry counter (§5)
+    ├── reports/                # per-task worker output (§1 "Bulk stays in files", §16):
+    │   ├── NNN-<slug>.md       #   the implementer's report for one task
+    │   ├── NNN-<slug>.diff     #   that task's diff package (review.perTask only)
+    │   └── NNN-<slug>-review.md #  the per-task review verdict (review.perTask only)
     └── .stop-gate-blocks       # stop-gate's consecutive-block counter
 ```
 
@@ -53,6 +57,11 @@ updates it in place, it does not relocate it.
 - **Escalate, never spin.** Every loop is capped; counters persist in the artifacts the loop writes.
 - **Run state lives in artifacts**, never in conversation memory. Re-read the relevant artifacts after
   every sub-agent return — never decide on stale state.
+- **Bulk stays in files.** A worker returns a short status contract; its diff, evidence and
+  reasoning go to a report under `.artel/run/<TICKET_ID>/reports/`, and a reviewer reads that
+  file rather than a pasted diff. Everything a worker returns sits in the orchestrator's context
+  for the rest of the run and is re-read on every later turn — the orchestrator's context is the
+  one that has to survive the whole run, so it carries paths, not payloads.
 
 ## 2. `run-state.json`
 
@@ -149,6 +158,7 @@ a cap escalation.
 | Loop | Cap (default) | Counter location |
 |---|---|---|
 | implement → verify fixes (per task) | `MAX_VERIFY_ITERATIONS = 4` | `Verify iterations: N` in the implementer completion note |
+| per-task review → fix (per task, `review.perTask` only, §16) | `MAX_TASK_REVIEW_ROUNDS = 1` | the task's `task review` entry in `run-journal.md` (the round also counts toward `correction_rounds`) |
 | review → fix → re-review | `MAX_REVIEW_ROUNDS = 3` | `**Review round:** N` in `review.md` |
 | runtime gate red → fix | `MAX_RUNTIME_RETRIES = 1` | `.artel/run/<TICKET_ID>/runtime-observation.md` |
 | QA negative verdict → fix | `MAX_QA_ROUNDS = 1` | `qa.md` |
@@ -327,3 +337,50 @@ skill (`../skills/feature-development/SKILL.md`, `## Checkpoint commits & pushes
   phase the last identifier stays in place.
 - `.active_ticket` is the phase pointer for argument-less invocations and for `run-app`'s
   evidence pathing; orchestrators still pass the full identifier explicitly to sub-skills.
+
+## 16. Per-task review
+
+Off by default; `review.perTask: true` ([config.md](config.md)) turns it on for both
+orchestrators' implementation loops (`dev` step 4, `feature-development` gate 5). It is a gate
+on one task's diff, run right after its implementer returns and before the next task is
+dispatched, so a misread acceptance criterion is caught before the next task builds on it. It
+does not replace the phase review (gate 7 / `dev` step 6) — that still runs over the whole
+phase with the lenses and `review.md`; this gate feeds it.
+
+Per iteration-task dispatch:
+
+1. **Snapshot** — before dispatching the implementer, run
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/review_package.py snapshot` and keep the printed tree
+   id as `BASE`. It captures the working tree (tracked + untracked, ignore rules honoured)
+   through a temporary index — the real index, HEAD and the checkpoint's explicit staging are
+   untouched. Exit 2 → journal it and run this task without the gate; never skip the task.
+2. **Package** — on a completion (not a `HITL:` return or a `DEVIATION` halt), run
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/review_package.py diff <BASE> --out
+   .artel/run/<TICKET_ID>/reports/NNN-<slug>.diff`, `NNN-<slug>` taken from the completion's
+   `Report:` path so the three files pair up. The one-line output carries the file count:
+   `0 file(s)` → journal `task review: skipped (empty diff)` and move on.
+3. **Review** — `Skill: run-reviewer` with `$0 --task "<task title>" --report <report path>
+   --package <diff path>`. The `reviewer` agent's task mode writes `NNN-<slug>-review.md` and
+   appends every Blocking / Important finding and every spec gap as a task under
+   `## Code Review Fixes` in the phase-aware tasklist — the same section and format the phase
+   review uses, so nothing downstream learns a new shape.
+4. **One fix round** — when it appended fix tasks: increment `counters.correction_rounds` (the
+   `MAX_TOTAL_CORRECTION_ROUNDS` check applies), then loop `Skill: implementer` naming
+   `## Code Review Fixes` until no fix task from this review is left unchecked (one round = the
+   whole list, counted once). `MAX_TASK_REVIEW_ROUNDS = 1`: there is no per-task re-review — a
+   fix task the round could not close stays unchecked and the phase review owns it from there;
+   it is what `REVIEW_OK` sees. The implementer's usual returns apply inside the round (`HITL:`,
+   `DEVIATION`, aborted task), handled exactly as in the main loop.
+5. **Journal** — one `task review` entry (§11) per task: the verdict, the fix-task count, the
+   round taken or `skipped (<why>)`, and the three report paths under `artifacts`. On resume
+   this entry is the counter: a task whose entry records the round is done with the gate even
+   if fix tasks are still open.
+
+Fix-list tasks (`## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes`) are never gated
+this way — the loop that dispatched them re-checks its own result. `--step` runs the gate too
+when configured, minus the run-state and journal writes (§6).
+
+Costs, stated so the default is understood: one reviewer seat per task on top of the phase
+review, and `task-planner` deliberately produces small tasks. Leave it off for tasklists of
+mechanical steps; turn it on when tasks carry judgement, or when phases are long enough that
+drift across tasks has room to compound.

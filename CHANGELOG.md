@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-25
+
 ### Added
 
 - **`using-artel`, the session router.** A `SessionStart` hook (`startup|clear|compact`)

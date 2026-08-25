@@ -92,15 +92,17 @@ is not declared for this project and point at `/artel:setup`.
 | to know what was decided or discussed about something | `/artel:knowledge <query>` |
 | everything filed under a ticket (Jira, PRs, notes, its trail) | `/artel:knowledge <ticket> [--artifacts]` |
 | to know whether the index is fresh | `/artel:knowledge status` |
-| the ticket's queue: rows, who holds what, whether it is stalled | `/artel:tasks list [ticket] [--status …]` |
+| the ticket's iteration queue: rows, who holds what, whether it is stalled | `/artel:tasks list [ticket] [--status …]` |
 | a task added to the ticket | `/artel:tasks add <ticket> "<title>" --iteration N` |
 | a task marked done or blocked | `/artel:tasks done <id>` · `/artel:tasks block <id>` |
 | a task a dead agent left held released | `/artel:tasks release <id>` |
 
 **Code navigation — the AST index**
 
-Only when the status line says `ast-index: on PATH` (the host installed the `ast-index` plugin
-and its CLI). Then the index is the first tool for any code search — before grep, ripgrep or the
+Only when the status line says `ast-index: on PATH` — the hook checks the CLI, which is what
+the index runs on; if the `/ast-index:` skills are not installed in this session, run the CLI
+directly (`ast-index search`, `usages`, `callers`, …). Then the index is the first tool for any
+code search — before grep, ripgrep or the
 Search tool — and its result is the complete answer; grep only for regex patterns, string
 literals, comment text, or after an empty result.
 
@@ -129,7 +131,7 @@ a skill that resolves ticket context first; use the skill.
 
 | Thought | Reality |
 |---|---|
-| "I'll read `tasklist.md` to see what's next" | With the adapter on, the queue is authoritative — `/artel:tasks list`. |
+| "I'll read `tasklist.md` to see what's next" | With the adapter on, the queue is authoritative for iteration work — `/artel:tasks list`; the file still owns the review/runtime/verify-fix and Final Verification sections. |
 | "I'll call `search_knowledge` myself" | `/artel:knowledge` keeps the search budget, the citations and the ⚠ NON-CURRENT markers. |
 | "I'll `task_create` it directly" | `/artel:tasks add` keeps `tasklist.md` and the queue in step; a bare row breaks promotion. |
 | "I'll grep for that class" | With the index on PATH, `/ast-index:ast-index` answers in milliseconds; grep is for regex, literals and comments. |

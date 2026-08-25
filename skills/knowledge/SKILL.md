@@ -66,7 +66,8 @@ documents carry and the suffixed form silently returns nothing.
 - Summarise the `## tasks` block as counts by status and point at
   `/artel:tasks list <TICKET_ID>` for the rows.
 - `--artifacts` on a **non-active** ticket adds `artifact_list(<TICKET_ID>)`; a follow-up that
-  names a stage may `artifact_get(<TICKET_ID>, <stage>, <name>)`.
+  names a stage may `artifact_get(<TICKET_ID>, <stage>, <name>)`. On the active ticket the
+  flag lists nothing: say the trail is on disk and stop there.
 
 ### 3c. Query
 

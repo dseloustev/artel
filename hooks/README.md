@@ -46,7 +46,10 @@ Four layers:
     `additionalContext`, so the routing rule is in context on turn one and comes
     back after `/clear` and compaction. Prints nothing without `.artel/config.json`; any
     error goes to stderr and the hook still exits 0 — a session never fails to start
-    because of it.
+    because of it. The `ast-index` line reflects the PATH Claude Code was launched with, not
+    the Bash tool's shell profile: a launch from an IDE can say `not on PATH` for a CLI that
+    `/opt/homebrew/bin` supplies in a terminal. A config that is present but not valid JSON
+    is named as such rather than reported as `knowledge.adapter: none`.
 
 Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines, verify-stop
 counters) — never inside the plugin directory. The verify-layer and session-layer hooks return

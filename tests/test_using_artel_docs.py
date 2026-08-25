@@ -159,6 +159,11 @@ class TestTasksSkill(unittest.TestCase):
         text = read(TASKS)
         self.assertIn('AskUserQuestion', text)
 
+    def test_release_never_touches_an_iteration_parent(self):
+        text = read(TASKS)
+        release = text[text.index('### `release <task-id>`'):]
+        self.assertIn('parents are never released', release)
+
 
 REFERENCE = 'docs/skills-reference.md'
 GUIDE = 'docs/workflow-guide.md'

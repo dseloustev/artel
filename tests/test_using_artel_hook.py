@@ -81,6 +81,12 @@ class TestConfiguredHost(unittest.TestCase):
         self.assertIn('- ast-index: ', ctx)
         self.assertTrue('ast-index: on PATH' in ctx or 'ast-index: not on PATH' in ctx)
 
+    def test_names_an_unparseable_config_instead_of_defaulting_silently(self):
+        (self.root / '.artel' / 'config.json').write_text('{not json', encoding='utf-8')
+        ctx = self.context()
+        self.assertIn('config: present but NOT valid JSON', ctx)
+        self.assertIn('knowledge.adapter: none', ctx)
+
 
 class TestPureFunctions(unittest.TestCase):
     def test_strip_frontmatter_removes_the_leading_block(self):

@@ -20,6 +20,10 @@ implementer's repair (`docs/task-queue.md` §3, §5).
   (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2), else `<specs.dir>/.active_ticket`,
   else — for `list` only — no ticket (all tickets). `add` with no ticket stops with "Error: No
   ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket".
+  `done`, `block` and `release` take a task id, and every kartoteka row carries its
+  `ticket_key` (`#<id> · <KEY> · <status>`): when no ticket resolved, `release` finds the row
+  with an unfiltered `task_list()`, and `done` / `block` read `ticket_key` off the
+  `task_update` result — that key names the tasklist `done` edits.
   The **queue key is always the canonical `TICKET_ID`**, phase suffix stripped
   (`docs/task-queue.md` §2); `PHASE_NUM`, when given, only says which phase file is also edited.
 - **Gate**: read `knowledge.adapter` from `.artel/config.json`
@@ -42,14 +46,19 @@ single-project, and a queue wired up for another checkout must not be written to
 1. `task_list(ticket_key=<TICKET_ID> or omitted, status=<status> or omitted)`.
 2. Render a table — `task_id`, title, status, actor, last activity — with iteration parents
    (titles `I<N>: …`) first, each followed by its children (`I<N> · …`). Flag `[HITL:` titles.
-3. Diagnose per `docs/task-queue.md` §5 — but where §5 answers for one empty claim, a listing
-   can be in several of its states at once, so report **every** line that applies, in this
-   order, and say "nothing to report" only when none does:
-   - any `blocked` → **blocked** — list them; a HITL title is waiting on the user;
-   - any `in_progress` → **held** — actor and how long since `updated_at`, per row;
-   - `backlog` rows and none `ready` → **promotion pending** — name the lowest-numbered
-     iteration with an unfinished child; the implementer's next claim repairs it;
-   - every child `done` → **drained** — iteration work complete.
+   A parent `in_progress` means only that its iteration is active (`docs/task-queue.md` §3 sets
+   it on the first child's claim and leaves it there); it is not a held claim.
+3. Diagnose per `docs/task-queue.md` §5 over the **child rows only** (`I<N> · …`; `--raw` rows
+   count as children) — but where §5 answers for one empty claim, a listing can be in several
+   of its states at once, so report **every** line that applies, in this order, and say
+   "nothing to report" only when none does:
+   - any child `blocked` → **blocked** — list them; a HITL title is waiting on the user;
+   - any child `in_progress` → **held** — actor and how long since `updated_at`, per row;
+   - child rows in `backlog`, none `ready`, and some iteration still has an unfinished child →
+     **promotion pending** — name the lowest-numbered such iteration; the implementer's next
+     claim repairs it;
+   - every child `done` → **drained** — iteration work complete (a parent still `backlog` is
+     §5's known leftover, not a stall).
 4. **Report only.** `list` never promotes, never releases, never edits a file. If the user wants
    a held row cleared, that is `release`.
 
@@ -80,6 +89,9 @@ single-project, and a queue wired up for another checkout must not be written to
    then each of its `children` with `parent_id` set to the iteration row's `task_id`.
    Create-only and idempotent on `(ticket_key, title)`: every pre-existing row comes back
    unchanged, and the new checkbox comes back as a new row. Surface every `data.warnings` line.
+   Yes, that is one `task_create` per row of the whole tasklist to add one task — do not skip
+   the parent or the siblings to save calls: the new child's `parent_id` comes from the
+   parent's returned `task_id`, and a partial mirror is how two rows end up in two orders.
    Exit `2` → report `error.kind` and `error.message`. The checkbox is written; the row is not;
    the next orchestrator re-mirror picks it up. Stop.
 4. **Status**: the parser emits `ready` for a child of the first iteration and `backlog`
@@ -96,8 +108,11 @@ implementer will not claim it". No file is edited.
 ### `done <task-id>`
 
 1. `task_update(<task-id>, status="done")`.
-2. Take the row's title from the `task_update` result; its last ` · ` segment is the checkbox
-   text. Flip the matching `- [ ]` to `- [x]` in `<specs.dir>/<TICKET_ID>/tasklist.md` (and in
+2. Take the row's title from the `task_update` result — the `## ` header up to ` (#`, since
+   kartoteka renders `## <title> (#<id> · <KEY> · <status>)` and ` · ` is also its field
+   separator. The checkbox text is everything after the title's second ` · ` (the
+   `I<N> · <section> · ` prefix); a `--raw` title has no prefix and no checkbox. Flip the
+   matching `- [ ]` to `- [x]` in `<specs.dir>/<TICKET_ID>/tasklist.md` (and in
    `phase-<N>/tasks.md` when it exists) — the file is the fallback the implementer reads when
    the daemon is gone, so it must not fall behind the queue. Not found → warn: "queue updated;
    no matching checkbox in tasklist.md — the file is now behind the queue".
@@ -110,8 +125,12 @@ implementer will not claim it". No file is edited.
 
 ### `release <task-id>`
 
-1. `task_list(ticket_key=<TICKET_ID>)` and find the row. Not `in_progress` → stop: "task #<id>
-   is <status>, not held; nothing to release".
+1. `task_list(ticket_key=<TICKET_ID>)` (unfiltered when no ticket resolved) and find the row.
+   A title `I<N>: …` is an iteration parent, not a claim — stop: "task #<id> is the iteration
+   parent; parents are never released". Parents are never `ready` by contract, and the
+   implementer's `task_ready` (never called here) claims the oldest `ready` row with no
+   parent/child distinction, so releasing one hands it a row with no checkbox. Not
+   `in_progress` → stop: "task #<id> is <status>, not held; nothing to release".
 2. `AskUserQuestion`: "Clear <actor>'s claim on #<id> (held since <updated_at>, <age>)? If that
    agent is still alive, two agents will be on one task." Options: **Release** / **Keep**.
 3. On Release: `task_update(<task-id>, status="ready")` — this clears the holder and appends the

@@ -160,5 +160,63 @@ class TestTasksSkill(unittest.TestCase):
         self.assertIn('AskUserQuestion', text)
 
 
+REFERENCE = 'docs/skills-reference.md'
+GUIDE = 'docs/workflow-guide.md'
+NEW_SKILLS = ('using-artel', 'knowledge', 'tasks')
+
+
+def argument_hint(rel):
+    """The skill's frontmatter `argument-hint`, unquoted (either quote style)."""
+    for line in read(rel).splitlines():
+        if line.startswith('argument-hint:'):
+            return line.split(':', 1)[1].strip().strip('"\'')
+    return None
+
+
+def invocation_line(skill_name):
+    """The Invocation line under skills-reference.md's `### <skill_name>` entry."""
+    entry = None
+    for line in read(REFERENCE).splitlines():
+        if line.startswith('### '):
+            entry = line[4:].strip()
+        elif entry == skill_name and line.startswith('- **Invocation:**'):
+            return line
+    return None
+
+
+class TestDocs(unittest.TestCase):
+    def test_reference_has_an_entry_per_new_skill(self):
+        text = read(REFERENCE)
+        for name in NEW_SKILLS:
+            self.assertIn('\n### ' + name + '\n', text, REFERENCE + ' has no entry for ' + name)
+
+    def test_reference_invocation_quotes_the_frontmatter_hint(self):
+        for name in ('knowledge', 'tasks'):
+            hint = argument_hint('skills/' + name + '/SKILL.md')
+            line = invocation_line(name)
+            self.assertIsNotNone(line, REFERENCE + ' has no Invocation line for ' + name)
+            self.assertIn('/artel:' + name + ' ' + hint, line)
+
+    def test_reference_router_invocation_names_the_skill(self):
+        self.assertIn('/artel:using-artel', invocation_line('using-artel') or '')
+
+    def test_guide_quickstart_routes_to_both_front_doors(self):
+        text = read(GUIDE)
+        self.assertIn('/artel:knowledge', text)
+        self.assertIn('/artel:tasks', text)
+        self.assertIn('## Turn one: the router', text)
+
+    def test_config_doc_names_the_front_doors_under_the_knowledge_key(self):
+        text = read('docs/config.md')
+        self.assertIn('#### The conversational front doors', text)
+        self.assertIn('using_artel', text)
+
+    def test_changelog_records_the_feature(self):
+        text = read('CHANGELOG.md')
+        self.assertIn('`using-artel`', text)
+        self.assertIn('/artel:knowledge', text)
+        self.assertIn('/artel:tasks', text)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`using-artel`, the session router.** A `SessionStart` hook (`startup|clear|compact`)
+  injects a routing table over every skill — plus `knowledge.adapter` and the active ticket —
+  whenever `.artel/config.json` exists, so "start work on PROJ-123" reaches
+  `/artel:init-branch` on turn one and survives compaction. Carries `<SUBAGENT-STOP>`; lists no
+  agents; tells the model an entry point is already the process. Inert without a config.
+- **`/artel:knowledge` and `/artel:tasks`, the conversational front doors to kartoteka.**
+  `knowledge` searches prior decisions, lists what is filed under a ticket, or reports index
+  freshness — read-only, under the consultation contract's budget and citation rules. `tasks`
+  lists and diagnoses a ticket's queue, adds a task by appending to `tasklist.md` and running
+  the existing mirror (so the row carries its iteration prefix, parent and queue order), marks
+  done or blocked, and releases a held task after confirmation. Both refuse — with a pointer to
+  `/artel:setup` — when `knowledge.adapter` is not `kartoteka`. Neither claims.
+
 ## [0.3.1] - 2026-08-24
 
 ### Fixed

@@ -33,6 +33,19 @@ is missing. Unconfigured gates degrade to `skipped`, never to fake green: an emp
 `verify.commands` skips the quality gate, an absent `runtime.run` skips the runtime gate,
 `design.figma: false` skips design analysis.
 
+## Turn one: the router
+
+Once the config exists, every session starts with the
+[`using-artel`](skills-reference.md#using-artel) router in context: the `using_artel`
+`SessionStart` hook ([hooks/README.md](../hooks/README.md)) injects the Quickstart below as a
+routing rule — check whether the request is ticket, feature, queue or knowledge work, and if
+so invoke the matching `/artel:` skill before answering — plus three status lines (config
+present, `knowledge.adapter`, the active ticket). It re-injects after `/clear` and after
+compaction, so a long run keeps it. Two things it deliberately does not do: fire inside
+dispatched agents (`<SUBAGENT-STOP>`), and wrap an entry point in generic brainstorming or
+plan-writing skills — `feature-development` and `dev` carry their own interview. Without a
+config nothing is injected.
+
 ## Quickstart
 
 | I want to… | Run |
@@ -54,6 +67,8 @@ is missing. Unconfigured gates degrade to `skipped`, never to fake green: an emp
 | Review / runtime-check / QA / gate-status | `/artel:run-reviewer PROJ-XXXX` · `/artel:run-app --gate` · `/artel:qa PROJ-XXXX` · `/artel:validate PROJ-XXXX` |
 | PR description / open the PR | `/artel:pr-description PROJ-XXXX` · `/artel:pr-create PROJ-XXXX` |
 | Resume an interrupted run | re-invoke the same entry-point command — resume is automatic |
+| Ask the archive: what was decided about X, what is filed under a ticket, is the index fresh | `/artel:knowledge <query>` · `/artel:knowledge PROJ-XXXX` · `/artel:knowledge status` (needs `knowledge.adapter: "kartoteka"`) |
+| See or operate the ticket's task queue: list, add, done, block, release | `/artel:tasks list PROJ-XXXX` · `/artel:tasks add PROJ-XXXX "<title>" --iteration N` (same requirement) |
 
 (`<plugin-root>` is the plugin's install directory — inside a skill it is
 `${CLAUDE_PLUGIN_ROOT}`; from your own shell, the path `/plugin` shows for the installed artel
@@ -126,6 +141,11 @@ One thing writes **outside** the repo: with `knowledge.adapter: "kartoteka"` con
 daemon's artifact store as it is written. It is additive — the files under `<specs.dir>` stay
 primary — and it never blocks a write or fails a run. Every attempt is logged to
 `.artel/run/.hooks/knowledge-mirror.log`; with the default `adapter: "none"` nothing is sent.
+
+The same key admits two skills a person runs from the conversation:
+[`knowledge`](skills-reference.md#knowledge) reads the index and writes nothing;
+[`tasks`](skills-reference.md#tasks) writes queue rows — for `add`, always by way of
+`tasklist.md` and the mirror, so the file the implementer falls back to never lags the queue.
 
 ### Modes and the risk floor
 

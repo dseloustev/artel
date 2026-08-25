@@ -32,6 +32,28 @@ Entry template:
 
 ---
 
+## Session router
+
+### using-artel
+
+- **Purpose:** Route ticket, feature, queue and knowledge requests to the matching `/artel:`
+  skill before any other response — the plugin's analogue of `superpowers:using-superpowers`.
+- **Invocation:** `/artel:using-artel` — normally never typed: the `using_artel` `SessionStart`
+  hook ([hooks/README.md](../hooks/README.md)) injects its body (frontmatter stripped) plus a
+  three-line host status on `startup|clear|compact` whenever `.artel/config.json` exists.
+- **Reads:** nothing itself; the hook reads `.artel/config.json` (`knowledge.adapter`,
+  `knowledge.baseUrl`, `specs.dir`) and `<specs.dir>/.active_ticket`.
+- **Writes:** nothing.
+- **Pauses:** never.
+- **Notes:** a routing table over every other skill, kept complete both ways by
+  `tests/test_using_artel_docs.py` and capped at 10 KiB because every session pays for it.
+  Carries `<SUBAGENT-STOP>` so dispatched agents ignore it. States precedence: user
+  instructions > artel skills for artel's domain > generic process skills; an entry point is a
+  complete process and is never wrapped in brainstorming or plan-writing skills. Lists no
+  agents — every agent is reached through its skill. Not injected without a config.
+
+---
+
 ## Entry points
 
 ### feature-development
@@ -635,3 +657,45 @@ Entry template:
 - **Notes:** worker. Generates only from what the repo itself documents — never invents
   commands or assumes directory structures; preserves critical security/deployment warnings.
   Not ticket-scoped. Adapted from a community skill (attribution in the skill body).
+
+---
+
+## Kartoteka front doors
+
+### knowledge
+
+- **Purpose:** Answer a person's question against the project's institutional-knowledge index —
+  prior decisions and discussions, everything filed under a ticket, index freshness.
+- **Invocation:** `/artel:knowledge <query> | <ticket-id> | status [--source files|jira|bitbucket] [--type <type>] [--status <status>] [--artifacts]`
+- **Reads:** `.artel/config.json` (`knowledge.adapter`), `<specs.dir>/.active_ticket`; over MCP:
+  `index_status`, `related`, `search_knowledge`, and `artifact_list` / `artifact_get` for a
+  non-active ticket's trail history.
+- **Writes:** nothing — no file under `<specs.dir>`, no `artifact_put`.
+- **Pauses:** never.
+- **Notes:** worker. The read side of [knowledge-consultation.md](knowledge-consultation.md)
+  applied to the conversation: one `index_status` probe, `related` on the canonical key (phase
+  suffix stripped), unfiltered `search_knowledge` first, at most four searches, citations with
+  the `⚠ NON-CURRENT` marker verbatim, retrieved text quoted never restated. Refuses with a
+  pointer to `/artel:setup` when `knowledge.adapter` is not `kartoteka`, and with the contract's
+  "configured but not available" message when the MCP tools are absent — no override flag. The
+  active ticket's own `## artifacts` block is named as a lagging mirror and never fetched.
+
+### tasks
+
+- **Purpose:** Operate a ticket's kartoteka task queue from the conversation: list and diagnose,
+  add, mark done or blocked, release a held task.
+- **Invocation:** `/artel:tasks list|add|done|block|release [ticket-id] [<task-id> | "<title>" --iteration N [--section <name>] [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]`
+- **Reads:** `.artel/config.json` (`knowledge.adapter`), `<specs.dir>/.active_ticket`,
+  `<specs.dir>/<TICKET_ID>/tasklist.md` (and `phase-<N>/tasks.md` when present); over MCP:
+  `task_list`, `task_create`, `task_update`.
+- **Writes:** `add` appends a checkbox to `tasklist.md` (and the phase file) and mirrors it
+  through `scripts/tasklist_tasks.py` + create-only `task_create`; `done` flips the matching
+  checkbox after `task_update`; `block` / `release` update the row only.
+- **Pauses:** `release` always confirms via `AskUserQuestion` (shows holder and age); nothing
+  else pauses.
+- **Notes:** worker. The write side of [task-queue.md](task-queue.md) applied to the
+  conversation, under the same gate as `knowledge`. Never calls `task_ready` (claiming is the
+  implementer's) and never promotes an iteration (the implementer's repair). `add` composes no
+  title by hand — the mirror script does, so the row carries the `I<N> · ` prefix, its
+  `parent_id`, and queue order; `--raw` creates a bare `backlog` row that artel will not claim
+  and says so. `list` reports drained / promotion pending / blocked / held and repairs nothing.

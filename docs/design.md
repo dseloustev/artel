@@ -319,3 +319,30 @@ entry-point skills run a short one-time init interview and write the file.
   and `PostToolUse` input does not carry the subagent name, so `author_agent` is always null
   (the field is nullable and self-reported on that side). Design:
   the consuming project's `2026-08-22-artel-dual-write-design.md`.
+- **2026-08-25 — The session router is a hook-injected skill, inert without a config.**
+  `skills/using-artel` copies `superpowers:using-superpowers`' mechanism: a `SessionStart`
+  hook (`startup|clear|compact`) injects a routing table over every skill, because a skill
+  description in a list is not a rule the model reliably follows, and an autonomous run
+  compacts several times. It is injected only when `.artel/config.json` exists — the
+  2026-08-07 zero-footprint rule — since a repo artel does not run against has nothing to
+  route, and the entry points already invoke `/artel:setup` themselves. Capped at 10 KiB by
+  test, carries `<SUBAGENT-STOP>`, lists no agents (every agent is behind a skill that resolves
+  ticket context first), and states that an entry point is a complete process not to be
+  wrapped in generic brainstorming or plan-writing skills.
+- **2026-08-25 — Conversational kartoteka access is two worker skills, read and write.**
+  `knowledge` (search, `related`, `index_status`, a non-active ticket's artifact history) and
+  `tasks` (`list`/`add`/`done`/`block`/`release`) rather than one `kartoteka <verb>` skill or
+  procedure inlined in the router: the contracts are already organised as a read side and a
+  write side, a fat router would charge every session for the queue rules, and a router
+  executing `task_create` from prose is a meta-skill doing a worker's job. Both refuse — no
+  override — when `knowledge.adapter` is not `kartoteka`, for the same single-project reason
+  the pipeline's row 3 exists.
+- **2026-08-25 — `tasks add` goes through `tasklist.md` and the existing mirror; no
+  conversational claim; `release` is user-confirmed.** Titles are the idempotency key,
+  promotion finds siblings by the `I<N> · ` prefix, and `task_ready` claims in `task_id`
+  order, so a hand-built row sits outside all three; `add` appends a sectioned checkbox and
+  runs `scripts/tasklist_tasks.py` + create-only `task_create` exactly as the pipeline does.
+  `--raw` creates `backlog` only and says artel will not claim it (a `ready` bare row would be
+  claimed by an implementer with no checkbox to flip). There is no `claim` verb — claiming is
+  the implementer's — and `release` shows holder and age and asks first, because
+  `docs/task-queue.md` §5 makes clearing a claim the user's call.

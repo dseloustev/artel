@@ -329,6 +329,18 @@ Absent tools degrade the same way the read half's do: the run continues from `ta
 and records that it did. Only iteration work is ever mirrored — gate-remediation sections
 and `## Final Verification` are always worked from the file (`docs/task-queue.md` §6).
 
+#### The conversational front doors
+
+The same key admits two skills a person invokes from the conversation rather than the pipeline:
+[`knowledge`](skills-reference.md#knowledge) (read: `search_knowledge`, `related`,
+`index_status`, a non-active ticket's `artifact_list` / `artifact_get`) and
+[`tasks`](skills-reference.md#tasks) (write: `task_list`, `task_create`, `task_update`). Both
+resolve the table above without its `--local` row — a person invoking them has asked for
+kartoteka — and both **refuse** rather than degrade: adapter `none` stops with a pointer to
+`/artel:setup`, absent tools stop with the "configured but not available" message. There is no
+override flag, for the third row's reason. The `using_artel` `SessionStart` hook reads the key
+too, only to tell the injected router whether those two routes are live.
+
 ### `runtime` — optional runtime and automation commands
 
 All `runtime` keys are optional and adapter-shaped: a project supplies whichever commands it has,

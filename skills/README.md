@@ -12,3 +12,9 @@ orchestrators — they resolve ticket context, invoke agents, and report; they n
 agent's work. A handful are self-declared procedural workers instead (e.g. `sync-phases`,
 `generate-idea`, `merge-conflicts`) — no agent matches their job, so they run their documented
 procedure inline and say so in their own body.
+
+Three of them are not pipeline stages: `using-artel` is the session router the `using_artel`
+hook injects at turn one (a routing table over every other skill —
+`tests/test_using_artel_docs.py` keeps it complete both ways), and `knowledge` / `tasks` are the
+conversational front doors to kartoteka's read and write sides, under the same
+`knowledge.adapter` gate the pipeline uses.

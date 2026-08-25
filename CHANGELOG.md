@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-25
+
 ### Added
 
 - **`docs/code-navigation.md` — the query-side contract for a code-symbol index.** Six agents

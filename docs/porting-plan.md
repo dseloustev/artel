@@ -146,4 +146,5 @@ canonical files. Design: `docs/superpowers/specs/2026-08-26-opencode-host-design
 - [x] Installer: `scripts/install-opencode.sh` (install / `--remove`).
 - [x] Docs: `docs/opencode.md`, README install section, hooks/README bridge note,
       autonomous-run.md OpenCode headless note.
-- [ ] E2E smoke on OpenCode + Claude Code regression; release `0.7.0`.
+- [x] E2E smoke on OpenCode + Claude Code regression.
+- [ ] Release `0.7.0`.

@@ -10,11 +10,17 @@
  *   tool.execute.after  (edit|write|apply_patch) -> hooks/fast_verify_post_edit.py
  *                    + hooks/knowledge_mirror.py (side effect only)
  *       findings          -> throw (the model sees them as the tool's error)
- *   session.created    -> hooks/session_baseline.py + hooks/using_artel.py   (Task 5)
- *   session.idle       -> hooks/stop_gate.py + hooks/verify_stop_gate.py     (Task 5)
+ *   session.created    -> hooks/session_baseline.py                           (Task 5)
+ *   session.idle       -> hooks/stop_gate.py + hooks/verify_stop_gate.py      (Task 5)
+ *   messages.transform -> hooks/using_artel.py — router + host status prepended
+ *                         to the first user message on every model step (Task 8)
  *
  * Everything is inert unless the project has .artel/config.json. Install root:
  * $ARTEL_ROOT or ~/.config/opencode/artel (scripts/install-opencode.sh).
+ *
+ * NOTE: never add a non-function named export to this module — OpenCode's plugin
+ * loader requires every export to be a function and rejects the whole plugin
+ * otherwise ("Plugin export is not a function").
  */
 import { spawn } from "node:child_process"
 import fs from "node:fs"
@@ -23,7 +29,10 @@ import path from "node:path"
 import type { Plugin } from "@opencode-ai/plugin"
 
 const CONFIG_HOME = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config")
-export const ARTEL_ROOT = process.env.ARTEL_ROOT || path.join(CONFIG_HOME, "opencode", "artel")
+// NOT exported on purpose: OpenCode's legacy plugin loader requires every module
+// export to be a function (or {server: fn}); a stray string export makes the
+// whole plugin fail with "Plugin export is not a function".
+const ARTEL_ROOT = process.env.ARTEL_ROOT || path.join(CONFIG_HOME, "opencode", "artel")
 
 const EDIT_TOOLS = new Set(["edit", "write", "apply_patch"])
 // Bridge-side fail-safe on top of the hooks' own consecutive-block caps (5 and 2).
@@ -90,6 +99,14 @@ function claudeEditPayload(sessionID: string, directory: string, tool: string, a
 }
 
 const idleBlocks = new Map<string, number>()
+/** Session id -> router context (null: hook produced none). Computed on the
+ * session's first model step, then cached — the transform hook re-runs per step. */
+const routerCache = new Map<string, string | null>()
+/** Subagent child sessions (task tool) — they get no router. */
+const childSessions = new Set<string>()
+
+/** Marker from using_artel.py's header — proves a message already carries the router. */
+const ROUTER_MARKER = "This repository is configured for artel"
 
 export const ArtelPlugin: Plugin = async ({ client, directory }) => {
   return {
@@ -116,33 +133,58 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
       if (context) throw new Error(`artel fast-verify findings:\n${context}`)
     },
 
+    // Router injection (Task 8). Claude Code injects the router as SessionStart
+    // context before the first prompt; OpenCode sessions only come into being
+    // WITH their first prompt, so there is no pre-prompt moment. Injecting via
+    // client.session.prompt({noReply}) races that prompt and leaves the router
+    // as an unanswered trailing user message — the loop then burns a whole turn
+    // acknowledging it (and `opencode run` prints that acknowledgment instead
+    // of the real answer). Prepending to the first user message on every model
+    // step (in-memory, like the superpowers plugin does) avoids both: the model
+    // sees the router together with the first prompt, and compaction cannot
+    // drop it.
+    "experimental.chat.messages.transform": async (_input, output) => {
+      if (!hasArtelConfig(directory)) return
+      const messages = output.messages ?? []
+      const firstUser = messages.find((m) => m.info?.role === "user")
+      const sessionID = firstUser?.info?.sessionID ?? messages[0]?.info?.sessionID
+      if (!firstUser || !firstUser.parts?.length || !sessionID) return
+      // Subagent child sessions get no router: routing is the main session's job
+      // (the router's own <SUBAGENT-STOP> says the same).
+      if (childSessions.has(sessionID)) return
+      if (firstUser.parts.some((p) => (p as any).type === "text" && (p as any).text?.includes(ROUTER_MARKER))) return
+      let context = routerCache.get(sessionID)
+      if (context === undefined) {
+        const result = await runHook("using_artel.py", { session_id: sessionID, cwd: directory }, directory, 10_000)
+        context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext ?? null
+        routerCache.set(sessionID, context)
+      }
+      if (!context) return
+      // The injected router body is the canonical (Claude-dialect) text —
+      // append the OpenCode reading of its names.
+      const note =
+        "\n\nOpenCode note: the routing tables above name skills as `/artel:<name>`. " +
+        "On this host they are the skills `artel-<name>` (TUI commands `/artel-<name>`), " +
+        "loaded with the `skill` tool; agents are dispatched with the `task` tool as " +
+        "`artel-<name>`. `/ast-index:*` commands are not available unless that plugin is " +
+        "installed — otherwise run the `ast-index` CLI directly."
+      const ref = firstUser.parts[0]
+      firstUser.parts.unshift({ ...ref, type: "text", text: context + note })
+    },
+
     event: async ({ event }) => {
       if (!hasArtelConfig(directory)) return
       const properties = (event as any).properties ?? {}
       const id = sessionId(properties)
 
       if (event.type === "session.created") {
-        // Subagent child sessions get no router: routing is the main session's job
-        // (the router's own <SUBAGENT-STOP> says the same).
-        if (properties.info?.parentID) return
+        // Subagent child sessions get no baseline/router (see the transform hook).
+        if (properties.info?.parentID) {
+          if (id) childSessions.add(id)
+          return
+        }
         if (!id) return
         await runHook("session_baseline.py", { session_id: id, cwd: directory }, directory, 120_000)
-        const result = await runHook("using_artel.py", { session_id: id, cwd: directory }, directory, 10_000)
-        const context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
-        if (context) {
-          // The injected router body is the canonical (Claude-dialect) text —
-          // append the OpenCode reading of its names.
-          const note =
-            "\n\nOpenCode note: the routing tables above name skills as `/artel:<name>`. " +
-            "On this host they are the skills `artel-<name>` (TUI commands `/artel-<name>`), " +
-            "loaded with the `skill` tool; agents are dispatched with the `task` tool as " +
-            "`artel-<name>`. `/ast-index:*` commands are not available unless that plugin is " +
-            "installed — otherwise run the `ast-index` CLI directly."
-          await client.session.prompt({
-            path: { id },
-            body: { noReply: true, parts: [{ type: "text", text: context + note }] },
-          })
-        }
         return
       }
 
@@ -154,7 +196,16 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
         for (const script of ["stop_gate.py", "verify_stop_gate.py"]) {
           const result = await runHook(script, { session_id: id, cwd: directory }, directory, 300_000)
           const decision = firstJson(result.stdout)
-          if (decision?.decision !== "block" || !decision?.reason) continue
+          if (decision?.decision !== "block" || !decision?.reason) {
+            // Claude Code shows a hook's systemMessage / stderr to the user — the
+            // gates' pass-through warnings (cap reached, verify env error) must not
+            // become silent here. Mirror them into the app log.
+            const warning = decision?.systemMessage || result.stderr.trim()
+            if (warning) {
+              await client.app.log({ body: { service: "artel", level: "warn", message: warning } })
+            }
+            continue
+          }
           const blocks = (idleBlocks.get(id) ?? 0) + 1
           idleBlocks.set(id, blocks)
           if (blocks > MAX_IDLE_BLOCKS) {

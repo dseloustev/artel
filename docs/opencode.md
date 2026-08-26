@@ -45,8 +45,9 @@ Python hooks (`hooks/README.md` documents their stdin/stdout contracts):
 |---|---|---|
 | `tool.execute.before` (edit/write/apply_patch) | `sensitive_guard.py` | deny → the tool call errors |
 | `tool.execute.after` (edit/write/apply_patch) | `fast_verify_post_edit.py`, `knowledge_mirror.py` | findings → the tool result carries them |
-| `session.created` | `session_baseline.py`, `using_artel.py` | router + host status injected as context |
-| `session.idle` | `stop_gate.py`, `verify_stop_gate.py` | block → a re-prompt continues the run |
+| `session.created` | `session_baseline.py` | findings baseline captured (child sessions skip it) |
+| `experimental.chat.messages.transform` | `using_artel.py` | router + host status prepended to the first user message on every model step (in-memory) |
+| `session.idle` | `stop_gate.py`, `verify_stop_gate.py` | block → a re-prompt continues the run; pass-through warnings are mirrored into the app log |
 
 Everything is inert unless the project has `.artel/config.json`.
 
@@ -55,6 +56,7 @@ Everything is inert unless the project has `.artel/config.json`.
 | Aspect | Claude Code | OpenCode |
 |---|---|---|
 | Stop gate | blocks the Stop event outright | the completed turn is visible; the idle event re-prompts the model to continue (the hooks' own block caps — 5 and 2 consecutive — remain the loop bound) |
+| Router injection | SessionStart hook context, before the first prompt | prepended to the first user message on every model step (sessions only come into being with their first prompt, so there is no pre-prompt moment) |
 | Two-phase skills (`researcher`, `planner`, …) | `SendMessage` resumes the agent by id | a fresh `task` dispatch; the agent re-reads its context files |
 | Agent model tiers | `opus`/`sonnet` frontmatter | dropped — subagents inherit the caller's model (override per agent in your `opencode.json`) |
 | `inner-loop` model-invocation guard | `disable-model-invocation: true` | no equivalent; it is loadable like any skill |
@@ -68,6 +70,12 @@ Everything is inert unless the project has `.artel/config.json`.
 (the `opencode.json` equivalent of a curated allowlist) gates unattended tools — never a
 bypass flag. The same run-state, journal and stop-gate machinery applies unchanged.
 
+One caveat: `opencode run` exits on the session's first idle event, so a stop-gate block
+shows as one re-prompt message in the transcript whose continuation is cut off (the
+CLI is already tearing down). Use `--continue` follow-up runs, or the TUI, to watch the
+gate's full block/cap cycle. The gates' pass-through warnings (cap reached, verify
+environment error) are mirrored into OpenCode's app log either way.
+
 ## Troubleshooting
 
 - **A skill does not appear** — check `~/.config/opencode/skills/artel-<name>/SKILL.md`
@@ -77,5 +85,8 @@ bypass flag. The same run-state, journal and stop-gate machinery applies unchang
   `sessionID` / `session_id`. If an OpenCode update changes the shape, extend
   `sessionId()` in `opencode/plugin/artel.ts`.
 - **Plugin errors on startup** — run `bun build ~/.config/opencode/plugins/artel.ts
-  --outdir /tmp/x` to surface syntax problems; check `ARTEL_ROOT` (default
-  `~/.config/opencode/artel`) points at a full plugin copy.
+  --target=node --outdir /tmp/x` to surface syntax problems; check `ARTEL_ROOT` (default
+  `~/.config/opencode/artel`) points at a full plugin copy. Also check the plugin's
+  exports: OpenCode's loader requires every module export to be a function and rejects
+  the whole plugin otherwise ("Plugin export is not a function") — run with
+  `--print-logs` to see the load error.

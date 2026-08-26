@@ -6,10 +6,12 @@ OpenCode discovers skills, agents and commands from flat config directories
 (~/.config/opencode/{skills,agents,commands}) with no plugin namespace, so
 every generated artifact is prefixed `artel-`. Skill and agent bodies are
 written in artel's Claude Code dialect; the generator prepends a host glossary
-to each one and makes exactly two mechanical rewrites: ${CLAUDE_PLUGIN_ROOT}
-is baked to the install root, and `/artel:<name>` references become
-`artel-<name>` (`/ast-index:` references are left alone). Canonical sources
-under skills/ and agents/ are never modified. Contract: docs/opencode.md.
+to each one and makes exactly three mechanical rewrites: ${CLAUDE_PLUGIN_ROOT}
+is baked to the install root, `/artel:<name>` references in bodies become
+`artel-<name>`, and `/artel:<name>` prefixes in the frontmatter descriptions
+of skills, commands and agents become `artel-<name>` (`/ast-index:` references
+are left alone). Canonical sources under skills/ and agents/ are never
+modified. Contract: docs/opencode.md.
 """
 import argparse
 import re

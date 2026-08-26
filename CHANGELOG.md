@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- OpenCode host support. `scripts/build_opencode.py` generates `artel-`-prefixed skills,
+  agents and command wrappers (host glossary prepended, install root baked);
+  `opencode/plugin/artel.ts` bridges OpenCode's plugin events onto the existing Python
+  hooks — edit guard, fast verify, knowledge mirror, session baseline, router injection,
+  and the stop gate as an idle re-prompt; `scripts/install-opencode.sh`
+  installs/uninstalls into `~/.config/opencode/`. Claude Code operation is unchanged:
+  canonical skills, agents, hooks and manifests are untouched. See `docs/opencode.md`.
+
 ## [0.6.0] - 2026-08-25
 
 ### Added

@@ -137,6 +137,21 @@ def build_skill(src_text, root):
     return name, assemble(bake(body, root), SKILL_GLOSSARY, frontmatter)
 
 
+def build_agent(src_text, root):
+    """agents/<name>.md (Claude frontmatter: name/description/model) ->
+    artel-<name>.md (OpenCode frontmatter: description/mode). The markdown file
+    name is the agent name on OpenCode; model tiers are dropped (subagents
+    inherit the caller's model — see docs/opencode.md)."""
+    fields, body = parse_frontmatter(src_text)
+    name = 'artel-' + fields['name']
+    description = ARTEL_REF.sub(r'artel-\1', fields.get('description', ''))
+    frontmatter = [
+        'description: ' + yaml_quote(clip(description, MAX_DESCRIPTION)),
+        'mode: subagent',
+    ]
+    return name, assemble(bake(body, root), AGENT_GLOSSARY, frontmatter)
+
+
 def build_command(name, description, hint):
     description = ARTEL_REF.sub(r'artel-\1', description)
     if hint:
@@ -196,7 +211,17 @@ def main(argv=None):
         commands_dir.mkdir(parents=True, exist_ok=True)
         (commands_dir / (name + '.md')).write_text(command, encoding='utf-8')
 
-    print('build_opencode: {} skills -> {}'.format(len(skill_files), out))
+    agent_files = sorted(p for p in (source / 'agents').glob('*.md')
+                         if p.name != 'README.md')
+
+    for agent_path in agent_files:
+        name, text = build_agent(agent_path.read_text(encoding='utf-8'), root)
+        agents_dir = out / 'agents'
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        (agents_dir / (name + '.md')).write_text(text, encoding='utf-8')
+
+    print('build_opencode: {} skills, {} agents -> {}'.format(
+        len(skill_files), len(agent_files), out))
     return 0
 
 

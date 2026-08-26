@@ -117,6 +117,37 @@ class TestCommandBuild(BuildBase):
         self.assertIn('[ticket-id]', text)
 
 
+def source_agents():
+    """Every agent shipped under agents/, by file stem (README.md is not an agent)."""
+    return sorted(p.stem for p in (ROOT / 'agents').glob('*.md') if p.name != 'README.md')
+
+
+class TestAgentBuild(BuildBase):
+    def test_every_agent_is_built_prefixed(self):
+        for name in source_agents():
+            path = self.out / 'agents' / ('artel-' + name + '.md')
+            self.assertTrue(path.is_file(), 'missing ' + str(path))
+
+    def test_readme_is_not_an_agent(self):
+        self.assertFalse((self.out / 'agents' / 'artel-README.md').is_file())
+
+    def test_frontmatter_is_opencode_shape(self):
+        for path in sorted((self.out / 'agents').glob('artel-*.md')):
+            head = path.read_text(encoding='utf-8').split('---')[1]
+            self.assertIn('description: "', head)
+            self.assertIn('mode: subagent', head)
+            self.assertNotIn('model:', head, path.name + ' keeps a Claude model tier')
+
+    def test_agent_carries_glossary_and_baked_root(self):
+        for path in sorted((self.out / 'agents').glob('artel-*.md')):
+            text = path.read_text(encoding='utf-8')
+            self.assertIn(GLOSSARY_MARKER, text)
+            self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', text)
+
+    def test_build_reports_agent_count(self):
+        self.assertIn('{} agents'.format(len(source_agents())), self.proc.stdout)
+
+
 class TestDeterminism(BuildBase):
     def test_rebuild_is_byte_identical(self):
         with tempfile.TemporaryDirectory() as second:

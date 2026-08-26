@@ -56,6 +56,9 @@ function runHook(script: string, payload: unknown, cwd: string, timeoutMs: numbe
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs)
     child.stdout.on("data", (chunk) => (stdout += chunk))
     child.stderr.on("data", (chunk) => (stderr += chunk))
+    // A missing python3 (ENOENT) or a hook that exits before reading its input can
+    // reject the pipe — swallow it; the exit code / stderr already carry the failure.
+    child.stdin.on("error", () => {})
     child.on("error", (error) => {
       clearTimeout(timer)
       resolve({ code: 2, stdout, stderr: String(error) })
@@ -203,6 +206,23 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
         }
         if (!id) return
         await runHook("session_baseline.py", { session_id: id, cwd: directory }, directory, 120_000)
+        return
+      }
+
+      if (event.type === "session.compacted") {
+        // Claude Code re-fires SessionStart(compact); here the transform hook
+        // recomputes instead — drop the cache so host status refreshes next step.
+        if (id) routerCache.delete(id)
+        return
+      }
+
+      if (event.type === "session.deleted") {
+        // Bounds both maps in long-lived TUI processes; also drops a deleted
+        // session's no-router marker.
+        if (id) {
+          routerCache.delete(id)
+          childSessions.delete(id)
+        }
         return
       }
 

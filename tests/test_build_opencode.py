@@ -128,6 +128,10 @@ class TestAgentBuild(BuildBase):
             path = self.out / 'agents' / ('artel-' + name + '.md')
             self.assertTrue(path.is_file(), 'missing ' + str(path))
 
+    def test_agent_names_are_opencode_legal(self):
+        for path in sorted((self.out / 'agents').glob('artel-*.md')):
+            self.assertRegex(path.stem, VALID_NAME)
+
     def test_readme_is_not_an_agent(self):
         self.assertFalse((self.out / 'agents' / 'artel-README.md').is_file())
 

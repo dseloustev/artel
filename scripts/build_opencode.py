@@ -218,6 +218,10 @@ def main(argv=None):
 
     for agent_path in agent_files:
         name, text = build_agent(agent_path.read_text(encoding='utf-8'), root)
+        if not VALID_NAME.match(name):
+            print('build_opencode: {} is not a legal OpenCode name'.format(name),
+                  file=sys.stderr)
+            return 2
         agents_dir = out / 'agents'
         agents_dir.mkdir(parents=True, exist_ok=True)
         (agents_dir / (name + '.md')).write_text(text, encoding='utf-8')

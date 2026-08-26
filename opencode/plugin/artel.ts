@@ -89,8 +89,6 @@ function claudeEditPayload(sessionID: string, directory: string, tool: string, a
     : null
 }
 
-// (`client` and `idleBlocks` are unused until Task 5 — the linter may warn; that is
-// deliberate scaffolding, removed noise is worse than a warning.)
 const idleBlocks = new Map<string, number>()
 
 export const ArtelPlugin: Plugin = async ({ client, directory }) => {
@@ -116,6 +114,73 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
       const result = await runHook("fast_verify_post_edit.py", payload, directory, 150_000)
       const context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
       if (context) throw new Error(`artel fast-verify findings:\n${context}`)
+    },
+
+    event: async ({ event }) => {
+      if (!hasArtelConfig(directory)) return
+      const properties = (event as any).properties ?? {}
+      const id = sessionId(properties)
+
+      if (event.type === "session.created") {
+        // Subagent child sessions get no router: routing is the main session's job
+        // (the router's own <SUBAGENT-STOP> says the same).
+        if (properties.info?.parentID) return
+        if (!id) return
+        await runHook("session_baseline.py", { session_id: id, cwd: directory }, directory, 120_000)
+        const result = await runHook("using_artel.py", { session_id: id, cwd: directory }, directory, 10_000)
+        const context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
+        if (context) {
+          // The injected router body is the canonical (Claude-dialect) text —
+          // append the OpenCode reading of its names.
+          const note =
+            "\n\nOpenCode note: the routing tables above name skills as `/artel:<name>`. " +
+            "On this host they are the skills `artel-<name>` (TUI commands `/artel-<name>`), " +
+            "loaded with the `skill` tool; agents are dispatched with the `task` tool as " +
+            "`artel-<name>`. `/ast-index:*` commands are not available unless that plugin is " +
+            "installed — otherwise run the `ast-index` CLI directly."
+          await client.session.prompt({
+            path: { id },
+            body: { noReply: true, parts: [{ type: "text", text: context + note }] },
+          })
+        }
+        return
+      }
+
+      if (event.type === "session.idle") {
+        if (!id) return
+        // Claude Code runs stop_gate.py then verify_stop_gate.py on Stop; mirror the
+        // order. A block decision re-prompts the session (OpenCode's idle event is the
+        // closest thing to a Stop hook, and it cannot hard-block).
+        for (const script of ["stop_gate.py", "verify_stop_gate.py"]) {
+          const result = await runHook(script, { session_id: id, cwd: directory }, directory, 300_000)
+          const decision = firstJson(result.stdout)
+          if (decision?.decision !== "block" || !decision?.reason) continue
+          const blocks = (idleBlocks.get(id) ?? 0) + 1
+          idleBlocks.set(id, blocks)
+          if (blocks > MAX_IDLE_BLOCKS) {
+            await client.app.log({
+              body: {
+                service: "artel",
+                level: "warn",
+                message: `stop-gate block cap (${MAX_IDLE_BLOCKS}) reached for session ${id}`,
+              },
+            })
+            return
+          }
+          await client.session.prompt({
+            path: { id },
+            body: {
+              parts: [{
+                type: "text",
+                text:
+                  `artel stop gate blocked this stop:\n${decision.reason}\n` +
+                  "Address the findings, then finish again.",
+              }],
+            },
+          })
+          return
+        }
+      }
     },
   }
 }

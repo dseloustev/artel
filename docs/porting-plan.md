@@ -131,3 +131,19 @@ invoke `generate-idea`'s local-description path itself.
 | `tools/agent/` (Dart CLI) | `scripts/` | Python rewrite: `verify`, `plan-check` (Phase 5); `codegen` dropped — detection rules were Dart-specific, `setup.commands` covers install/codegen; `dcm` subsumed by config-driven `verify.commands` |
 | `tools/launch_app.dart` + `tools/templates/` | — | replaced by config-driven launch/scaffold commands behind `run-app`/`drive-app`/`add-automation` (Phase 3/5) |
 | `rules/ast-index.md`, Dart MCP rules | `likbez` plugin | index-refresh in orchestrators becomes an optional config hook |
+
+## Phase 7 — OpenCode host
+
+Generator + bridge plugin + installer, with Claude Code preserved byte-for-byte on the
+canonical files. Design: `docs/superpowers/specs/2026-08-26-opencode-host-design.md`
+(local); committed record: the design.md decision log and `docs/opencode.md`.
+
+- [ ] Generator: `scripts/build_opencode.py` — `artel-`-prefixed skills, command wrappers,
+      agents, glossary, baked root; `tests/test_build_opencode.py`.
+- [ ] Bridge plugin: `opencode/plugin/artel.ts` — tool hooks (sensitive guard, fast
+      verify, knowledge mirror) + session lifecycle (baseline, router injection,
+      stop-gate idle re-prompt).
+- [ ] Installer: `scripts/install-opencode.sh` (install / `--remove`).
+- [ ] Docs: `docs/opencode.md`, README install section, hooks/README bridge note,
+      autonomous-run.md OpenCode headless note.
+- [ ] E2E smoke on OpenCode + Claude Code regression; release `0.7.0`.

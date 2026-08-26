@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-26
+
 ### Added
 
 - OpenCode host support. `scripts/build_opencode.py` generates `artel-`-prefixed skills,

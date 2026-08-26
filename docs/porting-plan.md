@@ -147,4 +147,4 @@ canonical files. Design: `docs/superpowers/specs/2026-08-26-opencode-host-design
 - [x] Docs: `docs/opencode.md`, README install section, hooks/README bridge note,
       autonomous-run.md OpenCode headless note.
 - [x] E2E smoke on OpenCode + Claude Code regression.
-- [ ] Release `0.7.0`.
+- [x] Release `0.7.0`.

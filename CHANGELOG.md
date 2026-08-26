@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-26
+
 ### Fixed
 
 - **`agents/README.md` was loaded as an agent.** Claude Code registers every `.md` directly

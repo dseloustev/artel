@@ -15,8 +15,14 @@ All notable changes to this project are documented here. The format follows
   `opencode/plugin/artel.ts` bridges OpenCode's plugin events onto the existing Python
   hooks — edit guard, fast verify, knowledge mirror, session baseline, router injection,
   and the stop gate as an idle re-prompt; `scripts/install-opencode.sh`
-  installs/uninstalls into `~/.config/opencode/`. Claude Code operation is unchanged:
-  canonical skills, agents, hooks and manifests are untouched. See `docs/opencode.md`.
+  installs/uninstalls into `~/.config/opencode/`. Claude Code operation is unchanged —
+  no hook, skill or agent behavior changed: canonical skills, agents and hook code are
+  byte-identical. See `docs/opencode.md`.
+- Install verification guide (`docs/opencode.md` §Verifying an install) and bridge
+  hardening from the final review: failed router-hook runs retry instead of latching
+  (diagnostic mirrored to the app log), spawn stdin errors are swallowed, session
+  caches clear on compaction/deletion, and generated agent names get the same
+  legality guard as skill names.
 
 ## [0.6.0] - 2026-08-25
 

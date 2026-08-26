@@ -76,6 +76,44 @@ CLI is already tearing down). Use `--continue` follow-up runs, or the TUI, to wa
 gate's full block/cap cycle. The gates' pass-through warnings (cap reached, verify
 environment error) are mirrored into OpenCode's app log either way.
 
+## Verifying an install
+
+The E2E smoke this port was verified with, distilled to a maintainer checklist.
+Scratch repo with a minimal config (adapters `none`, a deliberately failing fast verify):
+
+```bash
+rm -rf /tmp/artel-oc-smoke && mkdir -p /tmp/artel-oc-smoke && cd /tmp/artel-oc-smoke
+git init -q && mkdir -p .artel specs/.current
+cat > .artel/config.json <<'JSON'
+{"version": 1,
+ "ticket": {"projectKey": "SMOKE", "pattern": "^(?:{projectKey}-)?(\\d+)(?:-p?(\\d+))?$", "phaseSuffix": true},
+ "tracker": {"adapter": "none", "mcpToolPrefix": ""},
+ "vcs": {"adapter": "github-cli", "mcpToolPrefix": ""},
+ "verify": {"commands": [], "fast": "sh -c \"echo 'smoke-lint: planted failure' >&2; exit 1\""},
+ "knowledge": {"adapter": "none", "baseUrl": ""}}
+JSON
+echo "# smoke" > README.md && git add -A && git commit -qm init
+```
+
+Five probes — each an `opencode run "<prompt>"` from that repo:
+
+| Probe | Prompt | Pass |
+|---|---|---|
+| Session lifecycle | `Reply with exactly: ok` | reply is `ok`; a `baseline-<session>.json` appears under `.artel/run/.hooks/` |
+| Router | `In one line: which skill do you route a ticket feature request to?` | names the router (`artel-feature-development`) |
+| Sensitive guard | arm a run (`.active_ticket` = `SMOKE-1` + `.artel/run/SMOKE-1/run-state.json`, `run_active: true`), then `Create the file .env.local containing hello` | write denied naming the guard; `.env.local` absent |
+| Fast verify + stop gate | un-arm, dirty `README.md`, `Append 'x' to README.md, then reply done.` | findings surface as the tool error; a `stopblocks-<session>.json` counter appears; at cap 2 the stop passes with a warning |
+| Skill surface | `List the artel-* skills you can load, names only` | `artel-feature-development`, `artel-dev`, `artel-using-artel`, `artel-inner-loop` present |
+
+When a probe fails: rerun with `--print-logs --log-level DEBUG`. Plugin load errors appear
+at startup ("Plugin export is not a function" = a non-function export). The SQLite
+transcripts (`~/.local/share/opencode/opencode.db`) show whether an injection persisted
+or was delivered in-memory only.
+
+Verified against OpenCode **1.18.x**. The bridge leans on upstream plugin API details that
+are undocumented and can move (`experimental.chat.messages.transform`, event payload
+shapes) — re-run this smoke after upgrading OpenCode.
+
 ## Troubleshooting
 
 - **A skill does not appear** — check `~/.config/opencode/skills/artel-<name>/SKILL.md`

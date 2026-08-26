@@ -61,6 +61,7 @@ leaves zero footprint; `hook_common.py` is the shared helper library, not a regi
 On OpenCode the same scripts run unchanged, driven by
 `opencode/plugin/artel.ts` instead of `hooks.json`: it synthesizes the stdin payloads
 this README documents and maps the JSON outputs onto OpenCode's mechanisms (deny by
-throwing, context by prompt injection, Stop-block by an idle re-prompt). One output has
+throwing, router context prepended in-memory to the first user message, Stop-block
+by an idle re-prompt). One output has
 no OpenCode channel: `knowledge_mirror.py`'s `additionalContext` is dropped (the mirror
 side effect still runs). See `docs/opencode.md`.

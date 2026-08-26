@@ -99,9 +99,10 @@ function claudeEditPayload(sessionID: string, directory: string, tool: string, a
 }
 
 const idleBlocks = new Map<string, number>()
-/** Session id -> router context (null: hook produced none). Computed on the
- * session's first model step, then cached — the transform hook re-runs per step. */
-const routerCache = new Map<string, string | null>()
+/** Session id -> router context. Only successful lookups are cached: a failed
+ * hook run leaves NO entry, so the next model step retries (the hook is a fast
+ * local call — this self-heals transient failures instead of latching them). */
+const routerCache = new Map<string, string>()
 /** Subagent child sessions (task tool) — they get no router. */
 const childSessions = new Set<string>()
 
@@ -156,10 +157,27 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
       let context = routerCache.get(sessionID)
       if (context === undefined) {
         const result = await runHook("using_artel.py", { session_id: sessionID, cwd: directory }, directory, 10_000)
-        context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext ?? null
-        routerCache.set(sessionID, context)
+        context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
+        if (context) {
+          routerCache.set(sessionID, context)
+        } else {
+          // With .artel/config.json present the hook ALWAYS emits context, so no
+          // output means it failed (timeout, spawn error, internal exception —
+          // details on stderr). Don't cache the failure: retry on the next model
+          // step, but mirror the diagnostic so the missing router stays visible.
+          const diagnostic = result.stderr.trim()
+          if (diagnostic) {
+            await client.app.log({
+              body: {
+                service: "artel",
+                level: "warn",
+                message: "using_artel produced no router context: " + diagnostic,
+              },
+            })
+          }
+          return
+        }
       }
-      if (!context) return
       // The injected router body is the canonical (Claude-dialect) text —
       // append the OpenCode reading of its names.
       const note =

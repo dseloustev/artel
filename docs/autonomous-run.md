@@ -290,6 +290,10 @@ claude -p "/artel:feature-development <TICKET_ID> --mode=yolo" --output-format s
   auto-resolved — journal the entry, set the `pause_reason`, and stop. A stalled headless run on a
   HITL/cap pause is the guardrail working; resume it interactively.
 
+On OpenCode, the same unattended pattern runs through `opencode run` with the host's
+`permission` config as the curated allowlist; the Stop gate fires on the idle event as a
+re-prompt rather than a hard block. Host specifics: `docs/opencode.md`.
+
 ## 13. Design analysis stage (`figma-analysis`)
 
 Conditional chatty-head stage — gate 0.5 of `feature-development`, between `generate-idea` and the

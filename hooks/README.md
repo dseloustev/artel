@@ -55,3 +55,13 @@ Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines, ve
 counters) — never inside the plugin directory. The verify-layer and session-layer hooks return
 immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured plugin
 leaves zero footprint; `hook_common.py` is the shared helper library, not a registered hook.
+
+## The OpenCode bridge
+
+On OpenCode the same scripts run unchanged, driven by
+`opencode/plugin/artel.ts` instead of `hooks.json`: it synthesizes the stdin payloads
+this README documents and maps the JSON outputs onto OpenCode's mechanisms (deny by
+throwing, router context prepended in-memory to the first user message, Stop-block
+by an idle re-prompt). One output has
+no OpenCode channel: `knowledge_mirror.py`'s `additionalContext` is dropped (the mirror
+side effect still runs). See `docs/opencode.md`.

@@ -418,3 +418,16 @@ entry-point skills run a short one-time init interview and write the file.
   deliberately does not write `review.md`, bump `**Review round:**`, run the lenses or write
   `findings.json` — those are the phase review's, and a per-task gate that touched them would
   corrupt its counters.
+- **2026-08-26 — OpenCode becomes the second host, via a generator — canonical files stay
+  Claude-flavored.** `scripts/build_opencode.py` derives an OpenCode install
+  (`artel-`-prefixed skills/agents/commands, a host glossary prepended to every generated
+  body, `${CLAUDE_PLUGIN_ROOT}` baked to the install root) from the canonical `skills/`
+  and `agents/`; a TypeScript bridge (`opencode/plugin/artel.ts`) adapts OpenCode's
+  plugin events onto the existing Python hook stdin/stdout contracts; a bridge-agnostic
+  `scripts/install-opencode.sh` copies the plugin to `~/.config/opencode/artel/` and the
+  generated artifacts into OpenCode's flat discovery directories. Claude Code is preserved
+  by construction: the generator never writes outside `--out`, and the hook layer is
+  untouched. Known softenings, documented in docs/opencode.md: the Stop gate becomes an
+  idle re-prompt (OpenCode has no blocking Stop hook), `SendMessage` resume-by-id becomes
+  a fresh Task dispatch, and per-agent model tiers are dropped (subagents inherit the
+  caller's model).

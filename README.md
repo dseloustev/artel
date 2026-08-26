@@ -56,6 +56,19 @@ Then, in the host repo, run `/artel:setup` (or let the first `/artel:feature-dev
 `/artel:dev` invocation trigger it) to write `.artel/config.json` — the per-project
 configuration every skill reads ([docs/config.md](docs/config.md)).
 
+### OpenCode
+
+From an artel checkout:
+
+```bash
+scripts/install-opencode.sh
+```
+
+Restart OpenCode; every skill is available as `artel-<name>` (TUI: `/artel-<name>`),
+the agent crew as `artel-<name>` subagents, and the quality gates run through a bridge
+plugin. Uninstall with `scripts/install-opencode.sh --remove`. Details and host
+differences: [docs/opencode.md](docs/opencode.md).
+
 ## Repository layout
 
 ```

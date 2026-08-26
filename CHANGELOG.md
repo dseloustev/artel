@@ -6,6 +6,38 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`agents/README.md` was loaded as an agent.** Claude Code registers every `.md` directly
+  under `agents/` as an agent, so the directory's own README reached the picker as an agent
+  named `README` — no frontmatter, hence an empty description and "All tools" — and was
+  offered to the model as a real dispatch target. Present since the first scaffold commit.
+  The prose moved to `docs/agents.md`; `agents/` is now definitions only, enforced by the new
+  `tests/test_plugin_surface.py` (every `.md` there must carry agent frontmatter whose `name`
+  matches its filename). The OpenCode generator already skipped it — only the Claude loader
+  did not.
+- **OpenCode: the idle-block counter never reset.** `idleBlocks` was incremented on every
+  stop-gate block but cleared nowhere: `session.deleted` dropped `routerCache` and
+  `childSessions` and left it behind (a small leak), and a *clean* stop did not reset it. In
+  a long-lived TUI process, blocks from unrelated stops accumulated until
+  `MAX_IDLE_BLOCKS` (10) retired the stop gate for the rest of the session. The counter is
+  now consecutive: cleared when both gates pass, and dropped with the session.
+- **OpenCode: the installer deleted skills it did not install.** Refresh and `--remove` ran
+  `rm -rf "$OC/skills"/artel-*`, which takes any skill of the user's named `artel-…`.
+  Both paths now prune exactly the paths recorded in `~/.config/opencode/.artel-install-manifest`
+  (so upstream-retired skills are still cleaned); `--remove` on a pre-manifest install falls
+  back to the name sweep and announces it. The `cp …/agents/*.md` and `…/commands/*.md` copies
+  are also empty-glob safe — an unmatched glob was a `set -euo pipefail` abort.
+
+### Changed
+
+- The OpenCode bridge's `tool.execute.after` order — `knowledge_mirror.py` then
+  `fast_verify_post_edit.py`, the reverse of `hooks.json` — is now documented as deliberate at
+  both the header map and the call site, and in `docs/opencode.md`: findings leave the handler
+  by throwing, which would skip a mirror queued behind them.
+- `docs/skills-reference.md`: the OpenCode naming note no longer splits the preamble's bullet
+  list in two.
+
 ## [0.7.0] - 2026-08-26
 
 ### Added

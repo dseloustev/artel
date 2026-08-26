@@ -77,7 +77,7 @@ artel/
 │   ├── plugin.json        # plugin manifest
 │   └── marketplace.json   # single-plugin marketplace (install straight from this repo)
 ├── skills/                # workflow skills (one folder per skill, SKILL.md inside)
-├── agents/                # agent definitions (one .md per agent)
+├── agents/                # agent definitions only — one .md per agent, no prose (docs/agents.md)
 ├── hooks/                 # hooks.json + Python gate scripts + default sensitive-paths policy
 ├── scripts/               # deterministic gate engines (verify.py, plan_check.py)
 ├── tests/                 # stdlib unittest suite for hooks and scripts
@@ -102,6 +102,7 @@ Contracts and internals:
 
 - [docs/design.md](docs/design.md) — what Artel is, architecture, genericization strategy,
   decision log
+- [docs/agents.md](docs/agents.md) — the crew: what belongs in `agents/`, and what must not
 - [docs/porting-plan.md](docs/porting-plan.md) — phased plan for porting the source material
   into the plugin
 - [docs/autonomous-run.md](docs/autonomous-run.md) · [docs/ticket-parsing.md](docs/ticket-parsing.md)

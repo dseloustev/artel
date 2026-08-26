@@ -24,9 +24,15 @@ and places them into OpenCode's discovery directories:
 | `~/.config/opencode/agents/artel-<name>.md` | the agent crew, prefixed |
 | `~/.config/opencode/plugins/artel.ts` | the bridge plugin |
 | `~/.config/opencode/artel/` | full plugin copy (hooks, scripts, docs) |
+| `~/.config/opencode/.artel-install-manifest` | every path the last install placed |
 
 Restart OpenCode after installing. Paths are baked at install time — re-run the installer
 after moving or significantly updating the checkout. Respects `XDG_CONFIG_HOME`.
+
+A refresh and `--remove` delete exactly what the manifest records — skills retired upstream
+are pruned, and a skill of your own that happens to be named `artel-…` is left alone. An
+install predating the manifest has none to read, so `--remove` falls back to sweeping every
+`artel-*` artifact in those directories and says so before it does.
 
 ## How it works
 
@@ -44,7 +50,7 @@ Python hooks (`hooks/README.md` documents their stdin/stdout contracts):
 | OpenCode | artel hook | Behavior |
 |---|---|---|
 | `tool.execute.before` (edit/write/apply_patch) | `sensitive_guard.py` | deny → the tool call errors |
-| `tool.execute.after` (edit/write/apply_patch) | `fast_verify_post_edit.py`, `knowledge_mirror.py` | findings → the tool result carries them |
+| `tool.execute.after` (edit/write/apply_patch) | `knowledge_mirror.py`, then `fast_verify_post_edit.py` | findings → the tool result carries them. Reverse of `hooks.json`'s order on purpose: findings leave the handler by throwing, which would skip a mirror queued behind them |
 | `session.created` | `session_baseline.py` | findings baseline captured (child sessions skip it) |
 | `experimental.chat.messages.transform` | `using_artel.py` | router + host status prepended to the first user message on every model step (in-memory) |
 | `session.idle` | `stop_gate.py`, `verify_stop_gate.py` | block → a re-prompt continues the run; pass-through warnings are mirrored into the app log |
@@ -55,7 +61,7 @@ Everything is inert unless the project has `.artel/config.json`.
 
 | Aspect | Claude Code | OpenCode |
 |---|---|---|
-| Stop gate | blocks the Stop event outright | the completed turn is visible; the idle event re-prompts the model to continue (the hooks' own block caps — 5 and 2 consecutive — remain the loop bound) |
+| Stop gate | blocks the Stop event outright | the completed turn is visible; the idle event re-prompts the model to continue (the hooks' own block caps — 5 and 2 consecutive — remain the loop bound, under a bridge-side fail-safe of 10 consecutive blocks that resets on any clean stop) |
 | Router injection | SessionStart hook context, before the first prompt | prepended to the first user message on every model step (sessions only come into being with their first prompt, so there is no pre-prompt moment) |
 | Two-phase skills (`researcher`, `planner`, …) | `SendMessage` resumes the agent by id | a fresh `task` dispatch; the agent re-reads its context files |
 | Agent model tiers | `opus`/`sonnet` frontmatter | dropped — subagents inherit the caller's model (override per agent in your `opencode.json`) |

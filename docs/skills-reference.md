@@ -8,11 +8,8 @@ six fixed fields.
 - **Invocation** is copied verbatim from each skill's SKILL.md frontmatter hint, in slash form
   (`/artel:<skill-name> ...`). The equivalent `Skill` tool call (`skill: "artel:<skill-name>"`,
   `args: "..."`) works identically for agents driving these skills programmatically — this is
-  noted once, here, not per entry.
-
-On OpenCode the same skills are named `artel-<name>` (commands `/artel-<name>`); see
-`docs/opencode.md`.
-
+  noted once, here, not per entry. On OpenCode the same skills are named `artel-<name>`
+  (commands `/artel-<name>`); see [opencode.md](opencode.md).
 - Section citations below (`autonomous-run.md §N`) refer to [autonomous-run.md](autonomous-run.md);
   ticket-parsing citations refer to [ticket-parsing.md](ticket-parsing.md); config keys
   (`verify.commands`, `tracker.adapter`, …) are defined in [config.md](config.md); hook

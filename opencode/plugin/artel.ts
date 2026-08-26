@@ -7,9 +7,13 @@
  *
  *   tool.execute.before (edit|write|apply_patch) -> hooks/sensitive_guard.py
  *       deny               -> throw (OpenCode's way to deny a tool call)
- *   tool.execute.after  (edit|write|apply_patch) -> hooks/fast_verify_post_edit.py
- *                    + hooks/knowledge_mirror.py (side effect only)
+ *   tool.execute.after  (edit|write|apply_patch) -> hooks/knowledge_mirror.py (side
+ *                       effect only) THEN hooks/fast_verify_post_edit.py
  *       findings          -> throw (the model sees them as the tool's error)
+ *       NOTE: this is the reverse of hooks.json's order, deliberately — findings
+ *       leave this handler by throwing, and a throw would skip a mirror queued
+ *       behind it. Claude Code runs both regardless, so the observable outcome
+ *       matches; here the order is what makes it match.
  *   session.created    -> hooks/session_baseline.py                           (Task 5)
  *   session.idle       -> hooks/stop_gate.py + hooks/verify_stop_gate.py      (Task 5)
  *   messages.transform -> hooks/using_artel.py — router + host status prepended
@@ -36,6 +40,8 @@ const ARTEL_ROOT = process.env.ARTEL_ROOT || path.join(CONFIG_HOME, "opencode", 
 
 const EDIT_TOOLS = new Set(["edit", "write", "apply_patch"])
 // Bridge-side fail-safe on top of the hooks' own consecutive-block caps (5 and 2).
+// Bounds one runaway block/re-prompt loop, not the session's lifetime: the counter
+// resets on a clean stop (see session.idle) and is dropped with the session.
 const MAX_IDLE_BLOCKS = 10
 
 type HookResult = { code: number; stdout: string; stderr: string }
@@ -101,6 +107,9 @@ function claudeEditPayload(sessionID: string, directory: string, tool: string, a
     : null
 }
 
+/** Session id -> CONSECUTIVE idle blocks. Reset the moment a stop passes both gates,
+ * so unrelated blocks spread across a long session never add up to MAX_IDLE_BLOCKS and
+ * retire the gate; dropped when the session is deleted. */
 const idleBlocks = new Map<string, number>()
 /** Session id -> router context. Only successful lookups are cached: a failed
  * hook run leaves NO entry, so the next model step retries (the hook is a fast
@@ -131,6 +140,9 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
       if (!EDIT_TOOLS.has(input.tool) || !hasArtelConfig(directory)) return
       const payload = claudeEditPayload(input.sessionID, directory, input.tool, input.args)
       if (!payload) return
+      // Mirror first, verify second — the reverse of hooks.json, on purpose: the verify
+      // findings leave this handler by throwing, which would skip a mirror queued behind
+      // them. Claude Code runs both regardless; ordering is how that is reproduced here.
       await runHook("knowledge_mirror.py", payload, directory, 15_000)
       const result = await runHook("fast_verify_post_edit.py", payload, directory, 150_000)
       const context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
@@ -222,6 +234,7 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
         if (id) {
           routerCache.delete(id)
           childSessions.delete(id)
+          idleBlocks.delete(id)
         }
         return
       }
@@ -269,6 +282,10 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
           })
           return
         }
+        // Both gates passed — the consecutive-block run (if any) is over. Without this
+        // the counter only ever grows, and MAX_IDLE_BLOCKS eventually retires the stop
+        // gate for the rest of a long-lived TUI session.
+        idleBlocks.delete(id)
       }
     },
   }

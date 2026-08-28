@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-08-28
+
 ### Fixed
 
 - **`remove-automation` could leave the scaffold's directory behind.** The skill learned what

@@ -74,5 +74,33 @@ class RollbackAndGuardTest(unittest.TestCase):
                 self.assertIn('Never on the default branch', read(rel))
 
 
+class ScaffoldRemovalCompletenessTest(unittest.TestCase):
+    """Git lists files, never directories, and a host command's exit 0 is not proof.
+
+    The remove skill must (a) sweep the directories the scaffold created once
+    their files are gone -- an ignored leftover such as an editor's or Finder's
+    droppings keeps `rmdir` from succeeding while `git status` stays clean --
+    and (b) cross-check the tree against the paths the add commit introduced,
+    so a host `runtime.scaffold.remove` that forgot a file cannot be committed
+    as a removal.
+    """
+
+    def test_remove_sweeps_directories_the_scaffold_emptied(self):
+        body = read(REMOVE)
+        self.assertIn('--porcelain --ignored -uall -z', body)
+        self.assertIn('rmdir', body)
+
+    def test_remove_stops_on_untracked_leftovers_in_a_swept_directory(self):
+        self.assertIn('`??`', read(REMOVE))
+
+    def test_remove_cross_checks_against_the_enable_commit(self):
+        body = read(REMOVE)
+        self.assertIn('--diff-filter=A', body)
+        self.assertIn("--grep='chore: enable agent UI automation'", body)
+
+    def test_add_commit_subject_is_the_fixed_string_remove_greps_for(self):
+        self.assertIn('git commit -m "chore: enable agent UI automation"', read(ADD))
+
+
 if __name__ == '__main__':
     unittest.main()

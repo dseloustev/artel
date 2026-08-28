@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`remove-automation` could leave the scaffold's directory behind.** The skill learned what
+  the host's `runtime.scaffold.remove` changed from `git status`, which lists files and never
+  directories, and took the command's exit `0` as proof the scaffold was gone. A host command
+  that deletes the entrypoint but not its directory — or whose `rmdir` fails because an editor
+  or Finder dropped an ignored file there — left the directory on disk under a clean
+  `git status`, with a removal commit that still contained "exactly those paths". The skill now
+  cross-checks the tree against the paths the `chore: enable agent UI automation` commit added
+  (deleting a survivor itself only when it is byte-identical to what the scaffold introduced;
+  otherwise stop-and-report) and sweeps the directories the scaffold created for itself once
+  their files are gone, removing them when empty or holding only git-ignored entries and
+  stopping on untracked work. `/artel:drive-app`'s `drive-observation.md` is spec-trail
+  evidence and is deliberately not touched.
+
 ## [0.7.1] - 2026-08-26
 
 ### Fixed

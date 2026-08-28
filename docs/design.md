@@ -431,3 +431,21 @@ entry-point skills run a short one-time init interview and write the file.
   idle re-prompt (OpenCode has no blocking Stop hook), `SendMessage` resume-by-id becomes
   a fresh Task dispatch, and per-agent model tiers are dropped (subagents inherit the
   caller's model).
+- **2026-08-28 — `remove-automation` verifies the removal from git alone: an add-commit
+  cross-check and a directory sweep.** The skill learned what the host's
+  `runtime.scaffold.remove` changed from `git status` and took the command's exit `0` as proof
+  the scaffold was gone — but git lists files, never directories, and a host command that
+  deletes the entrypoint without its directory (or whose `rmdir` fails on an ignored file an
+  editor or Finder dropped there) leaves the directory on disk under a clean `git status`, with
+  a removal commit that still contains "exactly those paths". Two generic checks close this
+  without the plugin learning any host artifact: `add-automation` always commits under one
+  fixed subject, so the paths it added are recoverable from git and each must be gone (a
+  survivor byte-identical to the scaffold's version is deleted by the skill itself — a plain
+  `rm`, never `git rm`, so step 5's `git add` of the path still resolves — anything modified
+  since is stop-and-report); and a directory whose every tracked file is among this run's
+  deletions is the scaffold's own, removed when empty or holding only git-ignored entries and
+  left with a stop on untracked work. Rejected: making the host command responsible (the
+  wallet's script already does `rmdir`, and the failure is invisible from the host's exit
+  code), and a second run of `runtime.scaffold.remove` as the completeness check (a host
+  `pub get` per run, and an idempotent no-op proves nothing). `drive-app`'s
+  `drive-observation.md` stays: it is spec-trail evidence, like `run-app`'s `observation.md`.

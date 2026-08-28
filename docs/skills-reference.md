@@ -626,8 +626,13 @@ Entry template:
 - **Pauses:** stops and asks only on a dirty tree.
 - **Notes:** worker; user-invoked only (`disable-model-invocation`). Run after the PR is
   created, before merge — this is what turns the `AUTOMATION_REMOVED` gate green. Re-derives
-  the removal by running the configured command, never `git revert`. Absent/empty command →
-  `not configured`, gate records `skipped`.
+  the removal by running the configured command, never `git revert`, then verifies it from
+  git alone: every path the `chore: enable agent UI automation` commit added must be gone
+  (a byte-identical survivor is deleted; a modified one is stop-and-report), and the
+  directories the scaffold created for itself are swept once their files are gone (removed
+  when empty or holding only ignored entries; untracked work is stop-and-report). Absent/empty
+  command → `not configured`, gate records `skipped`. `drive-app`'s `drive-observation.md` is
+  evidence and is not touched.
 
 ### save-context
 

@@ -80,5 +80,34 @@ class TestContract(unittest.TestCase):
         self.assertIn('default `70`', self.text)
 
 
+class TestAgent(unittest.TestCase):
+
+    def setUp(self):
+        self.text = read(AGENT)
+
+    def test_frontmatter_names_the_agent(self):
+        head = self.text.split('---')[1]
+        self.assertIn('name: review-forecaster', head)
+        self.assertIn('model:', head)
+
+    def test_cites_the_contract_and_never_restates_the_formula(self):
+        self.assertIn('docs/review-forecast.md', self.text)
+        self.assertIn('§5', self.text)
+        self.assertNotIn(FORMULA, self.text)
+
+    def test_budget_is_spelled_as_the_contract_spells_it(self):
+        self.assertIn(BUDGET, self.text)
+
+    def test_names_the_output_file_the_report_path_and_both_keys(self):
+        self.assertIn(OUTPUT_FILE, self.text)
+        self.assertIn(REPORT_PATH, self.text)
+        for key in KEYS:
+            with self.subTest(key):
+                self.assertIn(key, self.text)
+
+    def test_carries_the_no_subagent_rule(self):
+        self.assertIn('No subagents', self.text)
+
+
 if __name__ == '__main__':
     unittest.main()

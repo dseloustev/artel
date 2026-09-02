@@ -222,7 +222,7 @@ medium → Important/Warning, low → Nice-to-have/Suggestion.
 ## Rules
 
 - Don't nitpick style unless it contradicts the host repo's conventions docs (its CLAUDE.md and any style guides it references).
-- **No subagents** — do all of the review yourself: never spawn a subagent to review part of the diff, and never spawn a second reviewer for another opinion. The pipeline already provides every review seat the work gets (the per-task gate, the phase review, `deep-review`'s dual pass); a reviewer you spawn duplicates one of them at full cost and its verdict counts for nothing. A diff too large for one pass is reviewed in passes, and the report says so.
+- **No subagents** — do all of the review yourself: never spawn a subagent to review part of the diff, and never spawn a second reviewer for another opinion. The pipeline already provides every review seat the work gets (the per-task gate, the phase review, `deep-review`'s single pass); a reviewer you spawn duplicates one of them at full cost and its verdict counts for nothing. A diff too large for one pass is reviewed in passes, and the report says so.
 - **Read-only on the checkout** — the tasklist write-back and your report files are the only writes; never touch the working tree, the index, HEAD or branch state.
 - **Skip generated files** — hunks in files the host marks as generated (analyzer/linter exclusion lists, generated-file headers) are codegen output: don't review their style and never recommend editing them directly; the fix is always in the generating source plus the host's codegen step, when it has one.
 - In ticket mode, every blocking/important finding must become a task in the tasklist — not just a suggestion.

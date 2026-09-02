@@ -348,8 +348,8 @@ Entry template:
   against implementer fix rounds until clean or capped. Task mode is the `review.perTask`
   gate of autonomous-run.md §16 (off by default; one fix round, `MAX_TASK_REVIEW_ROUNDS = 1`,
   no per-task re-review — open fix tasks are handed to the phase review). `deep-review` drives
-  the same `reviewer` agent in standalone mode for a separate, non-pipeline dual-review
-  workflow.
+  the same `reviewer` agent in standalone mode once, then the `review-forecaster` agent, for a
+  separate, non-pipeline review-and-forecast workflow.
 
 ### run-app
 
@@ -509,23 +509,29 @@ Entry template:
 
 ### deep-review
 
-- **Purpose:** Run a dual code review — two independent `reviewer` agents — for a
-  ticket/branch/PR and produce a merged summary with a QA plan.
-- **Invocation:** `/artel:deep-review [ticket-id] [branch] [pr-link]`
+- **Purpose:** Review a branch once with the `reviewer` agent, then forecast from kartoteka's
+  review history which of its changes will draw reviewer comments, and offer to work the fixes.
+- **Invocation:** `/artel:deep-review [ticket-id] [branch] [pr-link] [--local]`
 - **Reads:** the `verify.commands` gate output (step 0 — a hard gate when configured); the
-  ticket directory; optionally the PR title/body via `vcs.adapter` when a PR link is given.
-- **Writes:** `<specs.dir>/<TICKET_ID>/review-claude.md` (first reviewer),
-  `review-second.md` (second, independent reviewer — forbidden to read the first), and the
-  merged `review-summary.md` (Critical Issues / Warnings / Suggestions / PR Compliance / QA
-  Plan) with `[R1]`/`[R2]`/`[Both]` attribution.
+  ticket directory; optionally the PR title/body via `vcs.adapter` when a PR link is given;
+  `knowledge.adapter` plus the kartoteka MCP tools for the forecast mode
+  (`docs/review-forecast.md` §1); `review.forecast.threshold` and `review.forecast.reviewers`.
+- **Writes:** `<specs.dir>/<TICKET_ID>/deep-review.md` — the reviewer's comments verbatim, a
+  table of definite issues, a table of the remaining changes with a pass percentage and cited
+  precedents, proposed fixes for changes under the threshold, and the consultation record. The
+  reviewer's own report lands at `.artel/run/<TICKET_ID>/reports/deep-review-findings.md`. On
+  apply: `## Code Review Fixes` tasks appended to the ticket-wide `tasklist.md`.
 - **Pauses:** on a `verify.commands` failure (stop and report — review does not proceed; an
-  empty list degrades the gate to `skipped` and continues); enters plan mode after the summary
-  to plan improvements.
-- **Notes:** standalone utility, not part of the autonomous pipeline. Orchestrator (dispatches
-  the `reviewer` agent twice, both in standalone mode); independence — the second reviewer
-  never reads any prior review artifact — is what distinguishes the dispatches. Resumable —
-  re-running skips ahead to whichever step matches the review files already on disk. No PR link
-  → the PR Compliance section is omitted. Ticket-wide only (phase suffix discarded).
+  empty list degrades the gate to `skipped` and continues); when `deep-review.md` already
+  exists (overwrite?); after the file is written, to ask which fixes to apply (definite issues
+  only / definite plus at-risk / none).
+- **Notes:** standalone utility, not part of the autonomous pipeline. Orchestrator: dispatches
+  the `reviewer` (standalone mode) and then the `review-forecaster`, which always runs — with
+  the forecast off (`--local`, adapter not `kartoteka`, or tools absent) the file still carries
+  the comments and the definite-issues table, and its `Forecast:` line says why. Applying
+  fixes means `Skill: implementer` once per appended task, then `verify.commands` once; no
+  re-review loop — re-run the skill to refresh the forecast. Ticket-wide only (phase suffix
+  discarded). No PR link → no PR Compliance section in the comments.
 
 ### change-digest
 

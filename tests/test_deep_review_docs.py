@@ -171,5 +171,40 @@ class TestConfigDoc(unittest.TestCase):
         self.assertIn('docs/review-forecast.md', self.text)
 
 
+RETIRED = ('review-second.md', 'review-summary.md', '<TICKET_ID>/review-claude.md')
+
+# docs/design.md is the decision log and records the retirement itself, so it
+# is history, like CHANGELOG.md, and not scanned.
+LIVE_FILES = tuple(sorted(
+    p.relative_to(ROOT).as_posix()
+    for pattern in ('docs/*.md', 'skills/*/SKILL.md', 'agents/*.md', 'hooks/*.py')
+    for p in ROOT.glob(pattern)
+    if p.name != 'design.md'
+))
+
+
+class TestRetiredNames(unittest.TestCase):
+
+    def test_no_live_file_names_a_retired_review_file(self):
+        for rel in LIVE_FILES:
+            text = read(rel)
+            for name in RETIRED:
+                with self.subTest(rel=rel, name=name):
+                    self.assertNotIn(name, text)
+
+    def test_reference_docs_name_the_new_file(self):
+        for rel in ('docs/ticket-parsing.md', REFERENCE):
+            with self.subTest(rel):
+                self.assertIn(OUTPUT_FILE, read(rel))
+
+    def test_crew_doc_and_router_know_the_new_agent_and_skill(self):
+        self.assertIn('review-forecaster', read('docs/agents.md'))
+        self.assertIn('/artel:deep-review <ticket> [branch] [pr-link] [--local]',
+                      read('skills/using-artel/SKILL.md'))
+
+    def test_reviewer_no_longer_calls_it_a_dual_pass(self):
+        self.assertNotIn('dual pass', read('agents/reviewer.md'))
+
+
 if __name__ == '__main__':
     unittest.main()

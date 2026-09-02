@@ -96,9 +96,7 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 ├── review.md            # optional, ticket-wide review (always ticket-level, even for phase runs)
 ├── review/              # optional, machine-readable review findings (reviewer agent)
 │   └── findings.json   # lens findings (convention/architecture/security) for a ticket-wide review run
-├── review-claude.md     # optional, deep-review skill: first reviewer's standalone-mode report (dual-review flow; ticket-wide only)
-├── review-second.md     # optional, deep-review skill: second, independent reviewer's report (ticket-wide only)
-├── review-summary.md    # optional, deep-review skill: merged summary + QA plan from both reviews (ticket-wide only)
+├── deep-review.md       # optional, deep-review skill: review comments + definite-issues and forecast tables + proposed fixes (ticket-wide only)
 ├── verify/              # optional, quality-gate evidence from inner-loop runs (fast-check/full-gate JSON per iteration, residual.json on stop-and-ask)
 ├── runtime/             # optional, runtime-gate evidence (run-app, drive-app)
 │   ├── observation.md   # RUNTIME_OK evidence from run-app
@@ -125,14 +123,12 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
     └── summary.md       # phase-scoped summary (optional)
 ```
 
-**Reconciling the two `review-claude.md` locations:** the `reviewer` agent's own standalone-mode
-default, when no ticket id is available, writes to `<specs.dir>/review-claude.md` — at the specs
-**root**, outside any ticket directory (`agents/reviewer.md`). The ticket-dir location shown above
-is the `deep-review` skill's override: it always directs both reviewer dispatches into
-`<specs.dir>/<TICKET_ID>/` (`review-claude.md`, `review-second.md`), plus its own
-`review-summary.md`. Contract consumers should read the root path as the agent's bare-standalone
-fallback and the ticket-dir path as the `deep-review` flow's — the two never coexist for the same
-run.
+**Where the `reviewer` agent's bare-standalone report goes:** with no ticket id available the
+agent writes `<specs.dir>/review-claude.md` — at the specs **root**, outside any ticket
+directory (`agents/reviewer.md`). The `deep-review` skill never uses that path: it directs its
+reviewer dispatch to `.artel/run/<TICKET_ID>/reports/deep-review-findings.md` — run-state
+evidence, outside `<specs.dir>` — and writes its own single deliverable, `deep-review.md`,
+into the ticket directory (`docs/review-forecast.md`).
 
 ---
 
@@ -172,9 +168,7 @@ Create the `phase-<PHASE_NUM>/` subfolder lazily on first write.
 | Summary | `<specs.dir>/<TICKET_ID>/summary.md` |
 | Review | `<specs.dir>/<TICKET_ID>/review.md` |
 | Review findings | `<specs.dir>/<TICKET_ID>/review/findings.json` — machine-readable lens findings from the `reviewer` agent (phase-scoped variant: 4.1) |
-| Dual review, first pass | `<specs.dir>/<TICKET_ID>/review-claude.md` — first reviewer's standalone-mode report, from the `deep-review` skill's dual-review flow; ticket-wide only (`deep-review` discards any phase suffix). This is the `deep-review` skill's override of the `reviewer` agent's own standalone-mode default, which writes to `<specs.dir>/review-claude.md` at the specs root instead — see §3's reconciliation note |
-| Dual review, second pass | `<specs.dir>/<TICKET_ID>/review-second.md` — second, independent reviewer's report from `deep-review`; never reads the first pass; ticket-wide only |
-| Dual review summary | `<specs.dir>/<TICKET_ID>/review-summary.md` — merged Critical/Warnings/Suggestions summary + QA plan from both passes, from `deep-review`; ticket-wide only |
+| Deep review | `<specs.dir>/<TICKET_ID>/deep-review.md` — the `deep-review` skill's single deliverable: the reviewer's comments verbatim, the definite-issues and forecast tables, proposed fixes, and the consultation record (`docs/review-forecast.md` §7); ticket-wide only (`deep-review` discards any phase suffix). The reviewer's own report for that run is run-state evidence at `.artel/run/<TICKET_ID>/reports/deep-review-findings.md`, outside `<specs.dir>` |
 | Verify evidence | `<specs.dir>/<TICKET_ID>/verify/` — quality-gate evidence from `inner-loop` runs: `iteration-<i>.json` (fast check), `iteration-<i>-full.json` (full gate), `residual.json` (on stop-and-ask) (phase-scoped variant: 4.1) |
 | Runtime evidence | `<specs.dir>/<TICKET_ID>/runtime/observation.md` — `RUNTIME_OK` evidence from `run-app`; `<specs.dir>/<TICKET_ID>/runtime/drive-observation.md` — UI-driving evidence from `drive-app` (phase-scoped variant: 4.1) |
 | Change report | `<specs.dir>/<TICKET_ID>/change-report.html` — derived HTML change-comprehension report from the `change-digest` skill; regenerable, never committed (phase-scoped variant: 4.1) |

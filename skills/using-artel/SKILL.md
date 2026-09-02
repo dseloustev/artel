@@ -60,7 +60,7 @@ it). `<ticket>-<N>` is a phase-scoped run.
 | The user wants… | Run |
 |---|---|
 | the ticket's changes reviewed | `/artel:run-reviewer <ticket>` |
-| two independent reviews merged into one summary | `/artel:deep-review <ticket> [branch] [pr-link]` |
+| a branch reviewed and its review outcome forecast from kartoteka precedents | `/artel:deep-review <ticket> [branch] [pr-link] [--local]` |
 | the app built and launched (gate or inspection) | `/artel:run-app [--gate]` |
 | the running app driven through its UI | `/artel:drive-app` (needs `/artel:add-automation` first) |
 | a QA plan and report | `/artel:qa <ticket> or R-<release>` |

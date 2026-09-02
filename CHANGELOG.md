@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **`deep-review` is one reviewer pass plus a kartoteka-grounded forecast, in one file.** The
+  dual-review flow (two independent `reviewer` dispatches, a merged `review-summary.md` with a
+  QA plan, then plan mode) is gone. The skill now dispatches the `reviewer` once, then the new
+  `review-forecaster` agent, which groups the branch's diff into change units, looks up
+  precedents for each in kartoteka's pull-request and review-thread documents, classifies how
+  the reviewer reacted, and writes `<specs.dir>/<TICKET_ID>/deep-review.md`: the reviewer's
+  comments verbatim, a table of definite issues, a table of the remaining changes with a pass
+  percentage and cited precedents, proposed fixes for changes under the threshold, and a
+  record of what was consulted. The forecaster always runs — with `--local`, an adapter other
+  than `kartoteka`, or the MCP tools absent, the file still carries the comments and the
+  definite issues, and its `Forecast:` line says why. The skill then asks which fixes to apply
+  and works them through `## Code Review Fixes` and `Skill: implementer`, not plan mode. The
+  contract is `docs/review-forecast.md`; new config keys `review.forecast.threshold` (default
+  `70`) and `review.forecast.reviewers` (default empty). `review-claude.md`, `review-second.md`
+  and `review-summary.md` are no longer written; the reviewer's report for a deep-review run
+  is run-state evidence at `.artel/run/<TICKET_ID>/reports/deep-review-findings.md`, and the
+  mirror hook sends `deep-review.md` in place of `review-summary.md`.
+
 ## [0.7.2] - 2026-08-28
 
 ### Fixed

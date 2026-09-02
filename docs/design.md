@@ -449,3 +449,38 @@ entry-point skills run a short one-time init interview and write the file.
   code), and a second run of `runtime.scaffold.remove` as the completeness check (a host
   `pub get` per run, and an idempotent no-op proves nothing). `drive-app`'s
   `drive-observation.md` stays: it is spec-trail evidence, like `run-app`'s `observation.md`.
+- **2026-09-02 — `deep-review` is one reviewer pass plus a kartoteka-grounded forecast, in one
+  file.** The dual-review flow — two standalone `reviewer` dispatches, a merged
+  `review-summary.md` with a QA plan, then plan mode — bought independence, not a second
+  checklist, and produced three files nothing else consumed. Replaced by one `reviewer`
+  dispatch and a new `review-forecaster` agent that groups the diff into change units, finds
+  precedents for each in kartoteka's `pr` / `review_thread` documents, classifies how the
+  reviewer reacted, computes a pass percentage and drafts fixes under a threshold — all into
+  `<specs.dir>/<TICKET_ID>/deep-review.md`, which replaces `review-summary.md` in the mirror
+  set. Rejected: a precedent pass inside `reviewer`'s standalone mode (the agent serves the
+  per-task and phase gates too, and a fourth mode to protect them is more surface than a new
+  agent) and doing the forecast in the skill body (orchestrators, not workers). The reviewer's
+  own report becomes run-state evidence under `.artel/run/<TICKET_ID>/reports/`, which also
+  closes the store-mode draft's open question about `review-claude.md` / `review-second.md`.
+  Design: `docs/superpowers/specs/2026-09-02-deep-review-forecast-design.md` (local —
+  `docs/superpowers/` is untracked).
+- **2026-09-02 — The forecast has its own lookup budget and always writes its mode.**
+  [review-forecast.md](review-forecast.md) §3 allows `search_knowledge` ×16 and `related` ×4
+  per run — the first deliberate deviation from [knowledge-consultation.md](knowledge-consultation.md)
+  §3's four searches, because a forecast needs about one search per change unit and the unit
+  count is bounded by the diff, not by curiosity. And §1's mode line is written even when the
+  adapter is `none`, deviating from consultation §4's no-record rule: the forecast table is a
+  fixed part of a document the person asked for, and a table of dashes with no reason is the
+  ambiguity §4 exists to prevent. The number is a Laplace-smoothed rate over judged precedents
+  (§5), shown with its evidence, a dash at zero precedents — a grounded prior, not a model;
+  kartoteka holds no "author changed the code" signal, so a fix request is judged from the
+  thread text. Threshold 70 over the proposed 60 (`review.forecast.threshold`): with two to
+  five precedents the estimate moves ten or fifteen points on one reclassified thread. The
+  reviewer roster is `review.forecast.reviewers` because it changes; unlisted participants
+  weigh 0.5, a placeholder to revisit against real outcomes.
+- **2026-09-02 — Applying a forecast's fixes goes through `## Code Review Fixes`, not plan
+  mode.** After writing the file the skill asks which set to apply and appends the chosen task
+  blocks to the ticket-wide `tasklist.md`, then `Skill: implementer` once per task and
+  `verify.commands` once — the pipeline's own review-fix path ([task-queue.md](task-queue.md)
+  §6: file-scan work, never mirrored). No re-review loop; re-running the skill refreshes the
+  forecast.

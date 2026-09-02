@@ -19,6 +19,7 @@ SKILL_FILES = (
     'skills/analysis/SKILL.md',
     'skills/researcher/SKILL.md',
     'skills/feature-development/SKILL.md',
+    'skills/deep-review/SKILL.md',
 )
 
 # `dev` invokes neither `analysis` nor `researcher`, so it never consults and the

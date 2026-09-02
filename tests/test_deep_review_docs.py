@@ -109,5 +109,39 @@ class TestAgent(unittest.TestCase):
         self.assertIn('No subagents', self.text)
 
 
+class TestSkill(unittest.TestCase):
+
+    def setUp(self):
+        self.text = read(SKILL)
+
+    def test_argument_hint_carries_local(self):
+        hints = [ln for ln in self.text.splitlines() if ln.startswith('argument-hint:')]
+        self.assertEqual(1, len(hints))
+        self.assertIn('--local', hints[0])
+
+    def test_spells_every_forecast_mode_and_never_the_formula(self):
+        for mode in OFF_MODES:
+            with self.subTest(mode):
+                self.assertIn(mode, self.text)
+        self.assertNotIn(FORMULA, self.text)
+
+    def test_dispatches_both_agents_to_the_right_paths(self):
+        self.assertIn('subagent_type: "reviewer"', self.text)
+        self.assertIn('subagent_type: "review-forecaster"', self.text)
+        self.assertIn(REPORT_PATH, self.text)
+        self.assertIn('<specs.dir>/<TICKET_ID>/' + OUTPUT_FILE, self.text)
+
+    def test_hands_off_through_the_review_fix_contract(self):
+        self.assertIn('AskUserQuestion', self.text)
+        self.assertIn('## Code Review Fixes', self.text)
+        self.assertIn('Skill: implementer', self.text)
+        self.assertNotIn('EnterPlanMode', self.text)
+
+    def test_no_retired_file_is_named(self):
+        for name in ('review-claude.md', 'review-second.md', 'review-summary.md'):
+            with self.subTest(name):
+                self.assertNotIn(name, self.text)
+
+
 if __name__ == '__main__':
     unittest.main()

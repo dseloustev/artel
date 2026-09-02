@@ -62,9 +62,20 @@ class TestArtifactIdentity(unittest.TestCase):
         self.assertIsNone(km.artifact_identity('.artel/run/AW-1234/run-state.json', CONFIG))
 
     def test_file_directly_under_specs_dir_is_not_mirrored(self):
-        # The specs root holds .active_ticket, and deep-review's standalone
-        # mode writes review-claude.md there; neither is ticket-scoped.
+        # The specs root holds .active_ticket, and the reviewer agent's bare
+        # standalone mode writes review-claude.md there; neither is ticket-scoped.
         self.assertIsNone(km.artifact_identity('specs/.current/review-claude.md', CONFIG))
+
+    def test_deep_review_is_mirrored_and_the_merged_summary_is_not(self):
+        # deep-review writes one deliberation document now; review-summary.md
+        # is no longer written by anything, so mirroring it would only ever
+        # re-post a stale file a user kept around.
+        self.assertEqual(
+            km.artifact_identity('specs/.current/AW-1234/deep-review.md', CONFIG),
+            ('AW-1234', 'deep-review', 'deep-review.md'),
+        )
+        self.assertIsNone(
+            km.artifact_identity('specs/.current/AW-1234/review-summary.md', CONFIG))
 
     def test_directory_not_matching_the_ticket_pattern_is_not_mirrored(self):
         self.assertIsNone(km.artifact_identity('specs/.current/scratch/prd.md', CONFIG))

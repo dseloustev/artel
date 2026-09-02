@@ -143,5 +143,13 @@ class TestSkill(unittest.TestCase):
                 self.assertNotIn(name, self.text)
 
 
+class TestMirrorHook(unittest.TestCase):
+
+    def test_mirrored_set_names_the_new_file_and_not_the_old(self):
+        text = read(HOOK)
+        self.assertIn("'deep-review.md'", text)
+        self.assertNotIn("'review-summary.md'", text)
+
+
 if __name__ == '__main__':
     unittest.main()

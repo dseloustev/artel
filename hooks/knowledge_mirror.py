@@ -15,7 +15,7 @@ import hook_common as h  # noqa: E402
 MIRRORED = {
     'idea.md', 'vision.md', 'prd.md', 'research.md', 'plan.md',
     'tasklist.md', 'tasks.md', 'implementation-notes.md', 'review.md',
-    'review-summary.md', 'qa.md', 'adr.md', 'summary.md',
+    'deep-review.md', 'qa.md', 'adr.md', 'summary.md',
     'design-analysis.md', 'pr-description.md', 'post_feedback.md',
 }
 

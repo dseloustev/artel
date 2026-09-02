@@ -219,11 +219,16 @@ non-zero exit is findings (exit 1).
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `review.perTask` | boolean | `false` | `true` adds a review of each iteration task's diff right after its implementer returns ([autonomous-run.md](autonomous-run.md) §16): the `reviewer` agent in task mode, Blocking / Important findings written under `## Code Review Fixes`, one fix round, no per-task re-review. Adds one reviewer seat per task; the phase review still runs. | `dev` step 4, `feature-development` gate 5 |
+| `review.forecast.threshold` | integer | `70` | 1–99. `deep-review`'s cut between `likely to pass` and `at risk` ([review-forecast.md](review-forecast.md) §5): a change whose forecast pass percentage is below it gets a proposed fix. Any other value is a configuration error under reading rule 3. | `deep-review` step 2c, `review-forecaster` |
+| `review.forecast.reviewers` | array of strings | `[]` | Reviewer display names as kartoteka renders them. Empty: every precedent thread weighs `1`. Non-empty: a thread whose root comment is by a listed name weighs `1`, any other `0.5` (review-forecast.md §4). Kept in config because the roster changes. | `review-forecaster` |
 
 The phase review (`run-reviewer` after every task in the phase is done) is not configurable
 here — it always runs. `review.perTask` only decides whether each task is also gated on its
 own before the next one is dispatched. Any value other than a JSON boolean is a configuration
-error under reading rule 3.
+error under reading rule 3. The two `review.forecast.*` keys belong to `deep-review` alone —
+the pipeline's gates never read them — and they only matter when `knowledge.adapter` is
+`kartoteka`: with the forecast off, the threshold has nothing to cut and the list nothing to
+weigh.
 
 ### `setup` — post-branch setup
 
@@ -270,7 +275,7 @@ Release-scope artifacts (`R-<RELEASE_ID>` identifiers) live under `<specs.releas
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook |
+| `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook; the read half below (`analyst`, `researcher`, `deep-review`); the task queue |
 | `knowledge.baseUrl` | string | `""` | Required when `adapter` is `"kartoteka"`. Origin only, no trailing path — e.g. `http://127.0.0.1:8734`. | The `knowledge_mirror` hook's request addressing |
 
 - **`none`** — nothing is mirrored. The spec trail stays on disk, exactly as it always has.
@@ -294,8 +299,10 @@ than stopping the run.
 
 `knowledge.adapter` gates three things, not one. Beyond the mirror above, it declares that this
 project's agents may **consult** kartoteka before working: the `analyst` before its interview,
-the `researcher` during its scan. The full contract is `docs/knowledge-consultation.md`. The
-third is the task queue — `#### The task queue` below.
+the `researcher` during its scan — the full contract is `docs/knowledge-consultation.md` —
+and `deep-review`'s forecast of how a branch will fare in review, which has its own contract
+and its own, larger lookup budget: `docs/review-forecast.md`. The third is the task queue —
+`#### The task queue` below.
 
 Reading goes over kartoteka's **MCP tools** (`search_knowledge`, `related`, `index_status`),
 not over `baseUrl`. There is no MCP URL in this config: the host wires the kartoteka MCP server

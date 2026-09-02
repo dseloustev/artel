@@ -151,5 +151,25 @@ class TestMirrorHook(unittest.TestCase):
         self.assertNotIn("'review-summary.md'", text)
 
 
+class TestConfigDoc(unittest.TestCase):
+
+    def setUp(self):
+        self.text = read(CONFIG)
+
+    def test_documents_both_keys_with_the_default_threshold(self):
+        for key in KEYS:
+            with self.subTest(key):
+                self.assertIn('`' + key + '`', self.text)
+        row = [ln for ln in self.text.splitlines() if ln.startswith('| `review.forecast.threshold`')]
+        self.assertEqual(1, len(row))
+        self.assertIn('`70`', row[0])
+
+    def test_knowledge_adapter_names_deep_review_as_a_consumer(self):
+        row = [ln for ln in self.text.splitlines() if ln.startswith('| `knowledge.adapter`')]
+        self.assertEqual(1, len(row))
+        self.assertIn('deep-review', row[0])
+        self.assertIn('docs/review-forecast.md', self.text)
+
+
 if __name__ == '__main__':
     unittest.main()

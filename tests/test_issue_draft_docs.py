@@ -125,5 +125,28 @@ class TestSkill(unittest.TestCase):
         self.assertNotIn('2–5', self.text)
 
 
+class TestDocs(unittest.TestCase):
+
+    def test_config_lists_the_host_override(self):
+        self.assertIn(OVERRIDE, read(CONFIG))
+
+    def test_config_consumed_by_names_the_skill_on_both_knowledge_rows(self):
+        rows = [ln for ln in read(CONFIG).splitlines()
+                if ln.startswith('| `knowledge.adapter`') or ln.startswith('| `knowledge.project`')]
+        self.assertEqual(2, len(rows))
+        for row in rows:
+            with self.subTest(row[:30]):
+                self.assertIn('issue-draft', row)
+
+    def test_consultation_contract_names_the_skill(self):
+        self.assertIn('skills/issue-draft/SKILL.md', read(CONSULTATION))
+
+    def test_reference_entry_has_no_slack_and_no_variants(self):
+        entry = read(REFERENCE).split('### issue-draft')[1].split('\n### ')[0]
+        self.assertNotIn('slack', entry.lower())
+        self.assertNotIn('variants', entry)
+        self.assertIn(OVERRIDE, entry)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -21,6 +21,12 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   [autonomous-run.md](autonomous-run.md) §10). When present it replaces the plugin's shipped
   default policy (`hooks/sensitive-paths.json`) wholesale. Committed, like the config; the
   `setup` skill offers to scaffold it from the shipped defaults.
+- `.artel/templates/issue-draft.md` — optional host override of the description template the
+  `issue-draft` skill renders (`skills/issue-draft/assets/templates/description.template.md`
+  in the plugin). When present it replaces the shipped template wholesale; presence is the
+  switch, as with the sensitive-paths policy, and there is no config key. It must keep the
+  template's convention: each `## ` section is followed by an HTML comment whose first word is
+  `required` or `optional`, then one `$NAME` placeholder. Committed, like the config.
 - `.artel/run/` — host-writable run state, journals and the per-task worker reports (contract
   defined separately, alongside the autonomous-run rules). Not committed; add it to the host
   `.gitignore`.
@@ -276,9 +282,9 @@ Release-scope artifacts (`R-<RELEASE_ID>` identifiers) live under `<specs.releas
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook; the read half below (`analyst`, `researcher`, `deep-review`); the task queue |
+| `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook; the read half below (`analyst`, `researcher`, `deep-review`, `issue-draft`); the task queue |
 | `knowledge.baseUrl` | string | `""` | Required when `adapter` is `"kartoteka"`. Origin only, no trailing path — e.g. `http://127.0.0.1:8734`. | The `knowledge_mirror` hook's request addressing |
-| `knowledge.project` | string | `""` | Required when `adapter` is `"kartoteka"`. The kartoteka project this repository's trail, queue and consultations belong to: lowercase kebab-case, `^[a-z0-9][a-z0-9-]*$`, e.g. `adguard-wallet`. Must be registered in the daemon's database — `kartoteka project add <name>`, once, on the daemon machine. No default; see below. | Every kartoteka call: the `knowledge_mirror` hook's request body, `related`, the scoped reads, `task_create` / `task_ready` |
+| `knowledge.project` | string | `""` | Required when `adapter` is `"kartoteka"`. The kartoteka project this repository's trail, queue and consultations belong to: lowercase kebab-case, `^[a-z0-9][a-z0-9-]*$`, e.g. `adguard-wallet`. Must be registered in the daemon's database — `kartoteka project add <name>`, once, on the daemon machine. No default; see below. | Every kartoteka call: the `knowledge_mirror` hook's request body, `related`, the scoped reads, `task_create` / `task_ready`; the `issue-draft` consultation |
 
 - **`none`** — nothing is mirrored. The spec trail stays on disk, exactly as it always has.
 - **`kartoteka`** — as each deliberation artifact is written under `<specs.dir>`, a

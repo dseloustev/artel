@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-04
+
 ### Added
 
 - **`issue-draft` drafts against a template, consults kartoteka, and asks once before it

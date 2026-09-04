@@ -44,8 +44,10 @@ Decide the path per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1.
 
 **Queue path.** Call
 `task_ready(project=<project>, actor="artel@<hostname>", ticket_key=<TICKET_KEY>)`,
-where `<project>` is `knowledge.project` from `.artel/config.json` and the key is the
-canonical one without the phase suffix. A `Rejected:` line naming
+where `<project>` is `knowledge.project` from `.artel/config.json`, the key is the canonical
+one without the phase suffix, and `<hostname>` is what `hostname -s` prints — run it in this
+dispatch, never recalled or composed: a guessed name records a machine that does not exist,
+and `/artel:tasks list` then reports it as holding the row. A `Rejected:` line naming
 `kartoteka project add` is §1's sixth case: fall back to the file and record it as §1
 spells it. Nothing returned → consult `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §5. Every row `done` is the normal end
 of iteration work: report `queue drained: iteration work complete` and continue

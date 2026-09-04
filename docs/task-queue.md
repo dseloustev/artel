@@ -134,9 +134,13 @@ before this step, which both orchestrators' existing step order already does.
                 never left in_progress: task_ready offers `ready` rows only,
                 so a held row wedges the iteration permanently
 
-`actor` is `artel@<hostname>`. Two agents on one host are indistinguishable in
-this field; kartoteka renders it as "self-reported, unverified" and nothing
-depends on it beyond the record.
+`actor` is `artel@<hostname>`, where `<hostname>` is the output of `hostname -s`,
+run in the dispatch rather than recalled. Handed the placeholder alone, an agent
+invents the name — one ticket's queue carried three fictitious hosts on
+2026-09-02 — and §5's held-row diagnosis then names a machine that does not
+exist. Two agents on one host are indistinguishable in this field; kartoteka
+renders it as "self-reported, unverified" and nothing depends on it beyond the
+record.
 
 Siblings are found by the `I<N> · ` title prefix rather than by `parent_id`,
 because `task_list` does not render the parent. `task_ready` and `task_update`

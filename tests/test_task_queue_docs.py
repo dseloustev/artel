@@ -129,6 +129,18 @@ class TestClaimLoop(unittest.TestCase):
         text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
         self.assertIn('artel@<hostname>', text)
 
+    def test_actor_hostname_is_a_command_not_a_guess(self):
+        # Scoped to the prose around the placeholder: `hostname -s` must sit
+        # beside `artel@<hostname>` in both documents. Handed the placeholder
+        # alone, the implementer composed a name -- one ticket's queue carried
+        # rows held by three machines, two of them fictitious (2026-09-02).
+        for rel in ('agents/implementer.md', QUEUE_DOC):
+            text = (ROOT / rel).read_text(encoding='utf-8')
+            at = text.rfind('artel@<hostname>')
+            self.assertNotEqual(at, -1, rel + ' lost the actor placeholder')
+            self.assertIn('`hostname -s`', text[at:at + 400],
+                          rel + ' does not tell the implementer to run hostname -s')
+
     def test_hitl_boundary_survives_the_queue(self):
         # The HITL rule predates the queue and must not be lost in the rewrite:
         # a claimed HITL task is set blocked and returned, never implemented.

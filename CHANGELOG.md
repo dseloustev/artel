@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **The task-queue `actor` was a guess.** `agents/implementer.md` and `docs/task-queue.md`
+  spelled the claim as `actor="artel@<hostname>"` and named no command to fill the
+  placeholder, so the implementer composed a hostname from nothing: one ticket's queue
+  carried rows held by three machines, two of which do not exist, and `/artel:tasks list`
+  reported them as holders. Both documents now say `<hostname>` is the output of
+  `hostname -s`, run in the dispatch rather than recalled; `tests/test_task_queue_docs.py`
+  pins the command beside the placeholder in each.
+
 ## [0.9.0] - 2026-09-04
 
 **Breaking: `knowledge.project` is required whenever `knowledge.adapter` is `"kartoteka"`.**

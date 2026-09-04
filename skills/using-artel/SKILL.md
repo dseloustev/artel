@@ -77,7 +77,7 @@ it). `<ticket>-<N>` is a phase-scoped run.
 | merge conflicts resolved | `/artel:merge-conflicts [branch]` |
 | phase status synced between tasklist and phase files | `/artel:sync-phases <ticket>` |
 | a report or quiz on what happened on a branch | `/artel:change-digest [ticket]` |
-| a text or conversation turned into a tracker-ready issue | `/artel:issue-draft` |
+| a text or a local file turned into a templated, Jira-ready issue description | `/artel:issue-draft` |
 | the UI-automation scaffold applied / removed | `/artel:add-automation` · `/artel:remove-automation` |
 | the working context saved / restored | `/artel:save-context` · `/artel:restore-context [ticket]` |
 | `AGENTS.md` files created or repaired | `/artel:agents-md-generator` |

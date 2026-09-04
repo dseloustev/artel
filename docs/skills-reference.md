@@ -572,19 +572,31 @@ Entry template:
 
 ### issue-draft
 
-- **Purpose:** Turn free text, a chat excerpt, or a referenced local file into a tracker-ready
-  issue draft — summary (≤255 chars) + description — without posting it anywhere.
-- **Invocation:** `/artel:issue-draft` (no frontmatter hint — pass text or a file path, or pass
-  nothing and it asks)
-- **Reads:** the user's text, or a referenced `.txt`/`.md`/Slack-export `.json` file;
-  `language.pr` and `tracker.adapter`.
+- **Purpose:** Turn free text or a local `.txt`/`.md` file into a Jira-ready issue draft —
+  summary (≤255 chars) + a templated description — consulting the institutional-knowledge index
+  and asking about remaining gaps before writing; never posts anywhere.
+- **Invocation:** `/artel:issue-draft <text | file-path> [--local]`
+- **Reads:** the argument (text, or the file it names); `language.pr`, `tracker.adapter`,
+  `knowledge.adapter`, `knowledge.project`, `ticket.pattern` (config.md); the description
+  template — `.artel/templates/issue-draft.md` when the host provides one, else the skill's
+  `assets/templates/description.template.md`; kartoteka via the consultation contract
+  (`index_status`, `related` when the source names a ticket key, at most four
+  `search_knowledge`), which `--local` forces off for one run.
 - **Writes:** a draft file (user-supplied path, or `issue-draft-<slug>.md` in the working
-  directory); multiple-suggestions mode produces 2–5 numbered variants.
+  directory): a `=== SUMMARY ===` block and a `=== DESCRIPTION (<dialect>) ===` block whose
+  body pastes into the description field as-is.
 - **Pauses:** asks for the text or file when none is provided (never invents an issue from
-  nothing) and when a referenced file is unreadable.
+  nothing) and when a referenced file is unreadable; then **once** more, via `AskUserQuestion`
+  with up to four questions, about gaps neither the source nor kartoteka closed — unanswered
+  gaps are listed under Missing Details rather than guessed. Non-interactive runs skip the
+  round and list every gap.
 - **Notes:** worker, not orchestrator. Output language is `language.pr`; the markup dialect
-  follows `tracker.adapter` (Jira wiki under `"jira-mcp"`, Markdown otherwise). Draft only —
-  never calls an issue-creation API; never invents facts, priorities, assignees, or labels.
+  follows `tracker.adapter` (Jira wiki under `"jira-mcp"`, Markdown otherwise). Consumer of
+  knowledge-consultation.md with two declared deviations: a kartoteka tool error stops the
+  consultation, not the draft, and nothing is recorded under `<specs.dir>`. Retrieved text is
+  quoted and attributed, `⚠ NON-CURRENT` hits never close a gap, Related holds at most five
+  cited hits. Draft only — never calls an issue-creation API; never invents facts, priorities,
+  assignees, labels or issue types.
 
 ### init-branch
 

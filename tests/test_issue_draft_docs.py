@@ -87,5 +87,43 @@ class TestTemplate(unittest.TestCase):
         self.assertIn('⚠ NON-CURRENT', block)
 
 
+class TestSkill(unittest.TestCase):
+
+    def setUp(self):
+        self.text = read(SKILL)
+
+    def test_exactly_one_argument_hint_carrying_local(self):
+        hints = [ln for ln in self.text.splitlines() if ln.startswith('argument-hint:')]
+        self.assertEqual(1, len(hints))
+        self.assertEqual('argument-hint: "<text | file-path> [--local]"', hints[0])
+
+    def test_names_the_shipped_template_and_the_host_override(self):
+        self.assertIn(TEMPLATE, self.text)
+        self.assertIn(OVERRIDE, self.text)
+
+    def test_calls_kartoteka_in_the_contract_shapes(self):
+        self.assertIn('index_status()', self.text)
+        self.assertIn('related(<project>,', self.text)
+        self.assertIn('search_knowledge(', self.text)
+        self.assertIn('project=<project>', self.text)
+
+    def test_gates_on_the_project_key_and_spells_both_record_lines(self):
+        self.assertIn('knowledge.project', self.text)
+        self.assertIn('kartoteka is configured for this project but knowledge.project is not set',
+                      self.text)
+        self.assertIn('kartoteka does not list project <project>; run kartoteka project add '
+                      '<project> on the daemon machine', self.text)
+
+    def test_asks_once_and_lists_the_rest(self):
+        self.assertIn('AskUserQuestion', self.text)
+        self.assertIn('Missing Details', self.text)
+        self.assertIn('⚠ NON-CURRENT', self.text)
+
+    def test_no_slack_and_no_variants(self):
+        self.assertNotIn('slack', self.text.lower())
+        self.assertNotIn('=== SUMMARY 1 ===', self.text)
+        self.assertNotIn('2–5', self.text)
+
+
 if __name__ == '__main__':
     unittest.main()

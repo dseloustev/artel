@@ -5,7 +5,7 @@ before doing their own work.
 
 Referenced by `agents/analyst.md` and `agents/researcher.md`, and from the
 conversation by `skills/knowledge/SKILL.md` and `skills/issue-draft/SKILL.md`;
-each of the two skills declares in its own body where it deviates (what a tool
+each of the two skills declares in its own body where it deviates (for instance what a tool
 error does to the run, and that neither records anything under `<specs.dir>`).
 Spelled here once because all of them need the identical rules, and §5 is one
 where copies drifting apart is unsafe rather than untidy.

@@ -26,7 +26,8 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   in the plugin). When present it replaces the shipped template wholesale; presence is the
   switch, as with the sensitive-paths policy, and there is no config key. It must keep the
   template's convention: each `## ` section is followed by an HTML comment whose first word is
-  `required` or `optional`, then one `$NAME` placeholder. Committed, like the config.
+  `required` or `optional`, then one `$NAME` placeholder; a trailing placeholder outside any
+  section (the shipped `$SOURCE`) carries its comment after it. Committed, like the config.
 - `.artel/run/` — host-writable run state, journals and the per-task worker reports (contract
   defined separately, alongside the autonomous-run rules). Not committed; add it to the host
   `.gitignore`.
@@ -123,7 +124,7 @@ accepts only `1`; it exists so later formats can migrate rather than guess.
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `ticket.projectKey` | string | `"PROJ"` (placeholder) | Letters and digits, no separators. Uppercase is canonical. | Ticket canonicalization, branch names, PR titles, commit subjects, Jira project key for `tracker.adapter: "jira-mcp"` |
-| `ticket.pattern` | string (regex) | `"^(?:{projectKey}-)?(\\d+)(?:-p?(\\d+))?$"` | Must expose the ticket number as **capture group 1** and the optional phase as **capture group 2**. The literal token `{projectKey}` is replaced with `ticket.projectKey` before the regex is compiled. Matched case-insensitively. | Every phase-aware skill and agent; hooks that resolve the active ticket |
+| `ticket.pattern` | string (regex) | `"^(?:{projectKey}-)?(\\d+)(?:-p?(\\d+))?$"` | Must expose the ticket number as **capture group 1** and the optional phase as **capture group 2**. The literal token `{projectKey}` is replaced with `ticket.projectKey` before the regex is compiled. Matched case-insensitively. | Every phase-aware skill and agent; hooks that resolve the active ticket; `issue-draft`, to recognise ticket keys the source cites |
 | `ticket.phaseSuffix` | boolean | `true` | `true` \| `false` | Phase-scoped runs and artifact paths |
 
 Positional capture groups (not named groups) are the contract, so the same pattern compiles
@@ -326,10 +327,10 @@ record (`docs/task-queue.md` §1).
 
 `knowledge.adapter` gates three things, not one. Beyond the mirror above, it declares that this
 project's agents may **consult** kartoteka before working: the `analyst` before its interview,
-the `researcher` during its scan — the full contract is `docs/knowledge-consultation.md` —
-and `deep-review`'s forecast of how a branch will fare in review, which has its own contract
-and its own, larger lookup budget: `docs/review-forecast.md`. The third is the task queue —
-`#### The task queue` below.
+the `researcher` during its scan, and `issue-draft` from the conversation before it drafts — the
+full contract is `docs/knowledge-consultation.md` — and `deep-review`'s forecast of how a branch
+will fare in review, which has its own contract and its own, larger lookup budget:
+`docs/review-forecast.md`. The third is the task queue — `#### The task queue` below.
 
 Reading goes over kartoteka's **MCP tools** (`search_knowledge`, `related`, `index_status`),
 not over `baseUrl`. There is no MCP URL in this config: the host wires the kartoteka MCP server
@@ -388,8 +389,12 @@ The same key admits two skills a person invokes from the conversation rather tha
 resolve the table above without its `--local` row — a person invoking them has asked for
 kartoteka — and both **refuse** rather than degrade: adapter `none` stops with a pointer to
 `/artel:setup`, absent tools stop with the "configured but not available" message. There is no
-override flag, for the third row's reason. The `using_artel` `SessionStart` hook reads the key
-too, only to tell the injected router whether those two routes are live.
+override flag, for the third row's reason. `issue-draft` is a third skill a person invokes from
+the conversation and consults the same key, but it is the exception to both of those rules: it
+takes `--local` and resolves the table above in full, and where these two refuse, it degrades —
+no Related section, every gap asked — because a person asked it for a draft, not for the index.
+The `using_artel` `SessionStart` hook reads the key too, only to tell the injected router
+whether those two routes are live.
 
 ### `runtime` — optional runtime and automation commands
 

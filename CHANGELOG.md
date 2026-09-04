@@ -25,19 +25,19 @@ All notable changes to this project are documented here. The format follows
   override path; the skill joins `tests/test_knowledge_consultation_docs.py`'s consulting
   list.
 
-### Removed
-
-- **`issue-draft` no longer reads Slack exports or produces variants.** Input is inline text
-  or a local `.txt`/`.md` file — the skill reads only what its argument names — and every
-  invocation yields one draft. The multi-variant mode existed for a pick-one modal the skill
-  never had.
-
 ### Changed
 
 - `issue-draft` gains the frontmatter hint `<text | file-path> [--local]`; skills-reference.md,
   config.md (`.artel/templates/issue-draft.md`; `issue-draft` in the `knowledge.*` Consumed-by
   cells) and knowledge-consultation.md (the skill as a consumer with its two declared
   deviations) follow.
+
+### Removed
+
+- **`issue-draft` no longer reads Slack exports or produces variants.** Input is inline text
+  or a local `.txt`/`.md` file — the skill reads only what its argument names — and every
+  invocation yields one draft. The multi-variant mode existed for a pick-one modal the skill
+  never had.
 
 ## [0.9.1] - 2026-09-04
 

@@ -1,8 +1,8 @@
 """The `--local` flag is spelled identically everywhere it appears.
 
 Not a behaviour test: these are prompts, and there is no code path to exercise.
-It guards one token across eight files -- and its deliberate absence from a
-ninth, `skills/dev/SKILL.md` -- the drift this repo has already had once
+It guards one token across nine files -- and its deliberate absence from a
+tenth, `skills/dev/SKILL.md` -- the drift this repo has already had once
 ("docs: fix stale knowledge-mirror hook counts and the setup interview gap").
 It also guards the promise skills-reference.md opens with, that every Invocation
 line is its skill's own frontmatter hint: asking whether the token appears

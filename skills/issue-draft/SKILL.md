@@ -12,10 +12,11 @@ follows a template**, saved to one local file. The description block pastes into
 description field as-is. Creating or submitting the issue is out of scope: this skill writes a
 file and posts nothing.
 
-All natural-language output is in `language.pr` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`: "PR
-title and body, tracker comments, **drafted issues**"), in the markup dialect the destination
-renders (§0). Quoted kartoteka text is the one exception: quotes stay verbatim, the attribution
-around them is in `language.pr`.
+The written file is in `language.pr` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`: "PR title and
+body, tracker comments, **drafted issues**"), in the markup dialect the destination renders
+(§0) — what you say in the conversation (questions, the report, the abort line) follows the
+language the user is conversing in. Quoted kartoteka text is the one exception: quotes stay
+verbatim, the attribution around them is in `language.pr`.
 
 `--local` flag: skip the institutional-knowledge consultation for this run and draft from the
 input and the user alone. Default is to consult; §0 says how that resolves against
@@ -79,6 +80,10 @@ From the arguments with `--local` stripped:
 - **A path that exists but is unreadable or another type** → tell the user, then ask via
   `AskUserQuestion`: `Treat the argument as literal text` / `Stop`. On `Stop`, report
   `Aborted: nothing written.` and terminate.
+- **Something that looks like a path (contains `/` or ends in `.txt` or `.md`) but names
+  nothing on disk** → the same `AskUserQuestion`: `Treat the argument as literal text` / `Stop`.
+  On `Stop`, report `Aborted: nothing written.` and terminate. Never draft an issue about a
+  path string.
 - **Anything else** → the argument is the source, verbatim.
 - **Empty** → ask for the text or a path via `AskUserQuestion`, the same input gate
   `generate-idea` runs: show one concrete example of an actionable description and reject vague
@@ -181,18 +186,20 @@ skip the round: every gap goes to Missing Details and the file is still written.
 
 Read the resolved template. Each `## ` section is followed by an HTML comment whose first word
 is `required` or `optional` and whose remainder says what fills the section; the `$NAME`
-placeholder below it is the slot. Then:
+placeholder below it is the slot. Section and placeholder names below are the shipped
+template's; a host override is read by its comments' roles, not by these names. Then:
 
 - Fill each slot from §§2–4. Omit an **optional** section whose slot is empty — never pad,
   never leave a placeholder. A **required** section with nothing to say is itself a gap §4
-  should have asked; if it is still empty, render the best available statement and list the
-  gap under Missing Details.
+  should have asked; if it is still empty, restate the source's own words, however thin, and
+  list the gap under Missing Details.
 - Strip every HTML comment.
 - Render headings in `language.pr`; write every slot in `language.pr` (verbatim quotes
   excepted); keep code, URLs, ticket keys, paths and identifiers verbatim.
-- `$RELATED` — one bullet per §3 hit; `$MISSING` — one bullet per §4 leftover; `$SOURCE` — the
-  line `<Source label>: <repo-relative path>` only when §1 read a file, with "Source" in
-  `language.pr`; omit the line entirely otherwise.
+- The slot whose rule names kartoteka hits (`$RELATED` in the shipped template) — one bullet
+  per §3 hit; the slot whose rule names open gaps (`$MISSING`) — one bullet per §4 leftover; the
+  trailing source slot (`$SOURCE`) — the line `<Source label>: <repo-relative path>` only when
+  §1 read a file, with "Source" in `language.pr`; omit the line entirely otherwise.
 - Apply the dialect (cheat-sheet below).
 - **Summary**: ≤ 255 characters, concrete engineering-task wording, `language.pr`.
 

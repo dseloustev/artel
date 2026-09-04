@@ -86,6 +86,11 @@ class TestTemplate(unittest.TestCase):
         block = self.text.split('## Related')[1].split('## ')[0]
         self.assertIn('⚠ NON-CURRENT', block)
 
+    def test_carries_every_placeholder_the_skill_names(self):
+        for slot in ('$DESCRIPTION', '$RELATED', '$MISSING', '$SOURCE'):
+            with self.subTest(slot):
+                self.assertIn(slot, self.text)
+
 
 class TestSkill(unittest.TestCase):
 
@@ -122,7 +127,11 @@ class TestSkill(unittest.TestCase):
     def test_no_slack_and_no_variants(self):
         self.assertNotIn('slack', self.text.lower())
         self.assertNotIn('=== SUMMARY 1 ===', self.text)
-        self.assertNotIn('2–5', self.text)
+        self.assertNotIn('=== SUMMARY 2 ===', self.text)
+
+    def test_names_both_output_blocks(self):
+        self.assertIn('=== SUMMARY ===', self.text)
+        self.assertIn('=== DESCRIPTION (', self.text)
 
 
 class TestDocs(unittest.TestCase):

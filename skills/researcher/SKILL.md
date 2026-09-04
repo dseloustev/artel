@@ -100,7 +100,7 @@ defaults."]
 
 1. Incorporate the user's answers into your understanding.
 2. Scan the codebase for components, endpoints, contracts, patterns, limitations, and risks. Scope to the active phase when one is set.
-3. Alongside that scan, consult the institutional record per your agent definition's Step 2 and `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1) — the **Knowledge consultation** field above is its `--local` input — then `index_status`, `related(<canonical ticket key>)` and up to four `search_knowledge` queries (§§2–3).
+3. Alongside that scan, consult the institutional record per your agent definition's Step 2 and `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1) — the **Knowledge consultation** field above is its `--local` input — then `index_status()`, `related(<project>, <canonical ticket key>)` and up to four `search_knowledge` queries scoped to `<project>` (`knowledge.project`) (§§2–3).
 4. Document at the path you determined in Phase 1:
    - existing endpoints and contracts
    - layers and dependencies

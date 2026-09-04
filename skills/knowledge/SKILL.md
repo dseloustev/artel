@@ -17,19 +17,22 @@ skill answers a person and **writes nothing** — no file under `<specs.dir>`, n
 
 ## 1. Gate
 
-Read `knowledge.adapter` from `.artel/config.json` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`).
+Read `knowledge.adapter` and `knowledge.project` from `.artel/config.json`
+(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`). `<project>` below is the latter's value.
 
 | `knowledge.adapter` | kartoteka MCP tools in session | Do |
 |---|---|---|
 | `none` / absent | either | Stop: "`knowledge.adapter` is not `kartoteka` for this project — declare it with `/artel:setup`." |
+| `kartoteka`, `knowledge.project` empty or malformed | either | Stop: "kartoteka is configured for this project but knowledge.project is not set — declare it with `/artel:setup`." |
 | `kartoteka` | absent | Stop: "kartoteka is configured for this project but its MCP tools are not available in this session" |
 | `kartoteka` | present | Continue |
 | anything else | either | Stop: configuration error (config.md reading rule 3); name the value. |
 
 The tools are `search_knowledge`, `related`, `index_status`, and — behind kartoteka's
 `[workspace]` switch — `artifact_list` and `artifact_get`. Presence means the host wired the
-kartoteka MCP server into this session. There is no override flag: kartoteka is single-project,
-and an index wired up for another checkout has no business answering for this one.
+kartoteka MCP server into this session. There is no override flag: a daemon may serve several
+projects out of one database, `<project>` is what names this one on every call, and an index
+wired up for another checkout has no business answering for this one.
 
 ## 2. Classify the argument
 
@@ -44,20 +47,26 @@ Strip the flags first (`--source`, `--type`, `--status`, `--artifacts`); what re
 
 ## 3. Call
 
-Open every path with **one `index_status()` call** — it is the availability probe, and its
-per-source last-sync lines go into the footer so an empty answer reads as *nothing filed*
-rather than *index cold*.
+Open every path with **one `index_status()` call, unscoped** — it is the availability probe,
+and its per-source last-sync lines for `<project>` go into the footer so an empty answer reads
+as *nothing filed* rather than *index cold*. Unscoped, it walks the daemon's project registry,
+which makes it the registration check too: **when no row names `<project>`**, stop with
+"kartoteka does not list project `<project>` — run `kartoteka project add <project>` on the
+daemon machine" (consultation contract §2). A scoped read for an unregistered project answers
+with silent zeros, which would render as *nothing filed*.
 
 ### 3a. `status`
 
-`index_status()` only. Render per source: documents, chunks, last sync, and the rerank
-fingerprint when reported. Done.
+`index_status()` only. Render `<project>`'s rows per source: documents, chunks, last sync, and
+the rerank fingerprint when reported. Other projects the daemon lists are named in one line,
+not rendered. Done.
 
 ### 3b. Ticket
 
-`related(<TICKET_ID>)` — the **canonical key, never the phase suffix**: a run scoped to
-`PROJ-123-2` asks `related("PROJ-123")`, because kartoteka joins on the bare key its Jira
-documents carry and the suffixed form silently returns nothing.
+`related(<project>, <TICKET_ID>)` — the project first, and the **canonical key, never the
+phase suffix**: a run scoped to `PROJ-123-2` asks `related(<project>, "PROJ-123")`, because
+kartoteka joins on the bare key its Jira documents carry and the suffixed form silently
+returns nothing.
 
 - When `<TICKET_ID>` is the active ticket (`<specs.dir>/.active_ticket`, suffix stripped), the
   `## artifacts` block is artel's own spec trail coming back through the mirror hook, and it can
@@ -65,15 +74,16 @@ documents carry and the suffixed form silently returns nothing.
   `<specs.dir>/<TICKET_ID>/` is authoritative" — and do not `artifact_get` any of it.
 - Summarise the `## tasks` block as counts by status and point at
   `/artel:tasks list <TICKET_ID>` for the rows.
-- `--artifacts` on a **non-active** ticket adds `artifact_list(<TICKET_ID>)`; a follow-up that
-  names a stage may `artifact_get(<TICKET_ID>, <stage>, <name>)`. On the active ticket the
+- `--artifacts` on a **non-active** ticket adds
+  `artifact_list(project=<project>, ticket_key=<TICKET_ID>)`; a follow-up that names a stage
+  may `artifact_get(<project>, <TICKET_ID>, <stage>, <name>)`. On the active ticket the
   flag lists nothing: say the trail is on disk and stop there.
 
 ### 3c. Query
 
-`search_knowledge(<query>)` **unfiltered first**. Add `source` / `type` / `status` /
-`ticket_key` only when the user passed the matching flag or named a ticket, or when the
-unfiltered result is too broad to render. kartoteka applies filters *after* candidate
+`search_knowledge(<query>, project=<project>)` — always scoped to `<project>`, otherwise
+**unfiltered first**. Add `source` / `type` / `status` / `ticket_key` only when the user passed
+the matching flag or named a ticket, or when the unfiltered result is too broad to render. kartoteka applies filters *after* candidate
 selection, so an empty filtered result is reported as "no match under that filter — the
 unfiltered search found N" and never as "nothing is filed".
 

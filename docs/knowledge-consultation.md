@@ -12,6 +12,12 @@ trail reaches kartoteka through the `PostToolUse` hook
 (`hooks/knowledge_mirror.py`); its task queue is the other write direction and
 is `docs/task-queue.md`. Consultation itself writes nothing.
 
+**`<project>` throughout is `knowledge.project` from `.artel/config.json`** — the
+kartoteka project this repository belongs to (`docs/config.md`). Since kartoteka
+0.31.0 one daemon may serve several projects out of one database, so every call
+below names it: `related` requires it, and the reads take it as a scope so that
+another project's trail never answers for this one.
+
 **And artel never reads its own in-flight trail from kartoteka.** This ticket's
 `prd.md`, `plan.md` and `research.md` are read from disk, as they always have
 been. kartoteka holds a best-effort mirror of them that can lag — the hook never
@@ -37,9 +43,18 @@ The tools are `search_knowledge`, `related` and `index_status`; they are present
 when the host has wired the kartoteka MCP server into this session, and absent
 otherwise.
 
-Row 3 is deliberate: a project that has not declared `knowledge.adapter` does
-not get consulted against whatever kartoteka happens to be wired up. That index
-belongs to some project, and it may not be this one.
+**One precondition is resolved before the table, not in it.** With the adapter
+`kartoteka` and `knowledge.project` empty or outside its grammar, the config is
+in error under config.md's reading rule 3 — the same class as an unrecognised
+adapter value. Do not consult, whatever the tools say, and record:
+`kartoteka is configured for this project but knowledge.project is not set`.
+It is not a row because it is not a capability question: the tools may well be
+present, and there is simply no project to name in the call.
+
+Row 3 is deliberate: a project that has not declared `knowledge.adapter` has
+declared no `knowledge.project` either, and does not get consulted against
+whatever kartoteka happens to be wired up. That daemon serves some project — or
+several — and none of them is known to be this one.
 
 Rows 1 and 5 carry different messages on purpose. A reader of the resulting
 document must be able to tell a choice from a failure. Row 1's message assumes
@@ -48,16 +63,27 @@ to opt out of, so nothing is recorded either (§4).
 
 ## 2. What to call
 
-Open with **one `index_status` call**. It is the availability probe, it costs no
-search, and its per-source last-sync line goes into the record (§4) — so "nothing
-came back" can be read as *nothing is filed* rather than *the index is cold*.
+Open with **one `index_status()` call, unscoped**. It is the availability probe,
+it costs no search, and its rows for `<project>` — one per source, with the
+last-sync time — go into the record (§4), so "nothing came back" can be read as
+*nothing is filed* rather than *the index is cold*.
+
+Unscoped on purpose: the call walks the daemon's project registry, one row per
+project and source, and that makes it the registration check too. **When no row
+names `<project>`, the daemon does not know this project.** Record
+`kartoteka does not list project <project>; run kartoteka project add <project> on the daemon machine`
+and consult nothing further. A scoped read for an unregistered project answers
+with silent zeros and empty lists, which would go into the record as *nothing
+filed* — the opposite of what happened.
 
 Then:
 
-- **`related(<TICKET_KEY>)`** — everything filed under this ticket. Use the
-  **canonical key, never the phase suffix**: a run of `AW-1234-2` calls
-  `related("AW-1234")`. kartoteka joins on the bare key its Jira documents carry,
-  so the phase form would silently return nothing.
+- **`related(<project>, <TICKET_KEY>)`** — everything filed under this ticket.
+  The project comes first and is required — a ticket key is a value two
+  projects can both use. Use the **canonical key, never the phase suffix**: a
+  run of `AW-1234-2` calls `related(<project>, "AW-1234")`. kartoteka joins on
+  the bare key its Jira documents carry, so the phase form would silently
+  return nothing.
   When the key is *this run's own* ticket, ignore the `## artifacts` block. That
   is artel's own spec trail coming back through the hook, which can lag the files
   sitting beside you, and those files are authoritative — do not follow up with
@@ -65,8 +91,11 @@ Then:
   since `docs/task-queue.md` the queue is authoritative for what to work on. It
   is still of no use during an interview or a scan, so ignore it here too — but
   ignore it as out of scope, not as stale.
-- **`search_knowledge(<query>)`** — for discovery, where the ticket key is not
-  the handle: the subject of the work, a subsystem name, a risk area.
+- **`search_knowledge(<query>, project=<project>)`** — for discovery, where the
+  ticket key is not the handle: the subject of the work, a subsystem name, a
+  risk area. Always scoped: omitted, kartoteka searches every project it serves
+  and labels each hit, and a decision from another project's trail is not this
+  project's precedent.
 
 Prefer unfiltered queries. The `source` / `type` / `status` / `ticket_key`
 filters are applied *after* candidate selection, so a narrow filter can come back
@@ -99,9 +128,9 @@ Per finding: title, citation (`url` or `doc_id`), source, date, and status —
 with the **⚠ NON-CURRENT marker preserved verbatim** when kartoteka emits it —
 then one line on how it bears on the current ticket.
 
-Once per run: the per-source last-sync lines from `index_status`. It reports one
-per configured source, and the corpus is only as fresh as the source the answer
-would have come from.
+Once per run: the per-source last-sync lines from `index_status` for
+`<project>`. It reports one per configured source, and the corpus is only as
+fresh as the source the answer would have come from.
 
 ## 5. The injection rule
 

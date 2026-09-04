@@ -6,6 +6,46 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+**Breaking: `knowledge.project` is required whenever `knowledge.adapter` is `"kartoteka"`.**
+kartoteka 0.31.0 namespaces its store and index by project so one daemon can serve several
+repositories out of one database, and it now refuses every write that names no project —
+the mirror hook's `POST /api/artifacts` answered `422` and was logged as a `reject`,
+`task_create` mirrored nothing, `task_ready` handed out no work — and `related()` takes the
+project as its first, required parameter. This release is artel's half of that coordinated
+change. Add the key beside `adapter` and `baseUrl` (`/artel:setup` now asks for it),
+lowercase kebab-case, and register it once in the daemon's database with
+`kartoteka project add <name>`: an unregistered name is refused rather than created.
+
+### Added
+
+- **`knowledge.project`** (`docs/config.md`): the kartoteka project this repository's trail,
+  queue and consultations belong to. No default, deliberately — kartoteka removed its own
+  because a guessed project appends to another project's deliberation trail. The
+  `SessionStart` status line shows it beside the URL, and shouts `project NOT SET` when the
+  adapter is on and the key is missing.
+
+### Changed
+
+- **Every kartoteka call names the project.** The mirror hook sends it in the request body;
+  `task_create` and `task_ready` carry it; `related(<project>, <ticket>)` leads with it; and
+  the reads — `search_knowledge`, `index_status`, `task_list`, `artifact_list`,
+  `artifact_get` — are scoped to it, so a daemon serving several projects answers for this
+  one. That scoping replaces the "kartoteka is single-project" reasoning the docs carried.
+- **A missing or malformed project is a configuration error resolved before the gating
+  tables**, spelled the same way in `docs/knowledge-consultation.md`, `docs/task-queue.md`
+  and `docs/review-forecast.md`: the agents consult nothing and record
+  `kartoteka is configured for this project but knowledge.project is not set`, the queue
+  takes its fallback path with the same record, the forecast's mode is `off:` with that
+  reason, the `knowledge` and `tasks` skills stop with a pointer to `/artel:setup`, and the
+  hook logs one `misconfigured` line per mirrorable edit and sends nothing.
+- **An unregistered project is recorded distinctly.** The unscoped `index_status()` every
+  consultation opens with walks the daemon's registry, so a project it does not list is
+  recorded as such rather than as *nothing filed* (a scoped read answers an unregistered
+  project with silent zeros). The implementer treats a `Rejected:` naming
+  `kartoteka project add` as a fallback trigger and records
+  `kartoteka refused knowledge.project as unregistered; continued from tasklist.md`; the
+  hook's existing `reject` line already carries kartoteka's message.
+
 ## [0.8.0] - 2026-09-02
 
 ### Changed

@@ -56,9 +56,10 @@ Scope to the active phase when phase is set.
 
 **Alongside the codebase scan, consult the institutional record.** Follow
 `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1), then
-`index_status`, `related(<canonical ticket key>)` — the canonical key, never the phase
-suffix — and up to four `search_knowledge` queries over the ticket's subject and the
-risk areas you are already scanning for (§§2–3). This is the same "silently absent,
+`index_status()` unscoped, `related(<project>, <canonical ticket key>)` — the canonical key,
+never the phase suffix — and up to four `search_knowledge` queries scoped to `<project>`
+over the ticket's subject and the risk areas you are already scanning for (§§2–3).
+`<project>` is `knowledge.project` from `.artel/config.json`; every call names it. This is the same "silently absent,
 fall back to what you have" shape as the optional code-symbol index above it: when the
 gate says do not consult, the codebase scan is the whole research, exactly as today.
 
@@ -92,8 +93,10 @@ of:
   with its **⚠ NON-CURRENT** marker preserved verbatim, and one line on how it bears
   on this ticket. Plus the per-source last-sync lines from `index_status`.
 - `No prior decisions found.` — plus those same lines, so a reader can weigh it.
-- The gate's own line: `local-only run requested`, or `kartoteka is configured for
-  this project but its MCP tools are not available in this session`.
+- The gate's own line: `local-only run requested`, `kartoteka is configured for
+  this project but its MCP tools are not available in this session`, or
+  `kartoteka is configured for this project but knowledge.project is not set` —
+  or §2's line for a project the daemon does not list.
 
 **With the adapter off, omit the section entirely** and write nothing about knowledge
 anywhere in the document. Nothing was consulted and nothing could have been, so there is

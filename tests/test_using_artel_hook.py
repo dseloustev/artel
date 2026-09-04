@@ -19,7 +19,8 @@ import using_artel as ua  # noqa: E402
 CONFIG = {
     'ticket': {'projectKey': 'AW'},
     'specs': {'dir': 'specs/.current'},
-    'knowledge': {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:8734'},
+    'knowledge': {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:8734',
+                  'project': 'adguard-wallet'},
 }
 
 
@@ -65,7 +66,11 @@ class TestConfiguredHost(unittest.TestCase):
         self.assertNotIn('\ndescription:', ctx)
 
     def test_reports_the_adapter_and_base_url(self):
-        self.assertIn('knowledge.adapter: kartoteka (http://127.0.0.1:8734)', self.context())
+        # URL and project together: the router tells the person which daemon
+        # and which namespace the session is talking to, and a project that
+        # is missing here is missing on every write (knowledge_mirror.py).
+        self.assertIn('knowledge.adapter: kartoteka (http://127.0.0.1:8734, project adguard-wallet)',
+                      self.context())
 
     def test_reports_no_active_ticket(self):
         self.assertIn('active ticket: none', self.context())
@@ -95,6 +100,13 @@ class TestPureFunctions(unittest.TestCase):
 
     def test_strip_frontmatter_leaves_text_without_one(self):
         self.assertEqual(ua.strip_frontmatter('Body only\n'), 'Body only\n')
+
+    def test_host_status_flags_a_missing_project(self):
+        # Adapter on, project absent: the one E4 misconfiguration a person
+        # cannot see from the mirror log until an edit has already failed.
+        status = ua.host_status({'knowledge': {'adapter': 'kartoteka',
+                                               'baseUrl': 'http://127.0.0.1:8734'}})
+        self.assertIn('knowledge.adapter: kartoteka (http://127.0.0.1:8734, project NOT SET)', status)
 
     def test_host_status_defaults_the_adapter_to_none(self):
         status = ua.host_status({})

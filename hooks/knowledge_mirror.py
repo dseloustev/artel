@@ -38,17 +38,31 @@ PHASE_DIR = re.compile(r'phase-\d+\Z')
 MAX_BYTES = 1048576
 TIMEOUT_SECONDS = 2
 
+# kartoteka's project-id grammar (models.validate_project), copied for the same
+# reason MAX_BYTES is: a guard, never the authority. The server refuses a name
+# outside it, so the two disagreeing costs at worst one misconfigured line for
+# a name the server would have taken -- and it turns "HTTP 422 on every edit"
+# into a log line that names the key to fix.
+PROJECT_RE = re.compile(r'^[a-z0-9][a-z0-9-]*\Z')
+
 # A large error page (an HTML 500 page from some intermediary, say) must not
 # bloat the log; a few hundred characters is enough of kartoteka's own JSON
 # body ("both guards describe what the caller got wrong...") to act on.
 ERROR_BODY_LIMIT = 300
 
 
-def knowledge_base_url(config):
-    """(base_url, error). Adapter off ("none", or the section absent) ->
-    (None, None), silently. Anything else unusable -> (None, message): the
-    mirror reports and continues, where vcs would stop the run — a pull
-    request cannot be written to disk, but these files are already on disk.
+def knowledge_target(config):
+    """(base_url, project, error). Adapter off ("none", or the section absent)
+    -> (None, None, None), silently. Anything else unusable -> (None, None,
+    message): the mirror reports and continues, where vcs would stop the run —
+    a pull request cannot be written to disk, but these files are already on
+    disk.
+
+    `project` is required alongside `baseUrl`: since kartoteka's project
+    namespacing (E4) a write that names no project is refused, and one that
+    names an unregistered project is refused too — see the HTTPError branch
+    in main(). There is deliberately no default: kartoteka removed its own
+    because a guessed project appends to another project's trail.
 
     An adapter value that is neither "none" nor "kartoteka" (a typo like
     "kartoteca") is one of those unusable cases, not a third silent state:
@@ -60,13 +74,20 @@ def knowledge_base_url(config):
     knowledge = config.get('knowledge') or {}
     adapter = knowledge.get('adapter', 'none')
     if adapter == 'none':
-        return None, None
+        return None, None, None
     if adapter != 'kartoteka':
-        return None, 'knowledge.adapter must be "none" or "kartoteka", got {!r}'.format(adapter)
+        return None, None, 'knowledge.adapter must be "none" or "kartoteka", got {!r}'.format(
+            adapter)
     base = (knowledge.get('baseUrl') or '').strip().rstrip('/')
     if not base:
-        return None, 'knowledge.adapter is "kartoteka" but knowledge.baseUrl is empty'
-    return base, None
+        return None, None, 'knowledge.adapter is "kartoteka" but knowledge.baseUrl is empty'
+    project = (knowledge.get('project') or '').strip()
+    if not project:
+        return None, None, 'knowledge.adapter is "kartoteka" but knowledge.project is empty'
+    if not PROJECT_RE.match(project):
+        return None, None, ('knowledge.project must be lowercase kebab-case '
+                            '(^[a-z0-9][a-z0-9-]*$), got {!r}'.format(project))
+    return base, project, None
 
 
 def _ticket_matcher(config):
@@ -172,7 +193,7 @@ def main():
     if not h.CONFIG_PATH.exists():
         return 0  # unconfigured host: hooks stay inert
     config = h.load_config()
-    base_url, error = knowledge_base_url(config)
+    base_url, project, error = knowledge_target(config)
     if base_url is None and error is None:
         return 0  # adapter off: the cheapest path, checked before stdin or a path match
     rel = h.relpath_from_tool_input(h.read_hook_input())
@@ -196,7 +217,7 @@ def main():
     if len(content.encode('utf-8')) > MAX_BYTES:
         log('skip {} {} -- over {} bytes'.format(ticket_key, name, MAX_BYTES))
         return 0
-    payload = {'ticket_key': ticket_key, 'stage': stage,
+    payload = {'project': project, 'ticket_key': ticket_key, 'stage': stage,
                'name': name, 'content': content}
     try:
         import urllib.error  # deferred with urllib.request, same reasoning
@@ -205,11 +226,15 @@ def main():
     except urllib.error.HTTPError as exc:
         # A permanent contract rejection -- not a transient outage, so it will
         # not self-heal on the next edit and the log has to say so distinctly.
-        # Two real ways to land here: kartoteka's ticket-key grammar requires
+        # Three real ways to land here: kartoteka's ticket-key grammar requires
         # a project key of two-or-more characters while config.md allows a
-        # one-character ticket.projectKey, and an operator who lowers
+        # one-character ticket.projectKey; an operator who lowers
         # workspace.max_artifact_bytes below this hook's 1 MiB guard gets a
-        # 400 the guard cannot predict.
+        # 400 the guard cannot predict; and a knowledge.project nobody
+        # registered in the daemon's database is a 400 whose body names
+        # `kartoteka project add <name>` -- the daemon deliberately cannot
+        # register one on demand, so the fix is that command, run once on the
+        # machine serving the daemon.
         body = _read_rejection_body(exc)
         log('reject {} {} {} -- HTTP {} {}'.format(ticket_key, stage, name, exc.code, body))
     except Exception as exc:  # fail open: the files on disk are the fallback

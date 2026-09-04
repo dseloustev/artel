@@ -42,9 +42,12 @@ In particular:
 
 Decide the path per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1.
 
-**Queue path.** Call `task_ready(actor="artel@<hostname>", ticket_key=<TICKET_KEY>)`,
-using the canonical key without the phase suffix. Nothing returned → consult
-`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §5. Every row `done` is the normal end
+**Queue path.** Call
+`task_ready(project=<project>, actor="artel@<hostname>", ticket_key=<TICKET_KEY>)`,
+where `<project>` is `knowledge.project` from `.artel/config.json` and the key is the
+canonical one without the phase suffix. A `Rejected:` line naming
+`kartoteka project add` is §1's sixth case: fall back to the file and record it as §1
+spells it. Nothing returned → consult `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §5. Every row `done` is the normal end
 of iteration work: report `queue drained: iteration work complete` and continue
 from the file per §6. Rows still `backlog`, `blocked` or `in_progress` mean the
 queue is stalled, not finished — report which. A task returned is now held by
@@ -114,7 +117,7 @@ both paths — it is what the fallback reads.
 
 On the queue path, then `task_update(task_id, status="done")` and run the
 promotion step in `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3: `task_list` the
-ticket, and if no `I<N> · ` sibling is left undone, mark the `I<N>: …` parent
+ticket scoped to `<project>`, and if no `I<N> · ` sibling is left undone, mark the `I<N>: …` parent
 `done` and promote every `I<N+1> · ` child from `backlog` to `ready`.
 
 A red gate is never "done" — if the loop stopped-and-asked (verify budget

@@ -335,8 +335,8 @@ entry-point skills run a short one-time init interview and write the file.
   procedure inlined in the router: the contracts are already organised as a read side and a
   write side, a fat router would charge every session for the queue rules, and a router
   executing `task_create` from prose is a meta-skill doing a worker's job. Both refuse — no
-  override — when `knowledge.adapter` is not `kartoteka`, for the same single-project reason
-  the pipeline's row 3 exists.
+  override — when `knowledge.adapter` is not `kartoteka`, for the same reason the pipeline's
+  row 3 exists: an undeclared adapter names no project.
 - **2026-08-25 — `tasks add` goes through `tasklist.md` and the existing mirror; no
   conversational claim; `release` is user-confirmed.** Titles are the idempotency key,
   promotion finds siblings by the `I<N> · ` prefix, and `task_ready` claims in `task_id`
@@ -484,3 +484,25 @@ entry-point skills run a short one-time init interview and write the file.
   `verify.commands` once — the pipeline's own review-fix path ([task-queue.md](task-queue.md)
   §6: file-scan work, never mirrored). No re-review loop; re-running the skill refreshes the
   forecast.
+- **2026-09-04 — `knowledge.project` names the kartoteka namespace, with no default.**
+  kartoteka 0.31.0 namespaces its store and index by project so one daemon can serve several
+  repositories out of one database, and it refuses any write — `POST /api/artifacts`,
+  `task_create`, `task_ready` — and `related()` that name none. artel carries the name as
+  `knowledge.project` beside `adapter` and `baseUrl`, the block kartoteka's own integration
+  note suggested, and puts it on **every** call: required where kartoteka requires it and as a
+  scope on the reads (`search_knowledge`, `index_status`, `task_list`, `artifact_list`), which
+  is what retires the six places where the docs justified the gate by kartoteka serving one
+  project only. No
+  default, deliberately: kartoteka removed its own because a guessed project appends to
+  another project's deliberation trail, and a slug derived from the directory name would be
+  exactly such a guess. A missing or malformed value is a configuration error resolved
+  *before* the gating tables rather than as a fifth row — it is not a capability question,
+  the tables are pinned at four rows, and `deep-review` already handles a bad adapter value
+  the same way — with one record line spelled identically in all three contracts. The
+  unscoped `index_status()` that every consultation already opens with doubles as the
+  registration check, because a scoped read for an unregistered project answers with silent
+  zeros. Rejected: a fallback to `ticket.projectKey` lower-cased (a Jira key is not a
+  namespace, and two repos sharing one is the case the namespace exists for), and carrying
+  the project in `scripts/tasklist_tasks.py`'s output (the script contacts nothing and the
+  orchestrator reads the config for the gate anyway). Released as 0.9.0 — a breaking config
+  change, minor pre-1.0 — in step with kartoteka's coordinated release.

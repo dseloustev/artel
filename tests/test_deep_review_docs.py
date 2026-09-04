@@ -26,13 +26,15 @@ OFF_MODES = (
     'off: knowledge.adapter is not kartoteka for this project',
     'off: kartoteka is configured for this project but its MCP tools are not '
     'available in this session',
+    'off: kartoteka is configured for this project but knowledge.project is not set',
 )
-# The two mode reasons that knowledge-consultation.md §1 already spells; the
+# The three mode reasons that knowledge-consultation.md §1 already spells; the
 # contract inherits them byte for byte rather than paraphrasing.
 INHERITED = (
     'local-only run requested',
     'kartoteka is configured for this project but its MCP tools are not '
     'available in this session',
+    'kartoteka is configured for this project but knowledge.project is not set',
 )
 BUDGET = '`search_knowledge` at most 16; `related` at most 4; at most two calls per unit'
 FORMULA = '(F + 1) / (N + 2)'

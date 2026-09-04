@@ -50,16 +50,23 @@ arrive via the "Other" option.
   its inert default.
 - **Round 5 — knowledge mirror** (optional): "Do you run a kartoteka daemon that should receive
   this project's spec trail? If so, its base URL (e.g. `http://127.0.0.1:8734`)." Empty answer →
-  `knowledge.adapter: "none"`, `knowledge.baseUrl: ""`. A URL → `adapter: "kartoteka"` and
-  that URL. Mention that the mirror is additive and best-effort: the spec-trail files stay
-  primary and a daemon that is down never fails a run.
+  `knowledge.adapter: "none"`, `knowledge.baseUrl: ""`, `knowledge.project: ""`. A URL →
+  `adapter: "kartoteka"`, that URL, and one follow-up: "Which kartoteka project does this
+  repository belong to?" — lowercase kebab-case (`^[a-z0-9][a-z0-9-]*$`), suggesting the host
+  repo's directory name slugified (e.g. `adguard-wallet`), stored as `knowledge.project`.
+  Say that the name must be registered in the daemon's database before any write lands —
+  `kartoteka project add <name>`, once, on the machine running the daemon — and that an
+  unregistered name is refused rather than created. Mention that the mirror is additive and
+  best-effort: the spec-trail files stay primary and a daemon that is down never fails a run.
 
 ## 3. Validate
 
 Before writing: adapter names inside their allowed sets — `tracker.adapter` (`none` /
 `github-issues` / `jira-mcp`), `vcs.adapter` (`github-cli` / `bitbucket-mcp`), `knowledge.adapter`
-(`none` / `kartoteka`); `verify.commands` / `setup.commands` / `runtime.surface` /
-`verify.surface` are arrays of strings; `review.perTask` and `design.figma` are booleans;
+(`none` / `kartoteka`); with `knowledge.adapter: "kartoteka"`, `knowledge.baseUrl` non-empty
+and `knowledge.project` non-empty and matching `^[a-z0-9][a-z0-9-]*$`;
+`verify.commands` / `setup.commands` / `runtime.surface` / `verify.surface` are arrays of
+strings; `review.perTask` and `design.figma` are booleans;
 MCP-adapter prefixes non-empty; language codes plausible BCP 47. A violation re-asks that round — never write a config that config.md's reading rules
 would reject at run start.
 

@@ -30,18 +30,19 @@ Four layers:
     session baseline** stay red; after `MAX_CONSECUTIVE_BLOCKS = 2` it latches open with a
     loud warning. Escape hatch: delete `.artel/run/.hooks/baseline-<session_id>.json` to
     re-baseline on the next stop.
-- **Knowledge layer** — optional, driven by `knowledge.adapter` / `knowledge.baseUrl`
-  (config.md):
+- **Knowledge layer** — optional, driven by `knowledge.adapter` / `knowledge.baseUrl` /
+  `knowledge.project` (config.md):
   - `knowledge_mirror.py` (`PostToolUse` on `Edit|Write|MultiEdit`) — posts each
     deliberation artifact written under `<specs.dir>/<TICKET>/` to a kartoteka artifact
-    store as it is written. Additive and best-effort: files on disk stay primary, nothing
-    blocks, nothing retries, every attempt is logged to
+    store as it is written, under `knowledge.project`. Additive and best-effort: files on
+    disk stay primary, nothing blocks, nothing retries, every attempt is logged to
     `.artel/run/.hooks/knowledge-mirror.log`. Inert unless `knowledge.adapter` is
-    `"kartoteka"`.
+    `"kartoteka"`; with the adapter on and `baseUrl` or `project` missing it logs one
+    `misconfigured` line per mirrorable edit and sends nothing.
 - **Session layer** — turn-one routing, no gate:
   - `using_artel.py` (`SessionStart`, matcher `startup|clear|compact`) — injects the
     `using-artel` router skill (frontmatter stripped) plus four host-status lines
-    (`config: present`, `knowledge.adapter` with `baseUrl`, the raw `.active_ticket`
+    (`config: present`, `knowledge.adapter` with `baseUrl` and `project`, the raw `.active_ticket`
     pointer, and whether the `ast-index` CLI is on PATH — `shutil.which`, no subprocess) as
     `additionalContext`, so the routing rule is in context on turn one and comes
     back after `/clear` and compaction. Prints nothing without `.artel/config.json`; any

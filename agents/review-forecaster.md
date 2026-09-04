@@ -52,9 +52,11 @@ missing rather than deriving it yourself:
 4. **Forecast mode `off`** — skip to step 8. Table 2 lists its units with `— · no precedent`
    in `Pass` and empty `Confidence` and `Precedents`; section 3 reads `No proposed fixes:
    forecast off.`; the record's `Index:` line reads `not consulted`.
-5. **Look up precedents** (§3). `index_status()` once. Then per table-2 unit in §3's priority
-   order: one unfiltered `search_knowledge`, the one permitted retry, the one permitted
-   `related` hop. Budget: `search_knowledge` at most 16; `related` at most 4; at most two calls per unit.
+5. **Look up precedents** (§3). `index_status()` once, unscoped — when no row names
+   `<project>` (`knowledge.project` from `.artel/config.json`), the mode flips to §3's
+   "does not list project" line and you skip to step 8. Then per table-2 unit in §3's
+   priority order: one `search_knowledge` scoped to `<project>` and otherwise unfiltered,
+   the one permitted retry, the one permitted `related(<project>, …)` hop. Budget: `search_knowledge` at most 16; `related` at most 4; at most two calls per unit.
    Mark units the budget did not reach `not searched (budget)`. On a tool error, stop
    calling and mark the rest `not searched (error)`.
 6. **Classify** (§4) every similar thread as `fix-requested`, `question` or `approval`; drop
@@ -126,7 +128,7 @@ Threshold: <t>% · Reviewers weighted: <names, or "none (all equal)">
 ## Record
 - Forecast: <mode, verbatim>
 - Lookups: search_knowledge <k>/16 · related <m>/4
-- Index: <index_status per-source lines, or "not consulted">
+- Index: <index_status per-source lines for <project>, or "not consulted">
 - Not searched: <units with reason, or "none">
 - Grouped coarser: <yes | no>
 ```

@@ -43,8 +43,15 @@ are `search_knowledge`, `related` and `index_status`; they are present when the 
 wired the kartoteka MCP server into this session. Any other adapter value is a configuration
 error under config.md's reading rule 3: name the value and stop.
 
-Row 3 is deliberate, as in knowledge-consultation.md §1: kartoteka is single-project, and an
-index wired up for another checkout has no business answering for this one.
+**One precondition is resolved before the table**, as in knowledge-consultation.md §1: with
+the adapter `kartoteka` and `knowledge.project` empty or outside its grammar, the mode is
+`off: kartoteka is configured for this project but knowledge.project is not set`, whatever
+the tools say. `<project>` below is that key's value — the kartoteka project this repository
+belongs to — and every call in §3 names it.
+
+Row 3 is deliberate, as in knowledge-consultation.md §1: a project that has not declared the
+adapter has declared no `knowledge.project` either, and a daemon wired up for another
+checkout has no business answering for this one.
 
 **The mode is always recorded**, including rows 2 and 3. knowledge-consultation.md §4 writes
 no record where the adapter is off, so a pipeline document is unchanged for a project that
@@ -80,8 +87,11 @@ move it.
 
 Forecast mode `on` only.
 
-Open with **one `index_status()` call**. Its per-source lines go to the record (§7). When no
-pull-request source is among them, the `Forecast:` line reads
+Open with **one `index_status()` call, unscoped**. Its rows for `<project>` go to the record
+(§7); when no row names `<project>` at all, the daemon does not know this project — the mode
+becomes `off: kartoteka does not list project <project>; run kartoteka project add <project> on the daemon machine`
+and §3–§6 are skipped, as knowledge-consultation.md §2 prescribes. When no pull-request
+source is among the project's rows, the `Forecast:` line reads
 `on (no pull-request source indexed — expect no precedents)` — the search still runs, and
 every row will honestly read `no precedent`.
 
@@ -89,16 +99,17 @@ Then, per table-2 unit, in this priority order — units touching a path matched
 sensitive-paths policy (the plugin's `hooks/sensitive-paths.json` defaults, replaced by a host
 `.artel/sensitive-paths.json` when present) first, then by hunk count, largest first:
 
-1. **One `search_knowledge(<query>)`**, where the query is the unit's one-line description
-   plus its main symbol and path names — the words a reviewer would have used in a thread
-   about the same thing. **Unfiltered first**: kartoteka applies `type` / `source` / `status`
-   filters after candidate selection, so a filtered query can come back empty while a
-   matching thread is indexed.
+1. **One `search_knowledge(<query>, project=<project>)`**, where the query is the unit's
+   one-line description plus its main symbol and path names — the words a reviewer would
+   have used in a thread about the same thing. Always scoped to `<project>`: another
+   project's review history is not this one's precedent. **Unfiltered otherwise**: kartoteka
+   applies `type` / `source` / `status` filters after candidate selection, so a filtered
+   query can come back empty while a matching thread is indexed.
 2. **One retry with `type="review_thread"`**, only when the unfiltered hits hold no `pr` or
    `review_thread` document at all.
-3. **One `related(<ticket key>)`**, only when a `pr` hit is a close match — same subsystem,
-   same kind of change — to pull that pull request's threads. Use the canonical key the hit
-   carries, never a phase-suffixed form.
+3. **One `related(<project>, <ticket key>)`**, only when a `pr` hit is a close match — same
+   subsystem, same kind of change — to pull that pull request's threads. Use the canonical
+   key the hit carries, never a phase-suffixed form.
 
 **Budget, per run:** `index_status` once; `search_knowledge` at most 16; `related` at most 4; at most two calls per unit.
 This replaces knowledge-consultation.md §3's four searches for this skill alone: an
@@ -183,8 +194,8 @@ The footer of `deep-review.md`, always present:
 
 - `Forecast:` — the mode line from §1, repeated.
 - `Lookups:` — calls used against the budget: `search_knowledge <k>/16 · related <m>/4`.
-- `Index:` — the per-source last-sync lines from `index_status`, or `not consulted` when the
-  mode is off.
+- `Index:` — the per-source last-sync lines from `index_status` for `<project>`, or
+  `not consulted` when the mode is off.
 - `Not searched:` — units left without a lookup, with the reason (`budget` or `error`), or
   `none`.
 - `Grouped coarser:` — `yes` when §2's twenty-unit rule applied, otherwise `no`.

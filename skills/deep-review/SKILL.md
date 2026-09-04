@@ -132,6 +132,9 @@ this order:
    not kartoteka tools happen to be present (an undeclared index is not this project's).
    Any value other than `none` or `kartoteka` → configuration error (config.md reading rule 3):
    display `Error: knowledge.adapter has an unrecognised value (<value>).` and terminate.
+   `kartoteka` with `knowledge.project` empty or outside `^[a-z0-9][a-z0-9-]*$` →
+   `off: kartoteka is configured for this project but knowledge.project is not set` — the
+   forecaster gets no project to name, so it cannot consult (review-forecast.md §1).
 3. `kartoteka`, and `search_knowledge`, `related` and `index_status` are among the tools
    available to you in this session → `on`. Otherwise →
    `off: kartoteka is configured for this project but its MCP tools are not available in this session`.

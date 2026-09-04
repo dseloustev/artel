@@ -64,9 +64,9 @@ You are running the requirements interview for <TICKET_ID>{phase ? ", Phase <PHA
    never ask what the repo already answers.
 4. CONSULT THE RECORD, on the same principle: per your agent definition's Interview duties and
    `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md`, resolve the gate (§1) — the
-   **Knowledge consultation** field above is its `--local` input — then `index_status`,
-   `related(<canonical ticket key>)` and up to four `search_knowledge` queries drawn from
-   `idea.md` (§§2–3). What the record already answers is not a question either.
+   **Knowledge consultation** field above is its `--local` input — then `index_status()`,
+   `related(<project>, <canonical ticket key>)` and up to four `search_knowledge` queries
+   scoped to `<project>` (`knowledge.project`), drawn from `idea.md` (§§2–3). What the record already answers is not a question either.
 5. Build the design-tree question list per your agent definition's Interview duties, then return the
    FIRST batch of at most 4 questions (most load-bearing first), or `NO_QUESTIONS` if the idea is
    already unambiguous.

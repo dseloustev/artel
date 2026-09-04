@@ -96,7 +96,7 @@ cat > .artel/config.json <<'JSON'
  "tracker": {"adapter": "none", "mcpToolPrefix": ""},
  "vcs": {"adapter": "github-cli", "mcpToolPrefix": ""},
  "verify": {"commands": [], "fast": "sh -c \"echo 'smoke-lint: planted failure' >&2; exit 1\""},
- "knowledge": {"adapter": "none", "baseUrl": ""}}
+ "knowledge": {"adapter": "none", "baseUrl": "", "project": ""}}
 JSON
 echo "# smoke" > README.md && git add -A && git commit -qm init
 ```

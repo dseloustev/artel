@@ -192,8 +192,8 @@ the contract from a promise into enforcement ([hooks/README.md](../hooks/README.
   hooks/README.md. With no `.artel/config.json` or an empty `verify.fast`, this layer is a
   no-op.
 - **Knowledge mirror** (`knowledge_mirror.py`) — optional, driven by `knowledge.adapter` /
-  `knowledge.baseUrl`: posts each deliberation artifact written under `<specs.dir>/<TICKET>/`
-  to a kartoteka artifact store as it is written. Additive and best-effort — files on disk stay
+  `knowledge.baseUrl` / `knowledge.project`: posts each deliberation artifact written under
+  `<specs.dir>/<TICKET>/` to a kartoteka artifact store as it is written, under that project. Additive and best-effort — files on disk stay
   primary, nothing blocks, nothing retries, every attempt is logged to
   `.artel/run/.hooks/knowledge-mirror.log`. Inert unless configured.
 

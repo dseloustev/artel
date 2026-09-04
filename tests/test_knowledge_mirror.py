@@ -89,25 +89,52 @@ class TestArtifactIdentity(unittest.TestCase):
         self.assertIsNone(km.artifact_identity('specs/.current/AW-9/plan.md', config))
 
 
-class TestKnowledgeBaseUrl(unittest.TestCase):
+class TestKnowledgeTarget(unittest.TestCase):
     def test_absent_section_is_off(self):
-        self.assertEqual(km.knowledge_base_url({}), (None, None))
+        self.assertEqual(km.knowledge_target({}), (None, None, None))
 
     def test_adapter_none_is_off(self):
-        config = {'knowledge': {'adapter': 'none', 'baseUrl': 'http://127.0.0.1:8734'}}
-        self.assertEqual(km.knowledge_base_url(config), (None, None))
+        config = {'knowledge': {'adapter': 'none', 'baseUrl': 'http://127.0.0.1:8734',
+                                'project': 'adguard-wallet'}}
+        self.assertEqual(km.knowledge_target(config), (None, None, None))
 
     def test_adapter_on_with_empty_base_url_reports(self):
         # Reading rule 3 calls this a configuration error, but a knowledge
         # mirror reports and continues where vcs would stop the run.
-        url, error = km.knowledge_base_url({'knowledge': {'adapter': 'kartoteka'}})
+        url, project, error = km.knowledge_target(
+            {'knowledge': {'adapter': 'kartoteka', 'project': 'adguard-wallet'}})
         self.assertIsNone(url)
+        self.assertIsNone(project)
         self.assertIn('baseUrl', error)
 
-    def test_usable_adapter_returns_url_without_trailing_slash(self):
+    def test_adapter_on_with_empty_project_reports(self):
+        # kartoteka refuses a write that names no project (E4), so a config
+        # without one would mirror nothing forever with only a 422 in the log
+        # to notice by. It is the same class of error as an empty baseUrl.
+        url, project, error = km.knowledge_target(
+            {'knowledge': {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:8734'}})
+        self.assertIsNone(url)
+        self.assertIsNone(project)
+        self.assertIn('knowledge.project', error)
+
+    def test_malformed_project_reports(self):
+        # kartoteka's grammar is lowercase kebab. A guard, never the authority:
+        # the server still enforces the real rule, but a 400 for `AdGuard_Wallet`
+        # on every edit is a worse signal than one misconfigured line.
+        url, project, error = km.knowledge_target(
+            {'knowledge': {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:8734',
+                           'project': 'AdGuard_Wallet'}})
+        self.assertIsNone(url)
+        self.assertIsNone(project)
+        self.assertIn('knowledge.project', error)
+        self.assertIn('AdGuard_Wallet', error)
+
+    def test_usable_adapter_returns_url_without_trailing_slash_and_project(self):
         config = {'knowledge': {'adapter': 'kartoteka',
-                                'baseUrl': 'http://127.0.0.1:8734/'}}
-        self.assertEqual(km.knowledge_base_url(config), ('http://127.0.0.1:8734', None))
+                                'baseUrl': 'http://127.0.0.1:8734/',
+                                'project': 'adguard-wallet'}}
+        self.assertEqual(km.knowledge_target(config),
+                         ('http://127.0.0.1:8734', 'adguard-wallet', None))
 
 
 class TestSizeGuard(unittest.TestCase):
@@ -202,12 +229,14 @@ class TestEndToEnd(unittest.TestCase):
 
     def test_posts_the_exact_payload(self):
         with tempfile.TemporaryDirectory() as tmp:
-            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base})
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base,
+                                     'project': 'adguard-wallet'})
             result = _run_hook(repo, HOOK_INPUT)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(_Capture.received), 1)
         self.assertEqual(_Capture.received[0]['path'], '/api/artifacts')
         self.assertEqual(_Capture.received[0]['body'], {
+            'project': 'adguard-wallet',
             'ticket_key': 'AW-1234',
             'stage': 'prd',
             'name': 'prd.md',
@@ -231,7 +260,8 @@ class TestEndToEnd(unittest.TestCase):
         # routed at a proxy host instead of the loopback server -- silently handing
         # the mirrored document's content off-box. Fails without the fix.
         with tempfile.TemporaryDirectory() as tmp:
-            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base})
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base,
+                                     'project': 'adguard-wallet'})
             env = {**os.environ, 'http_proxy': 'http://127.0.0.1:9'}
             result = _run_hook(repo, HOOK_INPUT, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -240,7 +270,8 @@ class TestEndToEnd(unittest.TestCase):
 
     def test_oversize_file_sends_nothing_and_logs(self):
         with tempfile.TemporaryDirectory() as tmp:
-            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base})
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base,
+                                     'project': 'adguard-wallet'})
             big = 'x' * (km.MAX_BYTES + 1)
             (repo / 'specs' / '.current' / 'AW-1234' / 'prd.md').write_text(
                 big, encoding='utf-8')
@@ -258,7 +289,8 @@ class TestEndToEnd(unittest.TestCase):
         # and nothing in the log to notice by -- this is what makes it land
         # in the log line instead.
         with tempfile.TemporaryDirectory() as tmp:
-            repo = _host_repo(tmp, {'adapter': 'kartoteca', 'baseUrl': self.base})
+            repo = _host_repo(tmp, {'adapter': 'kartoteca', 'baseUrl': self.base,
+                                     'project': 'adguard-wallet'})
             result = _run_hook(repo, HOOK_INPUT)
             log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
             line = log.read_text(encoding='utf-8')
@@ -320,7 +352,8 @@ class TestHttpRejectionLogging(unittest.TestCase):
         explanation = 'ticket_key must have a project key of two or more characters'
         _RejectingCapture.body = json.dumps({'detail': explanation}).encode('utf-8')
         with tempfile.TemporaryDirectory() as tmp:
-            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base})
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base,
+                                     'project': 'adguard-wallet'})
             result = _run_hook(repo, HOOK_INPUT)
             log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
             line = log.read_text(encoding='utf-8')
@@ -333,7 +366,8 @@ class TestHttpRejectionLogging(unittest.TestCase):
         long_detail = 'x' * 5000
         _RejectingCapture.body = json.dumps({'detail': long_detail}).encode('utf-8')
         with tempfile.TemporaryDirectory() as tmp:
-            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base})
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base,
+                                     'project': 'adguard-wallet'})
             result = _run_hook(repo, HOOK_INPUT)
             log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
             line = log.read_text(encoding='utf-8')
@@ -348,7 +382,8 @@ class TestFailOpen(unittest.TestCase):
     def test_unreachable_server_exits_zero_and_logs(self):
         # Port 1 on loopback refuses instantly; nothing must propagate.
         with tempfile.TemporaryDirectory() as tmp:
-            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:1'})
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:1',
+                                     'project': 'adguard-wallet'})
             result = _run_hook(repo, HOOK_INPUT)
             log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
             self.assertIn('fail', log.read_text(encoding='utf-8'))
@@ -397,6 +432,21 @@ class TestMisconfiguredLogging(unittest.TestCase):
             lines = log.read_text(encoding='utf-8').strip().splitlines()
         self.assertEqual(len(lines), 1)
         self.assertIn('misconfigured', lines[0])
+
+    def test_missing_project_writes_exactly_one_misconfigured_line_and_no_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:1'})
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            result = _run_hook(repo, HOOK_INPUT)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(log.is_file())
+            lines = log.read_text(encoding='utf-8').strip().splitlines()
+        self.assertEqual(len(lines), 1)
+        self.assertIn('misconfigured', lines[0])
+        self.assertIn('knowledge.project', lines[0])
+        # A `fail` line here would mean the hook reached the network with no
+        # project to send -- the misconfiguration must be caught before that.
+        self.assertNotIn('fail', lines[0])
 
 
 if __name__ == '__main__':

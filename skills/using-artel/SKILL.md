@@ -84,8 +84,10 @@ it). `<ticket>-<N>` is a phase-scoped run.
 
 **Kartoteka — institutional knowledge and the task queue**
 
-Only when the status line says `knowledge.adapter: kartoteka`. With `none`, say that the index
-is not declared for this project and point at `/artel:setup`.
+Only when the status line says `knowledge.adapter: kartoteka` and its `project` is a name, not
+`NOT SET`. With `none`, say that the index is not declared for this project and point at
+`/artel:setup`; with `project NOT SET`, say that `knowledge.project` is missing and point there
+too — every kartoteka call needs it.
 
 | The user wants… | Run |
 |---|---|

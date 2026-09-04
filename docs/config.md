@@ -90,7 +90,8 @@ placeholder the init interview replaces.
   },
   "knowledge": {
     "adapter": "none",
-    "baseUrl": ""
+    "baseUrl": "",
+    "project": ""
   },
   "runtime": {}
 }
@@ -277,6 +278,7 @@ Release-scope artifacts (`R-<RELEASE_ID>` identifiers) live under `<specs.releas
 |---|---|---|---|---|
 | `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook; the read half below (`analyst`, `researcher`, `deep-review`); the task queue |
 | `knowledge.baseUrl` | string | `""` | Required when `adapter` is `"kartoteka"`. Origin only, no trailing path — e.g. `http://127.0.0.1:8734`. | The `knowledge_mirror` hook's request addressing |
+| `knowledge.project` | string | `""` | Required when `adapter` is `"kartoteka"`. The kartoteka project this repository's trail, queue and consultations belong to: lowercase kebab-case, `^[a-z0-9][a-z0-9-]*$`, e.g. `adguard-wallet`. Must be registered in the daemon's database — `kartoteka project add <name>`, once, on the daemon machine. No default; see below. | Every kartoteka call: the `knowledge_mirror` hook's request body, `related`, the scoped reads, `task_create` / `task_ready` |
 
 - **`none`** — nothing is mirrored. The spec trail stays on disk, exactly as it always has.
 - **`kartoteka`** — as each deliberation artifact is written under `<specs.dir>`, a
@@ -291,9 +293,28 @@ configured: the deliberation documents (`prd.md`, `plan.md`, `adr.md`, `review.m
 gate evidence, machine-readable findings, derived reports and transient adapter state do not.
 Everything under `.artel/` is outside `<specs.dir>` and never leaves the machine.
 
-An adapter of `"kartoteka"` with an empty `baseUrl` is a configuration error under reading rule
-3, but the hook **reports it to `.artel/run/.hooks/knowledge-mirror.log` and continues** rather
-than stopping the run.
+**`knowledge.project` names the namespace.** Since kartoteka 0.31.0 one daemon can serve several
+projects out of one database, and it refuses any write that does not say which project it
+belongs to — a guessed project would append to another project's deliberation trail, and nothing
+later undoes that. So there is deliberately no default: kartoteka removed its own for that reason
+and artel does not reinvent one. The value travels on every call artel makes — the mirror hook's
+request body, `related(<project>, …)`, `task_create` and `task_ready`, and as a scope on the
+reads (`search_knowledge`, `index_status`, `task_list`, `artifact_list`), so that a daemon
+serving several projects answers for this one. The name must be **registered** in the database
+the daemon serves: `kartoteka project add <name>`, once, on the machine running it
+(`kartoteka ingest` registers its own config's project already, so this matters for a project
+kartoteka indexes nothing for — an artifact trail and a task list, no sources). An unregistered
+name is refused, not created — a typo opens no namespace — with a message naming that command;
+the hook logs the refusal as a `reject`, and the agents record it (`docs/task-queue.md` §1,
+`docs/knowledge-consultation.md` §2).
+
+An adapter of `"kartoteka"` with an empty `baseUrl`, or with a `project` that is empty or
+outside the grammar, is a configuration error under reading rule 3, but the hook **reports it to
+`.artel/run/.hooks/knowledge-mirror.log` and continues** rather than stopping the run. The
+agents do the same on their side: they consult nothing and record
+`kartoteka is configured for this project but knowledge.project is not set`
+(`docs/knowledge-consultation.md` §1), and the queue takes its fallback path with the same
+record (`docs/task-queue.md` §1).
 
 #### The read half
 
@@ -321,9 +342,10 @@ The fourth row is the working configuration; the fifth is the one worth knowing 
 it is how a correct `.artel/config.json` still produces no citations — the MCP server is not
 wired into the session. The agent says so in its own output rather than leaving you to guess.
 
-The third row is why the adapter still matters when the tools are present: kartoteka is
-single-project, so an index wired up for another project would otherwise be consulted for this
-one.
+The third row is why the adapter still matters when the tools are present: kartoteka's daemon
+may serve several projects out of one database, and `knowledge.project` is what names this one
+on every call. A project that has not declared the adapter has declared no project either, so
+an index wired up for some other checkout is never consulted for this one.
 
 **Nothing in the read half writes**, and agents never read this ticket's own `prd.md` or
 `plan.md` back from kartoteka — those are read from disk, because kartoteka's copy is a
@@ -433,7 +455,8 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
   },
   "knowledge": {
     "adapter": "kartoteka",
-    "baseUrl": "http://127.0.0.1:8734"
+    "baseUrl": "http://127.0.0.1:8734",
+    "project": "acme-web"
   },
   "runtime": {
     "run": "npm run dev -- --port 5173",

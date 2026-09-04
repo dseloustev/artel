@@ -66,8 +66,16 @@ def host_status(config, parseable=True):
     knowledge = config.get('knowledge') or {}
     adapter = knowledge.get('adapter') or 'none'
     base_url = knowledge.get('baseUrl') or ''
+    project = knowledge.get('project') or ''
     adapter_line = 'knowledge.adapter: {}'.format(adapter)
-    if base_url:
+    if adapter == 'kartoteka':
+        # The project is shown beside the URL, and its absence is shouted
+        # rather than elided: kartoteka refuses every write that names no
+        # project, and the mirror log only says so after an edit has
+        # already gone unmirrored. This line is read before any edit.
+        adapter_line += ' ({}, project {})'.format(base_url or 'no baseUrl',
+                                                    project or 'NOT SET')
+    elif base_url:
         adapter_line += ' ({})'.format(base_url)
     ticket = active_ticket_pointer(config) or 'none'
     return '\n'.join([

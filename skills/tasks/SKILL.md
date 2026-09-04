@@ -26,24 +26,27 @@ implementer's repair (`docs/task-queue.md` §3, §5).
   `task_update` result — that key names the tasklist `done` edits.
   The **queue key is always the canonical `TICKET_ID`**, phase suffix stripped
   (`docs/task-queue.md` §2); `PHASE_NUM`, when given, only says which phase file is also edited.
-- **Gate**: read `knowledge.adapter` from `.artel/config.json`
-  (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`).
+- **Gate**: read `knowledge.adapter` and `knowledge.project` from `.artel/config.json`
+  (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`). `<project>` below is the latter's value; every
+  `task_create` names it and every `task_list` is scoped to it (`docs/task-queue.md`).
 
 | `knowledge.adapter` | kartoteka MCP tools in session | Do |
 |---|---|---|
 | `none` / absent | either | Stop: "`knowledge.adapter` is not `kartoteka` for this project — declare it with `/artel:setup`." |
+| `kartoteka`, `knowledge.project` empty or malformed | either | Stop: "kartoteka is configured for this project but knowledge.project is not set — declare it with `/artel:setup`." |
 | `kartoteka` | absent | Stop: "kartoteka is configured for this project but its MCP tools are not available in this session" |
 | `kartoteka` | present | Continue |
 | anything else | either | Stop: configuration error (config.md reading rule 3); name the value. |
 
-The tools are `task_create`, `task_update`, `task_list`. There is no override flag: kartoteka is
-single-project, and a queue wired up for another checkout must not be written to from this one.
+The tools are `task_create`, `task_update`, `task_list`. There is no override flag: a daemon
+may serve several projects out of one database, `<project>` is what names this one on every
+write, and a queue wired up for another checkout must not be written to from this one.
 
 ## 2. Verbs
 
 ### `list [ticket] [--status <status>]`
 
-1. `task_list(ticket_key=<TICKET_ID> or omitted, status=<status> or omitted)`.
+1. `task_list(project=<project>, ticket_key=<TICKET_ID> or omitted, status=<status> or omitted)`.
 2. Render a table — `task_id`, title, status, actor, last activity — with iteration parents
    (titles `I<N>: …`) first, each followed by its children (`I<N> · …`). Flag `[HITL:` titles.
    A parent `in_progress` means only that its iteration is active (`docs/task-queue.md` §3 sets
@@ -85,8 +88,10 @@ single-project, and a queue wired up for another checkout must not be written to
 
        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
 
-   Exit `0` → for each entry of `data.iterations` in order: `task_create` the iteration row,
-   then each of its `children` with `parent_id` set to the iteration row's `task_id`.
+   Exit `0` → for each entry of `data.iterations` in order:
+   `task_create(project=<project>, ticket_key=<TICKET_ID>, title=…, description=…, status=…)`
+   the iteration row, then each of its `children` the same way with `parent_id` set to the
+   iteration row's `task_id`.
    Create-only and idempotent on `(ticket_key, title)`: every pre-existing row comes back
    unchanged, and the new checkbox comes back as a new row. Surface every `data.warnings` line.
    Yes, that is one `task_create` per row of the whole tasklist to add one task — do not skip
@@ -101,7 +106,7 @@ single-project, and a queue wired up for another checkout must not be written to
 5. **Report**: `task_id`, title (the composed `I<N> · <section> · <title>`), status — or
    "already mirrored as #<id>" when that title existed — plus the parser warnings.
 
-**Raw** (`--raw`): `task_create(ticket_key=<TICKET_ID>, title=<title>, status="backlog")`.
+**Raw** (`--raw`): `task_create(project=<project>, ticket_key=<TICKET_ID>, title=<title>, status="backlog")`.
 Report the row and this line verbatim: "backlog only; not part of any iteration; artel's
 implementer will not claim it". No file is edited.
 
@@ -125,7 +130,8 @@ implementer will not claim it". No file is edited.
 
 ### `release <task-id>`
 
-1. `task_list(ticket_key=<TICKET_ID>)` (unfiltered when no ticket resolved) and find the row.
+1. `task_list(project=<project>, ticket_key=<TICKET_ID>)` (no ticket filter when none
+   resolved) and find the row.
    A title `I<N>: …` is an iteration parent, not a claim — stop: "task #<id> is the iteration
    parent; parents are never released". Parents are never `ready` by contract, and the
    implementer's `task_ready` (never called here) claims the oldest `ready` row with no
@@ -141,7 +147,10 @@ dead holder, and clearing a live claim is the outcome the atomic claim exists to
 
 ## 3. Failure
 
-A tool call that errors mid-verb: report the error text and stop. There is no fallback path
-here — the user asked for the queue, not for work. For `add`, the invariant is that the file is
+A tool call that errors mid-verb: report the error text and stop. A `Rejected:` line naming
+`kartoteka project add` is the same stop with a known cause: `<project>` is not registered in
+the database that daemon serves, and the daemon cannot register it on demand — show the
+message verbatim; the fix is that command, once, on the daemon machine. There is no fallback
+path here — the user asked for the queue, not for work. For `add`, the invariant is that the file is
 written **before** any `task_create`, so a failed mirror leaves the queue behind the file, never
 ahead of it; say which rows were created before the failure.

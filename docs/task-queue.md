@@ -13,6 +13,13 @@ same task to two agents.
 consulting prior tickets and decisions — is `docs/knowledge-consultation.md`,
 and it stays read-only.
 
+**`<project>` throughout is `knowledge.project` from `.artel/config.json`** — the
+kartoteka project this repository belongs to (`docs/config.md`). Since kartoteka
+0.31.0 one daemon may serve several projects out of one database and refuses a
+write that does not name one, so `task_create` and `task_ready` carry it, and
+`task_list` takes it as a scope. `task_update` needs none: a `task_id` is unique
+across every project.
+
 **The queue is authoritative for which iteration task to work next** — and only
 for that. §6 lists the four sections it never holds, every one of which is worked
 from the file on both paths. The tasklist in scope stays current as a rendered
@@ -42,10 +49,26 @@ the **Task queue:** field of the agent's dispatch to
 than parsing a flag of its own. Where no orchestrator carries the flag — a `dev`
 run — rows 2-4 alone decide.
 
+**One precondition is resolved before the table, not in it.** With the adapter
+`kartoteka` and `knowledge.project` empty or outside its grammar, the config is
+in error under config.md's reading rule 3, exactly as in
+`docs/knowledge-consultation.md` §1. Take the fallback path (§4) whatever the
+tools say, and record:
+`kartoteka is configured for this project but knowledge.project is not set`.
+
 A fifth case the read path does not have: the adapter is on, the tools are
 present, and a call fails at runtime because the daemon stopped mid-ticket. Fall
 back for the remainder of the run and record `kartoteka became unreachable mid-run; continued from tasklist.md`
 — distinctly, because it is the case that leaves §4's divergence behind.
+
+And a sixth, which is a configuration error the config alone cannot show: the
+daemon answers the first `task_create` or `task_ready` with a `Rejected:` line
+naming `kartoteka project add <name>`. `<project>` is not registered in the
+database that daemon serves — a typo of a registered name, or a project nobody
+has registered yet — and the daemon deliberately cannot register one on demand.
+Fall back for the remainder of the run and record
+`kartoteka refused knowledge.project as unregistered; continued from tasklist.md`;
+the fix is that command, run once on the machine serving the daemon.
 
 `knowledge.adapter` is read from `.artel/config.json` per `docs/config.md`. The
 tools are `task_create`, `task_update`, `task_list` and `task_ready`; they are
@@ -59,9 +82,12 @@ Run by `generate-tasklist` and `tasklist` after `tasklist.md` is written, and by
 1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <path> --ticket-key <TICKET_KEY>`
    Exit `0` → continue. Exit `2` → report `error.kind` and `error.message`, mirror
    nothing, continue the run on the fallback path.
-2. For each entry of `data.iterations`, in order: `task_create` the iteration row,
-   then `task_create` each of its `children` with `parent_id` set to the
-   iteration row's `task_id`.
+2. For each entry of `data.iterations`, in order:
+   `task_create(project=<project>, ticket_key=<TICKET_KEY>, title=…, description=…, status=…)`
+   the iteration row, then `task_create` each of its `children` the same way,
+   with `parent_id` set to the iteration row's `task_id`. Every call names the
+   project; a `Rejected:` line naming `kartoteka project add` on the first one is
+   §1's sixth case — mirror nothing more and continue on the fallback path.
 3. Surface every `data.warnings` line to the user; none of them stop the mirror.
 
 **Order matters.** `task_ready` claims `ORDER BY task_id LIMIT 1` and the table
@@ -85,7 +111,7 @@ before this step, which both orchestrators' existing step order already does.
 
 ## 3. Claiming, reporting and promoting
 
-    claim     task_ready(actor="artel@<hostname>", ticket_key=<TICKET_KEY>)
+    claim     task_ready(project=<project>, actor="artel@<hostname>", ticket_key=<TICKET_KEY>)
                 → nothing returned: no ready work; fall through to §5
                 → the row is now in_progress and held by this actor
                 → first child of an iteration: task_update(parent, in_progress)
@@ -97,7 +123,8 @@ before this step, which both orchestrators' existing step order already does.
               (tasklist.md, or phase-<N>/tasks.md on a phase-scoped run)
               and update the Progress Report table, exactly as before
     report    task_update(task_id, status="done")
-    promote   task_list(ticket_key) → any "I<N> · " sibling not done?
+    promote   task_list(project=<project>, ticket_key=<TICKET_KEY>)
+                → any "I<N> · " sibling not done?
                 yes → stop here
                 no  → task_update(parent "I<N>: …", done)
                       every "I<N+1> · " child: backlog → ready
@@ -150,8 +177,9 @@ record is the only trail that divergence leaves.
 ## 5. When the queue is empty
 
 `task_ready` returning nothing on the queue path means no work is `ready`. That is
-not by itself a completion and not by itself a stall — check `task_list(ticket_key)`
-and report which of these four it is:
+not by itself a completion and not by itself a stall — check
+`task_list(project=<project>, ticket_key=<TICKET_KEY>)` and report which of these
+four it is:
 
 - every **child** row `done` — the iteration work is complete. An `I<N>: …` parent
   still `backlog` because its iteration was already complete when it was mirrored

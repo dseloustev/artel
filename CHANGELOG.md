@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-09-04
+
 ### Fixed
 
 - **The task-queue `actor` was a guess.** `agents/implementer.md` and `docs/task-queue.md`

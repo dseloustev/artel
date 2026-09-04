@@ -6,6 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`issue-draft` drafts against a template, consults kartoteka, and asks once before it
+  writes.** The description now follows one self-describing template
+  (`skills/issue-draft/assets/templates/description.template.md`; each section's
+  `<!-- required|optional … -->` comment is its rule), which a host overrides wholesale at
+  `.artel/templates/issue-draft.md`. Before writing, the skill consults the
+  institutional-knowledge index under `docs/knowledge-consultation.md` — `index_status`,
+  `related` when the source names a ticket key, at most four scoped `search_knowledge` — to
+  close gaps from the project's own record, quoted and attributed, with `⚠ NON-CURRENT` hits
+  closing nothing and at most five cited hits under a new Related section; then asks the four
+  highest-ranked remaining gaps in one `AskUserQuestion` round and lists what it did not ask
+  or was not told under Missing Details. `--local` skips the consultation, as everywhere
+  else. New optional Acceptance Criteria section, filled only from the source or the answers.
+  The report carries a per-section provenance table and the kartoteka footer.
+  `tests/test_issue_draft_docs.py` pins the template convention, the call shapes and the
+  override path; the skill joins `tests/test_knowledge_consultation_docs.py`'s consulting
+  list.
+
+### Removed
+
+- **`issue-draft` no longer reads Slack exports or produces variants.** Input is inline text
+  or a local `.txt`/`.md` file — the skill reads only what its argument names — and every
+  invocation yields one draft. The multi-variant mode existed for a pick-one modal the skill
+  never had.
+
+### Changed
+
+- `issue-draft` gains the frontmatter hint `<text | file-path> [--local]`; skills-reference.md,
+  config.md (`.artel/templates/issue-draft.md`; `issue-draft` in the `knowledge.*` Consumed-by
+  cells) and knowledge-consultation.md (the skill as a consumer with its two declared
+  deviations) follow.
+
 ## [0.9.1] - 2026-09-04
 
 ### Fixed

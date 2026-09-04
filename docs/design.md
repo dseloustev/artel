@@ -506,3 +506,24 @@ entry-point skills run a short one-time init interview and write the file.
   the project in `scripts/tasklist_tasks.py`'s output (the script contacts nothing and the
   orchestrator reads the config for the gate anyway). Released as 0.9.0 — a breaking config
   change, minor pre-1.0 — in step with kartoteka's coordinated release.
+- **2026-09-04 — `issue-draft` drafts against a template, consults kartoteka, and asks once
+  before it writes.** A reading of the corporate Slack↔Jira bridge (`slackjira-service`) found
+  its issue text comes from one structured-output call whose prompt is, item for item, the
+  generation rules the skill has carried since the `jira-issue-ru` port; there was no prompt
+  to adopt, and its Slack-side context handling and AI routing step were not adopted — input
+  is text or a local file, and no issue type is inferred. What carries over is the principle
+  that a draft is always produced and its gaps are listed rather than guessed. The skill now
+  renders one universal, self-describing template (each section's
+  `<!-- required|optional … -->` comment is its rule; a host overrides the whole file at
+  `.artel/templates/issue-draft.md`, presence being the switch, as with
+  `.artel/sensitive-paths.json`), consults kartoteka under the read-side contract to close
+  gaps before anyone is asked — quoted and attributed, `⚠ NON-CURRENT` closing nothing, with
+  two declared deviations (a tool error stops the consultation, not the draft; nothing is
+  recorded under `<specs.dir>`) — and then asks the four highest-ranked remaining gaps in one
+  `AskUserQuestion` round, listing what it did not ask or was not told under Missing Details.
+  Slack-export input and the multiple-suggestions mode go; `language.pr` stays the output
+  language and the dialect stays adapter-driven. Rejected: a drafting agent (the question
+  round would cross the agent boundary twice, and utility skills stay procedural workers),
+  per-type templates (they need exactly the type inference the rules forbid), and an
+  iterative interview (one interruption per invocation). Released as 0.10.0 — a capability
+  added and two behaviours removed, minor pre-1.0.

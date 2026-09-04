@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-04
+
 **Breaking: `knowledge.project` is required whenever `knowledge.adapter` is `"kartoteka"`.**
 kartoteka 0.31.0 namespaces its store and index by project so one daemon can serve several
 repositories out of one database, and it now refuses every write that names no project —

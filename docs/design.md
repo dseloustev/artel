@@ -545,7 +545,12 @@ entry-point skills run a short one-time init interview and write the file.
   variable inside headers (`${VAR}` in `.mcp.json`, `{env:VAR}` in `opencode.json`), so one
   export feeds the hook and the session. Rejected: a file path to the token (a path in committed
   config points at a secret on every machine), and folding the token status into the adapter
-  line of the host status (a separate line, presence only, never the value). The hook's proxy
+  line of the host status (a separate line, presence only, never the value). Two guards came
+  out of review: a value with control characters is `misconfigured` by name before any header
+  exists — `http.client` would otherwise refuse the header with an error that echoes it, the
+  one path on which the token could have reached the log — and a token is never sent over
+  plaintext `http://` off loopback, since kartoteka refuses such a bind without TLS and the
+  only thing at that address is a proxy's upstream port. The hook's proxy
   bypass stays, its promise restated as "the document goes to `baseUrl` and nowhere else", and
   the 2-second timeout stays until a hosted daemon shows it short. Released as 0.11.0 — an
   additive key with an inert default, minor pre-1.0; no coordinated release this time, since

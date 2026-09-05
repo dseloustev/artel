@@ -16,7 +16,9 @@ All notable changes to this project are documented here. The format follows
   sent (revoked or expired; `kartoteka token list` on the daemon host) and as `misconfigured`,
   naming the empty key or the unset variable, when none was; the token never reaches the log. A
   named variable that is unset sends the request unauthenticated, so one committed config serves
-  an auth-off loopback daemon and a hosted one. The `using-artel` host status gains a
+  an auth-off loopback daemon and a hosted one; a value that cannot travel in a header, or a
+  plaintext `http://` `baseUrl` off loopback while a token is present, is `misconfigured` by
+  name and nothing is sent. The `using-artel` host status gains a
   `knowledge.tokenEnv` line (set or not, never the value). The MCP session takes the same
   variable through the client's own expansion — `${KARTOTEKA_TOKEN}` in `.mcp.json`,
   `{env:KARTOTEKA_TOKEN}` in `opencode.json` — documented in config.md and docs/opencode.md;

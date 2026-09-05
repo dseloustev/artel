@@ -468,28 +468,74 @@ class TestBearerToken(unittest.TestCase):
     request without `Authorization: Bearer ktk_…`."""
 
     def test_empty_token_env_yields_no_token(self):
-        self.assertEqual(km.bearer_token({'knowledge': {'tokenEnv': ''}}, {}), (None, ''))
+        self.assertEqual(km.bearer_token({'knowledge': {'tokenEnv': ''}}, {}), (None, '', None))
 
     def test_absent_key_yields_no_token(self):
         self.assertEqual(km.bearer_token({'knowledge': {}}, {'KARTOTEKA_TOKEN': TOKEN}),
-                         (None, ''))
+                         (None, '', None))
 
     def test_named_variable_is_read_from_the_environment(self):
         config = {'knowledge': {'tokenEnv': 'KARTOTEKA_TOKEN'}}
         self.assertEqual(km.bearer_token(config, {'KARTOTEKA_TOKEN': TOKEN}),
-                         (TOKEN, 'KARTOTEKA_TOKEN'))
+                         (TOKEN, 'KARTOTEKA_TOKEN', None))
 
     def test_named_variable_unset_yields_no_token_but_keeps_the_name(self):
         # The name comes back so a 401 can say which variable to export.
         config = {'knowledge': {'tokenEnv': 'KARTOTEKA_TOKEN'}}
-        self.assertEqual(km.bearer_token(config, {}), (None, 'KARTOTEKA_TOKEN'))
+        self.assertEqual(km.bearer_token(config, {}), (None, 'KARTOTEKA_TOKEN', None))
 
     def test_whitespace_around_the_value_is_stripped(self):
         # `kartoteka token add` prints the secret with a trailing newline, and
         # `export KARTOTEKA_TOKEN="$(cat token.txt)"` is how it usually travels.
         config = {'knowledge': {'tokenEnv': 'KARTOTEKA_TOKEN'}}
         self.assertEqual(km.bearer_token(config, {'KARTOTEKA_TOKEN': ' ' + TOKEN + '\n'}),
-                         (TOKEN, 'KARTOTEKA_TOKEN'))
+                         (TOKEN, 'KARTOTEKA_TOKEN', None))
+
+    def test_a_value_with_control_characters_is_an_error_that_names_the_variable(self):
+        # http.client refuses a header value carrying CR/LF with a ValueError
+        # that echoes the whole header -- the one path on which the token
+        # could have reached the log. Caught here, before any header exists.
+        config = {'knowledge': {'tokenEnv': 'KARTOTEKA_TOKEN'}}
+        token, token_env, error = km.bearer_token(
+            config, {'KARTOTEKA_TOKEN': 'ktk_first-half\nktk_second-half'})
+        self.assertIsNone(token)
+        self.assertEqual(token_env, 'KARTOTEKA_TOKEN')
+        self.assertIn('KARTOTEKA_TOKEN', error)
+        self.assertNotIn('first-half', error)
+        self.assertNotIn('second-half', error)
+
+    def test_a_value_with_an_embedded_space_is_an_error(self):
+        config = {'knowledge': {'tokenEnv': 'KARTOTEKA_TOKEN'}}
+        token, _, error = km.bearer_token(config, {'KARTOTEKA_TOKEN': 'ktk_abc def'})
+        self.assertIsNone(token)
+        self.assertIsNotNone(error)
+
+
+class TestRedaction(unittest.TestCase):
+    def test_the_token_is_replaced_in_a_message(self):
+        self.assertEqual(km.redacted("Invalid header value b'Bearer ktk_x'", 'ktk_x'),
+                         "Invalid header value b'Bearer <redacted>'")
+
+    def test_no_token_leaves_the_message_alone(self):
+        self.assertEqual(km.redacted('connection refused', None), 'connection refused')
+
+
+class TestPlaintextGuard(unittest.TestCase):
+    """A bearer token over plaintext http to a non-loopback host crosses the
+    network in the clear. kartoteka itself refuses a non-loopback bind without
+    TLS, so such a baseUrl is a proxy's upstream port reached directly, or a
+    typo -- never a working deployment."""
+
+    def test_http_to_a_remote_host_is_plaintext_off_loopback(self):
+        self.assertTrue(km.plaintext_off_loopback('http://kartoteka.example.test:8734'))
+        self.assertTrue(km.plaintext_off_loopback('http://10.0.0.5:8734'))
+
+    def test_loopback_and_https_are_fine(self):
+        for url in ('http://127.0.0.1:8734', 'http://localhost:8734', 'http://[::1]:8734',
+                    'http://127.0.0.2:8734', 'https://kartoteka.example.test',
+                    'https://10.0.0.5:8734'):
+            with self.subTest(url):
+                self.assertFalse(km.plaintext_off_loopback(url))
 
 
 class TestBearerTokenOnTheWire(unittest.TestCase):
@@ -566,6 +612,7 @@ class TestUnauthorizedLogging(unittest.TestCase):
             lines = log.read_text(encoding='utf-8').splitlines()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, '')
+        self.assertNotIn(TOKEN, result.stderr)
         self.assertEqual(len(lines), 1)
         return lines[0]
 
@@ -593,6 +640,49 @@ class TestUnauthorizedLogging(unittest.TestCase):
         line = self._log_line('KARTOTEKA_TOKEN', _env(KARTOTEKA_TOKEN=TOKEN))
         self.assertNotIn(TOKEN, line)
         self.assertNotIn(TOKEN[4:], line)  # nor the part after the ktk_ prefix
+
+
+class TestMalformedTokenAndPlaintext(unittest.TestCase):
+    def setUp(self):
+        _Capture.received = []
+        self.server = HTTPServer(('127.0.0.1', 0), _Capture)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = 'http://127.0.0.1:{}'.format(self.server.server_port)
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def test_a_multiline_value_sends_nothing_and_leaks_nothing(self):
+        two_lines = 'ktk_first-half\nktk_second-half'
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base,
+                                     'project': 'adguard-wallet', 'tokenEnv': 'KARTOTEKA_TOKEN'})
+            result = _run_hook(repo, HOOK_INPUT, env=_env(KARTOTEKA_TOKEN=two_lines))
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            text = log.read_text(encoding='utf-8')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(_Capture.received, [])
+        self.assertIn('misconfigured', text)
+        self.assertIn('KARTOTEKA_TOKEN', text)
+        for leak in ('first-half', 'second-half'):
+            self.assertNotIn(leak, text)
+            self.assertNotIn(leak, result.stderr)
+
+    def test_a_token_is_never_sent_over_plaintext_off_loopback(self):
+        # 203.0.113.0/24 is TEST-NET-3: nothing answers there, so a request
+        # that did go out would show up as a 2-second `fail`, not an `ok`.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': 'http://203.0.113.1:8734',
+                                     'project': 'adguard-wallet', 'tokenEnv': 'KARTOTEKA_TOKEN'})
+            result = _run_hook(repo, HOOK_INPUT, env=_env(KARTOTEKA_TOKEN=TOKEN))
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            text = log.read_text(encoding='utf-8')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('misconfigured', text)
+        self.assertIn('https://', text)
+        self.assertNotIn('fail', text)
+        self.assertNotIn(TOKEN, text)
 
 
 class TestTokenNeverLoggedOnFailure(unittest.TestCase):

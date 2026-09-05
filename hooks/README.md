@@ -45,15 +45,17 @@ Four layers:
     daemon host) and as `misconfigured` when none was, naming the empty key or the unset
     variable. An unset variable sends the request unauthenticated rather than failing, so one
     committed config serves an auth-off loopback daemon and a hosted one. The token itself
-    never reaches the log.
+    never reaches the log: a value with whitespace or control characters, or a plaintext
+    `http://` `baseUrl` off loopback while a token is present, is `misconfigured` by name and
+    nothing is sent, and an exception text is redacted before it is logged.
 - **Session layer** — turn-one routing, no gate:
   - `using_artel.py` (`SessionStart`, matcher `startup|clear|compact`) — injects the
-    `using-artel` router skill (frontmatter stripped) plus the host-status lines
-    (`config: present`, `knowledge.adapter` with `baseUrl` and `project`, `knowledge.tokenEnv`
-    and whether the variable it names is set in the session's environment — never its value —
-    when the adapter is `kartoteka`, the raw `.active_ticket` pointer, and whether the `ast-index` CLI is on PATH — `shutil.which`, no subprocess) as
-    `additionalContext`, so the routing rule is in context on turn one and comes
-    back after `/clear` and compaction. Prints nothing without `.artel/config.json`; any
+    `using-artel` router skill (frontmatter stripped) plus the host-status lines as
+    `additionalContext`, so the routing rule is in context on turn one and comes back after
+    `/clear` and compaction. The lines: `config: present`; `knowledge.adapter` with `baseUrl`
+    and `project`; with the adapter `kartoteka`, `knowledge.tokenEnv` and whether the variable
+    it names is set in the session's environment (never its value); the raw `.active_ticket`
+    pointer; and whether the `ast-index` CLI is on PATH (`shutil.which`, no subprocess). Prints nothing without `.artel/config.json`; any
     error goes to stderr and the hook still exits 0 — a session never fails to start
     because of it. The `ast-index` line reflects the PATH Claude Code was launched with, not
     the Bash tool's shell profile: a launch from an IDE can say `not on PATH` for a CLI that

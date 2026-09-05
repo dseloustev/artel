@@ -91,10 +91,18 @@ def knowledge_target(config):
     return base, project, None
 
 
+# What may travel in an HTTP header value: printable ASCII, no whitespace.
+# http.client refuses anything else -- with a ValueError that echoes the whole
+# header, which is the one path on which the token could have reached the log.
+# So the value is checked here, by name, before any header exists.
+_HEADER_SAFE = re.compile(r'^[\x21-\x7e]+\Z')
+
+
 def bearer_token(config, environ=None):
-    """(token or None, variable name or ''). `knowledge.tokenEnv` names an
-    environment variable; the config never holds the value, because the file
-    is committed team configuration and a token is one machine's credential.
+    """(token or None, variable name or '', error or None). `knowledge.tokenEnv`
+    names an environment variable; the config never holds the value, because
+    the file is committed team configuration and a token is one machine's
+    credential.
 
     A named variable that is unset yields no token *and no error*: the hook
     sends the request unauthenticated and lets the daemon decide. One
@@ -102,14 +110,45 @@ def bearer_token(config, environ=None):
     `[auth]` off and a host talking to a hosted one that requires the token;
     a 401 is classified in main() with the variable's name in hand, so the log
     line can say which variable to export. Since kartoteka 0.32.0.
+
+    A value that cannot travel in a header -- a file exported with a second
+    line, say -- is the one error: reported by the variable's name, never its
+    content, and nothing is sent.
     """
     environ = os.environ if environ is None else environ
     knowledge = config.get('knowledge') or {}
     token_env = (knowledge.get('tokenEnv') or '').strip()
     if not token_env:
-        return None, ''
+        return None, '', None
     token = (environ.get(token_env) or '').strip()
-    return (token or None), token_env
+    if not token:
+        return None, token_env, None
+    if not _HEADER_SAFE.match(token):
+        return None, token_env, (
+            '{} (knowledge.tokenEnv) holds a value with whitespace or control characters; '
+            'export the token as one line'.format(token_env))
+    return token, token_env, None
+
+
+def redacted(message, token):
+    """`message` with the token replaced. Defence in depth for any line that
+    quotes an exception: a library that echoes a header in its error text must
+    not turn the mirror log into a credential store."""
+    return message.replace(token, '<redacted>') if token else message
+
+
+def plaintext_off_loopback(base_url):
+    """True when `base_url` is plain http to a host that is not loopback --
+    where a bearer token would cross the network in the clear. kartoteka
+    itself refuses a non-loopback bind without TLS, so such an origin is a
+    proxy's upstream port reached directly, or a typo; never a working
+    deployment."""
+    from urllib.parse import urlsplit  # deferred like urllib.request: send path only
+    parts = urlsplit(base_url)
+    if parts.scheme != 'http':
+        return False
+    host = (parts.hostname or '').lower()
+    return not (host == 'localhost' or host == '::1' or host.startswith('127.'))
 
 
 def _ticket_matcher(config):
@@ -239,6 +278,15 @@ def main():
         # mirrored -- still noisy, but proportionate to the problem.
         log('misconfigured -- ' + error)
         return 0
+    token, token_env, token_error = bearer_token(config)
+    if token_error:
+        log('misconfigured -- ' + token_error)
+        return 0
+    if token and plaintext_off_loopback(base_url):
+        log('misconfigured -- knowledge.baseUrl {} is plaintext http:// off loopback and a bearer '
+            'token would cross the network in the clear; use the daemon\'s https:// origin, or a '
+            'loopback proxy -- nothing was sent'.format(base_url))
+        return 0
     ticket_key, stage, name = identity
     try:
         content = Path(rel).read_text(encoding='utf-8')
@@ -249,7 +297,6 @@ def main():
         return 0
     payload = {'project': project, 'ticket_key': ticket_key, 'stage': stage,
                'name': name, 'content': content}
-    token, token_env = bearer_token(config)
     try:
         import urllib.error  # deferred with urllib.request, same reasoning
         status = post_artifact(base_url, payload, token)
@@ -292,7 +339,7 @@ def main():
         body = _read_rejection_body(exc)
         log('reject {} {} {} -- HTTP {} {}'.format(ticket_key, stage, name, exc.code, body))
     except Exception as exc:  # fail open: the files on disk are the fallback
-        log('fail {} {} -- {}'.format(ticket_key, name, exc))
+        log('fail {} {} -- {}'.format(ticket_key, name, redacted(str(exc), token)))
     return 0
 
 

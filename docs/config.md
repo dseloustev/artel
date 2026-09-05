@@ -340,7 +340,12 @@ the variable — the token was refused, so `kartoteka token list` on the daemon 
 not. A named variable that is unset is **not** an error by itself: the request goes out without
 a header, and a daemon with `[auth]` off accepts it — so one committed config serves a laptop
 talking to a loopback daemon and a host talking to a hosted one. The token never reaches the
-log or the session context on any path.
+log or the session context on any path, and two more `misconfigured` lines guard that promise:
+a value with whitespace or control characters (a file exported with its second line) is reported
+by the variable's name before any header exists, and a token is never sent over plaintext
+`http://` to a host that is not loopback — kartoteka refuses a non-loopback bind without TLS, so
+such a `baseUrl` is a proxy's upstream port reached directly; use the `https://` origin. Both
+send nothing.
 
 The MCP session takes the same variable through the client's own expansion:
 `claude mcp add --transport http kartoteka <baseUrl>/mcp --header "Authorization: Bearer ktk_…"`

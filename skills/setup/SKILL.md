@@ -58,7 +58,7 @@ arrive via the "Other" option.
   `knowledge.project`; and "Does the daemon require a bearer token (`[auth] enabled = true` in
   its config — every hosted daemon does)? If so, the **name** of the environment variable that
   will hold it, never the value" — suggesting `KARTOTEKA_TOKEN`, stored as `knowledge.tokenEnv`,
-  empty when the daemon runs with auth off. Say that the name must be registered in the daemon's
+  empty when the daemon runs with auth off. Say that the project name must be registered in the daemon's
   database before any write lands — `kartoteka project add <name>`, once, on the machine running
   the daemon — and that an unregistered name is refused rather than created. Say that the config
   is committed, which is why it carries the variable's name and the token stays in the shell:

@@ -25,12 +25,13 @@ Read `knowledge.adapter` and `knowledge.project` from `.artel/config.json`
 | `none` / absent | either | Stop: "`knowledge.adapter` is not `kartoteka` for this project — declare it with `/artel:setup`." |
 | `kartoteka`, `knowledge.project` empty or malformed | either | Stop: "kartoteka is configured for this project but knowledge.project is not set — declare it with `/artel:setup`." |
 | `kartoteka` | absent | Stop: "kartoteka is configured for this project but its MCP tools are not available in this session" |
-
-The last row also covers a daemon with `[auth]` on (kartoteka 0.32.0) that the session registered
-without its bearer token: Claude Code cannot connect, so the tools are absent. The fix is
-`--header` on the MCP registration (config.md, `knowledge.tokenEnv`), not a setting this skill reads.
 | `kartoteka` | present | Continue |
 | anything else | either | Stop: configuration error (config.md reading rule 3); name the value. |
+
+The `absent` row also covers a daemon with `[auth]` on (kartoteka 0.32.0) that the session
+registered without its bearer token: Claude Code cannot connect, so the tools are absent. The
+fix is `--header` on the MCP registration (config.md, `knowledge.tokenEnv`), not a setting this
+skill reads.
 
 The tools are `search_knowledge`, `related`, `index_status`, and — behind kartoteka's
 `[workspace]` switch — `artifact_list` and `artifact_get`. Presence means the host wired the

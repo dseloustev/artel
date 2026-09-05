@@ -142,5 +142,37 @@ class TestFailOpen(unittest.TestCase):
         self.assertIn('using-artel hook error', stderr.getvalue())
 
 
+class TestHostStatusTokenLine(unittest.TestCase):
+    """Since kartoteka 0.32.0 a daemon with [auth] on refuses every write without
+    a bearer token; the mirror log only says so after an edit has already gone
+    unmirrored. This line is read before any edit. The value is never shown."""
+
+    KNOWLEDGE = {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:8734',
+                 'project': 'adguard-wallet', 'tokenEnv': 'KARTOTEKA_TOKEN'}
+
+    def test_reports_a_set_variable_without_its_value(self):
+        with mock.patch.dict(os.environ, {'KARTOTEKA_TOKEN': 'ktk_secret-value'}):
+            status = ua.host_status({'knowledge': self.KNOWLEDGE})
+        self.assertIn('- knowledge.tokenEnv: KARTOTEKA_TOKEN (set)', status)
+        self.assertNotIn('ktk_', status)
+        self.assertNotIn('secret-value', status)
+
+    def test_flags_an_unset_variable(self):
+        env = {k: v for k, v in os.environ.items() if k != 'KARTOTEKA_TOKEN'}
+        with mock.patch.dict(os.environ, env, clear=True):
+            status = ua.host_status({'knowledge': self.KNOWLEDGE})
+        self.assertIn('- knowledge.tokenEnv: KARTOTEKA_TOKEN (NOT SET', status)
+
+    def test_names_an_empty_key_as_auth_off(self):
+        knowledge = dict(self.KNOWLEDGE, tokenEnv='')
+        status = ua.host_status({'knowledge': knowledge})
+        self.assertIn('- knowledge.tokenEnv: none', status)
+        self.assertIn('[auth]', status)
+
+    def test_no_token_line_when_the_adapter_is_off(self):
+        status = ua.host_status({'knowledge': {'adapter': 'none', 'tokenEnv': 'KARTOTEKA_TOKEN'}})
+        self.assertNotIn('tokenEnv', status)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,7 +1,8 @@
 """SessionStart(startup|clear|compact): inject the `using-artel` router skill plus a
-four-line host status into the session. Inert without .artel/config.json. Fails open —
+short host status into the session. Inert without .artel/config.json. Fails open —
 a session must never fail to start because of a convenience."""
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -77,15 +78,39 @@ def host_status(config, parseable=True):
                                                     project or 'NOT SET')
     elif base_url:
         adapter_line += ' ({})'.format(base_url)
-    ticket = active_ticket_pointer(config) or 'none'
-    return '\n'.join([
+    lines = [
         'Host status:',
         ('- config: present (.artel/config.json)' if parseable else
          '- config: present but NOT valid JSON (.artel/config.json) — fix it; the lines below assume defaults'),
         '- ' + adapter_line,
+    ]
+    if adapter == 'kartoteka':
+        lines.append('- ' + token_status(knowledge))
+    ticket = active_ticket_pointer(config) or 'none'
+    lines += [
         '- active ticket: ' + ticket,
         '- ast-index: ' + ast_index_status(),
-    ])
+    ]
+    return '\n'.join(lines)
+
+
+def token_status(knowledge):
+    """Whether the variable `knowledge.tokenEnv` names is set in this session's
+    environment -- presence only, never the value: this text is injected into
+    the model's context and a token that lands there outlives the session.
+
+    Read before any edit for the same reason the project is: since kartoteka
+    0.32.0 a daemon with [auth] on refuses every write without a bearer token,
+    and the mirror log only says so after an edit has already gone unmirrored.
+    The same PATH caveat as ast-index applies -- this is the environment Claude
+    Code was launched with, not the Bash tool's shell profile."""
+    token_env = (knowledge.get('tokenEnv') or '').strip()
+    if not token_env:
+        return 'knowledge.tokenEnv: none (fine only while the daemon has [auth] off)'
+    if (os.environ.get(token_env) or '').strip():
+        return 'knowledge.tokenEnv: {} (set)'.format(token_env)
+    return ('knowledge.tokenEnv: {} (NOT SET in this session\'s environment — a daemon '
+            'with [auth] on will refuse every write)'.format(token_env))
 
 
 def build_context(config, skill_text, parseable=True):

@@ -39,8 +39,8 @@ Once the config exists, every session starts with the
 [`using-artel`](skills-reference.md#using-artel) router in context: the `using_artel`
 `SessionStart` hook ([hooks/README.md](../hooks/README.md)) injects the Quickstart below as a
 routing rule — check whether the request is ticket, feature, queue or knowledge work, and if
-so invoke the matching `/artel:` skill before answering — plus four status lines (config
-present, `knowledge.adapter`, the active ticket, whether the `ast-index` CLI is on PATH). When
+so invoke the matching `/artel:` skill before answering — plus the status lines (config
+present, `knowledge.adapter`, `knowledge.tokenEnv` when the adapter is `kartoteka`, the active ticket, whether the `ast-index` CLI is on PATH). When
 it is, code navigation — find a class, its usages, the project's structure — routes to the
 `ast-index` plugin's `/ast-index:ast-index` before any grep. It re-injects after `/clear` and after
 compaction, so a long run keeps it. Two things it deliberately does not do: fire inside

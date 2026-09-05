@@ -41,7 +41,7 @@ Entry template:
   skill before any other response — the plugin's analogue of `superpowers:using-superpowers`.
 - **Invocation:** `/artel:using-artel` — normally never typed: the `using_artel` `SessionStart`
   hook ([hooks/README.md](../hooks/README.md)) injects its body (frontmatter stripped) plus a
-  four-line host status on `startup|clear|compact` whenever `.artel/config.json` exists.
+  host status on `startup|clear|compact` whenever `.artel/config.json` exists.
 - **Reads:** nothing itself; the hook reads `.artel/config.json` (`knowledge.adapter`,
   `knowledge.baseUrl`, `knowledge.project`, `specs.dir`) and `<specs.dir>/.active_ticket`, and checks whether the
   `ast-index` CLI is on PATH.

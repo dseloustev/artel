@@ -99,16 +99,16 @@ The rules everything else obeys, plus the config mechanism they will reference.
       Alongside: README refreshed to ported-pre-publish reality, `hooks/README.md` rewritten to
       describe the shipped hooks, stale "later phase"/"Phase 5" forward references resolved
       across contracts and agent bodies.
-- [ ] Push to GitHub, verify `/plugin marketplace add dseloustev/artel` install path.
-- [ ] Tag `v0.1.0`.
+- [x] Push to GitHub, verify `/plugin marketplace add dseloustev/artel` install path.
+- [x] Tag `v0.1.0`. Released and tagged through `v0.11.0` (2026-09-05); `bump-version` owns the
+      chore.
 
-Known finding for the dry run (from the docs reader-test, 2026-08-08): under
-`tracker.adapter: "none"`, `feature-development`'s gate 0 relies on a description file or an
-existing `idea.md` but never invokes `generate-idea` to create one, while `generate-vision`
-(gate 2) hard-requires `idea.md` — so a `"none"`-tracker pipeline run without a prior
-`/artel:generate-idea` errors at the vision gate. [testing-flutter.md](testing-flutter.md)
-routes around it (seed with `generate-idea` first); decide in the dry run whether gate 0 should
-invoke `generate-idea`'s local-description path itself.
+Finding from the docs reader-test (2026-08-08), **fixed 2026-09-05 before the dry run**: under
+`tracker.adapter: "none"`, `feature-development`'s gate 0 relied on a description file or an
+existing `idea.md` but never invoked `generate-idea` to create one, while `generate-vision`
+(gate 2) hard-requires `idea.md` — so a `"none"`-tracker run errored at the vision gate.
+Gate 0 now invokes `generate-idea` under every adapter (the skill already branches on
+`tracker.adapter` internally); see the design.md decision log.
 
 ## Source → plugin map
 

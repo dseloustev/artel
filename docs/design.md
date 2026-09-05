@@ -555,3 +555,19 @@ entry-point skills run a short one-time init interview and write the file.
   the 2-second timeout stays until a hosted daemon shows it short. Released as 0.11.0 — an
   additive key with an inert default, minor pre-1.0; no coordinated release this time, since
   kartoteka's defaults are byte-identical to 0.31.0.
+- **2026-09-05 — Pipeline gate 0 invokes `generate-idea` under every tracker adapter.** Resolves
+  the reader-test finding of 2026-08-08 (porting-plan.md, Phase 6): gate 0 previously ran
+  `generate-idea` only when `tracker.adapter` was not `"none"`, and under `"none"` merely relied
+  on a `$1` description file or a pre-existing `idea.md`. Nothing in the pipeline ever wrote
+  `idea.md` on that path, and gate 2 (`generate-vision`) hard-requires it — so an untracked run
+  died at the vision gate with `Error: idea file not found`, whether or not a description file
+  was passed. Gate 0 now delegates to `generate-idea` unconditionally, passing `$0 $1`. No branch
+  is needed in the orchestrator because the skill already branches on `tracker.adapter` itself:
+  its `"none"` path reads the description file, or runs the same input gate `analysis` does when
+  there is none, and its pipeline-invocation preflight skips silently when `idea.md` exists, so
+  resume semantics are unchanged. Rejected: teaching gate 2 to tolerate a missing idea (the idea
+  is a real input to the vision, not ceremony), and leaving the seeding to the operator (the
+  workaround [testing-flutter.md](testing-flutter.md) carried — a pipeline that cannot start
+  itself from its own documented arguments is a defect, not a runbook step). This restores the
+  `"none"` adapter as a first-class path, which is what makes artel usable in a repo with no
+  tracker on day one.

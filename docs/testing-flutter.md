@@ -132,7 +132,8 @@ Then seed the ticket and run the PRD interview:
 
 **Expected:** `generate-idea` (under `tracker.adapter: "none"`) builds
 `specs/.current/FLT-1/idea.md` from your description and sets `specs/.current/.active_ticket`
-to `FLT-1`. Don't skip it — the pipeline's vision gate reads `idea.md` and errors without it.
+to `FLT-1`. Running it standalone here exercises the skill on its own; the pipeline's gate 0
+would seed the same file itself (4.5 covers that path).
 `analysis` then explores the project, interviews you in batches of ≤4 questions, and writes
 `specs/.current/FLT-1/prd.md` with `Status: PRD_READY`. Nothing outside `specs/.current/`
 changes.
@@ -186,12 +187,11 @@ session-end attempt is blocked by the run stop gate.
 Reset the scratch repo (or make a second ticket `FLT-2` with a new description) and:
 
 ```
-/artel:generate-idea FLT-2 ticket2.md
-/artel:feature-development FLT-2
+/artel:feature-development FLT-2 ticket2.md
 ```
 
-(As in 4.1, seed `idea.md` first — under `tracker.adapter: "none"` the pipeline itself does not
-create it, and the vision gate requires it.)
+(No manual `generate-idea` this time — passing the description file lets gate 0 seed `idea.md`
+itself, which is the path 4.1 skips.)
 
 **Expected:** the same head as 4.2 but the pause is live — **Approve** it. The run arms, makes
 the planning checkpoint, implements, reviews, skips runtime, runs QA (`qa.md` verdict), updates

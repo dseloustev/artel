@@ -235,10 +235,11 @@ and ensures the ticket directory exists.
 **Chatty head (gates 0–4.5).** Each gate is skipped when its artifact already exists
 (`autonomous-run.md §9`), so a resumed run fast-forwards.
 
-- *Gate 0 — `IDEA_READY`.* With a tracker configured,
-  [`generate-idea`](skills-reference.md#generate-idea) imports the ticket into `idea.md`; with
-  `tracker.adapter: "none"`, a passed description file (or an existing `idea.md`) seeds the run
-  instead.
+- *Gate 0 — `IDEA_READY`.* [`generate-idea`](skills-reference.md#generate-idea) runs under every
+  adapter. With a tracker configured it imports the ticket into `idea.md`; with
+  `tracker.adapter: "none"` it seeds `idea.md` from the description file you passed, or asks you
+  for a description when you passed none. Gate 2 reads `idea.md`, so the pipeline always seeds it
+  here.
 - *Gate 0.5 — `DESIGN_ANALYZED`* (only when `design.figma: true` and the idea links a Figma
   design). [`figma-analysis`](skills-reference.md#figma-analysis) maps flows and screens and
   raises mockup discrepancies before requirements are written; no Figma MCP connected → silent

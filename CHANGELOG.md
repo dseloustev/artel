@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **An untracked (`tracker.adapter: "none"`) pipeline run no longer dies at the vision gate.**
+  `feature-development`'s gate 0 invoked `generate-idea` only when a tracker was configured;
+  under `"none"` it relied on a `$1` description file or a pre-existing `idea.md` and never
+  wrote one. Gate 2 (`generate-vision`) hard-requires `idea.md`, so an untracked run failed with
+  `Error: idea file not found` — with or without a description file — unless the operator had run
+  `/artel:generate-idea` by hand first. Gate 0 now invokes `generate-idea` under every adapter,
+  passing `$0 $1`; the skill already branches on `tracker.adapter` internally, and its
+  skip-if-exists preflight leaves resume semantics unchanged. `docs/testing-flutter.md` drops the
+  manual pre-seed workaround it carried.
+
 ## [0.11.0] - 2026-09-05
 
 ### Added

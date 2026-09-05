@@ -69,6 +69,18 @@ Everything is inert unless the project has `.artel/config.json`.
 | Knowledge-mirror context | injected after edits | side effect only (the mirror still runs) |
 | Invocation | `/artel:<name>` | `/artel-<name>` (command) or the `artel-<name>` skill |
 
+## kartoteka behind a token
+
+Since kartoteka 0.32.0 a daemon with `[auth]` on refuses every request without a bearer
+token. The mirror hook reads the variable `knowledge.tokenEnv` names (config.md) and runs
+unchanged on OpenCode. The MCP entry is OpenCode's own: a remote server in `opencode.json`
+takes `headers`, and `{env:KARTOTEKA_TOKEN}` reads the same variable the hook reads —
+
+```json
+"kartoteka": {"type": "remote", "url": "http://127.0.0.1:8734/mcp",
+              "headers": {"Authorization": "Bearer {env:KARTOTEKA_TOKEN}"}}
+```
+
 ## Headless runs
 
 `docs/autonomous-run.md` §12's headless guidance is Claude Code-specific. On OpenCode,

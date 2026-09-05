@@ -31,14 +31,21 @@ Four layers:
     loud warning. Escape hatch: delete `.artel/run/.hooks/baseline-<session_id>.json` to
     re-baseline on the next stop.
 - **Knowledge layer** — optional, driven by `knowledge.adapter` / `knowledge.baseUrl` /
-  `knowledge.project` (config.md):
+  `knowledge.project` / `knowledge.tokenEnv` (config.md):
   - `knowledge_mirror.py` (`PostToolUse` on `Edit|Write|MultiEdit`) — posts each
     deliberation artifact written under `<specs.dir>/<TICKET>/` to a kartoteka artifact
     store as it is written, under `knowledge.project`. Additive and best-effort: files on
     disk stay primary, nothing blocks, nothing retries, every attempt is logged to
     `.artel/run/.hooks/knowledge-mirror.log`. Inert unless `knowledge.adapter` is
     `"kartoteka"`; with the adapter on and `baseUrl` or `project` missing it logs one
-    `misconfigured` line per mirrorable edit and sends nothing.
+    `misconfigured` line per mirrorable edit and sends nothing. When `knowledge.tokenEnv`
+    names a variable that is set, the request carries `Authorization: Bearer` from it (a
+    daemon with `[auth]` on — kartoteka 0.32.0 — refuses everything else); a `401` is logged
+    as `reject` when a token was sent (revoked or expired: `kartoteka token list` on the
+    daemon host) and as `misconfigured` when none was, naming the empty key or the unset
+    variable. An unset variable sends the request unauthenticated rather than failing, so one
+    committed config serves an auth-off loopback daemon and a hosted one. The token itself
+    never reaches the log.
 - **Session layer** — turn-one routing, no gate:
   - `using_artel.py` (`SessionStart`, matcher `startup|clear|compact`) — injects the
     `using-artel` router skill (frontmatter stripped) plus the host-status lines

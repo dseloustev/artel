@@ -49,22 +49,33 @@ arrive via the "Other" option.
   extend it). Ask follow-up value questions only for the selected ones; everything skipped keeps
   its inert default.
 - **Round 5 — knowledge mirror** (optional): "Do you run a kartoteka daemon that should receive
-  this project's spec trail? If so, its base URL (e.g. `http://127.0.0.1:8734`)." Empty answer →
-  `knowledge.adapter: "none"`, `knowledge.baseUrl: ""`, `knowledge.project: ""`. A URL →
-  `adapter: "kartoteka"`, that URL, and one follow-up: "Which kartoteka project does this
-  repository belong to?" — lowercase kebab-case (`^[a-z0-9][a-z0-9-]*$`), suggesting the host
-  repo's directory name slugified (e.g. `adguard-wallet`), stored as `knowledge.project`.
-  Say that the name must be registered in the daemon's database before any write lands —
-  `kartoteka project add <name>`, once, on the machine running the daemon — and that an
-  unregistered name is refused rather than created. Mention that the mirror is additive and
-  best-effort: the spec-trail files stay primary and a daemon that is down never fails a run.
+  this project's spec trail? If so, its base URL (e.g. `http://127.0.0.1:8734`, or a hosted
+  daemon's `https://` origin)." Empty answer → `knowledge.adapter: "none"`,
+  `knowledge.baseUrl: ""`, `knowledge.project: ""`, `knowledge.tokenEnv: ""`. A URL →
+  `adapter: "kartoteka"`, that URL, and two follow-ups in the same round: "Which kartoteka
+  project does this repository belong to?" — lowercase kebab-case (`^[a-z0-9][a-z0-9-]*$`),
+  suggesting the host repo's directory name slugified (e.g. `adguard-wallet`), stored as
+  `knowledge.project`; and "Does the daemon require a bearer token (`[auth] enabled = true` in
+  its config — every hosted daemon does)? If so, the **name** of the environment variable that
+  will hold it, never the value" — suggesting `KARTOTEKA_TOKEN`, stored as `knowledge.tokenEnv`,
+  empty when the daemon runs with auth off. Say that the name must be registered in the daemon's
+  database before any write lands — `kartoteka project add <name>`, once, on the machine running
+  the daemon — and that an unregistered name is refused rather than created. Say that the config
+  is committed, which is why it carries the variable's name and the token stays in the shell:
+  `kartoteka token add <principal>` on the daemon machine prints it once, and every shell that
+  runs artel exports it; the MCP registration takes the same token (`claude mcp add … --header
+  "Authorization: Bearer …"`, or `${KARTOTEKA_TOKEN}` in `.mcp.json`). Mention that the mirror
+  is additive and best-effort: the spec-trail files stay primary and a daemon that is down never
+  fails a run.
 
 ## 3. Validate
 
 Before writing: adapter names inside their allowed sets — `tracker.adapter` (`none` /
 `github-issues` / `jira-mcp`), `vcs.adapter` (`github-cli` / `bitbucket-mcp`), `knowledge.adapter`
 (`none` / `kartoteka`); with `knowledge.adapter: "kartoteka"`, `knowledge.baseUrl` non-empty
-and `knowledge.project` non-empty and matching `^[a-z0-9][a-z0-9-]*$`;
+and `knowledge.project` non-empty and matching `^[a-z0-9][a-z0-9-]*$`; `knowledge.tokenEnv`
+empty or an environment-variable name (`^[A-Za-z_][A-Za-z0-9_]*$`) — an answer that is itself a
+token (`ktk_…`) is re-asked, never written;
 `verify.commands` / `setup.commands` / `runtime.surface` / `verify.surface` are arrays of
 strings; `review.perTask` and `design.figma` are booleans;
 MCP-adapter prefixes non-empty; language codes plausible BCP 47. A violation re-asks that round — never write a config that config.md's reading rules
@@ -91,6 +102,9 @@ and location"); append whichever is missing, touch nothing when both are present
 - Path written and the chosen adapters.
 - Which gates are armed vs will record `skipped` (verify, runtime, design).
 - The `.gitignore` outcome.
+- With `knowledge.tokenEnv` set: a reminder to export that variable in every shell and launcher
+  that runs artel, and to give the MCP registration the same token (`--header`), because the
+  config carries the name only.
 - A reminder that `.artel/config.json` is committed team configuration — commit it by hand
   (orchestrator checkpoint commits never stage `.artel/`).
 

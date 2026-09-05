@@ -98,7 +98,8 @@ placeholder the init interview replaces.
   "knowledge": {
     "adapter": "none",
     "baseUrl": "",
-    "project": ""
+    "project": "",
+    "tokenEnv": ""
   },
   "runtime": {}
 }
@@ -284,8 +285,9 @@ Release-scope artifacts (`R-<RELEASE_ID>` identifiers) live under `<specs.releas
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook; the read half below (`analyst`, `researcher`, `deep-review`, `issue-draft`); the task queue |
-| `knowledge.baseUrl` | string | `""` | Required when `adapter` is `"kartoteka"`. Origin only, no trailing path — e.g. `http://127.0.0.1:8734`. | The `knowledge_mirror` hook's request addressing |
+| `knowledge.baseUrl` | string | `""` | Required when `adapter` is `"kartoteka"`. Origin only, no trailing path — e.g. `http://127.0.0.1:8734`, or a hosted daemon's `https://` origin. | The `knowledge_mirror` hook's request addressing |
 | `knowledge.project` | string | `""` | Required when `adapter` is `"kartoteka"`. The kartoteka project this repository's trail, queue and consultations belong to: lowercase kebab-case, `^[a-z0-9][a-z0-9-]*$`, e.g. `adguard-wallet`. Must be registered in the daemon's database — `kartoteka project add <name>`, once, on the daemon machine. No default; see below. | Every kartoteka call: the `knowledge_mirror` hook's request body, `related`, the scoped reads, `task_create` / `task_ready`; the `issue-draft` consultation |
+| `knowledge.tokenEnv` | string | `""` | Optional. The **name** of the environment variable holding a kartoteka bearer token — never the token itself; `[A-Za-z_][A-Za-z0-9_]*`, conventionally `KARTOTEKA_TOKEN`. Needed when the daemon has `[auth] enabled = true` (kartoteka 0.32.0; every hosted daemon). Empty, or naming a variable that is unset, sends the request unauthenticated. See below. | The `knowledge_mirror` hook's `Authorization` header; the `using-artel` host status (set or not, never the value) |
 
 - **`none`** — nothing is mirrored. The spec trail stays on disk, exactly as it always has.
 - **`kartoteka`** — as each deliberation artifact is written under `<specs.dir>`, a
@@ -323,6 +325,32 @@ agents do the same on their side: they consult nothing and record
 (`docs/knowledge-consultation.md` §1), and the queue takes its fallback path with the same
 record (`docs/task-queue.md` §1).
 
+**`knowledge.tokenEnv` names the credential and never holds it.** Since kartoteka 0.32.0 a
+daemon may leave loopback, and when it does — or whenever its operator sets
+`[auth] enabled = true` — every request on its port needs `Authorization: Bearer ktk_…`, reads
+included; a missing, revoked or expired token answers `401`. The token is one machine's
+credential and this file is committed team configuration, so the config carries only the name
+of the environment variable that holds it. The operator mints one per host that runs artel, on
+the daemon machine — `kartoteka token add <principal> --note "artel hook"`, printed once — and
+each host exports it: `export KARTOTEKA_TOKEN=ktk_…`. The hook then sends the header, and every
+artifact it writes records that principal beside the (still null) `author_agent`. What a `401`
+becomes in the mirror log depends on what the hook had: with a token, `reject … HTTP 401`, naming
+the variable — the token was refused, so `kartoteka token list` on the daemon host; with none,
+`misconfigured`, naming `knowledge.tokenEnv` when it is empty or the unset variable when it is
+not. A named variable that is unset is **not** an error by itself: the request goes out without
+a header, and a daemon with `[auth]` off accepts it — so one committed config serves a laptop
+talking to a loopback daemon and a host talking to a hosted one. The token never reaches the
+log or the session context on any path.
+
+The MCP session takes the same variable through the client's own expansion:
+`claude mcp add --transport http kartoteka <baseUrl>/mcp --header "Authorization: Bearer ktk_…"`
+stores the literal in Claude Code's config, while an `.mcp.json` entry with
+`"headers": {"Authorization": "Bearer ${KARTOTEKA_TOKEN}"}` reads the export at session start,
+so one variable feeds both the hook and the session. `tokenEnv` itself is read by the hook and
+the `using-artel` host status only; nothing in the read half or the task queue consults it —
+those go over MCP, whose token is wired where the server is (`docs/opencode.md` for OpenCode's
+`{env:…}` form).
+
 #### The read half
 
 `knowledge.adapter` gates three things, not one. Beyond the mirror above, it declares that this
@@ -334,7 +362,8 @@ will fare in review, which has its own contract and its own, larger lookup budge
 
 Reading goes over kartoteka's **MCP tools** (`search_knowledge`, `related`, `index_status`),
 not over `baseUrl`. There is no MCP URL in this config: the host wires the kartoteka MCP server
-into its own session, and `knowledge.adapter` says whether this project wants it used. So the
+into its own session — with its bearer token, `--header` or `${KARTOTEKA_TOKEN}`, when the
+daemon has `[auth]` on — and `knowledge.adapter` says whether this project wants it used. So the
 config declares intent and the session supplies capability, and the two can disagree:
 
 | `--local` | `knowledge.adapter` | kartoteka MCP tools | Behavior |
@@ -347,7 +376,9 @@ config declares intent and the session supplies capability, and the two can disa
 
 The fourth row is the working configuration; the fifth is the one worth knowing about, because
 it is how a correct `.artel/config.json` still produces no citations — the MCP server is not
-wired into the session. The agent says so in its own output rather than leaving you to guess.
+wired into the session, or is wired without the token a daemon with `[auth]` on requires, so
+Claude Code never connects. The agent says so in its own output rather than leaving you to
+guess.
 
 The third row is why the adapter still matters when the tools are present: kartoteka's daemon
 may serve several projects out of one database, and `knowledge.project` is what names this one
@@ -467,7 +498,8 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
   "knowledge": {
     "adapter": "kartoteka",
     "baseUrl": "http://127.0.0.1:8734",
-    "project": "acme-web"
+    "project": "acme-web",
+    "tokenEnv": "KARTOTEKA_TOKEN"
   },
   "runtime": {
     "run": "npm run dev -- --port 5173",

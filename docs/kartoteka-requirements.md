@@ -117,6 +117,14 @@ something derived from the authenticated principal (both are currently commented
 decision", and the trail's audit value changes once it is the system of record). This deserves
 its own brainstorm in `../kartoteka`; it is out of scope for artel's plan.
 
+**Shipped — kartoteka 0.32.0 (E3 phase 1, 2026-09-05).** `[server] bind` with TLS or an
+upstream terminator, and `[auth] enabled = true` putting a bearer token on the whole port,
+reads included; every write records the token's verified `principal` *beside* `author_agent`
+and `actor` rather than replacing them, so the self-reported fields keep their meaning and the
+verified one is new. Nothing changes with the defaults. artel's half — `knowledge.tokenEnv`,
+the `Authorization` header on the mirror hook, `--header` on the MCP registration — is artel
+0.11.0 (`config.md`). Phase 2, GitHub sign-in, is open in `../kartoteka/docs/epics.md`.
+
 ### 2.2 `put_artifact` has no lost-update protection
 
 **What exists.** `put_artifact` (`../kartoteka/src/kartoteka/workspace.py:138`) skips the write

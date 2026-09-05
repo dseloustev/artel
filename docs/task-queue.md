@@ -74,6 +74,13 @@ the fix is that command, run once on the machine serving the daemon.
 tools are `task_create`, `task_update`, `task_list` and `task_ready`; they are
 present when the host has wired the kartoteka MCP server into this session.
 
+A daemon with `[auth]` on — kartoteka 0.32.0, every hosted one — that the session
+registered without its bearer token is row 4 as well: Claude Code cannot connect,
+so the tools are absent. The fix is host-side wiring, `--header` on the MCP
+registration (`docs/config.md`, `knowledge.tokenEnv`), not anything this contract
+reads. A token revoked mid-run answers every later call with an error: that is the
+fifth case, fall back and record it as spelled there.
+
 ## 2. Mirroring the tasklist
 
 Run by `generate-tasklist` and `tasklist` after `tasklist.md` is written, and by

@@ -29,6 +29,9 @@ CONSULTATION = 'docs/knowledge-consultation.md'
 QUEUE = 'docs/task-queue.md'
 FORECAST = 'docs/review-forecast.md'
 SETUP = 'skills/setup/SKILL.md'
+HOOKS_README = 'hooks/README.md'
+OPENCODE = 'docs/opencode.md'
+REQUIREMENTS = 'docs/kartoteka-requirements.md'
 KNOWLEDGE_SKILL = 'skills/knowledge/SKILL.md'
 TASKS_SKILL = 'skills/tasks/SKILL.md'
 DEEP_REVIEW_SKILL = 'skills/deep-review/SKILL.md'
@@ -128,6 +131,66 @@ class TestSetupInterview(unittest.TestCase):
         text = read(SETUP)
         self.assertIn('knowledge.project', text)
         self.assertIn(REGISTER_COMMAND, text)
+
+
+class TestTokenEnv(unittest.TestCase):
+    """kartoteka 0.32.0 (E3 phase 1): a daemon with [auth] on refuses every
+    request without a bearer token. artel names the variable holding it as
+    `knowledge.tokenEnv` -- the name, never the value, because the config is
+    committed -- and the same variable feeds the MCP registration through the
+    client's own expansion syntax. Spelled once here so the six documents that
+    mention it cannot drift."""
+
+    TOKEN_KEY = '`knowledge.tokenEnv`'
+    VARIABLE = 'KARTOTEKA_TOKEN'
+
+    def test_config_documents_the_key_and_the_conventional_variable(self):
+        text = read(CONFIG)
+        self.assertIn(self.TOKEN_KEY, text)
+        self.assertIn(self.VARIABLE, text)
+        self.assertIn('Authorization: Bearer', text)
+
+    def test_both_example_configs_carry_the_key(self):
+        # The default block (empty) and the filled example (KARTOTEKA_TOKEN).
+        self.assertEqual(2, read(CONFIG).count('"tokenEnv":'),
+                         'the default and the filled example each spell the key once')
+
+    def test_config_wires_the_mcp_session_with_the_same_variable(self):
+        # Claude Code expands ${VAR} inside .mcp.json headers; the hook reads
+        # the variable directly. One export serves both.
+        text = read(CONFIG)
+        self.assertIn('--header', text)
+        self.assertIn('${' + self.VARIABLE + '}', text)
+
+    def test_opencode_names_its_own_expansion_syntax(self):
+        self.assertIn('{env:' + self.VARIABLE + '}', read(OPENCODE))
+
+    def test_hooks_readme_names_the_key_and_the_401(self):
+        text = read(HOOKS_README)
+        self.assertIn(self.TOKEN_KEY, text)
+        self.assertIn('401', text)
+
+    def test_setup_asks_for_the_name_never_the_value(self):
+        text = read(SETUP)
+        self.assertIn('knowledge.tokenEnv', text)
+        self.assertIn(self.VARIABLE, text)
+        self.assertIn('never the value', text)
+        self.assertIn('--header', text)
+
+    def test_the_read_contracts_explain_an_auth_on_daemon_as_tools_absent(self):
+        # Without the header Claude Code cannot connect, so the session sees
+        # no tools: row 5 of both gating tables, with a fix that is host-side
+        # wiring rather than an artel setting.
+        for rel in (CONSULTATION, QUEUE):
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertIn('[auth]', text)
+                self.assertIn('--header', text)
+
+    def test_the_requirements_record_that_kartoteka_shipped_it(self):
+        text = read(REQUIREMENTS)
+        self.assertIn('0.32.0', text)
+        self.assertIn('knowledge.tokenEnv', text)
 
 
 if __name__ == '__main__':

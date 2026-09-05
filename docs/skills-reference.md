@@ -43,7 +43,7 @@ Entry template:
   hook ([hooks/README.md](../hooks/README.md)) injects its body (frontmatter stripped) plus a
   host status on `startup|clear|compact` whenever `.artel/config.json` exists.
 - **Reads:** nothing itself; the hook reads `.artel/config.json` (`knowledge.adapter`,
-  `knowledge.baseUrl`, `knowledge.project`, `specs.dir`) and `<specs.dir>/.active_ticket`, and checks whether the
+  `knowledge.baseUrl`, `knowledge.project`, `knowledge.tokenEnv`, `specs.dir`) and `<specs.dir>/.active_ticket`, and checks whether the
   `ast-index` CLI is on PATH.
 - **Writes:** nothing.
 - **Pauses:** never.

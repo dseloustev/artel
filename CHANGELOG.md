@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`knowledge.tokenEnv`: artel can talk to a kartoteka daemon that requires a bearer token.**
+  kartoteka 0.32.0 (E3 phase 1) lets a daemon leave loopback and, with `[auth] enabled = true`,
+  refuses every request without `Authorization: Bearer ktk_…`, reads included. The new key names
+  the environment variable holding the token — never the value, the config being committed —
+  and the mirror hook sends the header from it. A `401` is logged as `reject` when a token was
+  sent (revoked or expired; `kartoteka token list` on the daemon host) and as `misconfigured`,
+  naming the empty key or the unset variable, when none was; the token never reaches the log. A
+  named variable that is unset sends the request unauthenticated, so one committed config serves
+  an auth-off loopback daemon and a hosted one. The `using-artel` host status gains a
+  `knowledge.tokenEnv` line (set or not, never the value). The MCP session takes the same
+  variable through the client's own expansion — `${KARTOTEKA_TOKEN}` in `.mcp.json`,
+  `{env:KARTOTEKA_TOKEN}` in `opencode.json` — documented in config.md and docs/opencode.md;
+  `/artel:setup` asks for the name in Round 5 and validates it. Default empty: a daemon with
+  kartoteka's defaults is byte-identical to 0.31.0 and nothing changes for it.
+  `tests/test_knowledge_mirror.py` pins the header and the two 401 classifications,
+  `tests/test_using_artel_hook.py` the status line, and `tests/test_kartoteka_project_docs.py`
+  the spellings across the docs.
+
+### Changed
+
+- `docs/kartoteka-requirements.md` §2.1 records that kartoteka 0.32.0 shipped the authentication
+  it asked for, with the verified principal recorded beside `author_agent`/`actor` rather than in
+  their place. `hooks/README.md`, skills-reference.md and workflow-guide.md list the new key, and
+  the mirror hook's trust-boundary comment now covers a hosted `https://` daemon.
+
 ## [0.10.0] - 2026-09-04
 
 ### Added

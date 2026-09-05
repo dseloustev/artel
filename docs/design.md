@@ -527,3 +527,26 @@ entry-point skills run a short one-time init interview and write the file.
   per-type templates (they need exactly the type inference the rules forbid), and an
   iterative interview (one interruption per invocation). Released as 0.10.0 — a capability
   added and two behaviours removed, minor pre-1.0.
+- **2026-09-05 — `knowledge.tokenEnv` names the kartoteka credential; the config never holds
+  it.** kartoteka 0.32.0 (E3 phase 1) puts a bearer token on the whole port once
+  `[auth] enabled = true` — every hosted daemon — and asked artel for three things: a config key
+  naming the variable, the `Authorization` header on the mirror hook, and `--header` on the MCP
+  registration. The key carries a variable's *name* because `.artel/config.json` is committed
+  team configuration and a token is one machine's credential. A named variable that is unset
+  sends the request unauthenticated rather than logging `misconfigured`: one committed config
+  then serves a laptop against a loopback daemon with auth off and a host against a hosted one,
+  and the daemon — not the hook — decides whether a token was needed. So a `401` is classified
+  by what the hook had: a token sent and refused is a `reject` (permanent until the operator
+  acts, like every other contract refusal), none sent is `misconfigured` naming the empty key or
+  the unset variable. The default is empty, inert like every other optional key, over
+  `"KARTOTEKA_TOKEN"`: an explicit log line beats a silent convention, and the setup interview
+  suggests the conventional name anyway. The MCP session's token stays host wiring, not artel
+  config — there is still no MCP URL in the config — because both clients expand an environment
+  variable inside headers (`${VAR}` in `.mcp.json`, `{env:VAR}` in `opencode.json`), so one
+  export feeds the hook and the session. Rejected: a file path to the token (a path in committed
+  config points at a secret on every machine), and folding the token status into the adapter
+  line of the host status (a separate line, presence only, never the value). The hook's proxy
+  bypass stays, its promise restated as "the document goes to `baseUrl` and nowhere else", and
+  the 2-second timeout stays until a hosted daemon shows it short. Released as 0.11.0 — an
+  additive key with an inert default, minor pre-1.0; no coordinated release this time, since
+  kartoteka's defaults are byte-identical to 0.31.0.

@@ -160,6 +160,7 @@ class _Capture(BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length') or 0)
         _Capture.received.append({
             'path': self.path,
+            'authorization': self.headers.get('Authorization'),
             'body': json.loads(self.rfile.read(length).decode('utf-8')),
         })
         self.send_response(200)
@@ -447,6 +448,165 @@ class TestMisconfiguredLogging(unittest.TestCase):
         # A `fail` line here would mean the hook reached the network with no
         # project to send -- the misconfiguration must be caught before that.
         self.assertNotIn('fail', lines[0])
+
+
+TOKEN = 'ktk_test-secret-never-logged'
+
+
+def _env(**overrides):
+    """This process's environment without KARTOTEKA_TOKEN, plus overrides: the
+    hook must see exactly the variables the test names, whatever the shell
+    running the suite happens to export."""
+    env = {k: v for k, v in os.environ.items() if k != 'KARTOTEKA_TOKEN'}
+    env.update(overrides)
+    return env
+
+
+class TestBearerToken(unittest.TestCase):
+    """knowledge.tokenEnv names an environment variable; the value is never in
+    the config. Since kartoteka 0.32.0 a daemon with [auth] on refuses every
+    request without `Authorization: Bearer ktk_…`."""
+
+    def test_empty_token_env_yields_no_token(self):
+        self.assertEqual(km.bearer_token({'knowledge': {'tokenEnv': ''}}, {}), (None, ''))
+
+    def test_absent_key_yields_no_token(self):
+        self.assertEqual(km.bearer_token({'knowledge': {}}, {'KARTOTEKA_TOKEN': TOKEN}),
+                         (None, ''))
+
+    def test_named_variable_is_read_from_the_environment(self):
+        config = {'knowledge': {'tokenEnv': 'KARTOTEKA_TOKEN'}}
+        self.assertEqual(km.bearer_token(config, {'KARTOTEKA_TOKEN': TOKEN}),
+                         (TOKEN, 'KARTOTEKA_TOKEN'))
+
+    def test_named_variable_unset_yields_no_token_but_keeps_the_name(self):
+        # The name comes back so a 401 can say which variable to export.
+        config = {'knowledge': {'tokenEnv': 'KARTOTEKA_TOKEN'}}
+        self.assertEqual(km.bearer_token(config, {}), (None, 'KARTOTEKA_TOKEN'))
+
+    def test_whitespace_around_the_value_is_stripped(self):
+        # `kartoteka token add` prints the secret with a trailing newline, and
+        # `export KARTOTEKA_TOKEN="$(cat token.txt)"` is how it usually travels.
+        config = {'knowledge': {'tokenEnv': 'KARTOTEKA_TOKEN'}}
+        self.assertEqual(km.bearer_token(config, {'KARTOTEKA_TOKEN': ' ' + TOKEN + '\n'}),
+                         (TOKEN, 'KARTOTEKA_TOKEN'))
+
+
+class TestBearerTokenOnTheWire(unittest.TestCase):
+    def setUp(self):
+        _Capture.received = []
+        self.server = HTTPServer(('127.0.0.1', 0), _Capture)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = 'http://127.0.0.1:{}'.format(self.server.server_port)
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def _knowledge(self, token_env):
+        return {'adapter': 'kartoteka', 'baseUrl': self.base,
+                'project': 'adguard-wallet', 'tokenEnv': token_env}
+
+    def test_sends_the_bearer_header_when_the_variable_is_set(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, self._knowledge('KARTOTEKA_TOKEN'))
+            result = _run_hook(repo, HOOK_INPUT, env=_env(KARTOTEKA_TOKEN=TOKEN))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(_Capture.received[0]['authorization'], 'Bearer ' + TOKEN)
+
+    def test_sends_no_header_when_token_env_is_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, self._knowledge(''))
+            result = _run_hook(repo, HOOK_INPUT, env=_env(KARTOTEKA_TOKEN=TOKEN))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(_Capture.received), 1)
+        self.assertIsNone(_Capture.received[0]['authorization'])
+
+    def test_sends_unauthenticated_when_the_named_variable_is_unset(self):
+        # Deliberate: one committed config serves a laptop talking to a
+        # loopback daemon with [auth] off and a host talking to a hosted one.
+        # The daemon decides; a 401 is classified by the test class below.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, self._knowledge('KARTOTEKA_TOKEN'))
+            result = _run_hook(repo, HOOK_INPUT, env=_env())
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            line = log.read_text(encoding='utf-8')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(_Capture.received), 1)
+        self.assertIsNone(_Capture.received[0]['authorization'])
+        self.assertIn('ok AW-1234 prd prd.md', line)
+        self.assertNotIn('misconfigured', line)
+
+
+class TestUnauthorizedLogging(unittest.TestCase):
+    """A 401 means the daemon has [auth] on. Which line it becomes depends on
+    whether the hook had a token to send: with one, the token was refused
+    (revoked, expired, wrong) and that is a `reject`; without one, the config
+    is what needs fixing and that is `misconfigured`, naming the key or the
+    variable. The token itself never reaches the log on any path."""
+
+    def setUp(self):
+        _RejectingCapture.status = 401
+        _RejectingCapture.body = b'{"detail": "a bearer token is required"}'
+        self.server = HTTPServer(('127.0.0.1', 0), _RejectingCapture)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = 'http://127.0.0.1:{}'.format(self.server.server_port)
+
+    def tearDown(self):
+        _RejectingCapture.status = 400
+        self.server.shutdown()
+        self.server.server_close()
+
+    def _log_line(self, token_env, env):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': self.base,
+                                     'project': 'adguard-wallet', 'tokenEnv': token_env})
+            result = _run_hook(repo, HOOK_INPUT, env=env)
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            lines = log.read_text(encoding='utf-8').splitlines()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(len(lines), 1)
+        return lines[0]
+
+    def test_refused_token_is_a_reject_naming_the_variable(self):
+        line = self._log_line('KARTOTEKA_TOKEN', _env(KARTOTEKA_TOKEN=TOKEN))
+        self.assertIn('reject AW-1234 prd prd.md -- HTTP 401', line)
+        self.assertIn('KARTOTEKA_TOKEN', line)
+        self.assertIn('kartoteka token list', line)
+
+    def test_empty_token_env_is_misconfigured_naming_the_key(self):
+        line = self._log_line('', _env(KARTOTEKA_TOKEN=TOKEN))
+        self.assertIn('misconfigured', line)
+        self.assertIn('HTTP 401', line)
+        self.assertIn('knowledge.tokenEnv', line)
+        self.assertNotIn('reject', line)
+
+    def test_unset_variable_is_misconfigured_naming_the_variable(self):
+        line = self._log_line('KARTOTEKA_TOKEN', _env())
+        self.assertIn('misconfigured', line)
+        self.assertIn('HTTP 401', line)
+        self.assertIn('KARTOTEKA_TOKEN', line)
+        self.assertNotIn('reject', line)
+
+    def test_the_token_never_reaches_the_log(self):
+        line = self._log_line('KARTOTEKA_TOKEN', _env(KARTOTEKA_TOKEN=TOKEN))
+        self.assertNotIn(TOKEN, line)
+        self.assertNotIn(TOKEN[4:], line)  # nor the part after the ktk_ prefix
+
+
+class TestTokenNeverLoggedOnFailure(unittest.TestCase):
+    def test_unreachable_server_logs_fail_without_the_token(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _host_repo(tmp, {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:1',
+                                     'project': 'adguard-wallet', 'tokenEnv': 'KARTOTEKA_TOKEN'})
+            result = _run_hook(repo, HOOK_INPUT, env=_env(KARTOTEKA_TOKEN=TOKEN))
+            log = (repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log')
+            text = log.read_text(encoding='utf-8')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('fail', text)
+        self.assertNotIn(TOKEN, text)
+        self.assertEqual(result.stderr, '')
 
 
 if __name__ == '__main__':

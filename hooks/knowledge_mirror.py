@@ -1,6 +1,7 @@
 """PostToolUse(Edit|Write|MultiEdit): mirror artel's spec trail into a kartoteka
 artifact store. Best-effort by contract — never blocks, never retries."""
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -90,6 +91,27 @@ def knowledge_target(config):
     return base, project, None
 
 
+def bearer_token(config, environ=None):
+    """(token or None, variable name or ''). `knowledge.tokenEnv` names an
+    environment variable; the config never holds the value, because the file
+    is committed team configuration and a token is one machine's credential.
+
+    A named variable that is unset yields no token *and no error*: the hook
+    sends the request unauthenticated and lets the daemon decide. One
+    committed config then serves a laptop talking to a loopback daemon with
+    `[auth]` off and a host talking to a hosted one that requires the token;
+    a 401 is classified in main() with the variable's name in hand, so the log
+    line can say which variable to export. Since kartoteka 0.32.0.
+    """
+    environ = os.environ if environ is None else environ
+    knowledge = config.get('knowledge') or {}
+    token_env = (knowledge.get('tokenEnv') or '').strip()
+    if not token_env:
+        return None, ''
+    token = (environ.get(token_env) or '').strip()
+    return (token or None), token_env
+
+
 def _ticket_matcher(config):
     ticket_cfg = config.get('ticket') or {}
     project_key = ticket_cfg.get('projectKey') or 'PROJ'
@@ -151,23 +173,31 @@ def log(line):
         pass  # the log is a convenience; failing to write it changes nothing
 
 
-def post_artifact(base_url, payload):
+def post_artifact(base_url, payload, token=None):
     # Deferred: this module is imported on every Edit/Write in every host repo, and
     # the import alone is ~28ms of the ~63ms a no-op invocation costs. Pay it only on
     # the path that actually has something to send.
     import urllib.request
+    headers = {'Content-Type': 'application/json'}
+    if token:
+        headers['Authorization'] = 'Bearer ' + token
     request = urllib.request.Request(
         base_url + '/api/artifacts',
         data=json.dumps(payload).encode('utf-8'),
-        headers={'Content-Type': 'application/json'},
+        headers=headers,
         method='POST',
     )
     # An explicit empty ProxyHandler, not urlopen's default opener: the default one
     # installs ProxyHandler(getproxies()), so it honours http_proxy/https_proxy from
-    # the environment and would route this "loopback" POST -- the full text of every
-    # mirrored document -- through a configured proxy host. The trust boundary this
-    # hook promises is "nothing leaves the machine"; this is what keeps that true on a
-    # host with a corporate proxy exported, regardless of no_proxy.
+    # the environment and would route this POST -- the full text of every mirrored
+    # document, and the bearer token with it -- through a configured proxy host. The
+    # trust boundary this hook promises is "the document goes to baseUrl and nowhere
+    # else": on a loopback baseUrl that means nothing leaves the machine, and against
+    # a hosted daemon (an https origin, legitimate since kartoteka 0.32.0) it means
+    # the daemon and no intermediary. Either way it holds on a host with a corporate
+    # proxy exported, regardless of no_proxy. TLS is urllib's default: the system
+    # trust store verifies the certificate, and a self-signed one lands in the log
+    # as a `fail` naming CERTIFICATE_VERIFY_FAILED rather than being sent to blindly.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
         return response.status
@@ -219,11 +249,35 @@ def main():
         return 0
     payload = {'project': project, 'ticket_key': ticket_key, 'stage': stage,
                'name': name, 'content': content}
+    token, token_env = bearer_token(config)
     try:
         import urllib.error  # deferred with urllib.request, same reasoning
-        status = post_artifact(base_url, payload)
+        status = post_artifact(base_url, payload, token)
         log('ok {} {} {} {}'.format(ticket_key, stage, name, status))
     except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            # The daemon has [auth] on. The token itself is never logged, on this
+            # path or any other: the log is a plain file in the host repo's
+            # .artel/run/, and a secret that lands there outlives the session.
+            body = _read_rejection_body(exc)
+            if token:
+                # A credential was sent and refused: revoked, expired, or minted
+                # for another daemon. Permanent until the operator acts, so a
+                # `reject` like the other contract refusals, naming the variable
+                # rather than the value.
+                log('reject {} {} {} -- HTTP 401 {} -- the token in {} was refused '
+                    '(revoked, expired, or not this daemon\'s); check `kartoteka token '
+                    'list` on the daemon host'.format(ticket_key, stage, name, body,
+                                                     token_env))
+            elif token_env:
+                log('misconfigured -- the daemon requires a bearer token (HTTP 401 {}) '
+                    'but {} (knowledge.tokenEnv) is not set in the hook\'s '
+                    'environment'.format(body, token_env))
+            else:
+                log('misconfigured -- the daemon requires a bearer token (HTTP 401 {}) '
+                    'but knowledge.tokenEnv is empty; name the variable that holds a '
+                    'token from `kartoteka token add`'.format(body))
+            return 0
         # A permanent contract rejection -- not a transient outage, so it will
         # not self-heal on the next edit and the log has to say so distinctly.
         # Three real ways to land here: kartoteka's ticket-key grammar requires

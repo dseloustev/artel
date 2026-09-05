@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-05
+
 ### Added
 
 - **`knowledge.tokenEnv`: artel can talk to a kartoteka daemon that requires a bearer token.**

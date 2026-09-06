@@ -6,6 +6,52 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **CI: the suite runs on every push and pull request.** `.github/workflows/tests.yml` runs
+  `python3 -m unittest discover -s tests` on Python 3.9, 3.11 and 3.13 — 3.9 being the floor the
+  hooks are written to (`hooks/sensitive_guard.py` says so in as many words). Nothing is
+  installed and nothing is cached, because the hooks, the gate scripts and the suite are
+  stdlib-only by design. Until now the suite ran only when someone cut a release, since
+  `bump-version`'s preflight was the one thing that invoked it.
+- **The five gate hooks have tests.** `stop_gate`, `verify_stop_gate`, `sensitive_guard`,
+  `session_baseline` and `fast_verify_post_edit` — the components that decide whether a run may
+  stop and whether a file may be written — had no coverage at all; only `hook_common`,
+  `knowledge_mirror` and `using_artel` did. 72 new tests take the suite from 356 to 428 and pin
+  the behaviour that is easiest to regress silently: the stop gate's block counter and its
+  five allow routes, the verify gate's **latch** at the cap (resetting there re-arms a
+  block/pass cycle that can phase-lock against the orchestrator gate and block indefinitely),
+  the baseline's refusal to write an empty baseline on an environment error (an empty one makes
+  every pre-existing finding look new), the guard's disarm-when-stale rule and the shipped
+  `sensitive-paths.json` categories matching the paths they name, and the post-edit hook's
+  silence on everything except a red gate.
+
+### Changed
+
+- **`docs/kartoteka-requirements.md` records what has since shipped.** Written 2026-08-31
+  against kartoteka 0.27.x, it still described every requirement as open. All of §1 and §2 have
+  landed — `parent_id` scoping and `order="created"` in 0.28.0, `expected_version` and
+  `artifact_versions`/`artifact_redact` in 0.30.0, per-project namespacing in 0.31.0,
+  authentication in 0.32.0 — and so has all of §4. Only §3.1 (`TICKET_KEY`) is still open, and
+  it stays conditional. Each subsection carries a **Shipped —** paragraph, the summary table
+  gains a state column, and two items are marked shipped-but-unadopted: artel still claims
+  unscoped and sorts plan order client-side.
+- **`docs/design.md` gains an "Open follow-ups" section.** `docs/superpowers/` is gitignored, so
+  a follow-up parked in a spec's "Open questions" left no trace in the repository — several had
+  already gone invisible. The section collects them: the non-Dart Phase 6 dry run, store mode
+  designed but unbuilt, kartoteka 0.28.0's unused queue parameters, `issue-draft` calibration,
+  `deep-review`'s placeholder forecast constants, the unpublished GitHub releases, and the
+  provisional license holder.
+- **README describes the shipped reality.** The status block said "ported, pre-publish … until
+  the repo is public, install from a local checkout" and the install section was headed "once
+  published"; the repo has been public and installable through the marketplace path for eleven
+  releases. The agent row said "the crew of 12" and omitted `review-forecaster`, which shipped
+  in 0.8.0.
+- **`docs/task-queue.md` no longer explains a limitation that was lifted.** It said siblings are
+  found by title prefix "because `task_list` does not render the parent" — kartoteka 0.28.0
+  renders `· parent: #N`. The prefix convention stays; the reason for it is now recorded as a
+  choice with an open follow-up rather than a workaround.
+
 ### Fixed
 
 - **An untracked (`tracker.adapter: "none"`) pipeline run no longer dies at the vision gate.**

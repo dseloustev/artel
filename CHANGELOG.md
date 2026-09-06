@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-06
+
 ### Added
 
 - **CI: the suite runs on every push and pull request.** `.github/workflows/tests.yml` runs

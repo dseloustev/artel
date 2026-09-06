@@ -16,10 +16,13 @@ idea → PRD → vision → plan → tasklist → ⏸ approval → implement →
 
 ## Status
 
-🚧 **Ported, pre-publish.** All components are in place — the porting from the private
-production setup ([docs/porting-plan.md](docs/porting-plan.md), Phases 0–5) is complete; what
-remains is Phase 6: end-to-end validation and publishing. Until the repo is public, install
-from a local checkout — see [docs/testing-flutter.md](docs/testing-flutter.md).
+**Released and installable.** This repo is published as its own single-plugin marketplace — see
+[CHANGELOG.md](CHANGELOG.md) for the release history and [Install](#install) below.
+
+The port from the private production setup ([docs/porting-plan.md](docs/porting-plan.md)) has
+landed in full, with one item outstanding: Phase 6's end-to-end dry run on a **non-Dart** scratch
+repo, which is the genericization proof. The Flutter smoke test is documented separately in
+[docs/testing-flutter.md](docs/testing-flutter.md).
 
 ## What ships in the plugin
 
@@ -29,7 +32,7 @@ from a local checkout — see [docs/testing-flutter.md](docs/testing-flutter.md)
 | **Stage skills** | Each pipeline stage à la carte: `analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `figma-analysis`, `generate-idea`/`-vision`/`-tasklist`, `inner-loop`, `run-app`, `drive-app`, `sync-phases` |
 | **Ops & utility skills** | `init-branch`, `merge-conflicts`, `deep-review`, `issue-draft`, `change-digest`, `address-pr-comment`, `add-automation`/`remove-automation`, `save-context`/`restore-context`, `agents-md-generator` |
 | **Session & kartoteka** | `using-artel` (turn-one router, hook-injected), `knowledge` (ask the index), `tasks` (operate the queue) |
-| **Agents** | The crew of 12: analyst, figma-analyst, researcher, planner, task-planner, implementer, reviewer, QA, validator, vision/tasklist/tech writers |
+| **Agents** | The crew of 13: analyst, figma-analyst, researcher, planner, task-planner, implementer, reviewer, review-forecaster, QA, validator, vision/tasklist/tech writers |
 | **Hooks** | Quality gates ([hooks/README.md](hooks/README.md)): session baseline, fast per-edit verification, latching verify stop gate, run stop gate, sensitive-path guard, knowledge mirror, session router |
 | **Scripts** | Deterministic gate engines: `scripts/verify.py` (JSON-envelope wrapper over the configured verify commands), `scripts/plan_check.py` (plan-anchor grounding check) |
 | **Docs** | Operator guide, skills reference, and the contracts the pipeline obeys (autonomous run, ticket parsing, config, deviation protocol, path conventions) |
@@ -45,7 +48,7 @@ Core design properties:
   the stop gate latches until evidence exists, sensitive paths are guarded in autonomous mode.
 - **Resumable** — re-invoking the same entry-point command resumes an interrupted run.
 
-## Install (once published)
+## Install
 
 ```
 /plugin marketplace add dseloustev/artel

@@ -1,6 +1,14 @@
 # What kartoteka-primary spec storage needs from kartoteka
 
-*Status: draft · 2026-08-31 · companion to the kartoteka-primary spec-storage design*
+*Status: draft · 2026-08-31 · reviewed against kartoteka 0.32.0 on 2026-09-06 · companion to
+the kartoteka-primary spec-storage design*
+
+**Every §1 and §2 item has since shipped, and so has all of §4** — kartoteka 0.28.0, 0.30.0,
+0.31.0 and 0.32.0 between them closed the whole blocking and gating set. Only §3.1
+(`TICKET_KEY`) remains open, and it is conditional. Each subsection carries its own
+**Shipped —** paragraph below; the Summary table records the state at a glance. What has *not*
+happened is artel's side: store mode is designed but unbuilt, and §1.1/§1.2's parameters are
+still unused by `docs/task-queue.md`.
 
 artel's spec trail is moving from "files on disk, best-effort mirror into kartoteka" to
 "kartoteka is the store; nothing lands in the repo." This file states what that mode needs
@@ -67,6 +75,14 @@ Costs one full-document `artifact_put` and one contextualize call per gate-fix c
 (typically 5–15 per run rather than the 40+ that made whole-document round-trips unacceptable
 for iteration work). Workable, and strictly worse.
 
+**Shipped — kartoteka 0.28.0 (E1, 2026-09-01).** `task_ready` / `claim_ready_task` take
+`parent_id`, folded into the existing fused claim statement so atomicity is unchanged. It
+narrows and does not gate: omitting it still means "any parent", and a `parent_id` naming no
+task is **rejected** rather than answered with "No ready tasks.", so a typo cannot look like a
+finished section. **artel has not adopted it.** `docs/task-queue.md` §3 still claims unscoped
+and releases a wrong-phase row back to `ready` — see the open follow-up in
+[design.md](design.md#open-follow-ups).
+
 ### 1.2 `list_tasks` returns activity order, not plan order
 
 **What artel needs.** Store mode renders `tasklist.md` on demand from the queue for humans and
@@ -88,6 +104,10 @@ notices until a phase runs out of sequence.
 **Proposed change.** An `order: str = "activity"` parameter on `list_tasks` and the `task_list`
 tool, accepting `"activity"` (today's behaviour, default, nothing breaks) and `"created"`
 (`ORDER BY task_id`). Two lines of SQL.
+
+**Shipped — kartoteka 0.28.0 (E1, 2026-09-01),** as proposed: `order = "activity" | "created"`
+on `task_list` and `GET /api/tasks`, `"activity"` still the default. **artel has not adopted
+it** — it still recovers plan order by sorting on `task_id` client-side. Same follow-up as §1.1.
 
 ---
 
@@ -141,6 +161,12 @@ developers on one ticket it is routine, and it silently destroys work that has n
 version number rather than appending. Callers that omit it keep today's behaviour, so nothing
 existing breaks.
 
+**Shipped — kartoteka 0.30.0 (E2, 2026-09-03),** as proposed, with `0` meaning "this must not
+exist yet". One caveat for the store-mode design to absorb: it guards the version **number**,
+not the content behind it — a redaction landing between a read and a put leaves the number
+unchanged, so the absence of a conflict is not proof the content read is still stored. The
+content-hash idempotence check still runs first and is unaffected.
+
 ### 2.3 No per-project namespace
 
 **What exists.** Artifacts and tasks key on `ticket_key` alone
@@ -155,6 +181,14 @@ On a best-effort mirror that is noise; on the system of record it is data loss.
 or an explicit documented constraint that one daemon serves exactly one project-key space, with
 the deployment guidance to match. The second is cheaper and may well be the right answer; what
 is not acceptable is leaving it undecided once the store is authoritative.
+
+**Shipped — kartoteka 0.31.0 (2026-09-04),** taking the first option: `project` is on
+`artifacts`, `tasks` and `notes` and in all three unique keys, one `kartoteka.toml` per project
+may share a `db_path`, and `project` is now **required** in every config file (the silent
+`"default"` fallback is gone). Breaking, and it needs `kartoteka migrate` run with the config of
+the project the database has been serving — nothing later can tell a wrong namespace from a
+right one. artel adopted it in **0.9.0** as `knowledge.project`, and every queue and artifact
+call names it ([config.md](config.md), [task-queue.md](task-queue.md) §1).
 
 ---
 
@@ -185,23 +219,45 @@ design question rather than a validation tweak.
 
 Leaving it as-is is defensible; it just has to be a decision on record, not an oversight.
 
+**Still open as of kartoteka 0.32.0.** `TICKET_KEY` is unchanged at
+`^[A-Z][A-Z0-9]+-\d+\Z` (`../kartoteka/src/kartoteka/models.py:17`). This is the only item in
+this file that has not shipped, and it stays conditional: it binds nothing until artel decides
+to pull release scope off the disk too.
+
 ---
 
 ## §4 Nice to have
 
+**All three shipped.** Recorded as written, each with the release that closed it.
+
 - **No `artifact_delete`.** A wrong `artifact_put` is a permanent version row, fixable only by
   putting a correction on top. Acceptable while the store mirrors files that can be re-pushed;
   more awkward when it is the system of record and someone pastes a secret into `prd.md`.
+
+  **Shipped — kartoteka 0.30.0,** as redaction rather than deletion: `artifact_redact` (MCP)
+  and `DELETE /api/artifacts/{ticket_key}/{stage}/{name}/{version}`. One **named** version's
+  content is replaced in place with `[redacted]`; the row and its version number survive, so no
+  later put reuses a retired number. `version` is required and has no default, it is idempotent,
+  and it is irreversible — kartoteka keeps no copy. Redacting the newest version of an indexed
+  artifact re-ingests automatically, so the secret leaves `chunks`/`chunk_vectors` too.
 - **No `artifact_versions` MCP tool.** It exists over HTTP
   (`GET /api/artifacts/{ticket_key}/{stage}/{name}/versions`,
   `../kartoteka/src/kartoteka/web.py:585`) and as a service method
   (`../kartoteka/src/kartoteka/workspace.py:104`), but is not registered as a tool. Agents
   reconstructing review rounds would use it; today they cannot, because a hook subprocess is
   the only artel component that speaks HTTP.
+
+  **Shipped — kartoteka 0.30.0.** Registered as an MCP tool; every stored version of one
+  artifact, newest first, without bodies. A redacted entry is marked `REDACTED`.
 - **`format_task_list` omits `parent_id`** (`../kartoteka/src/kartoteka/mcp_server.py:95`),
   though `/api/tasks` returns it. Hierarchy is recoverable only from artel's own
   `I<N> · <section> · <text>` title convention. Adding it to the rendered line would make the
   MCP surface self-describing instead of convention-dependent.
+
+  **Shipped — kartoteka 0.28.0.** `task_list` renders `· parent: #N`, and `related`'s
+  `## tasks` section gains it too. Note it is a **format** change, not purely an addition: the
+  segment is inserted between `actor` and the description, moving where the description sits for
+  anything parsing that line positionally.
 
 ---
 
@@ -241,15 +297,21 @@ Checked while writing this, and recorded so it is not investigated twice.
 
 ## Summary
 
-| # | Change | Tier | Size |
-|---|---|---|---|
-| 1.1 | Scope `task_ready` / `claim_ready_task` by `parent_id` | Blocking | Small |
-| 1.2 | `order` parameter on `list_tasks` / `task_list` | Blocking | Trivial |
-| 2.1 | Authentication + non-loopback bind | Gating | Large — own design |
-| 2.2 | `expected_version` on `put_artifact` | Gating | Small |
-| 2.3 | Per-project namespace, or a documented one-project constraint | Gating | Medium or doc-only |
-| 3.1 | Relax `TICKET_KEY` for release identifiers | Conditional | Small, wide blast radius |
-| 4.x | `artifact_delete`, `artifact_versions` tool, `parent_id` in list output | Nice to have | Small |
+| # | Change | Tier | Size | State |
+|---|---|---|---|---|
+| 1.1 | Scope `task_ready` / `claim_ready_task` by `parent_id` | Blocking | Small | **Shipped 0.28.0** — unused by artel |
+| 1.2 | `order` parameter on `list_tasks` / `task_list` | Blocking | Trivial | **Shipped 0.28.0** — unused by artel |
+| 2.1 | Authentication + non-loopback bind | Gating | Large — own design | **Shipped 0.32.0** — artel side in 0.11.0 |
+| 2.2 | `expected_version` on `put_artifact` | Gating | Small | **Shipped 0.30.0** |
+| 2.3 | Per-project namespace, or a documented one-project constraint | Gating | Medium or doc-only | **Shipped 0.31.0** — artel side in 0.9.0 |
+| 3.1 | Relax `TICKET_KEY` for release identifiers | Conditional | Small, wide blast radius | **Open** — conditional, binds nothing today |
+| 4.x | `artifact_delete`, `artifact_versions` tool, `parent_id` in list output | Nice to have | Small | **Shipped** — 0.30.0 (as `artifact_redact`), 0.30.0, 0.28.0 |
 
 Only 1.1 and 1.2 stand between artel and a working store mode against a local daemon. Everything
 in §2 stands between that and deleting anyone's files.
+
+**Where that leaves things (2026-09-06).** Both sentences above are now satisfied: §1 and §2
+have shipped in full, so nothing on kartoteka's side blocks store mode, and nothing blocks local
+deletion either. The remaining work is entirely artel's — the design in
+`docs/superpowers/specs/2026-08-31-kartoteka-primary-specs-design.md` has no plan and no
+implementation. See the open follow-up in [design.md](design.md#open-follow-ups).

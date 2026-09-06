@@ -149,9 +149,12 @@ exist. Two agents on one host are indistinguishable in this field; kartoteka
 renders it as "self-reported, unverified" and nothing depends on it beyond the
 record.
 
-Siblings are found by the `I<N> · ` title prefix rather than by `parent_id`,
-because `task_list` does not render the parent. `task_ready` and `task_update`
-do return it.
+Siblings are found by the `I<N> · ` title prefix rather than by `parent_id`.
+Since kartoteka 0.28.0 `task_list` *does* render the parent, as `· parent: #N`
+(and `task_ready` and `task_update` return it), so the title prefix is now a
+convention artel keeps rather than a limitation it works around. Moving the
+sibling scan — and the claim itself, via `task_ready`'s `parent_id` narrowing —
+onto the parent is an open follow-up ([design.md](design.md#open-follow-ups)).
 
 **Iteration N is phase N.** `generate-tasklist` writes the tasklist ticket-wide
 and calls its iterations phases; `sync-phases` maps `phase-<N>/tasks.md` onto

@@ -100,6 +100,43 @@ entry-point skills run a short one-time init interview and write the file.
 5. ~~**Figma analysis.**~~ Decided 2026-08-01: ships in v1, runtime-optional (skips silently
    when no Figma MCP is connected) — see decision log.
 
+## Open follow-ups
+
+Work that is known, deliberate and not yet done. This section exists because `docs/superpowers/`
+is **gitignored** — a follow-up recorded only in a spec's "Open questions" section leaves no
+trace in the repository, and several had already gone invisible by the time they were collected
+here (2026-09-06). Anything parked for later belongs here as well as in its spec. Resolved items
+move to the decision log.
+
+- **Phase 6: the non-Dart end-to-end dry run.** The last unchecked box in
+  [porting-plan.md](porting-plan.md) and the genericization proof — every run so far has been on
+  a Flutter host, which is the stack artel was ported *from*. The `tracker.adapter: "none"` gate-0
+  defect fixed on 2026-09-05 is exactly the class of bug this catches, and it survived from
+  2026-08-08 because the run never happened.
+- **Store mode is designed but unbuilt.** `docs/superpowers/specs/2026-08-31-kartoteka-primary-specs-design.md`
+  has no plan file and no implementation, and it is the only spec in that state. As of 2026-09-06
+  nothing on kartoteka's side blocks it: every §1 and §2 item in
+  [kartoteka-requirements.md](kartoteka-requirements.md) has shipped. Either plan it or record it
+  as parked — it should not sit in neither state.
+- **kartoteka 0.28.0's queue parameters are unused.** `task_ready` takes `parent_id` and
+  `task_list` takes `order="created"`, both added for artel's stated needs.
+  [task-queue.md](task-queue.md) §3 still claims unscoped and releases a wrong-phase row back to
+  `ready`, and still recovers plan order by sorting client-side. Adopting them changes the claim
+  protocol (a phase-scoped run must first learn its iteration's `task_id`), so it wants its own
+  design pass rather than an in-place edit.
+- **`issue-draft` calibration and operator smoke test** (from the 0.10.0 redesign, 2026-09-04).
+  The template and its kartoteka consultation have never been exercised against real tickets;
+  which kartoteka project and which tickets to sample is itself unresolved.
+- **`deep-review`'s forecast constants are placeholders** (from the 0.8.0 design, 2026-09-02).
+  The `0.5` weight for unlisted reviewers is a guess, not a measurement, and whether
+  `review-forecaster` should run on `opus` or `sonnet` was deliberately started at `opus` to be
+  lowered once the evidence rows read well. Both need real runs behind them.
+- **No GitHub releases have been published.** Fourteen tags through `v0.11.0`, zero releases;
+  `bump-version` prints the reminder at the end of every release and it has never been acted on.
+  Fine if deliberate — but then it should be a decision here rather than a standing omission.
+- **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
+  the plugin (decision of 2026-07-27, below). No record that the review has been requested.
+
 ## Decision log
 
 - **2026-07-27 — Name: `artel`.** Chosen over `slipway`, `greenlight`, `baton`, `ticket-to-pr`.

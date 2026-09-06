@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9 is the floor the hooks are written to (see hooks/sensitive_guard.py);
+        # the newest entry guards against a stdlib deprecation landing unnoticed.
+        python-version: ['3.9', '3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # No dependencies: the hooks, the gate scripts and the suite are stdlib-only
+      # by design, so there is nothing to install and nothing to cache.
+      - name: Run the test suite
+        run: python3 -m unittest discover -s tests -p 'test_*.py' --verbose

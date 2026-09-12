@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-09-12
+
 ### Fixed
 
 - **`init-branch` no longer creates a branch on every run.** It never looked at the current

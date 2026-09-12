@@ -135,7 +135,7 @@ planning/work-list docs after arming, then one commit+push per completed phase โ
 `autonomous-run.md ยง14`); **`pr-create`** (commit + push when the tree is dirty, then the PR
 itself); **`add-automation`** / **`remove-automation`** (each commits exactly the scaffold
 paths; `remove-automation` also pushes when an upstream exists). Everything else writes only
-files: `init-branch` creates a branch but never commits; `merge-conflicts` stages and stops;
+files: `init-branch` may create a branch (only when asked) but never commits; `merge-conflicts` stages and stops;
 `implementer` changes source but leaves committing to the orchestrators' checkpoints.
 
 One thing writes **outside** the repo: with `knowledge.adapter: "kartoteka"` configured

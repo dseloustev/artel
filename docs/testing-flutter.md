@@ -170,8 +170,9 @@ documented escape hatch.
 ```
 
 **Expected:** `init-branch` (an optional convenience — the pipelines run on any feature branch)
-creates `feature/FLT-1` off the detected default branch and runs `flutter pub get`
-(`setup.commands`). `dev` presents the tasklist from 4.2 for its one work-list confirmation
+finds no ticket ID in the current branch name and asks once; choosing **Create** makes
+`feature/FLT-1-<slug>` (slug from the `idea.md` title) off the detected default branch. It then
+runs `flutter pub get` (`setup.commands`). Re-running it on that branch makes no git change. `dev` presents the tasklist from 4.2 for its one work-list confirmation
 (Confirm / Adjust — the pause happens even though the tasklist already exists), arms the run
 (`.artel/run/FLT-1/run-state.json` with `run_active: true`), makes the work-list checkpoint
 commit, then silently implements, reviews (`review.md`, `## Code Review Fixes` on findings),

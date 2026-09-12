@@ -608,3 +608,19 @@ move to the decision log.
   itself from its own documented arguments is a defect, not a runbook step). This restores the
   `"none"` adapter as a first-class path, which is what makes artel usable in a repo with no
   tracker on day one.
+- **2026-09-12 — `init-branch` reads the current branch first and creates one only when asked.**
+  The port derived `feature/<TICKET_ID>` and checked it out or created it on every run, matching
+  existing branches by exact name, so a host whose branches carry a slug
+  (`feature/<KEY>-<num>[-<phase>]-<slug>`, the originating project's convention) got a duplicate
+  branch each time. The skill now scans the current branch name for a
+  `<ticket.projectKey>-\d+` token (the same scan `pr-create` and `address-pr-comment` use).
+  Same ticket → stay, no git change. Different ticket → stop: restoring one ticket's spec trail
+  onto another ticket's branch mixes the two, and switching away from someone's in-flight branch
+  is not a setup step's call. No token → one question: check out an existing branch for the
+  ticket (found by the same token scan, so a re-run whose generated slug differs still finds it),
+  create `feature/<TICKET_ID>[-<N>]-<slug>`, or stay. Staying still runs the rest of the setup,
+  since restore and `/init` are useful on any branch. The phase suffix is not compared: a phase-2
+  run on the ticket's phase-1 branch stays. Rejected: a `branch.template` config key (no second
+  host needs a different shape yet, and the prompt accepts a typed name for a one-off `bugfix/`),
+  and falling back to the branch's ticket ID when no argument or `.active_ticket` is given (not
+  asked for; ticket resolution stays uniform with `orchestrator-common.md` §2).

@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`init-branch` no longer creates a branch on every run.** It never looked at the current
+  branch and matched existing branches by exact name only, so running it on
+  `feature/PROJ-2872-adding-accounts` created a second branch, `feature/PROJ-2872`, off the default
+  branch and switched to it. It now reads the current branch first: a name carrying this ticket's
+  ID (`<ticket.projectKey>-\d+`, the token `pr-create` and `address-pr-comment` already scan for)
+  is used as-is with no git change; a name carrying a different ticket's ID stops the skill; a
+  name carrying none prompts once — check out an existing branch for the ticket, create one, or
+  stay. New branches follow the `feature/<TICKET_ID>[-<N>]-<slug>` shape, the slug coming from the
+  tracker summary or the `idea.md` title as short English kebab-case. Declining keeps the current
+  branch and runs the rest of the setup there.
+
 ## [0.12.0] - 2026-09-06
 
 ### Added

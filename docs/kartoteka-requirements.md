@@ -1,6 +1,6 @@
 # What kartoteka-primary spec storage needs from kartoteka
 
-*Status: draft · 2026-08-31 · reviewed against kartoteka 0.32.0 on 2026-09-06 · companion to
+*Status: draft · 2026-08-31 · reviewed against kartoteka 0.35.0 on 2026-09-15 · companion to
 the kartoteka-primary spec-storage design*
 
 **Every §1 and §2 item has since shipped, and so has all of §4** — kartoteka 0.28.0, 0.30.0,
@@ -219,7 +219,7 @@ design question rather than a validation tweak.
 
 Leaving it as-is is defensible; it just has to be a decision on record, not an oversight.
 
-**Still open as of kartoteka 0.32.0.** `TICKET_KEY` is unchanged at
+**Still open as of kartoteka 0.35.0.** `TICKET_KEY` is unchanged at
 `^[A-Z][A-Z0-9]+-\d+\Z` (`../kartoteka/src/kartoteka/models.py:17`). This is the only item in
 this file that has not shipped, and it stays conditional: it binds nothing until artel decides
 to pull release scope off the disk too.

@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Reviewed against kartoteka 0.33.0–0.35.0: nothing in artel changes.** None of the three
+  moves an MCP signature, an HTTP route, a config key or the index identity. 0.33.0 needs
+  `kartoteka migrate` (an index on `chunks(project, doc_id)`), 0.34.0 adds an opt-in serve log
+  file, and 0.35.0 indexes a workspace artifact without its leading YAML frontmatter block, which
+  artel does not write. `docs/kartoteka-requirements.md` is re-stamped against 0.35.0; §3.1
+  (`TICKET_KEY`) is still its one open item.
+- **`docs/design.md` records the OKF decision and the frontmatter follow-up.** The 2026-09-15
+  review that declined the Open Knowledge Format for the spec trail lived only in a gitignored
+  prompt file; it is now in the decision log. "Open follow-ups" gains spec-trail frontmatter,
+  unblocked by kartoteka 0.35.0, with the two constraints any adoption inherits: a daemon at
+  0.35.0 or later before the mirror hook posts the first block, and LF line endings with a
+  closing `---` line.
+
 ## [0.12.1] - 2026-09-12
 
 ### Fixed

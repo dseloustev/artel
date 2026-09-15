@@ -124,6 +124,20 @@ move to the decision log.
   `ready`, and still recovers plan order by sorting client-side. Adopting them changes the claim
   protocol (a phase-scoped run must first learn its iteration's `task_id`), so it wants its own
   design pass rather than an in-place edit.
+- **Spec-trail frontmatter is unblocked on kartoteka's side, not adopted** (from the 2026-09-15
+  OKF review, decision log below). kartoteka 0.35.0 indexes a workspace artifact without its
+  leading YAML frontmatter block, while the store and `artifact_get` keep it verbatim. That opens
+  three ideas borrowed from OKF: frontmatter in place of the `## Metadata` / `- **Status:**`
+  header bullets, a `verified` entry recording the plan-approval pause, and keyed `sources`
+  citing kartoteka doc ids, which would make
+  [knowledge-consultation.md](knowledge-consultation.md)'s ⚠ NON-CURRENT citation rule
+  mechanically checkable. Any adoption inherits two constraints: the host's daemon must run
+  0.35.0 or later before the mirror hook posts the first block (an older one indexes it as
+  prose), and the block needs LF line endings and a closing `---` on its own line (anything else
+  is indexed as prose, and nothing warns). The larger payoff is kartoteka's and waits on artel:
+  once artifacts cite `sources`, kartoteka could flag one whose cited decision has since become
+  `rejected` or `superseded_by` (§8.3 of
+  `../kartoteka/docs/superpowers/specs/2026-09-15-artifact-frontmatter-design.md`).
 - **`issue-draft` calibration and operator smoke test** (from the 0.10.0 redesign, 2026-09-04).
   The template and its kartoteka consultation have never been exercised against real tickets;
   which kartoteka project and which tickets to sample is itself unresolved.
@@ -624,3 +638,15 @@ move to the decision log.
   host needs a different shape yet, and the prompt accepts a typed name for a one-off `bugfix/`),
   and falling back to the branch's ticket ID when no argument or `.active_ticket` is given (not
   asked for; ticket resolution stays uniform with `orchestrator-common.md` §2).
+- **2026-09-15 — The spec trail does not adopt the Open Knowledge Format; kartoteka gets the part
+  that fits.** Evaluated OKF (`GoogleCloudPlatform/open-knowledge-format`, v0.2) as the format for
+  artel's generated specs. Declined: a ticket's spec trail is a workflow record with gate states,
+  not a set of curated concepts someone keeps current and vouches for, which is what OKF's trust
+  and lifecycle fields describe — and no artel consumer reads OKF. The spec is also young; v0.2
+  already broke two v0.1 fields. The review sent two requests to kartoteka instead: an
+  `export --okf` of a project's corpus, which kartoteka declined on the same grounds (its
+  `PROJECT.md` §9), and stripping YAML frontmatter from artifacts on its index path, which
+  shipped in kartoteka 0.35.0. The OKF ideas still worth borrowing if artel ever writes
+  frontmatter are parked under "Open follow-ups" above. The prompt that carried the requests is
+  `docs/superpowers/prompts/2026-09-15-kartoteka-okf.md` (local — `docs/superpowers/` is
+  untracked).

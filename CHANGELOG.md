@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-09-15
+
 ### Changed
 
 - **Reviewed against kartoteka 0.33.0–0.35.0: nothing in artel changes.** None of the three

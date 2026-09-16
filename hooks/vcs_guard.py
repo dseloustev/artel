@@ -112,13 +112,26 @@ def _shell_c_segments(argv):
     return []
 
 
+def _takes_separate_value(flag):
+    """Whether a wrapper flag's value is a SEPARATE token. A long flag carries its value inline
+    only with `=` (`--arg-file=f`), so `--user ci` still takes the next word. A SHORT flag of
+    more than one letter already carries its value attached, the way getopt and pflag read it
+    (`-I{}`, `-n10`, `-d,`) -- treating those as value-taking is what let `xargs -I{} echo gh
+    pr create` eat `echo` and mistake `gh` for the command word."""
+    if flag.startswith('--'):
+        return '=' not in flag
+    return len(flag) <= 2
+
+
 def _strip_wrappers(argv):
     """Drop leading command wrappers AND the wrapper's own operands, so `sudo gh pr create`,
     `env FOO=1 gh ...`, `timeout 60 gh ...`, `sudo -u ci gh ...`, `nice -n 10 gh ...` and
     `xargs -I{} gh ...` are all still recognized as `gh` calls.
 
     The wrapped command word itself is never swallowed: a `gh` token ends the scan whatever
-    precedes it, and the last token of a segment is always left in place."""
+    precedes it, a shell ends it too (so `xargs -0 sh -c "gh pr create"` reaches the `-c`
+    recursion instead of losing `sh` as `-0`'s value), and the last token of a segment is always
+    left in place."""
     while argv and os.path.basename(argv[0]) in COMMAND_WRAPPERS:
         argv = argv[1:]
         flag_pending = False  # the previous token was a flag that may take a separate value
@@ -127,7 +140,9 @@ def _strip_wrappers(argv):
             if _ASSIGNMENT.match(token):
                 flag_pending = False
             elif token.startswith('-'):
-                flag_pending = '=' not in token
+                flag_pending = _takes_separate_value(token)
+            elif os.path.basename(token) in SHELL_COMMANDS:
+                break  # a shell is the command being wrapped, never a flag's value
             elif _WRAPPER_OPERAND.match(token) or flag_pending:
                 flag_pending = False
             else:

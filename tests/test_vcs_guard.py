@@ -68,6 +68,12 @@ class SegmentsCase(unittest.TestCase):
     def test_shell_without_dash_c_recurses_into_nothing(self):
         self.assertEqual(vg._segments('bash script.sh'), [['bash', 'script.sh']])
 
+    def test_recurses_into_a_shell_behind_a_wrapper_flag(self):
+        # `xargs` and the `-c` recursion arrived together; their most natural combination is
+        # the one that used to lose `sh` as `-0`'s value and never reach the recursion.
+        self.assertIn(['gh', 'pr', 'create', '--title', 'x'],
+                      vg._segments('xargs -0 sh -c "gh pr create --title x"'))
+
 
 class StripWrappersCase(unittest.TestCase):
     def test_bare_wrapper(self):
@@ -106,6 +112,24 @@ class StripWrappersCase(unittest.TestCase):
 
     def test_a_foreign_operand_ends_the_scan(self):
         self.assertEqual(vg._strip_wrappers(['sudo', 'make', 'release']), ['make', 'release'])
+
+    def test_a_flag_never_swallows_a_wrapped_shell(self):
+        # `-0` is a boolean; `sh` is the command being wrapped. Eating it hid the whole
+        # `bash -c` recursion behind the wrapper.
+        self.assertEqual(vg._strip_wrappers(['xargs', '-0', 'sh', '-c', 'gh pr create']),
+                         ['sh', '-c', 'gh pr create'])
+
+    def test_an_attached_short_flag_value_is_not_a_separate_token(self):
+        # `-I{}` already carries its value; `echo` is the command being wrapped, so the
+        # segment is `echo ...` and carries no `gh` call at all.
+        self.assertEqual(vg._strip_wrappers(['xargs', '-I{}', 'echo', 'gh', 'pr', 'create']),
+                         ['echo', 'gh', 'pr', 'create'])
+
+    def test_a_bare_short_flag_still_takes_a_separate_value(self):
+        self.assertTrue(vg._takes_separate_value('-u'))
+        self.assertFalse(vg._takes_separate_value('-I{}'))
+        self.assertTrue(vg._takes_separate_value('--user'))
+        self.assertFalse(vg._takes_separate_value('--user=ci'))
 
 
 class McpPlatformCase(unittest.TestCase):
@@ -576,6 +600,15 @@ class DecisionCase(unittest.TestCase):
         self.config(vcs={'adapter': 'github-cli'})
         self.assertIsNone(self.mcp('mcp__vcs__bitbucket_get_pr_comments'))
         self.assertIsNone(self.mcp('mcp__vcs__bitbucket_get_pr_comment'))
+
+    def test_a_shell_behind_a_wrapper_flag_is_still_inspected(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        self.assertIsNotNone(self.bash('xargs -0 sh -c "gh pr create --title x"'))
+
+    def test_an_echoed_gh_command_line_is_not_a_call(self):
+        # `echo` is the wrapped command; nothing here reaches GitHub.
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        self.assertIsNone(self.bash('xargs -I{} echo gh pr create'))
 
     def test_foreign_mcp_writes_are_denied(self):
         # Every one of these was ALLOWED while the MCP surface used the `gh` read set, where

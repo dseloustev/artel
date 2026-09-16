@@ -8,6 +8,7 @@
  *   tool.execute.before (edit|write|apply_patch) -> hooks/sensitive_guard.py
  *       deny               -> throw (OpenCode's way to deny a tool call)
  *   tool.execute.before (bash|mcp__*)          -> hooks/vcs_guard.py
+ *       deny               -> throw (OpenCode's way to deny a tool call)
  *   tool.execute.after  (edit|write|apply_patch) -> hooks/knowledge_mirror.py (side
  *                       effect only) THEN hooks/fast_verify_post_edit.py
  *       findings          -> throw (the model sees them as the tool's error)

@@ -621,6 +621,32 @@ Entry template:
   silently skipped when empty) → restore → `/init` → optional host index refresh. Scope is setup,
   nothing else — it never commits, pushes, or runs the quality gate. Idempotent — safe to re-run.
 
+### set-home
+
+- **Purpose:** Move the project to a different VCS platform — rewrite `vcs.*` in
+  `.artel/config.json` and re-point the git remotes so config and `origin` agree.
+- **Invocation:** `/artel:set-home <repo-url>`
+- **Reads:** `.artel/config.json` (`vcs.adapter`, `vcs.mcpToolPrefix`, `tracker.adapter`);
+  `git remote -v`.
+- **Writes:** `.artel/config.json` (`vcs.*` only, read-modify-write preserving key order);
+  git remotes (`rename`, `add`, `fetch`, `set-head`, upstream tracking). Never pushes, never
+  `--force`s, never deletes a remote or branch.
+- **Pauses:** confirms every change via `AskUserQuestion` (**Apply** / **Abort**) before
+  touching remotes or config; asks for `vcs.mcpToolPrefix` when the target is `bitbucket-mcp`
+  and it is empty (re-asks until non-empty); asks about `tracker.adapter` only when it names the
+  platform being left (e.g. `github-issues` while moving off GitHub).
+- **Notes:** worker, not orchestrator — runs inline (like `setup`). No argument → reports the
+  current `vcs.adapter` vs. `origin` and stops, read-only. Idempotent: skips the git surgery
+  entirely when `origin` already matches the target. Preserves `vcs.mcpToolPrefix` on a switch
+  to `github-cli` — that adapter ignores it, but `/artel:migrate-prs` needs it to address the
+  old platform's MCP tools for reading. Renames rather than replaces `origin` (`bitbucket` /
+  `github` / `old-origin`, suffixed on a name collision) so the old remote survives for
+  `/artel:migrate-prs`; the operator removes it by hand once done. Runs
+  `git remote set-head origin -a` after the swap — required, not cosmetic: `pr-create` and
+  `agents/reviewer.md`'s standalone mode resolve the default branch through
+  `refs/remotes/origin/HEAD`. Offers `/artel:migrate-prs` in its report when the old platform
+  was Bitbucket and open PRs exist.
+
 ### add-automation
 
 - **Purpose:** Apply the transient agent UI-automation scaffold to the current branch and

@@ -74,6 +74,7 @@ it). `<ticket>-<N>` is a phase-scoped run.
 | The user wants… | Run |
 |---|---|
 | a branch set up for a ticket | `/artel:init-branch <ticket>` |
+| the project moved to a different VCS platform | `/artel:set-home <repo-url>` |
 | merge conflicts resolved | `/artel:merge-conflicts [branch]` |
 | phase status synced between tasklist and phase files | `/artel:sync-phases <ticket>` |
 | a report or quiz on what happened on a branch | `/artel:change-digest [ticket]` |

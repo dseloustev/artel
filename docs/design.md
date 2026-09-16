@@ -76,7 +76,7 @@ root. Full key reference and defaults: [config.md](config.md).
 |---|---|
 | Ticket grammar `AW-NNNN` / `AW-NNNN-P` | `ticket.pattern` (project key + phase-suffix rule) |
 | Jira via `mcp__aiguard__jira_*` | `tracker.adapter`: `jira-mcp` \| `github-issues` \| `none` (+ tool prefix) |
-| Bitbucket via `mcp__aiguard__bitbucket_*` | `vcs.adapter`: `bitbucket-mcp` \| `github-cli` |
+| Bitbucket via `mcp__aiguard__bitbucket_*` | `vcs.adapter`: `bitbucket-mcp` \| `github-cli`, enforced by the `vcs_guard` hook |
 | `make verify`, Dart MCP analyze/format | `verify.commands` (list of shell commands), `verify.fast` (per-edit) |
 | Russian PR descriptions / Jira comments | `language.docs`, `language.pr` |
 | Figma design analysis | optional module, enabled only when `design.figma: true` |
@@ -112,7 +112,22 @@ move to the decision log.
   [porting-plan.md](porting-plan.md) and the genericization proof — every run so far has been on
   a Flutter host, which is the stack artel was ported *from*. The `tracker.adapter: "none"` gate-0
   defect fixed on 2026-09-05 is exactly the class of bug this catches, and it survived from
-  2026-08-08 because the run never happened.
+  2026-08-08 because the run never happened. 0.13.0 added a guard and two migration skills on top
+  of adapter branches that this run has still never exercised against a real GitHub host.
+- **What OpenCode names MCP tools is unverified, and the VCS guard's reach there depends on
+  it.** `hooks/vcs_guard.py` and `opencode/plugin/artel.ts` originally required Claude Code's
+  literal `mcp__` prefix before classifying a tool; both now match the platform token in the
+  name instead (`bitbucket`, `github`, `jira`), which is what the design rule always said. That
+  widening is correct on either host, but whether an OpenCode MCP tool actually surfaces as
+  `<server>_<tool>`, as something namespaced, or as a name carrying no platform token at all
+  cannot be settled from this repository — and if it is the last of those, Bitbucket MCP writes
+  stay unguarded on that host. Needs one real OpenCode session with an MCP server attached to
+  confirm the naming, then a line in [opencode.md](opencode.md) recording it.
+- **The VCS guard does not cover `git push` or run an entry-point preflight** (from the
+  2026-09-16 platform-migration design). A stale `origin` pointing at the old platform still
+  pushes there; `set-home` moves it, but nothing enforces that it was run. Both were considered
+  and deliberately declined for 0.13.0, so they are decisions rather than omissions — revisit if
+  a stale remote ever causes a real push to the wrong host.
 - **Store mode is designed but unbuilt.** `docs/superpowers/specs/2026-08-31-kartoteka-primary-specs-design.md`
   has no plan file and no implementation, and it is the only spec in that state. As of 2026-09-06
   nothing on kartoteka's side blocks it: every §1 and §2 item in
@@ -650,3 +665,26 @@ move to the decision log.
   frontmatter are parked under "Open follow-ups" above. The prompt that carried the requests is
   `docs/superpowers/prompts/2026-09-15-kartoteka-okf.md` (local — `docs/superpowers/` is
   untracked).
+- **2026-09-16 — the configured platform is enforced, not merely documented.** Every PR-touching
+  skill already branched on `vcs.adapter`, but that branching is prose a model can drift past. A
+  `PreToolUse` hook (`hooks/vcs_guard.py`, always armed — unlike `sensitive_guard.py`, it is not
+  gated on an autonomous run) now denies any call that *writes* to a platform other than the one
+  `vcs.adapter` (pull requests) or `tracker.adapter` (issues) declares. Domain is derived from
+  the **platform**, not the tool name: Bitbucket answers to `vcs.adapter`, Jira to
+  `tracker.adapter`, and GitHub — which hosts both — is judged against both. A review during
+  implementation found that an earlier name-based heuristic (routing on whether a tool's name
+  contained `issue`) could send a Bitbucket write into the tracker domain, where the default
+  `tracker.adapter: "none"` left it unenforced; deriving the domain from the platform instead
+  closed that gap. Foreign **reads** stay allowed, which is what lets `migrate-prs` read the
+  Bitbucket PRs it recreates on GitHub. Verb extraction is positional, never substring:
+  `bitbucket_get_pr_comments` is a read whose name contains the write token `comment`. An
+  unrecognized verb is denied (fail closed); `guard.extraReadTools` rescues an unrecognized verb
+  only, never a recognized write. Rejected along the way: a `vcs.repo` config key (it would
+  duplicate `origin` and go stale — `origin` stays the single source of truth for coordinates),
+  and moving `.active_ticket` or the run state into `.artel/config.json` (three different
+  lifetimes — committed team config, a per-worktree pointer, and gitignored per-run state —
+  and `.active_ticket` is referenced by 29 skill bodies, seven agent definitions and four hook
+  modules: `grep -l active_ticket skills/*/SKILL.md agents/*.md hooks/*.py`). Bitbucket stays
+  supported: artel is a public plugin. Released as 0.13.0, alongside `/artel:set-home` (moves a
+  project between platforms) and `/artel:migrate-prs` (recreates a Bitbucket project's still-open
+  PRs on GitHub) — see [CHANGELOG.md](../CHANGELOG.md).

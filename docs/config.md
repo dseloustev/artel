@@ -81,6 +81,9 @@ placeholder the init interview replaces.
   "review": {
     "perTask": false
   },
+  "guard": {
+    "extraReadTools": []
+  },
   "setup": {
     "commands": []
   },
@@ -238,6 +241,41 @@ error under reading rule 3. The two `review.forecast.*` keys belong to `deep-rev
 the pipeline's gates never read them — and they only matter when `knowledge.adapter` is
 `kartoteka`: with the forecast off, the threshold has nothing to cut and the list nothing to
 weigh.
+
+### `guard` — the platform guard's escape hatch
+
+| Key | Type | Default | Allowed values / notes | Consumed by |
+|---|---|---|---|---|
+| `guard.extraReadTools` | array of strings | `[]` | Tool-name substrings the `vcs_guard` hook treats as reads even when their verb is unrecognized. Matched case-insensitively. Covers both the VCS and the tracker domain. A non-list value is ignored — the hook coerces it to `[]`; unlike a skill, a hook cannot stop a run. | `hooks/vcs_guard.py` |
+
+The `vcs_guard` hook denies any call that **writes** to a platform other than the one
+`vcs.adapter` (for pull requests) or `tracker.adapter` (for issues) declares. It classifies a
+call by extracting its verb positionally — the first recognized verb among an MCP tool name's
+`_`-separated segments after the platform segment, or the subcommand following the noun for
+`gh`. A verb it does not recognize is **denied**, so a tool name nobody anticipated cannot
+become the hole in the guarantee. `guard.extraReadTools` is the escape: list a tool there and
+the guard treats it as a read when its verb is unrecognized. It never rescues a recognized
+write.
+
+Each entry is matched as a **bare case-insensitive substring** of the call's label (an MCP tool
+name, or `gh <noun> <verb>`) — there is no anchoring and no wildcard syntax, so entries should
+be **full tool names**. A fragment as short as `"_"` matches every unknown call and retires the
+fail-closed rule for all of them; it still cannot un-guard a call whose verb is a recognized
+write.
+
+**Where the guarantee stops.** The hook inspects `gh` subcommands over pull requests, repos,
+releases, aliases and `api` (plus `gh issue` for the tracker domain), and tools whose **name**
+carries a platform token (`bitbucket`, `github`, `jira`). It does not inspect `git push`, other
+`gh` subcommands (`gist`, `secret`, `variable`, `label`, `workflow`, `project`), a `gh` alias
+created before the guard existed, or direct HTTP (`curl` against a platform API). Those reach
+the platform unguarded.
+
+`tracker.adapter: "none"` — and an absent `tracker` section — leaves the tracker domain
+unenforced: no declared home means nothing to protect. `vcs.adapter` has no `none` value, so
+the VCS domain is always enforced. An adapter value that is **declared but unrecognized** (say
+`"github"`, a typo for `"github-cli"`) does not unguard its domain: it matches no platform, so
+every platform write in that domain is denied until the value is fixed. A guard that fails
+closed on an unknown verb must not fail open on a malformed value of the key it enforces.
 
 ### `setup` — post-branch setup
 
@@ -485,6 +523,9 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
   },
   "review": {
     "perTask": true
+  },
+  "guard": {
+    "extraReadTools": []
   },
   "setup": {
     "commands": ["npm ci"]

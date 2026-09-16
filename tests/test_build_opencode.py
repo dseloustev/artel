@@ -168,5 +168,44 @@ class TestDeterminism(BuildBase):
                                  path.parent.name + ' differs between builds')
 
 
+class TestPluginSource(unittest.TestCase):
+    """The OpenCode host's VCS-guard binding, asserted against the plugin source.
+
+    There is no TypeScript runner in this repo, so source-level checks are the only ones
+    available -- which is why they assert placement and casing rather than mere presence."""
+
+    def setUp(self):
+        self.source = (ROOT / 'opencode' / 'plugin' / 'artel.ts').read_text(encoding='utf-8')
+
+    def test_binds_the_vcs_guard(self):
+        self.assertIn('vcs_guard.py', self.source)
+        self.assertIn('artel vcs guard', self.source)
+
+    def test_binding_precedes_the_edit_tools_early_return(self):
+        # A binding placed after that return never sees a bash or MCP call -- neither is an
+        # edit tool -- so the guard would look installed and enforce nothing.
+        self.assertLess(self.source.index('vcs_guard.py'),
+                        self.source.index('EDIT_TOOLS.has(input.tool)'))
+
+    def test_binding_is_not_limited_to_the_mcp_prefix(self):
+        # `mcp__` is a Claude Code convention; OpenCode names MCP tools without it, so a
+        # prefix test would forward bash only and leave Bitbucket MCP writes unguarded here.
+        # hooks/vcs_guard.py classifies any non-Bash tool by the platform token in its name.
+        self.assertNotIn('startsWith("mcp__")', self.source)
+        self.assertIn('PLATFORM_TOKENS', self.source)
+        for token in ('"bitbucket"', '"github"', '"jira"'):
+            self.assertIn(token, self.source)
+        self.assertIn('isPlatformTool(input.tool)', self.source)
+        self.assertLess(self.source.index('isPlatformTool(input.tool)'),
+                        self.source.index('EDIT_TOOLS.has(input.tool)'))
+
+    def test_payload_carries_claude_code_tool_casing(self):
+        # hooks/vcs_guard.py matches `tool == 'Bash'` exactly; OpenCode's tool name is the
+        # lowercase `bash`. A lowercase payload would silently guard nothing.
+        self.assertIn('"Bash"', self.source)
+        self.assertLess(self.source.index('"Bash"'),
+                        self.source.index('EDIT_TOOLS.has(input.tool)'))
+
+
 if __name__ == '__main__':
     unittest.main()

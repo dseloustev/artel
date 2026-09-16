@@ -10,8 +10,11 @@ and utility skills are in place, plus the
 interview both entry points trigger when `.artel/config.json` is missing). Most skills here are
 orchestrators — they resolve ticket context, invoke agents, and report; they never inline the
 agent's work. A handful are self-declared procedural workers instead (e.g. `sync-phases`,
-`generate-idea`, `merge-conflicts`) — no agent matches their job, so they run their documented
-procedure inline and say so in their own body.
+`generate-idea`, `merge-conflicts`, `set-home`, `migrate-prs`) — no agent matches their job, so
+they run their documented procedure inline and say so in their own body. `set-home` moves a
+project to a different VCS platform, rewriting `vcs.*` in `.artel/config.json` and re-pointing
+the git remotes together; `migrate-prs` follows it to recreate a Bitbucket project's still-open
+pull requests on GitHub.
 
 Three of them are not pipeline stages: `using-artel` is the session router the `using_artel`
 hook injects at turn one (a routing table over every other skill —

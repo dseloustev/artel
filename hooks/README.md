@@ -1,10 +1,10 @@
 # hooks/
 
-Quality gates: `hooks.json` registers seven Python hooks via `${CLAUDE_PLUGIN_ROOT}` paths.
+Quality gates: `hooks.json` registers eight Python hooks via `${CLAUDE_PLUGIN_ROOT}` paths.
 Requires `python3` on the host. Verify commands come from host config
 (`.artel/config.json` — [config.md](../docs/config.md)), never hardcoded.
 
-Four layers:
+Five layers:
 
 - **Run layer** — enforces the autonomous-run contract
   ([autonomous-run.md](../docs/autonomous-run.md)):
@@ -19,6 +19,29 @@ Four layers:
     Policy: [`sensitive-paths.json`](sensitive-paths.json) (shipped defaults: `secrets` and
     `gate-config` at `full-gates`, `ci-cd` at `plan-gate`), replaced **wholesale** by a host
     `.artel/sensitive-paths.json` when present. Inert outside armed runs.
+- **Platform layer** — always armed, never gated on a run: enforces which VCS and tracker
+  platform this project actually uses, in every session, not only autonomous ones.
+  - `vcs_guard.py` (`PreToolUse` on `Bash|mcp__.*`) — denies any call that **writes** to a VCS
+    or tracker platform other than the one `.artel/config.json` declares. **Always armed**,
+    unlike `sensitive_guard.py` (the Run layer's own `PreToolUse` guard): a project that has
+    moved to GitHub must not post to Bitbucket in any session, autonomous run or not. Domain
+    routing is by platform, not tool name: `gh pr`/`repo`/`release`/`api` and Bitbucket-named MCP
+    tools answer to `vcs.adapter`; `gh issue` and Jira-named MCP tools answer to
+    `tracker.adapter`; a GitHub-named MCP tool is judged against **both** domains, since GitHub
+    hosts both pull requests and issues. config.md requires `gh` for issues even when the VCS
+    adapter is not `github-cli`, so one adapter cannot govern both. Verb extraction is
+    positional, never substring: for an MCP tool it is the first recognized verb among the
+    `_`-separated segments after the platform segment, and for `gh` the subcommand after the
+    noun — substring matching would read the write token `comment` inside
+    `bitbucket_get_pr_comments` and deny a read that `migrate-prs` depends on. An unrecognized
+    verb is **denied** (fail closed), so a tool name nobody anticipated cannot become the hole
+    in the guarantee; `guard.extraReadTools` ([config.md](../docs/config.md)) rescues an
+    unrecognized verb only, never a recognized write. Fails open where artel is not in charge: a
+    missing or unparseable config allows everything, and `tracker.adapter: "none"` leaves the
+    tracker domain unenforced (`vcs.adapter` has no `"none"`, so the VCS domain is always
+    enforced). Two deliberate gaps: it does not inspect `git push`, so a stale `origin` still
+    pushes to the old host (`/artel:set-home` moves it), and it runs no entry-point preflight — a
+    mismatch surfaces at the moment of the call.
 - **Verify layer** — same-session quality feedback, driven by `verify.fast` /
   `verify.surface` (config.md) through the `scripts/verify.py` envelope
   (exit 0 clean / 1 findings / 2 environment error):
@@ -63,9 +86,9 @@ Four layers:
     is named as such rather than reported as `knowledge.adapter: none`.
 
 Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines, verify-stop
-counters) — never inside the plugin directory. The verify-layer and session-layer hooks return
-immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured plugin
-leaves zero footprint; `hook_common.py` is the shared helper library, not a registered hook.
+counters) — never inside the plugin directory. The verify-layer, session-layer and platform-layer
+hooks return immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured
+plugin leaves zero footprint; `hook_common.py` is the shared helper library, not a registered hook.
 
 ## The OpenCode bridge
 

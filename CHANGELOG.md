@@ -6,6 +6,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-16
+
+### Added
+
+- **The configured VCS platform is now enforced.** A new always-armed `PreToolUse` hook,
+  `hooks/vcs_guard.py`, denies any call that writes to a platform other than the one
+  `vcs.adapter` (pull requests) or `tracker.adapter` (issues) declares — so a project moved to
+  GitHub cannot post a comment or open a PR on Bitbucket, even if a skill body is wrong. Domain
+  is derived from the platform (Bitbucket → `vcs.adapter`, Jira → `tracker.adapter`, GitHub →
+  both, since it hosts both), not from the tool's name. Foreign *reads* stay allowed, which is
+  what lets the new `migrate-prs` skill read the Bitbucket PRs it recreates. An unrecognized verb
+  is denied; `guard.extraReadTools` in `.artel/config.json` rescues an unrecognized verb only,
+  never a recognized write. `tracker.adapter: "none"` leaves the tracker domain unenforced — no
+  declared home means nothing to protect.
+- **`/artel:set-home <repo-url>`** moves a project between platforms: it rewrites `vcs.*` and
+  re-points the git remotes together, renaming the old `origin` rather than replacing its URL so
+  the open PRs' source branches stay fetchable, and refreshing `refs/remotes/origin/HEAD` (which
+  `pr-create` and the reviewer agent use to resolve the default branch). With no argument it
+  reports the current home and stops.
+- **`/artel:migrate-prs [pr-id ...]`** recreates a Bitbucket project's still-open pull requests
+  on GitHub, carrying title, description and branches plus a provenance line. Re-runnable: an
+  existing GitHub PR for the branch is reported and skipped. It never writes to Bitbucket, and
+  migrates none of review comments, reviewer assignments or PR state — the old PRs are declined
+  by hand.
+
 ## [0.12.2] - 2026-09-15
 
 ### Changed

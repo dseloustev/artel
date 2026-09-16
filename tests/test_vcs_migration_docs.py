@@ -61,6 +61,10 @@ class MigratePrsDocsCase(unittest.TestCase):
     def test_is_idempotent_via_an_existing_pr_check(self):
         self.assertIn('gh pr list --head', self.text)
         self.assertIn('PR_EXISTS', self.text)
+        # Ordering, not just presence: a check moved after the push would satisfy both
+        # substrings above while duplicating branches on every re-run.
+        self.assertLess(self.text.index('gh pr list --head'),
+                        self.text.index('git push origin'))
 
     def test_never_force_pushes(self):
         self.assertIn('Never any `--force` variant', self.text)
@@ -71,6 +75,13 @@ class MigratePrsDocsCase(unittest.TestCase):
 
     def test_does_not_write_to_the_old_platform(self):
         self.assertIn('declined by hand', self.text)
+        self.assertIn('Never writes to Bitbucket', self.text)
+
+    def test_untrusted_pr_text_never_reaches_a_shell_command(self):
+        # The title is as attacker-authored as the body; both must stay out of the command line.
+        self.assertIn('--body-file', self.text)
+        self.assertIn('"$(cat', self.text)
+        self.assertNotIn('--title "<title>"', self.text)
 
 
 if __name__ == '__main__':

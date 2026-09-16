@@ -64,6 +64,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Bash|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/vcs_guard.py\"",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }

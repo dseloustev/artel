@@ -81,6 +81,9 @@ placeholder the init interview replaces.
   "review": {
     "perTask": false
   },
+  "guard": {
+    "extraReadTools": []
+  },
   "setup": {
     "commands": []
   },
@@ -238,6 +241,23 @@ error under reading rule 3. The two `review.forecast.*` keys belong to `deep-rev
 the pipeline's gates never read them — and they only matter when `knowledge.adapter` is
 `kartoteka`: with the forecast off, the threshold has nothing to cut and the list nothing to
 weigh.
+
+### `guard` — the platform guard's escape hatch
+
+| Key | Type | Default | Allowed values / notes | Consumed by |
+|---|---|---|---|---|
+| `guard.extraReadTools` | array of strings | `[]` | Tool-name substrings the `vcs_guard` hook treats as reads even when their verb is unrecognized. Matched case-insensitively. Covers both the VCS and the tracker domain. A non-list value is a configuration error under reading rule 3. | `hooks/vcs_guard.py` |
+
+The `vcs_guard` hook denies any call that **writes** to a platform other than the one
+`vcs.adapter` (for pull requests) or `tracker.adapter` (for issues) declares. It classifies a
+call by extracting its verb positionally — the first recognized verb among an MCP tool name's
+`_`-separated segments after the platform segment, or the subcommand following the noun for
+`gh`. A verb it does not recognize is **denied**, so a tool name nobody anticipated cannot
+become the hole in the guarantee. `guard.extraReadTools` is the escape: list a tool there and
+the guard treats it as a read regardless of its verb.
+
+`tracker.adapter: "none"` leaves the tracker domain unenforced — no declared home means nothing
+to protect. `vcs.adapter` has no `none` value, so the VCS domain is always enforced.
 
 ### `setup` — post-branch setup
 
@@ -485,6 +505,9 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
   },
   "review": {
     "perTask": true
+  },
+  "guard": {
+    "extraReadTools": []
   },
   "setup": {
     "commands": ["npm ci"]

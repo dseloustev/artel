@@ -41,6 +41,72 @@ class SegmentsCase(unittest.TestCase):
     def test_empty_command(self):
         self.assertEqual(vg._segments(''), [])
 
+    def test_splits_on_a_background_ampersand(self):
+        # `&&` must still win over the single `&`: the alternation order is what does it.
+        self.assertEqual(vg._segments('sleep 1 & gh pr create'),
+                         [['sleep', '1'], ['gh', 'pr', 'create']])
+
+    def test_command_substitution_is_a_boundary(self):
+        self.assertIn(['gh', 'pr', 'create'], vg._segments('echo $(gh pr create)'))
+
+    def test_backticks_are_a_boundary(self):
+        self.assertIn(['gh', 'pr', 'create'], vg._segments('echo `gh pr create`'))
+
+    def test_a_substituted_argument_still_leaves_the_gh_segment(self):
+        # Splitting inside `--title "$(cat f)"` only ADDS segments; the one starting with
+        # `gh` survives, which is all the guard reads.
+        segments = vg._segments('gh pr create --title "$(cat f)"')
+        self.assertTrue(any(s[:3] == ['gh', 'pr', 'create'] for s in segments), segments)
+
+    def test_recurses_into_bash_dash_c(self):
+        self.assertIn(['gh', 'pr', 'create', '--title', 'x'],
+                      vg._segments('bash -c "gh pr create --title x"'))
+
+    def test_recurses_into_a_wrapped_shell(self):
+        self.assertIn(['gh', 'pr', 'create'], vg._segments('sudo sh -c "gh pr create"'))
+
+    def test_shell_without_dash_c_recurses_into_nothing(self):
+        self.assertEqual(vg._segments('bash script.sh'), [['bash', 'script.sh']])
+
+
+class StripWrappersCase(unittest.TestCase):
+    def test_bare_wrapper(self):
+        self.assertEqual(vg._strip_wrappers(['sudo', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+
+    def test_wrapper_flag_with_a_separate_value(self):
+        self.assertEqual(vg._strip_wrappers(['sudo', '-u', 'ci', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+
+    def test_timeout_duration_operand(self):
+        self.assertEqual(vg._strip_wrappers(['timeout', '60', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+        self.assertEqual(vg._strip_wrappers(['timeout', '1.5s', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+
+    def test_nice_flag_and_value(self):
+        self.assertEqual(vg._strip_wrappers(['nice', '-n', '10', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+
+    def test_xargs(self):
+        self.assertEqual(vg._strip_wrappers(['xargs', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+
+    def test_a_flag_never_swallows_the_gh_token(self):
+        # `-I{}` takes a value; `gh` is the wrapped command, not that value.
+        self.assertEqual(vg._strip_wrappers(['xargs', '-I{}', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+
+    def test_nested_wrappers(self):
+        self.assertEqual(vg._strip_wrappers(['sudo', 'timeout', '60', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+
+    def test_a_wrapper_alone_keeps_its_last_token(self):
+        self.assertEqual(vg._strip_wrappers(['sudo', 'gh']), ['gh'])
+
+    def test_a_foreign_operand_ends_the_scan(self):
+        self.assertEqual(vg._strip_wrappers(['sudo', 'make', 'release']), ['make', 'release'])
+
 
 class McpPlatformCase(unittest.TestCase):
     def test_bitbucket(self):
@@ -71,6 +137,31 @@ class McpVerbCase(unittest.TestCase):
 
     def test_no_recognized_verb(self):
         self.assertIsNone(vg._mcp_verb('mcp__vcs__bitbucket_fetch_activity', 'bitbucket'))
+
+    # `status`, `checks` and `diff` are read verbs for `gh` and NOUNS in a tool name. If the
+    # MCP side used the `gh` read set, first-match-wins would call each of these a read.
+    def test_status_is_a_noun_not_the_verb(self):
+        self.assertEqual(vg._mcp_verb('mcp__vcs__bitbucket_status_set', 'bitbucket'), 'set')
+
+    def test_build_status_post_is_a_write(self):
+        self.assertEqual(vg._mcp_verb('mcp__vcs__bitbucket_build_status_post', 'bitbucket'),
+                         'post')
+
+    def test_checks_is_a_noun_not_the_verb(self):
+        self.assertEqual(vg._mcp_verb('mcp__vcs__bitbucket_checks_create', 'bitbucket'),
+                         'create')
+
+    def test_diff_is_a_noun_not_the_verb(self):
+        self.assertEqual(vg._mcp_verb('mcp__vcs__bitbucket_diff_comment_add', 'bitbucket'),
+                         'comment')
+
+    def test_the_singular_comment_read_still_reads(self):
+        # migrate-prs depends on this one; "any write verb anywhere wins" would break it.
+        self.assertEqual(vg._mcp_verb('mcp__vcs__bitbucket_get_pr_comment', 'bitbucket'), 'get')
+
+    def test_a_tool_name_without_the_mcp_prefix_still_resolves(self):
+        # OpenCode does not use Claude Code's `mcp__` prefix.
+        self.assertEqual(vg._mcp_verb('bitbucket_create_pr', 'bitbucket'), 'create')
 
 
 class GhNounVerbCase(unittest.TestCase):
@@ -119,6 +210,42 @@ class GhApiClassCase(unittest.TestCase):
     def test_unresolvable_method_is_unknown(self):
         self.assertEqual(vg._gh_api_class(['gh', 'api', '-X', '$METHOD', 'x']), 'unknown')
 
+    # `gh api --help`: "The default HTTP request method is GET normally and POST if any
+    # parameters were added" -- a field flag with no explicit method is a POST.
+    def test_field_flags_make_it_a_post(self):
+        for flag in ('-f', '--raw-field', '-F', '--field'):
+            with self.subTest(flag=flag):
+                self.assertEqual(
+                    vg._gh_api_class(['gh', 'api', 'repos/o/r/issues/1/comments', flag,
+                                      'body=hi']), 'write')
+
+    def test_field_flag_equals_form_makes_it_a_post(self):
+        self.assertEqual(vg._gh_api_class(['gh', 'api', 'x', '--field=body=hi']), 'write')
+
+    def test_input_flag_makes_it_a_post(self):
+        self.assertEqual(vg._gh_api_class(['gh', 'api', '--input', 'body.json', 'x']), 'write')
+
+    def test_an_explicit_method_still_wins_over_fields(self):
+        self.assertEqual(
+            vg._gh_api_class(['gh', 'api', '--method', 'GET', 'x', '-f', 'per_page=10']), 'read')
+
+    def test_attached_short_method_flag(self):
+        self.assertEqual(vg._gh_api_class(['gh', 'api', '-XPOST', 'x']), 'write')
+
+    def test_attached_short_method_flag_with_equals(self):
+        self.assertEqual(vg._gh_api_class(['gh', 'api', '-X=DELETE', 'x']), 'write')
+
+    def test_attached_short_get_is_still_a_read(self):
+        self.assertEqual(vg._gh_api_class(['gh', 'api', '-XGET', 'x', '-f', 'a=b']), 'read')
+
+    def test_a_field_value_is_not_read_as_a_flag(self):
+        self.assertEqual(vg._gh_api_method(['gh', 'api', 'x']), 'GET')
+
+    def test_resolved_method_is_reported(self):
+        self.assertEqual(vg._gh_api_method(['gh', 'api', '--method=PATCH', 'x']), 'PATCH')
+        self.assertEqual(vg._gh_api_method(['gh', 'api', '-XPOST', 'x']), 'POST')
+        self.assertEqual(vg._gh_api_method(['gh', 'api', '-X', '$M', 'x']), '')
+
 
 class ClassifyCase(unittest.TestCase):
     def test_read(self):
@@ -132,6 +259,26 @@ class ClassifyCase(unittest.TestCase):
 
     def test_unrecognized_is_unknown(self):
         self.assertEqual(vg._classify('frobnicate'), 'unknown')
+
+    def test_gh_only_read_verbs(self):
+        # `gh repo clone`, `gh pr checkout`, `gh release download` are reads the design
+        # promises will keep working.
+        for verb in ('clone', 'checkout', 'download'):
+            with self.subTest(verb=verb):
+                self.assertEqual(vg._classify(verb), 'read')
+
+    def test_fork_and_sync_are_not_reads(self):
+        # Both write to the remote, so neither belongs in the read set.
+        for verb in ('fork', 'sync'):
+            with self.subTest(verb=verb):
+                self.assertNotEqual(vg._classify(verb), 'read')
+
+    def test_the_two_read_sets_differ_by_exactly_three_verbs(self):
+        self.assertEqual(vg.GH_READ_VERBS - vg.MCP_READ_VERBS, {'status', 'checks', 'diff'})
+
+    def test_status_reads_for_gh_but_not_for_a_tool_name(self):
+        self.assertEqual(vg._classify('status'), 'read')
+        self.assertEqual(vg._classify('status', vg.MCP_READ_VERBS), 'unknown')
 
 
 class DecisionCase(unittest.TestCase):
@@ -286,6 +433,95 @@ class DecisionCase(unittest.TestCase):
         reason = self.bash('gh api -X POST repos/o/r/issues/1/comments -f body=x')
         self.assertIsNotNone(reason)
         self.assertNotIn('-X', reason.splitlines()[0])
+
+    def test_gh_api_with_an_unresolvable_method_is_denied(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        self.assertIsNotNone(self.bash('gh api -X $METHOD repos/o/r/pulls'))
+
+    def test_deny_label_names_the_method_whatever_the_spelling(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        for command in ('gh api --method=POST x', 'gh api -XPOST x', 'gh api -X POST x',
+                        'gh api x -f body=hi'):
+            with self.subTest(command=command):
+                reason = self.bash(command)
+                self.assertIsNotNone(reason, command)
+                self.assertIn('gh api POST', reason.splitlines()[0])
+
+    # --- the perimeter, end to end ------------------------------------------
+    def test_foreign_writes_are_denied(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        for command in (
+            'gh api repos/o/r/issues/1/comments -f body=hi',
+            'gh api repos/o/r/pulls -F title=x',
+            'gh api --input body.json repos/o/r/issues/1/comments',
+            'gh api -XPOST repos/o/r/issues/1/comments',
+            'echo $(gh pr create --title x)',
+            'echo `gh pr create --title x`',
+            'sleep 1 & gh pr create --title x',
+            'bash -c "gh pr create --title x"',
+            'timeout 60 gh pr create --title x',
+            'xargs gh pr create --title x',
+            'sudo -u ci gh pr create --title x',
+            'gh alias set nuke "pr create"',
+        ):
+            with self.subTest(command=command):
+                self.assertIsNotNone(self.bash(command), command)
+
+    def test_foreign_reads_are_allowed(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        for command in (
+            'gh api repos/o/r/pulls/1',
+            'gh api --method GET repos/o/r/pulls/1 -f per_page=10',
+            'gh repo clone owner/repo',
+            'gh pr checkout 12',
+            'gh release download v1',
+            'gh auth login',
+            'gh search prs --repo o/r',
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(self.bash(command), command)
+
+    def test_foreign_mcp_writes_are_denied(self):
+        # Every one of these was ALLOWED while the MCP surface used the `gh` read set, where
+        # `status`, `checks` and `diff` masked the real verb.
+        self.config(vcs={'adapter': 'github-cli'})
+        for tool in ('mcp__vcs__bitbucket_status_set',
+                     'mcp__vcs__bitbucket_build_status_post',
+                     'mcp__vcs__bitbucket_checks_create',
+                     'mcp__vcs__bitbucket_diff_comment_add'):
+            with self.subTest(tool=tool):
+                self.assertIsNotNone(self.mcp(tool), tool)
+
+    def test_foreign_mcp_reads_are_allowed(self):
+        self.config(vcs={'adapter': 'github-cli'})
+        for tool in ('mcp__vcs__bitbucket_get_pr_comments',
+                     'mcp__vcs__bitbucket_get_pr_comment',
+                     'mcp__vcs__bitbucket_list_repo_prs'):
+            with self.subTest(tool=tool):
+                self.assertIsNone(self.mcp(tool), tool)
+
+    def test_a_tool_without_the_mcp_prefix_is_still_guarded(self):
+        # OpenCode names MCP tools without Claude Code's `mcp__` prefix; requiring it left
+        # that host's Bitbucket surface unguarded.
+        self.config(vcs={'adapter': 'github-cli'})
+        self.assertIsNotNone(self.mcp('bitbucket_create_pr_comment'))
+        self.assertIsNone(self.mcp('bitbucket_get_pr_comments'))
+
+    # --- a malformed adapter must not unguard its domain ---------------------
+    def test_unrecognized_vcs_adapter_denies_foreign_writes(self):
+        self.config(vcs={'adapter': 'github'})  # a plausible typo for github-cli
+        reason = self.mcp('mcp__vcs__bitbucket_create_pr_comment')
+        self.assertIsNotNone(reason)
+        self.assertIn('not a recognized', reason)
+        self.assertIsNotNone(self.bash('gh pr create --title x'))
+
+    def test_unrecognized_tracker_adapter_denies_foreign_writes(self):
+        self.config(tracker={'adapter': 'jira'})  # a plausible typo for jira-mcp
+        self.assertIsNotNone(self.mcp('mcp__tracker__jira_add_comment'))
+
+    def test_unrecognized_adapter_still_allows_reads(self):
+        self.config(vcs={'adapter': 'github'})
+        self.assertIsNone(self.mcp('mcp__vcs__bitbucket_get_pr_comments'))
 
     # --- escape hatch -------------------------------------------------------
     def test_extra_read_tools_rescues_an_unknown_verb(self):

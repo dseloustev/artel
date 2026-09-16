@@ -187,6 +187,18 @@ class TestPluginSource(unittest.TestCase):
         self.assertLess(self.source.index('vcs_guard.py'),
                         self.source.index('EDIT_TOOLS.has(input.tool)'))
 
+    def test_binding_is_not_limited_to_the_mcp_prefix(self):
+        # `mcp__` is a Claude Code convention; OpenCode names MCP tools without it, so a
+        # prefix test would forward bash only and leave Bitbucket MCP writes unguarded here.
+        # hooks/vcs_guard.py classifies any non-Bash tool by the platform token in its name.
+        self.assertNotIn('startsWith("mcp__")', self.source)
+        self.assertIn('PLATFORM_TOKENS', self.source)
+        for token in ('"bitbucket"', '"github"', '"jira"'):
+            self.assertIn(token, self.source)
+        self.assertIn('isPlatformTool(input.tool)', self.source)
+        self.assertLess(self.source.index('isPlatformTool(input.tool)'),
+                        self.source.index('EDIT_TOOLS.has(input.tool)'))
+
     def test_payload_carries_claude_code_tool_casing(self):
         # hooks/vcs_guard.py matches `tool == 'Bash'` exactly; OpenCode's tool name is the
         # lowercase `bash`. A lowercase payload would silently guard nothing.

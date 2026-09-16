@@ -7,7 +7,8 @@
  *
  *   tool.execute.before (edit|write|apply_patch) -> hooks/sensitive_guard.py
  *       deny               -> throw (OpenCode's way to deny a tool call)
- *   tool.execute.before (bash|mcp__*)          -> hooks/vcs_guard.py
+ *   tool.execute.before (bash | any non-edit tool whose name carries a platform token:
+ *                       bitbucket / github / jira)             -> hooks/vcs_guard.py
  *       deny               -> throw (OpenCode's way to deny a tool call)
  *   tool.execute.after  (edit|write|apply_patch) -> hooks/knowledge_mirror.py (side
  *                       effect only) THEN hooks/fast_verify_post_edit.py
@@ -41,6 +42,20 @@ const CONFIG_HOME = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".con
 const ARTEL_ROOT = process.env.ARTEL_ROOT || path.join(CONFIG_HOME, "opencode", "artel")
 
 const EDIT_TOOLS = new Set(["edit", "write", "apply_patch"])
+// Platform tokens hooks/vcs_guard.py classifies a tool name by. The guard deliberately does
+// NOT test for Claude Code's `mcp__` prefix — OpenCode names MCP tools without it, and a
+// prefix test left the Bitbucket MCP surface entirely unguarded on this host.
+const PLATFORM_TOKENS = ["bitbucket", "github", "jira"]
+
+/** A non-edit tool whose name carries a platform token — the OpenCode-side reading of the
+ * guard's rule ("the tool name names a platform"). `bash` is bound separately: it is matched
+ * by name, and its command argument has to travel with the payload. */
+function isPlatformTool(tool: string): boolean {
+  if (EDIT_TOOLS.has(tool)) return false
+  const lower = tool.toLowerCase()
+  return PLATFORM_TOKENS.some((token) => lower.includes(token))
+}
+
 // Bridge-side fail-safe on top of the hooks' own consecutive-block caps (5 and 2).
 // Bounds one runaway block/re-prompt loop, not the session's lifetime: the counter
 // resets on a clean stop (see session.idle) and is dropped with the session.
@@ -126,7 +141,7 @@ const ROUTER_MARKER = "This repository is configured for artel"
 export const ArtelPlugin: Plugin = async ({ client, directory }) => {
   return {
     "tool.execute.before": async (input, output) => {
-      if (hasArtelConfig(directory) && (input.tool === "bash" || input.tool.startsWith("mcp__"))) {
+      if (hasArtelConfig(directory) && (input.tool === "bash" || isPlatformTool(input.tool))) {
         const payload = {
           session_id: input.sessionID,
           cwd: directory,

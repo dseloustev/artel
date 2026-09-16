@@ -108,6 +108,16 @@ Finally, verify `git tag -l "v<NEW_VERSION>"` is empty. An existing tag for that
 
 `git tag -a "v<NEW_VERSION>" -m "v<NEW_VERSION>"` — annotated, on the commit just made.
 
+**The tag belongs on the tree the `[<NEW_VERSION>]` section describes.** At this point in the skill
+that is the release commit, because nothing follows it yet. It stops being the release commit as
+soon as work continues on the same version — a release cut on a branch, then fixes that amend the
+`[<NEW_VERSION>]` entries in place rather than opening a fresh `[Unreleased]`. The notes now
+describe the merge, so the tag moves with them:
+`git tag -f -a "v<NEW_VERSION>" -m "v<NEW_VERSION>" <merge-sha>`. The skill never pushes (see
+Rules), so until the user does, the tag is local and moving it costs nothing; after a push, moving
+it is a force-update every clone has to recover from. Decide before pushing. `v0.13.0` is the
+worked example — see the 2026-09-16 tag entry in the `docs/design.md` decision log.
+
 If tagging fails after the commit landed, say so explicitly: the release commit exists and only the
 tag is missing, which the user fixes with a single command. Do not attempt to unwind the commit.
 

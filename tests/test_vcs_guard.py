@@ -131,6 +131,31 @@ class StripWrappersCase(unittest.TestCase):
         self.assertTrue(vg._takes_separate_value('--user'))
         self.assertFalse(vg._takes_separate_value('--user=ci'))
 
+    def test_a_short_flag_carries_an_attached_value_only_when_non_alphabetic(self):
+        # An attached value: the remainder is punctuation, digits or a path.
+        for flag in ('-I{}', '-n10', '-d,', '-Ro/r'):
+            with self.subTest(flag=flag):
+                self.assertFalse(vg._takes_separate_value(flag), flag)
+        # A CLUSTER of boolean shorts ending in a value-taking one, which getopt -- the parser
+        # xargs and sudo use -- resolves by consuming the next token:
+        # getopt.getopt(['-0I', '{}', 'gh'], '0I:') -> ([('-0', ''), ('-I', '{}')], ['gh']).
+        for flag in ('-0I', '-nu', '-rI', '-oL'):
+            with self.subTest(flag=flag):
+                self.assertTrue(vg._takes_separate_value(flag), flag)
+
+    def test_a_cluster_does_not_leave_its_value_looking_like_the_command(self):
+        # Reading `-0I` as `-0` with an attached `I` left `{}` as the command word, so the
+        # segment carried no `gh` call and the write was allowed.
+        self.assertEqual(vg._strip_wrappers(['xargs', '-0I', '{}', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+        self.assertEqual(vg._strip_wrappers(['xargs', '-rI', '{}', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+        self.assertEqual(vg._strip_wrappers(['sudo', '-nu', 'ci', 'gh', 'pr', 'create']),
+                         ['gh', 'pr', 'create'])
+        self.assertEqual(
+            vg._strip_wrappers(['xargs', '-0I', '{}', 'sh', '-c', 'gh pr create']),
+            ['sh', '-c', 'gh pr create'])
+
 
 class McpPlatformCase(unittest.TestCase):
     def test_bitbucket(self):
@@ -539,6 +564,10 @@ class DecisionCase(unittest.TestCase):
             'sleep 1 & gh pr create --title x',
             'bash -c "gh pr create --title x"',
             'timeout 60 gh pr create --title x',
+            'timeout -s KILL 60 gh pr create --title x',
+            'nice -n 10 gh pr create --title x',
+            'nice -n10 gh pr create --title x',
+            'stdbuf -oL gh pr create --title x',
             'xargs gh pr create --title x',
             'sudo -u ci gh pr create --title x',
             'gh alias set nuke "pr create"',
@@ -615,6 +644,20 @@ class DecisionCase(unittest.TestCase):
     def test_a_shell_behind_a_wrapper_flag_is_still_inspected(self):
         self.config(vcs={'adapter': 'bitbucket-mcp'})
         self.assertIsNotNone(self.bash('xargs -0 sh -c "gh pr create --title x"'))
+
+    def test_a_clustered_wrapper_flag_does_not_hide_a_write(self):
+        # `-0I {}` is two flags, not one attached value: getopt gives `{}` to `-I` and
+        # `gh pr create` really runs. Every one of these was ALLOWED while a short flag longer
+        # than two characters was assumed to carry its value attached.
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        for command in (
+            'xargs -0I {} gh pr create',
+            'xargs -rI {} gh pr create',
+            'xargs -0I {} sh -c "gh pr create"',
+            'sudo -nu ci gh pr create',
+        ):
+            with self.subTest(command=command):
+                self.assertIsNotNone(self.bash(command), command)
 
     def test_an_echoed_gh_command_line_is_not_a_call(self):
         # `echo` is the wrapped command; nothing here reaches GitHub.

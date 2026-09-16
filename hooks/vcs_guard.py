@@ -111,9 +111,11 @@ def _shell_c_segments(argv):
 def _takes_separate_value(flag):
     """Whether a flag's value is a SEPARATE token. A long flag carries its value inline only
     with `=` (`--arg-file=f`, `--repo=o/r`), so `--user ci` and `--repo o/r` still take the next
-    word. A SHORT flag of more than one letter already carries its value attached, the way
-    getopt and pflag read it (`-I{}`, `-n10`, `-d,`) -- treating those as value-taking is what
-    let `xargs -I{} echo gh pr create` eat `echo` and mistake `gh` for the command word.
+    word. A SHORT flag may carry its value attached instead, the way getopt and pflag read it
+    (`-I{}`, `-n10`, `-d,`) -- treating those as value-taking is what let `xargs -I{} echo gh
+    pr create` eat `echo` and mistake `gh` for the command word. The branch below tells an
+    attached value apart from a CLUSTER of boolean shorts (`-0I`), which does take the next
+    token.
 
     Used by BOTH scans -- the wrapper scan in _strip_wrappers and the noun scan in
     _gh_noun_verb. It subsumes the old GH_VALUE_FLAGS list: `-R` is a two-letter short and
@@ -121,7 +123,24 @@ def _takes_separate_value(flag):
     `gh`'s global flags has to be kept correct."""
     if flag.startswith('--'):
         return '=' not in flag
-    return len(flag) <= 2
+    if len(flag) <= 2:
+        return True
+    # A longer short token is one of two things, and the remainder after the flag letter tells
+    # them apart. Anything NOT purely alphabetic is a value riding on that letter (`-I{}`,
+    # `-n10`, `-d,`, `-Ro/r`). Purely alphabetic is a CLUSTER of boolean shorts ending in a
+    # value-taking one (`-0I`, `-nu`, `-rI`), which getopt -- the parser xargs and sudo both
+    # use -- resolves by consuming the NEXT token: getopt.getopt(['-0I', '{}', 'gh', 'pr',
+    # 'create'], '0I:') returns [('-0', ''), ('-I', '{}')] and leaves ['gh', 'pr', 'create'].
+    # Reading a cluster as an attached value mistook `{}` for the wrapped command and let
+    # `xargs -0I {} gh pr create` through.
+    #
+    # Deliberate trade-off: an attached value that IS purely alphabetic is misread as a
+    # cluster, so it consumes one token too many. In the wrapper scan that over-blocks
+    # (`xargs -Iabc echo gh pr create` denies a harmless echo); in the `gh` scan it fails open
+    # (`gh -Rmyrepo pr view` loses the noun and drops the call). Both are accepted: `-0I`,
+    # `-nu` and `-rI` are ordinary shell idiom, while an alphabetic replace-string or an
+    # owner-less repo name is not. This is a heuristic, not a parser.
+    return flag[2:].isalpha()
 
 
 def _strip_wrappers(argv):

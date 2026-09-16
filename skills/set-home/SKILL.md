@@ -64,7 +64,11 @@ idempotent, and a re-run must not build a chain of renamed remotes.
 1. `git remote rename origin <old-platform>` — `bitbucket` or `github`, or `old-origin` when the
    current `origin` URL's host matches no known platform. On a name collision, suffix `-2`, then
    `-3`, and so on.
-2. `git remote add origin <new-url>`
+2. `git remote add origin <new-url>` — if this fails (a name collision left by an aborted
+   run), rename step 1's remote back with `git remote rename <the name step 1 used> origin` and
+   stop, reporting the error. Never leave the repository with **no** `origin`: step 1 has
+   already taken that name away, and this section's idempotency test reads `origin`'s URL, so a
+   repository without one has no defined path on a re-run.
 3. `git fetch origin`
 4. `git remote set-head origin -a` — **required, not cosmetic**: `pr-create` and
    `${CLAUDE_PLUGIN_ROOT}/agents/reviewer.md`'s standalone mode resolve the default branch

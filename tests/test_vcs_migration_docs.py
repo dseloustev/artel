@@ -38,6 +38,13 @@ class SetHomeDocsCase(unittest.TestCase):
         self.assertIn('vcs.mcpToolPrefix', self.text)
         self.assertIn('migrate-prs', self.text)
 
+    def test_a_failed_remote_add_is_rolled_back(self):
+        # Step 1 has already renamed `origin` away. If the add fails on a name collision the
+        # repository is left with NO origin, and the idempotency test ("origin's URL already
+        # equals the target") then has nothing to read on a re-run.
+        self.assertIn('git remote rename <the name step 1 used> origin', self.text)
+        self.assertIn('no** `origin`', self.text)
+
     def test_confirms_before_touching_remotes(self):
         self.assertIn('AskUserQuestion', self.text)
 

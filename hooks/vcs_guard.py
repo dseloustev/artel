@@ -203,6 +203,13 @@ def _gh_api_method(argv):
     for arg in argv[1:]:
         if arg in GH_API_FIELD_FLAGS or arg.split('=', 1)[0] in GH_API_FIELD_FLAGS:
             return 'POST'  # "-f" / "-F" / "--input" with no explicit method: gh posts
+        if arg.startswith('-f') or arg.startswith('-F'):
+            # The attached shorthand `-fbody=hi` / `-Fbody=@f`, which `gh`'s flag parser
+            # accepts exactly as it accepts `-XPOST`. `-f` and `-F` are the ONLY `-f`/`-F`
+            # shorthands on this surface (`--raw-field` and `--field`), so no read flag can
+            # collide. The long spellings start with `--` and never reach here -- they are
+            # caught by the exact / `=`-split test above.
+            return 'POST'
     return 'GET'
 
 

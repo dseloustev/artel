@@ -238,6 +238,27 @@ class GhApiClassCase(unittest.TestCase):
     def test_attached_short_get_is_still_a_read(self):
         self.assertEqual(vg._gh_api_class(['gh', 'api', '-XGET', 'x', '-f', 'a=b']), 'read')
 
+    # pflag's attached shorthand, the same spelling class already closed for `-X`. `gh` 2.100
+    # consumes `-fbody=hi` as `--raw-field` (the control `-zbody=hi` is an unknown shorthand),
+    # and `-f`/`-F` are the ONLY shorthands on this surface, so no read flag can collide.
+    def test_attached_short_field_flags_make_it_a_post(self):
+        for arg in ('-fbody=hi', '-Fbody=@body.txt', '-ftitle=x'):
+            with self.subTest(arg=arg):
+                self.assertEqual(
+                    vg._gh_api_class(['gh', 'api', 'repos/o/r/issues/1/comments', arg]), 'write')
+
+    def test_an_explicit_method_still_wins_over_an_attached_field_flag(self):
+        self.assertEqual(vg._gh_api_class(['gh', 'api', '-XGET', 'repos/o/r', '-fbody=hi']),
+                         'read')
+
+    def test_long_field_flags_are_not_matched_by_the_short_prefix(self):
+        # `--field=x` and `--raw-field=x` begin with `--`, so they keep going through the
+        # exact / `=`-split path -- which must therefore stay.
+        for arg in ('--field=body=hi', '--raw-field=body=hi'):
+            with self.subTest(arg=arg):
+                self.assertFalse(arg.startswith('-f') or arg.startswith('-F'))
+                self.assertEqual(vg._gh_api_class(['gh', 'api', 'x', arg]), 'write')
+
     def test_a_field_value_is_not_read_as_a_flag(self):
         self.assertEqual(vg._gh_api_method(['gh', 'api', 'x']), 'GET')
 
@@ -480,6 +501,22 @@ class DecisionCase(unittest.TestCase):
         ):
             with self.subTest(command=command):
                 self.assertIsNone(self.bash(command), command)
+
+    def test_attached_field_flags_are_denied(self):
+        # `gh api` switches GET->POST as soon as a parameter is added, and pflag accepts the
+        # value attached to the shorthand. Each of these posts for real.
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        for command in (
+            'gh api repos/o/r/issues/1/comments -fbody=hi',
+            'gh api repos/o/r/issues/1/comments -Fbody=@body.txt',
+            'gh api repos/o/r/pulls -ftitle=x -fhead=b -fbase=main',
+        ):
+            with self.subTest(command=command):
+                self.assertIsNotNone(self.bash(command), command)
+
+    def test_an_explicit_get_with_an_attached_field_flag_is_still_a_read(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        self.assertIsNone(self.bash('gh api -XGET repos/o/r -fbody=hi'))
 
     def test_foreign_mcp_writes_are_denied(self):
         # Every one of these was ALLOWED while the MCP surface used the `gh` read set, where

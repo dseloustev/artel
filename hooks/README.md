@@ -25,23 +25,35 @@ Five layers:
     or tracker platform other than the one `.artel/config.json` declares. **Always armed**,
     unlike `sensitive_guard.py` (the Run layer's own `PreToolUse` guard): a project that has
     moved to GitHub must not post to Bitbucket in any session, autonomous run or not. Domain
-    routing is by platform, not tool name: `gh pr`/`repo`/`release`/`api` and Bitbucket-named MCP
-    tools answer to `vcs.adapter`; `gh issue` and Jira-named MCP tools answer to
-    `tracker.adapter`; a GitHub-named MCP tool is judged against **both** domains, since GitHub
+    routing is by platform, not tool name: `gh pr`/`repo`/`release`/`alias`/`api` and
+    Bitbucket-named tools answer to `vcs.adapter`; `gh issue` and Jira-named tools answer to
+    `tracker.adapter`; a GitHub-named tool is judged against **both** domains, since GitHub
     hosts both pull requests and issues. config.md requires `gh` for issues even when the VCS
-    adapter is not `github-cli`, so one adapter cannot govern both. Verb extraction is
-    positional, never substring: for an MCP tool it is the first recognized verb among the
-    `_`-separated segments after the platform segment, and for `gh` the subcommand after the
-    noun — substring matching would read the write token `comment` inside
-    `bitbucket_get_pr_comments` and deny a read that `migrate-prs` depends on. An unrecognized
-    verb is **denied** (fail closed), so a tool name nobody anticipated cannot become the hole
-    in the guarantee; `guard.extraReadTools` ([config.md](../docs/config.md)) rescues an
-    unrecognized verb only, never a recognized write. Fails open where artel is not in charge: a
-    missing or unparseable config allows everything, and `tracker.adapter: "none"` leaves the
-    tracker domain unenforced (`vcs.adapter` has no `"none"`, so the VCS domain is always
-    enforced). Two deliberate gaps: it does not inspect `git push`, so a stale `origin` still
-    pushes to the old host (`/artel:set-home` moves it), and it runs no entry-point preflight — a
-    mismatch surfaces at the moment of the call.
+    adapter is not `github-cli`, so one adapter cannot govern both. A non-`Bash` tool is matched
+    by the platform token in its **name**, with no `mcp__` prefix test — that prefix is a Claude
+    Code convention (`hooks.json`'s matcher already scopes what arrives there) and OpenCode
+    names MCP tools without it. Verb extraction is positional, never substring: for a tool name
+    it is the first recognized verb among the `_`-separated segments after the platform segment,
+    and for `gh` the subcommand after the noun — substring matching would read the write token
+    `comment` inside `bitbucket_get_pr_comments` and deny a read that `migrate-prs` depends on.
+    The two surfaces use slightly different read-verb sets: `status`, `checks` and `diff` are
+    reads for `gh` (`gh pr status|checks|diff`) but not in a tool name, where they are nouns
+    (`bitbucket_build_status_post`, `bitbucket_checks_create`) and would mask the real verb.
+    `gh api` is judged on its resolved HTTP method, following `gh`'s own rule — GET by default,
+    **POST as soon as a parameter is added** (`-f`, `-F`, `--input`), and an explicit `--method`
+    always wins. An unrecognized verb or unresolvable method is **denied** (fail closed), so a
+    tool name nobody anticipated cannot become the hole in the guarantee;
+    `guard.extraReadTools` ([config.md](../docs/config.md)) rescues an unrecognized verb only,
+    never a recognized write. Fails open where artel is not in charge: a missing or unparseable
+    config allows everything, and `tracker.adapter: "none"` leaves the tracker domain unenforced
+    (`vcs.adapter` has no `"none"`, so the VCS domain is always enforced) — but an adapter value
+    that is declared and *unrecognized* keeps its domain enforced rather than unguarding it.
+    Where the guarantee stops: it covers the `gh` subcommands named above and tools naming a
+    platform, and nothing else — not `git push` (a stale `origin` still pushes to the old host;
+    `/artel:set-home` moves it), not `gh gist`/`secret`/`variable`/`label`/`workflow`/`project`,
+    not the *use* of a `gh` alias created earlier (its creation via `gh alias set` is denied),
+    and not direct HTTP such as `curl` against a platform API. It also runs no entry-point
+    preflight — a mismatch surfaces at the moment of the call.
 - **Verify layer** — same-session quality feedback, driven by `verify.fast` /
   `verify.surface` (config.md) through the `scripts/verify.py` envelope
   (exit 0 clean / 1 findings / 2 environment error):

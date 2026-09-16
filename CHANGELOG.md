@@ -19,7 +19,12 @@ All notable changes to this project are documented here. The format follows
   what lets the new `migrate-prs` skill read the Bitbucket PRs it recreates. An unrecognized verb
   is denied; `guard.extraReadTools` in `.artel/config.json` rescues an unrecognized verb only,
   never a recognized write. `tracker.adapter: "none"` leaves the tracker domain unenforced — no
-  declared home means nothing to protect.
+  declared home means nothing to protect, while an adapter value that is declared but
+  *unrecognized* keeps its domain enforced rather than silently unguarding it. The perimeter:
+  the `gh` subcommands over pull requests, repos, releases, aliases and `api` (plus `gh issue`
+  for the tracker domain), and tools whose **name** carries a platform token — not `git push`,
+  not other `gh` subcommands, not direct HTTP. `gh api` is judged on its resolved HTTP method,
+  by `gh`'s own rule: GET by default, POST as soon as a parameter is added.
 - **`/artel:set-home <repo-url>`** moves a project between platforms: it rewrites `vcs.*` and
   re-points the git remotes together, renaming the old `origin` rather than replacing its URL so
   the open PRs' source branches stay fetchable, and refreshing `refs/remotes/origin/HEAD` (which

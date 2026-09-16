@@ -647,6 +647,27 @@ Entry template:
   `refs/remotes/origin/HEAD`. Offers `/artel:migrate-prs` in its report when the old platform
   was Bitbucket and open PRs exist.
 
+### migrate-prs
+
+- **Purpose:** Recreate a Bitbucket project's still-open pull requests on GitHub after
+  `/artel:set-home`, carrying title, description and branches.
+- **Invocation:** `/artel:migrate-prs [pr-id ...]`
+- **Reads:** `.artel/config.json` (`vcs.adapter`, `vcs.mcpToolPrefix`); the old (renamed)
+  remote's URL via `git remote -v`; `<vcs.mcpToolPrefix>bitbucket_list_repo_prs` /
+  `bitbucket_get_pr`; `gh pr list --head` for the idempotency check; `gh auth status`.
+- **Writes:** branches fetched from the old remote and pushed to `origin` (never `--force`);
+  pull requests via `gh pr create`, with the Bitbucket description copied verbatim plus a
+  `Migrated from <bitbucket-pr-url>` provenance line. Never writes to Bitbucket — no comment, no
+  decline, no approval; the `vcs_guard` hook denies it regardless.
+- **Pauses:** `AskUserQuestion` to choose which open PRs to migrate, skipped when `$0` names PR
+  ids explicitly. Otherwise never.
+- **Notes:** worker, not orchestrator — runs inline, directional by design (Bitbucket → GitHub
+  only). Re-runnable: each PR's own `gh pr list --head` check runs before anything is pushed or
+  created, so a partial run resumes cleanly on re-invocation. A divergent-history branch on
+  `origin` is skipped and reported, never reconciled. Review comments, reviewer assignments and
+  PR state are not migrated — thread anchors and reviewer identities do not carry across
+  platforms. The Bitbucket PRs stay open until the operator declines them by hand.
+
 ### add-automation
 
 - **Purpose:** Apply the transient agent UI-automation scaffold to the current branch and

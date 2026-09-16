@@ -32,6 +32,9 @@ class SetHomeDocsCase(unittest.TestCase):
         self.assertNotIn('git remote set-url origin', self.text)
 
     def test_preserves_the_mcp_tool_prefix(self):
+        # Toothless as two independent substring checks: a skill that CLEARED the prefix would
+        # still mention the key and migrate-prs somewhere. Assert the preserving statement.
+        self.assertIn('left exactly as it was', self.text)
         self.assertIn('vcs.mcpToolPrefix', self.text)
         self.assertIn('migrate-prs', self.text)
 
@@ -45,7 +48,29 @@ class SetHomeDocsCase(unittest.TestCase):
         self.assertIn('Never delete a remote', self.text)
         self.assertNotIn('git push --force', self.text)
         self.assertNotIn('git remote remove', self.text)
+        self.assertNotIn('git remote rm', self.text)
 
+
+class MigratePrsDocsCase(unittest.TestCase):
+    def setUp(self):
+        self.text = body('migrate-prs')
+
+    def test_frontmatter_names_the_skill(self):
+        self.assertTrue(self.text.startswith('---\nname: migrate-prs\n'))
+
+    def test_is_idempotent_via_an_existing_pr_check(self):
+        self.assertIn('gh pr list --head', self.text)
+        self.assertIn('PR_EXISTS', self.text)
+
+    def test_never_force_pushes(self):
+        self.assertIn('Never any `--force` variant', self.text)
+        self.assertNotIn('git push --force', self.text)
+
+    def test_carries_provenance(self):
+        self.assertIn('Migrated from', self.text)
+
+    def test_does_not_write_to_the_old_platform(self):
+        self.assertIn('declined by hand', self.text)
 
 
 if __name__ == '__main__':

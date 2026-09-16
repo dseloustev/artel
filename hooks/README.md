@@ -52,8 +52,12 @@ Five layers:
     platform, and nothing else — not `git push` (a stale `origin` still pushes to the old host;
     `/artel:set-home` moves it), not `gh gist`/`secret`/`variable`/`label`/`workflow`/`project`,
     not the *use* of a `gh` alias created earlier (its creation via `gh alias set` is denied),
-    and not direct HTTP such as `curl` against a platform API. It also runs no entry-point
-    preflight — a mismatch surfaces at the moment of the call.
+    and not direct HTTP such as `curl` against a platform API. Two spellings of a wrapped
+    command line also escape it: `script -c "gh pr create" /dev/null`, because `script` is a
+    command wrapper but not a shell and only a shell's `-c` string is parsed recursively, and
+    `bash -lc "gh pr create"`, because that recursion matches the token `-c` exactly and a
+    clustered shell flag is not it. It also runs no entry-point preflight — a mismatch surfaces
+    at the moment of the call.
 - **Verify layer** — same-session quality feedback, driven by `verify.fast` /
   `verify.surface` (config.md) through the `scripts/verify.py` envelope
   (exit 0 clean / 1 findings / 2 environment error):

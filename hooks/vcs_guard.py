@@ -6,6 +6,7 @@ Contract: docs/config.md (the `guard` section) and
 docs/superpowers/specs/2026-09-16-vcs-platform-migration-design.md section 2.
 """
 import json
+import os
 import re
 import shlex
 import sys
@@ -27,6 +28,19 @@ TRACKER_PLATFORM = {'github-issues': 'github', 'jira-mcp': 'jira'}
 # `gh` nouns whose calls belong to the tracker domain, not the VCS one: config.md says `gh` is
 # required for issues even when vcs.adapter is not github-cli.
 TRACKER_NOUNS = frozenset(('issue',))
+
+# `gh` nouns that belong to the VCS domain. A noun in NEITHER set is not a platform-home
+# operation at all (`gh auth`, `gh search`, `gh run`, `gh workflow`, `gh extension`, `gh gist`,
+# `gh browse`, `gh config`) and emits no call -- denying those over-blocks reads the design
+# promises will keep working.
+VCS_NOUNS = frozenset(('pr', 'repo', 'release', 'api'))
+
+# Platforms that can serve only one domain. `github` is deliberately absent: it hosts both pull
+# requests and issues, so a github MCP call is judged against BOTH domains (see main()).
+PLATFORM_DOMAIN = {'bitbucket': 'vcs', 'jira': 'tracker'}
+
+# Command wrappers skipped when deciding whether a segment invokes `gh`.
+COMMAND_WRAPPERS = frozenset(('sudo', 'command', 'env', 'nice', 'nohup'))
 
 # `gh` global flags that take a SEPARATE value token. The value must be skipped along with the
 # flag, or `gh --repo owner/repo pr view` reads `owner/repo` as the noun and `pr` as the verb.
@@ -50,6 +64,16 @@ def _segments(command):
         if argv:
             out.append(argv)
     return out
+
+
+def _strip_wrappers(argv):
+    """Drop leading command wrappers so `sudo gh pr create` and `env FOO=1 gh pr create` are
+    still recognized as `gh` calls."""
+    while argv and os.path.basename(argv[0]) in COMMAND_WRAPPERS:
+        argv = argv[1:]
+        while argv and _ASSIGNMENT.match(argv[0]):
+            argv = argv[1:]
+    return argv
 
 
 def _mcp_platform(tool):
@@ -139,26 +163,36 @@ def _calls(tool, tool_input):
             return []
         found = []
         for argv in _segments(command):
-            if argv[0] != 'gh':
+            argv = _strip_wrappers(argv)
+            if not argv or os.path.basename(argv[0]) != 'gh':
                 continue
             noun, verb = _gh_noun_verb(argv)
-            domain = 'tracker' if noun in TRACKER_NOUNS else 'vcs'
+            if noun in TRACKER_NOUNS:
+                domain = 'tracker'
+            elif noun in VCS_NOUNS:
+                domain = 'vcs'
+            else:
+                continue  # not a platform-home operation
             klass = _gh_api_class(argv) if noun == 'api' else _classify(verb)
-            found.append(('github', domain, klass, ' '.join(argv[:3])))
+            found.append(('github', domain, klass,
+                          ('gh ' + noun + ' ' + (verb or '')).strip()))
         return found
     if tool.startswith('mcp__'):
         platform = _mcp_platform(tool)
         if platform is None:
             return []
-        low = tool.lower()
-        domain = 'tracker' if platform == 'jira' or 'issue' in low else 'vcs'
+        # 'both' when the platform serves either domain -- main() judges it against both.
+        domain = PLATFORM_DOMAIN.get(platform, 'both')
         return [(platform, domain, _classify(_mcp_verb(tool, platform)), tool)]
     return []
 
 
 def main():
     data = h.read_hook_input()
-    calls = _calls(data.get('tool_name') or '', data.get('tool_input') or {})
+    tool_input = data.get('tool_input')
+    if not isinstance(tool_input, dict):
+        tool_input = {}
+    calls = _calls(data.get('tool_name') or '', tool_input)
     if not calls:
         return 0
 
@@ -178,14 +212,16 @@ def main():
     }
 
     for platform, domain, klass, label in calls:
-        if native[domain] is None:
-            continue  # adapter "none": no declared home, nothing to protect
-        if platform == native[domain]:
-            continue
-        if any(e.lower() in label.lower() for e in extra):
-            continue
+        domains = ('vcs', 'tracker') if domain == 'both' else (domain,)
+        if any(platform == native[d] for d in domains):
+            continue  # native to a domain that could claim this call
+        if all(native[d] is None for d in domains):
+            continue  # no declared home in any claiming domain -- nothing to protect
         if klass == 'read':
             continue
+        if klass == 'unknown' and any(e.lower() in label.lower() for e in extra):
+            continue  # guard.extraReadTools rescues UNRECOGNIZED verbs only, never a write
+        blocked = next(d for d in domains if native[d] is not None)
         deny(
             'Blocked: {} {} to {}, but {}.adapter is "{}".\n'
             "This project's home is {} -- writes to the other platform are denied.\n"
@@ -193,7 +229,7 @@ def main():
             '.artel/config.json.'.format(
                 label,
                 'writes' if klass == 'write' else 'has an unrecognized verb and may write',
-                platform, domain, adapter_name[domain], native[domain]))
+                platform, blocked, adapter_name[blocked], native[blocked]))
         return 0
     return 0
 

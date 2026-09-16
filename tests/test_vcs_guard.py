@@ -153,6 +153,13 @@ class DecisionCase(unittest.TestCase):
 
     def run_guard(self, payload):
         """Returns the permissionDecisionReason, or None when the call was allowed."""
+        envelope = self.run_guard_raw(payload)
+        if envelope is None:
+            return None
+        return envelope['hookSpecificOutput']['permissionDecisionReason']
+
+    def run_guard_raw(self, payload):
+        """Returns the full parsed envelope dict, or None when the call was allowed."""
         out = io.StringIO()
         with mock.patch.object(sys, 'stdin', io.StringIO(json.dumps(payload))):
             with contextlib.redirect_stdout(out):
@@ -160,7 +167,7 @@ class DecisionCase(unittest.TestCase):
         text = out.getvalue().strip()
         if not text:
             return None
-        return json.loads(text)['hookSpecificOutput']['permissionDecisionReason']
+        return json.loads(text)
 
     def bash(self, command):
         return self.run_guard({'tool_name': 'Bash', 'tool_input': {'command': command}})
@@ -204,11 +211,29 @@ class DecisionCase(unittest.TestCase):
 
     def test_env_prefixed_write_is_still_seen(self):
         self.config(vcs={'adapter': 'bitbucket-mcp'})
-        self.assertIsNotNone(self.bash('GH_CONFIG_DIR=~/.config/gh-adguard gh pr create -t x'))
+        self.assertIsNotNone(self.bash('GH_CONFIG_DIR=~/.config/gh-work gh pr create -t x'))
 
     def test_piped_write_is_still_seen(self):
         self.config(vcs={'adapter': 'bitbucket-mcp'})
         self.assertIsNotNone(self.bash('cat body.md | gh pr create --body-file -'))
+
+    def test_absolute_path_gh_is_still_seen(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        self.assertIsNotNone(self.bash('/opt/homebrew/bin/gh pr create -t x'))
+
+    def test_sudo_wrapped_gh_is_still_seen(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        self.assertIsNotNone(self.bash('sudo gh pr create -t x'))
+
+    def test_env_command_wrapper_is_still_seen(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        self.assertIsNotNone(self.bash('env FOO=1 gh pr create -t x'))
+
+    def test_non_platform_gh_nouns_are_not_guarded(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        self.assertIsNone(self.bash('gh search prs --repo o/r --state open'))
+        self.assertIsNone(self.bash('gh auth login'))
+        self.assertIsNone(self.bash('gh run rerun 1'))
 
     # --- domain routing -----------------------------------------------------
     def test_gh_issue_is_governed_by_the_tracker_adapter(self):
@@ -229,6 +254,24 @@ class DecisionCase(unittest.TestCase):
         self.config(tracker={'adapter': 'github-issues'})
         self.assertIsNotNone(self.mcp('mcp__tracker__jira_add_comment'))
 
+    def test_bitbucket_tool_named_issue_is_still_the_vcs_domain(self):
+        # The hole: 'issue' in the NAME must not route a Bitbucket write into the
+        # unenforced tracker domain under the default tracker.adapter "none".
+        self.config(tracker={'adapter': 'none'})
+        self.assertIsNotNone(self.mcp('mcp__vcs__bitbucket_create_issue_comment'))
+
+    def test_github_mcp_write_denied_when_native_to_neither_domain(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'}, tracker={'adapter': 'jira-mcp'})
+        self.assertIsNotNone(self.mcp('mcp__github__add_issue_comment'))
+
+    def test_github_mcp_write_allowed_when_native_to_the_tracker(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'}, tracker={'adapter': 'github-issues'})
+        self.assertIsNone(self.mcp('mcp__github__add_issue_comment'))
+
+    def test_github_mcp_write_allowed_when_native_to_the_vcs(self):
+        self.config(vcs={'adapter': 'github-cli'}, tracker={'adapter': 'jira-mcp'})
+        self.assertIsNone(self.mcp('mcp__github__create_pull_request'))
+
     # --- gh api -------------------------------------------------------------
     def test_gh_api_get_allowed_when_foreign(self):
         self.config(vcs={'adapter': 'bitbucket-mcp'})
@@ -238,6 +281,12 @@ class DecisionCase(unittest.TestCase):
         self.config(vcs={'adapter': 'bitbucket-mcp'})
         self.assertIsNotNone(self.bash('gh api -X POST repos/o/r/issues/1/comments'))
 
+    def test_deny_label_survives_flags(self):
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        reason = self.bash('gh api -X POST repos/o/r/issues/1/comments -f body=x')
+        self.assertIsNotNone(reason)
+        self.assertNotIn('-X', reason.splitlines()[0])
+
     # --- escape hatch -------------------------------------------------------
     def test_extra_read_tools_rescues_an_unknown_verb(self):
         self.config(guard={'extraReadTools': ['bitbucket_fetch_activity']})
@@ -246,6 +295,10 @@ class DecisionCase(unittest.TestCase):
     def test_extra_read_tools_of_a_wrong_type_is_ignored(self):
         self.config(guard={'extraReadTools': 'not-a-list'})
         self.assertIsNotNone(self.mcp('mcp__vcs__bitbucket_fetch_activity'))
+
+    def test_extra_read_tools_does_not_rescue_a_recognized_write(self):
+        self.config(guard={'extraReadTools': ['comment']})
+        self.assertIsNotNone(self.mcp('mcp__vcs__bitbucket_create_pr_comment'))
 
     # --- fail open where artel is not in charge -----------------------------
     def test_missing_config_allows(self):
@@ -262,6 +315,20 @@ class DecisionCase(unittest.TestCase):
     def test_unrelated_bash_allows(self):
         self.config()
         self.assertIsNone(self.bash('git status --porcelain'))
+
+    def test_non_dict_tool_input_allows_without_crashing(self):
+        self.config()
+        self.assertIsNone(self.run_guard({'tool_name': 'Bash', 'tool_input': 'gh pr create'}))
+
+    # --- the deny envelope ---------------------------------------------------
+    def test_deny_envelope_is_exact(self):
+        self.config()
+        envelope = self.run_guard_raw(
+            {'tool_name': 'mcp__vcs__bitbucket_create_pr_comment', 'tool_input': {}})
+        hook_output = envelope['hookSpecificOutput']
+        self.assertEqual(hook_output['hookEventName'], 'PreToolUse')
+        self.assertEqual(hook_output['permissionDecision'], 'deny')
+        self.assertIn('bitbucket', hook_output['permissionDecisionReason'])
 
 
 if __name__ == '__main__':

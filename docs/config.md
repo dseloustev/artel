@@ -246,7 +246,7 @@ weigh.
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `guard.extraReadTools` | array of strings | `[]` | Tool-name substrings the `vcs_guard` hook treats as reads even when their verb is unrecognized. Matched case-insensitively. Covers both the VCS and the tracker domain. A non-list value is a configuration error under reading rule 3. | `hooks/vcs_guard.py` |
+| `guard.extraReadTools` | array of strings | `[]` | Tool-name substrings the `vcs_guard` hook treats as reads even when their verb is unrecognized. Matched case-insensitively. Covers both the VCS and the tracker domain. A non-list value is ignored — the hook coerces it to `[]`; unlike a skill, a hook cannot stop a run. | `hooks/vcs_guard.py` |
 
 The `vcs_guard` hook denies any call that **writes** to a platform other than the one
 `vcs.adapter` (for pull requests) or `tracker.adapter` (for issues) declares. It classifies a
@@ -254,7 +254,8 @@ call by extracting its verb positionally — the first recognized verb among an 
 `_`-separated segments after the platform segment, or the subcommand following the noun for
 `gh`. A verb it does not recognize is **denied**, so a tool name nobody anticipated cannot
 become the hole in the guarantee. `guard.extraReadTools` is the escape: list a tool there and
-the guard treats it as a read regardless of its verb.
+the guard treats it as a read when its verb is unrecognized. It never rescues a recognized
+write.
 
 `tracker.adapter: "none"` leaves the tracker domain unenforced — no declared home means nothing
 to protect. `vcs.adapter` has no `none` value, so the VCS domain is always enforced.

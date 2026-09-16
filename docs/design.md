@@ -160,7 +160,7 @@ move to the decision log.
   The `0.5` weight for unlisted reviewers is a guess, not a measurement, and whether
   `review-forecaster` should run on `opus` or `sonnet` was deliberately started at `opus` to be
   lowered once the evidence rows read well. Both need real runs behind them.
-- **No GitHub releases have been published.** Fourteen tags through `v0.11.0`, zero releases;
+- **No GitHub releases have been published.** Eighteen tags through `v0.13.0`, zero releases;
   `bump-version` prints the reminder at the end of every release and it has never been acted on.
   Fine if deliberate — but then it should be a decision here rather than a standing omission.
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
@@ -688,3 +688,12 @@ move to the decision log.
   supported: artel is a public plugin. Released as 0.13.0, alongside `/artel:set-home` (moves a
   project between platforms) and `/artel:migrate-prs` (recreates a Bitbucket project's still-open
   PRs on GitHub) — see [CHANGELOG.md](../CHANGELOG.md).
+- **2026-09-16 — `v0.13.0` is tagged on the merge, not on its `chore(release)` commit.** Ten
+  commits landed after `ebfaeb3 chore(release): v0.13.0` — the VCS guard's write-detection
+  fixes, OpenCode host guarding, `set-home`'s remote restore, and `tests/test_vcs_guard.py` —
+  and every one of them amended the `[0.13.0]` CHANGELOG section in place instead of opening a
+  new `[Unreleased]` one. The notes therefore describe the merge tip (`d473140`), so that is
+  where the tag sits. `bump-version`'s Step 6 tags the release commit, which is correct whenever
+  nothing follows it; when a release is finished on a branch afterwards, the tag follows the
+  notes rather than the commit that first carried the version. The general rule: the tag points
+  at the tree the `[<version>]` section actually describes.

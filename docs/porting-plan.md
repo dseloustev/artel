@@ -100,7 +100,7 @@ The rules everything else obeys, plus the config mechanism they will reference.
       describe the shipped hooks, stale "later phase"/"Phase 5" forward references resolved
       across contracts and agent bodies.
 - [x] Push to GitHub, verify `/plugin marketplace add dseloustev/artel` install path.
-- [x] Tag `v0.1.0`. Released and tagged through `v0.11.0` (2026-09-05); `bump-version` owns the
+- [x] Tag `v0.1.0`. Released and tagged through `v0.13.0` (2026-09-16); `bump-version` owns the
       chore.
 
 Finding from the docs reader-test (2026-08-08), **fixed 2026-09-05 before the dry run**: under

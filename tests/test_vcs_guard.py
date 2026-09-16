@@ -191,6 +191,35 @@ class GhNounVerbCase(unittest.TestCase):
         self.assertEqual(vg._gh_noun_verb(['gh', '--repo=owner/repo', 'pr', 'view']),
                          ('pr', 'view'))
 
+    def test_an_unlisted_value_flag_before_the_subcommand_does_not_become_the_noun(self):
+        # GH_VALUE_FLAGS cannot enumerate every flag that takes a separate value, so the noun
+        # is the first RECOGNIZED one rather than the first non-flag word.
+        self.assertEqual(vg._gh_noun_verb(['gh', '--hostname', 'github.com', 'api', 'x']),
+                         ('api', 'x'))
+
+    def test_a_quoted_operand_that_spells_a_noun_is_not_the_noun(self):
+        # `--title "api"` is one shlex token; scanning must not prefer it over the real noun.
+        self.assertEqual(vg._gh_noun_verb(['gh', 'pr', 'create', '--title', 'api']),
+                         ('pr', 'create'))
+
+    def test_an_alias_definition_is_read_as_its_own_subcommand(self):
+        # `"pr create"` is a single token, so the noun stays `alias`.
+        self.assertEqual(vg._gh_noun_verb(['gh', 'alias', 'set', 'nuke', 'pr create']),
+                         ('alias', 'set'))
+
+    def test_an_unrecognized_noun_is_returned_unchanged(self):
+        # The deliberate fail-OPEN: no recognized noun means no call, which is what keeps
+        # `gh auth`, `gh gist`, `gh workflow` and `gh search` outside the perimeter.
+        for argv, expected in (
+            (['gh', 'auth', 'login'], ('auth', 'login')),
+            (['gh', 'gist', 'create'], ('gist', 'create')),
+            (['gh', 'workflow', 'run'], ('workflow', 'run')),
+            (['gh', 'search', 'prs'], ('search', 'prs')),
+            (['gh'], ('', None)),
+        ):
+            with self.subTest(argv=argv):
+                self.assertEqual(vg._gh_noun_verb(argv), expected)
+
 
 class GhApiClassCase(unittest.TestCase):
     def test_defaults_to_read(self):
@@ -517,6 +546,36 @@ class DecisionCase(unittest.TestCase):
     def test_an_explicit_get_with_an_attached_field_flag_is_still_a_read(self):
         self.config(vcs={'adapter': 'bitbucket-mcp'})
         self.assertIsNone(self.bash('gh api -XGET repos/o/r -fbody=hi'))
+
+    def test_a_global_flag_before_the_subcommand_does_not_hide_a_write(self):
+        # The value of an unlisted global flag used to become the noun, the noun was
+        # unrecognized, and the whole call was dropped -- bypassing the field-flag scan, the
+        # `-XPOST` scan and the `api` classifier at once.
+        self.config(vcs={'adapter': 'bitbucket-mcp'})
+        for command in (
+            'gh --hostname github.com api repos/o/r/issues/1/comments -f body=hi',
+            'gh --hostname github.com api -XPOST repos/o/r/issues/1/comments',
+            'gh --hostname github.com pr create --title x',
+        ):
+            with self.subTest(command=command):
+                self.assertIsNotNone(self.bash(command), command)
+
+    def test_an_unrecognized_noun_still_fails_open(self):
+        # Pinned deliberately: the noun scan must not turn the fail-OPEN on unrecognized `gh`
+        # nouns into a fail-closed one. Denying these would over-block reads the design
+        # promises will keep working.
+        self.config(vcs={'adapter': 'bitbucket-mcp'}, tracker={'adapter': 'jira-mcp'})
+        for command in ('gh auth login', 'gh gist create f.txt', 'gh workflow run x',
+                        'gh search prs --repo o/r'):
+            with self.subTest(command=command):
+                self.assertIsNone(self.bash(command), command)
+
+    def test_the_comment_reads_migrate_prs_depends_on_still_work(self):
+        # The invariant every verb-extraction change threatens: these names CONTAIN the write
+        # token `comment`, but the verb is positional, so both are reads.
+        self.config(vcs={'adapter': 'github-cli'})
+        self.assertIsNone(self.mcp('mcp__vcs__bitbucket_get_pr_comments'))
+        self.assertIsNone(self.mcp('mcp__vcs__bitbucket_get_pr_comment'))
 
     def test_foreign_mcp_writes_are_denied(self):
         # Every one of these was ALLOWED while the MCP surface used the `gh` read set, where

@@ -164,7 +164,18 @@ def _mcp_verb(tool, platform):
 def _gh_noun_verb(argv):
     """(noun, verb) from a `gh` argv, ignoring flags and the values of value-taking global
     flags. `gh pr view 12 --json title` -> ('pr', 'view'); `gh --repo o/r pr view` -> ('pr',
-    'view'). A noun with no following word -> (noun, None)."""
+    'view'). A noun with no following word -> (noun, None).
+
+    The noun is the FIRST RECOGNIZED noun among the non-flag words, not simply the first of
+    them: `gh` accepts global flags before the subcommand, and GH_VALUE_FLAGS cannot list every
+    flag that takes a separate value, so `gh --hostname github.com api ...` would otherwise read
+    `github.com` as the noun -- unrecognized, hence dropped, hence a write allowed through.
+    Scanning is safe because a recognized noun is a fixed, tiny vocabulary and a quoted operand
+    is a single shlex token: `gh pr create --title "api"` still yields ('pr', 'create').
+
+    When no recognized noun is present the first non-flag word is returned unchanged, so an
+    unrecognized noun still emits no call -- `gh auth login`, `gh gist create` and
+    `gh search prs` stay outside the perimeter, exactly as before."""
     args = []
     skip = False
     for token in argv[1:]:
@@ -175,6 +186,9 @@ def _gh_noun_verb(argv):
             skip = token in GH_VALUE_FLAGS
             continue
         args.append(token)
+    for i, token in enumerate(args):
+        if token in TRACKER_NOUNS or token in VCS_NOUNS:
+            return token, (args[i + 1] if i + 1 < len(args) else None)
     noun = args[0] if args else ''
     verb = args[1] if len(args) > 1 else None
     return noun, verb

@@ -215,34 +215,39 @@ class GhNounVerbCase(unittest.TestCase):
         self.assertEqual(vg._gh_noun_verb(['gh', '--repo=owner/repo', 'pr', 'view']),
                          ('pr', 'view'))
 
-    def test_an_unlisted_value_flag_before_the_subcommand_does_not_become_the_noun(self):
-        # GH_VALUE_FLAGS cannot enumerate every flag that takes a separate value, so the noun
-        # is the first RECOGNIZED one rather than the first non-flag word.
-        self.assertEqual(vg._gh_noun_verb(['gh', '--hostname', 'github.com', 'api', 'x']),
-                         ('api', 'x'))
-
-    def test_a_quoted_operand_that_spells_a_noun_is_not_the_noun(self):
-        # `--title "api"` is one shlex token; scanning must not prefer it over the real noun.
-        self.assertEqual(vg._gh_noun_verb(['gh', 'pr', 'create', '--title', 'api']),
-                         ('pr', 'create'))
-
-    def test_an_alias_definition_is_read_as_its_own_subcommand(self):
-        # `"pr create"` is a single token, so the noun stays `alias`.
-        self.assertEqual(vg._gh_noun_verb(['gh', 'alias', 'set', 'nuke', 'pr create']),
-                         ('alias', 'set'))
-
-    def test_an_unrecognized_noun_is_returned_unchanged(self):
-        # The deliberate fail-OPEN: no recognized noun means no call, which is what keeps
-        # `gh auth`, `gh gist`, `gh workflow` and `gh search` outside the perimeter.
+    def test_the_noun_is_the_first_token_that_is_neither_flag_nor_flag_value(self):
+        # A flag's value is the only thing that ever displaces the noun, so skipping exactly
+        # those -- via the same _takes_separate_value() rule the wrapper scan uses -- finds the
+        # noun without ever walking past a plain operand.
         for argv, expected in (
+            # a global flag before the subcommand: its value must not become the noun
+            (['gh', '--hostname', 'github.com', 'api', 'repos/o/r'], ('api', 'repos/o/r')),
+            (['gh', '--hostname', 'github.com', 'pr', 'create'], ('pr', 'create')),
+            # an unrecognized noun is returned AS IS -- _calls() drops it (the fail-OPEN)
+            (['gh', 'workflow', 'run', 'release'], ('workflow', 'run')),
+            (['gh', 'gist', 'create', 'repo'], ('gist', 'create')),
             (['gh', 'auth', 'login'], ('auth', 'login')),
-            (['gh', 'gist', 'create'], ('gist', 'create')),
-            (['gh', 'workflow', 'run'], ('workflow', 'run')),
-            (['gh', 'search', 'prs'], ('search', 'prs')),
-            (['gh'], ('', None)),
+            (['gh', 'search', 'prs', '--repo', 'o/r'], ('search', 'prs')),
+            (['gh', '--version'], ('', None)),
+            # `--repo=o/r` carries its value attached and so consumes NOTHING -- the case a
+            # naive "the previous token was a flag" rule gets wrong
+            (['gh', '--repo=o/r', 'pr', 'view'], ('pr', 'view')),
+            (['gh', '-R', 'o/r', 'pr', 'create'], ('pr', 'create')),
+            # the operand spelling a noun is never reached: the noun is already fixed
+            (['gh', 'pr', 'create', '--title', 'api'], ('pr', 'create')),
+            (['gh', 'alias', 'set', 'nuke', 'pr create'], ('alias', 'set')),
+            (['gh', 'repo', 'clone', 'owner/repo'], ('repo', 'clone')),
         ):
             with self.subTest(argv=argv):
                 self.assertEqual(vg._gh_noun_verb(argv), expected)
+
+    def test_the_value_flag_rule_is_the_shared_helper(self):
+        # The old GH_VALUE_FLAGS list is subsumed, not reimplemented: `-R` is a two-letter
+        # short and `--repo` a long flag without `=`, so both still consume their value.
+        self.assertTrue(vg._takes_separate_value('-R'))
+        self.assertTrue(vg._takes_separate_value('--repo'))
+        self.assertFalse(vg._takes_separate_value('--repo=o/r'))
+        self.assertFalse(hasattr(vg, 'GH_VALUE_FLAGS'))  # removed, not left dead
 
 
 class GhApiClassCase(unittest.TestCase):
@@ -551,6 +556,8 @@ class DecisionCase(unittest.TestCase):
             'gh release download v1',
             'gh auth login',
             'gh search prs --repo o/r',
+            'gh workflow run release',
+            'gh gist create repo',
         ):
             with self.subTest(command=command):
                 self.assertIsNone(self.bash(command), command)
@@ -590,7 +597,11 @@ class DecisionCase(unittest.TestCase):
         # promises will keep working.
         self.config(vcs={'adapter': 'bitbucket-mcp'}, tracker={'adapter': 'jira-mcp'})
         for command in ('gh auth login', 'gh gist create f.txt', 'gh workflow run x',
-                        'gh search prs --repo o/r'):
+                        'gh search prs --repo o/r',
+                        # an operand that merely SPELLS a noun: a workflow and a file named
+                        # after one must not drag their call inside the perimeter.
+                        'gh workflow run release', 'gh gist create repo',
+                        'gh run view 12 --log', 'gh secret set TOKEN'):
             with self.subTest(command=command):
                 self.assertIsNone(self.bash(command), command)
 

@@ -68,10 +68,6 @@ COMMAND_WRAPPERS = frozenset((
 # Shells whose `-c` argument is a whole command line of its own (parsed recursively).
 SHELL_COMMANDS = frozenset(('bash', 'sh', 'zsh', 'dash', 'ksh'))
 
-# `gh` global flags that take a SEPARATE value token. The value must be skipped along with the
-# flag, or `gh --repo owner/repo pr view` reads `owner/repo` as the noun and `pr` as the verb.
-GH_VALUE_FLAGS = frozenset(('-R', '--repo'))
-
 _ASSIGNMENT = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*=')
 # Segment separators. The two-character operators come FIRST in the alternation so `&&` and
 # `||` win over `&` and `|`. Parentheses and backticks are separators too: command
@@ -113,11 +109,16 @@ def _shell_c_segments(argv):
 
 
 def _takes_separate_value(flag):
-    """Whether a wrapper flag's value is a SEPARATE token. A long flag carries its value inline
-    only with `=` (`--arg-file=f`), so `--user ci` still takes the next word. A SHORT flag of
-    more than one letter already carries its value attached, the way getopt and pflag read it
-    (`-I{}`, `-n10`, `-d,`) -- treating those as value-taking is what let `xargs -I{} echo gh
-    pr create` eat `echo` and mistake `gh` for the command word."""
+    """Whether a flag's value is a SEPARATE token. A long flag carries its value inline only
+    with `=` (`--arg-file=f`, `--repo=o/r`), so `--user ci` and `--repo o/r` still take the next
+    word. A SHORT flag of more than one letter already carries its value attached, the way
+    getopt and pflag read it (`-I{}`, `-n10`, `-d,`) -- treating those as value-taking is what
+    let `xargs -I{} echo gh pr create` eat `echo` and mistake `gh` for the command word.
+
+    Used by BOTH scans -- the wrapper scan in _strip_wrappers and the noun scan in
+    _gh_noun_verb. It subsumes the old GH_VALUE_FLAGS list: `-R` is a two-letter short and
+    `--repo` a long flag without `=`, so both still consume their value, and no enumeration of
+    `gh`'s global flags has to be kept correct."""
     if flag.startswith('--'):
         return '=' not in flag
     return len(flag) <= 2
@@ -181,16 +182,18 @@ def _gh_noun_verb(argv):
     flags. `gh pr view 12 --json title` -> ('pr', 'view'); `gh --repo o/r pr view` -> ('pr',
     'view'). A noun with no following word -> (noun, None).
 
-    The noun is the FIRST RECOGNIZED noun among the non-flag words, not simply the first of
-    them: `gh` accepts global flags before the subcommand, and GH_VALUE_FLAGS cannot list every
-    flag that takes a separate value, so `gh --hostname github.com api ...` would otherwise read
-    `github.com` as the noun -- unrecognized, hence dropped, hence a write allowed through.
-    Scanning is safe because a recognized noun is a fixed, tiny vocabulary and a quoted operand
-    is a single shlex token: `gh pr create --title "api"` still yields ('pr', 'create').
+    Whether a flag eats the token after it is decided by _takes_separate_value(), the same rule
+    the wrapper scan uses -- `--repo=o/r` carries its value inline and consumes nothing, while
+    `--repo o/r` and `-R o/r` consume one. A flag's value is the ONLY thing that ever displaces
+    the noun (`gh` accepts global flags before the subcommand, and no fixed list of them can be
+    complete), so skipping exactly those and nothing else finds `api` in
+    `gh --hostname github.com api ...` without ever walking past a plain operand.
 
-    When no recognized noun is present the first non-flag word is returned unchanged, so an
-    unrecognized noun still emits no call -- `gh auth login`, `gh gist create` and
-    `gh search prs` stay outside the perimeter, exactly as before."""
+    The noun is returned whether or not it is RECOGNIZED. An unrecognized one emits no call in
+    _calls() -- the deliberate fail-OPEN that keeps `gh auth login`, `gh gist create repo`,
+    `gh workflow run release` and `gh search prs` outside the perimeter. Searching the operands
+    for something that merely spells a noun would deny those last two over a file and a
+    workflow that happen to be named after one."""
     args = []
     skip = False
     for token in argv[1:]:
@@ -198,12 +201,9 @@ def _gh_noun_verb(argv):
             skip = False
             continue
         if token.startswith('-'):
-            skip = token in GH_VALUE_FLAGS
+            skip = _takes_separate_value(token)
             continue
         args.append(token)
-    for i, token in enumerate(args):
-        if token in TRACKER_NOUNS or token in VCS_NOUNS:
-            return token, (args[i + 1] if i + 1 < len(args) else None)
     noun = args[0] if args else ''
     verb = args[1] if len(args) > 1 else None
     return noun, verb

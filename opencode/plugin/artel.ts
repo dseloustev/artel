@@ -7,6 +7,7 @@
  *
  *   tool.execute.before (edit|write|apply_patch) -> hooks/sensitive_guard.py
  *       deny               -> throw (OpenCode's way to deny a tool call)
+ *   tool.execute.before (bash|mcp__*)          -> hooks/vcs_guard.py
  *   tool.execute.after  (edit|write|apply_patch) -> hooks/knowledge_mirror.py (side
  *                       effect only) THEN hooks/fast_verify_post_edit.py
  *       findings          -> throw (the model sees them as the tool's error)
@@ -124,6 +125,22 @@ const ROUTER_MARKER = "This repository is configured for artel"
 export const ArtelPlugin: Plugin = async ({ client, directory }) => {
   return {
     "tool.execute.before": async (input, output) => {
+      if (hasArtelConfig(directory) && (input.tool === "bash" || input.tool.startsWith("mcp__"))) {
+        const payload = {
+          session_id: input.sessionID,
+          cwd: directory,
+          tool_name: input.tool === "bash" ? "Bash" : input.tool,
+          tool_input: input.tool === "bash" ? { command: output.args?.command ?? "" } : {},
+        }
+        const result = await runHook("vcs_guard.py", payload, directory, 10_000)
+        const decision = firstJson(result.stdout)?.hookSpecificOutput
+        if (decision?.permissionDecision === "deny") {
+          throw new Error(
+            `artel vcs guard: ${decision.permissionDecisionReason ?? "this platform is not this project's home"}`,
+          )
+        }
+      }
+
       if (!EDIT_TOOLS.has(input.tool) || !hasArtelConfig(directory)) return
       const payload = claudeEditPayload(input.sessionID, directory, input.tool, output.args)
       if (!payload) return

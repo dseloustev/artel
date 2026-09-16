@@ -168,5 +168,13 @@ class TestDeterminism(BuildBase):
                                  path.parent.name + ' differs between builds')
 
 
+class TestPluginSource(unittest.TestCase):
+    def test_binds_the_vcs_guard(self):
+        source = (Path(__file__).resolve().parent.parent / 'opencode' / 'plugin' / 'artel.ts'
+                  ).read_text(encoding='utf-8')
+        self.assertIn('vcs_guard.py', source)
+        self.assertIn('artel vcs guard', source)
+
+
 if __name__ == '__main__':
     unittest.main()

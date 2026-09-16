@@ -5,14 +5,8 @@ an autonomous run.
 Contract: docs/config.md (the `guard` section) and
 docs/superpowers/specs/2026-09-16-vcs-platform-migration-design.md section 2.
 """
-import json
 import re
 import shlex
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent))
-import hook_common as h  # noqa: E402
 
 READ_VERBS = frozenset('get list search view diff show read whoami status checks'.split())
 WRITE_VERBS = frozenset(
@@ -27,6 +21,10 @@ TRACKER_PLATFORM = {'github-issues': 'github', 'jira-mcp': 'jira'}
 # `gh` nouns whose calls belong to the tracker domain, not the VCS one: config.md says `gh` is
 # required for issues even when vcs.adapter is not github-cli.
 TRACKER_NOUNS = frozenset(('issue',))
+
+# `gh` global flags that take a SEPARATE value token. The value must be skipped along with the
+# flag, or `gh --repo owner/repo pr view` reads `owner/repo` as the noun and `pr` as the verb.
+GH_VALUE_FLAGS = frozenset(('-R', '--repo'))
 
 _ASSIGNMENT = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*=')
 _SPLIT = re.compile(r'\|\||&&|;|\||\n')
@@ -74,9 +72,19 @@ def _mcp_verb(tool, platform):
 
 
 def _gh_noun_verb(argv):
-    """(noun, verb) from a `gh` argv, ignoring flags. `gh pr view 12 --json title` -> ('pr',
+    """(noun, verb) from a `gh` argv, ignoring flags and the values of value-taking global
+    flags. `gh pr view 12 --json title` -> ('pr', 'view'); `gh --repo o/r pr view` -> ('pr',
     'view'). A noun with no following word -> (noun, None)."""
-    args = [a for a in argv[1:] if not a.startswith('-')]
+    args = []
+    skip = False
+    for token in argv[1:]:
+        if skip:
+            skip = False
+            continue
+        if token.startswith('-'):
+            skip = token in GH_VALUE_FLAGS
+            continue
+        args.append(token)
     noun = args[0] if args else ''
     verb = args[1] if len(args) > 1 else None
     return noun, verb

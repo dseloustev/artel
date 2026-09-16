@@ -82,6 +82,18 @@ class GhNounVerbCase(unittest.TestCase):
     def test_noun_without_a_verb(self):
         self.assertEqual(vg._gh_noun_verb(['gh', 'pr']), ('pr', None))
 
+    def test_global_repo_flag_before_the_noun(self):
+        self.assertEqual(vg._gh_noun_verb(['gh', '--repo', 'owner/repo', 'pr', 'view', '12']),
+                         ('pr', 'view'))
+
+    def test_short_repo_flag_before_the_noun(self):
+        self.assertEqual(vg._gh_noun_verb(['gh', '-R', 'owner/repo', 'pr', 'create']),
+                         ('pr', 'create'))
+
+    def test_repo_flag_equals_form_has_no_separate_value(self):
+        self.assertEqual(vg._gh_noun_verb(['gh', '--repo=owner/repo', 'pr', 'view']),
+                         ('pr', 'view'))
+
 
 class GhApiClassCase(unittest.TestCase):
     def test_defaults_to_read(self):

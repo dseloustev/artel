@@ -1,0 +1,325 @@
+"""scripts/worktree.py: moving a ticket's work into its own worktree and handing it back.
+
+Every test builds a real bare origin plus a clone, so the git behavior under test is git's
+own. The invariants worth the most: nothing uncommitted is ever lost (a stash is dropped
+only after it applied), the branch is never deleted, and a refused run changes nothing.
+
+Contract: docs/worktrees.md
+"""
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SCRIPT = ROOT / 'scripts' / 'worktree.py'
+BRANCH = 'feature/T-1-work'
+
+
+def git(cwd, *args):
+    return subprocess.run(['git'] + list(args), cwd=cwd, check=True,
+                          capture_output=True, text=True).stdout.strip()
+
+
+class RepoCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        base = Path(os.path.realpath(self._tmp.name))
+        origin = base / 'origin.git'
+        git(base, 'init', '-q', '--bare', str(origin))
+        git(origin, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+        self.root = base / 'host'
+        git(base, 'clone', '-q', str(origin), str(self.root))
+        git(self.root, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+        for key, value in (('user.email', 'test@example.com'), ('user.name', 'Test'),
+                           ('commit.gpgsign', 'false')):
+            git(self.root, 'config', key, value)
+        self.write('.gitignore', '.artel/\n.claude/\n.mcp.json\nbuild/\n')
+        self.write('app.txt', 'v1\n')
+        git(self.root, 'add', '.')
+        git(self.root, 'commit', '-q', '-m', 'init')
+        git(self.root, 'push', '-q', 'origin', 'main')
+        git(self.root, 'branch', BRANCH)
+        self.target = self.root / '.claude' / 'worktrees' / 'T-1'
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def write(self, rel, text, base=None):
+        path = (base or self.root) / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding='utf-8')
+        return path
+
+    def read(self, rel, base=None):
+        return ((base or self.root) / rel).read_text(encoding='utf-8')
+
+    def run_script(self, *args, cwd=None):
+        proc = subprocess.run([sys.executable, str(SCRIPT)] + list(args),
+                              cwd=cwd or self.root, capture_output=True, text=True)
+        try:
+            report = json.loads(proc.stdout)
+        except ValueError:
+            self.fail('no JSON report: stdout={!r} stderr={!r}'.format(proc.stdout, proc.stderr))
+        return proc.returncode, report
+
+    def move_in(self, *extra, branch=BRANCH, name='T-1', cwd=None):
+        return self.run_script('move-in', '--ticket', 'T-1', '--name', name, '--branch', branch,
+                               '--base', 'main', *extra, cwd=cwd)
+
+    def hand_back(self, *extra, cwd=None):
+        return self.run_script('hand-back', '--ticket', 'T-1', *extra, cwd=cwd)
+
+    def branch_of(self, checkout):
+        return git(checkout, 'branch', '--show-current')
+
+    def stashes(self):
+        return git(self.root, 'stash', 'list')
+
+    def status(self, checkout):
+        return git(checkout, 'status', '--porcelain', '--untracked-files=all')
+
+    def worktree_paths(self):
+        return [line[len('worktree '):] for line in
+                git(self.root, 'worktree', 'list', '--porcelain').splitlines()
+                if line.startswith('worktree ')]
+
+
+class TestMoveInGit(RepoCase):
+    def test_moves_an_existing_branch(self):
+        code, report = self.move_in()
+        self.assertEqual((code, report['status']), (0, 'ok'), report)
+        self.assertEqual(self.branch_of(self.target), BRANCH)
+        self.assertEqual(self.branch_of(self.root), 'main')
+        self.assertFalse(report['created'])
+        self.assertFalse(report['stashApplied'])
+        self.assertEqual(report['path'], str(self.target))
+
+    def test_creates_a_new_branch_from_a_ref(self):
+        code, report = self.move_in('--create-from', 'origin/main', branch='feature/T-1-new')
+        self.assertEqual(code, 0, report)
+        self.assertTrue(report['created'])
+        self.assertEqual(self.branch_of(self.target), 'feature/T-1-new')
+        self.assertEqual(git(self.target, 'rev-parse', 'HEAD'),
+                         git(self.root, 'rev-parse', 'origin/main'))
+
+    def test_tracks_an_origin_only_branch(self):
+        git(self.root, 'push', '-q', 'origin', BRANCH)
+        git(self.root, 'branch', '-D', BRANCH)
+        code, report = self.move_in('--create-from', 'origin/' + BRANCH, '--track')
+        self.assertEqual(code, 0, report)
+        self.assertEqual(git(self.target, 'rev-parse', '--abbrev-ref', '@{u}'), 'origin/' + BRANCH)
+
+    def test_carries_uncommitted_work_off_the_ticket_branch(self):
+        git(self.root, 'checkout', '-q', BRANCH)
+        self.write('app.txt', 'v1\nwip\n')
+        self.write('notes.txt', 'untracked\n')
+        code, report = self.move_in()
+        self.assertEqual(code, 0, report)
+        self.assertTrue(report['stashApplied'])
+        self.assertEqual(report['mainNowOn'], 'main')
+        self.assertEqual(self.branch_of(self.root), 'main')
+        self.assertEqual(self.status(self.root), '')
+        self.assertEqual(self.read('app.txt', self.target), 'v1\nwip\n')
+        self.assertEqual(self.read('notes.txt', self.target), 'untracked\n')
+        self.assertEqual(self.stashes(), '')
+
+    def test_leaves_other_sessions_stashes_alone(self):
+        self.write('app.txt', 'someone else\n')
+        git(self.root, 'stash', 'push', '-q', '-m', 'another session')
+        git(self.root, 'checkout', '-q', BRANCH)
+        self.write('app.txt', 'v1\nwip\n')
+        code, report = self.move_in()
+        self.assertEqual(code, 0, report)
+        self.assertEqual(self.read('app.txt', self.target), 'v1\nwip\n')
+        self.assertEqual(git(self.root, 'stash', 'list', '--format=%gs'), 'On main: another session')
+
+    def test_a_second_run_enters_the_same_worktree(self):
+        self.move_in()
+        self.write('app.txt', 'dirty\n')
+        code, report = self.move_in()
+        self.assertEqual(code, 0, report)
+        self.assertTrue(report['alreadyExisted'])
+        self.assertTrue(report['mainDirty'])
+        self.assertEqual(self.read('app.txt'), 'dirty\n', 'a re-run leaves the main checkout alone')
+
+    def test_refused_inside_a_worktree(self):
+        self.move_in()
+        code, report = self.move_in(branch='feature/T-1-other', name='T-1-other', cwd=self.target)
+        self.assertEqual((code, report['status']), (1, 'refused'), report)
+
+    def test_refused_when_the_branch_lives_in_another_worktree(self):
+        elsewhere = self.root.parent / 'elsewhere'
+        git(self.root, 'worktree', 'add', '-q', str(elsewhere), BRANCH)
+        self.write('app.txt', 'dirty\n')
+        code, report = self.move_in()
+        self.assertEqual((code, report['status']), (1, 'refused'), report)
+        self.assertEqual(self.read('app.txt'), 'dirty\n')
+        self.assertEqual(self.stashes(), '')
+
+    def test_refused_when_the_target_is_not_a_worktree(self):
+        self.write('.claude/worktrees/T-1/stray.txt', 'x\n')
+        code, report = self.move_in()
+        self.assertEqual((code, report['status']), (1, 'refused'), report)
+
+    def test_a_failed_worktree_add_rolls_back(self):
+        git(self.root, 'checkout', '-q', BRANCH)
+        self.write('app.txt', 'v1\nwip\n')
+        self.write('.claude/worktrees', 'a file where the directory should be\n')
+        code, report = self.move_in()
+        self.assertEqual((code, report['status']), (1, 'rolled-back'), report)
+        self.assertEqual(self.branch_of(self.root), BRANCH)
+        self.assertEqual(self.read('app.txt'), 'v1\nwip\n')
+        self.assertEqual(self.stashes(), '')
+
+    def test_a_stash_conflict_keeps_the_stash(self):
+        git(self.root, 'checkout', '-q', '-b', 'feature/T-1-diverged')
+        self.write('app.txt', 'v2\n')
+        git(self.root, 'commit', '-q', '-am', 'diverge')
+        git(self.root, 'checkout', '-q', 'main')
+        self.write('app.txt', 'v1\nwip\n')
+        self.write('.artel/config.json', '{}\n')
+        code, report = self.move_in(branch='feature/T-1-diverged')
+        self.assertEqual((code, report['status']), (1, 'conflict'), report)
+        self.assertIn(report['stash'], git(self.root, 'stash', 'list', '--format=%H'))
+        self.assertIn('app.txt', report['files'])
+        self.assertTrue((self.target / '.artel' / 'config.json').is_file(),
+                        'the environment is in place before the stash is applied')
+        subjects = git(self.root, 'stash', 'list', '--format=%H %gs').splitlines()
+        mine = [s for s in subjects if s.startswith(report['stash'] + ' ')]
+        self.assertEqual(len(mine), 1)
+        self.assertIn(': artel move-to-worktree T-1 ', mine[0])
+
+    def test_excludes_worktrees_locally_when_the_host_does_not(self):
+        self.write('.gitignore', '.artel/\n')
+        git(self.root, 'commit', '-q', '-am', 'narrow ignore')
+        code, report = self.move_in()
+        self.assertEqual(code, 0, report)
+        exclude = self.read('.git/info/exclude')
+        self.assertIn('/.claude/worktrees/', exclude)
+        self.assertEqual(self.status(self.root), '')
+
+
+class TestMoveInEnvironment(RepoCase):
+    def test_copies_the_artel_footprint_but_not_run_or_context(self):
+        self.write('.artel/config.json', '{"version": 1}\n')
+        self.write('.artel/sensitive-paths.json', '{}\n')
+        self.write('.artel/templates/issue-draft.md', '# t\n')
+        self.write('.artel/run/T-9/run-state.json', '{}\n')
+        self.write('.artel/context/root/CLAUDE.md', '# c\n')
+        code, report = self.move_in()
+        self.assertEqual(code, 0, report)
+        for rel in ('.artel/config.json', '.artel/sensitive-paths.json',
+                    '.artel/templates/issue-draft.md'):
+            self.assertEqual(self.read(rel, self.target), self.read(rel), rel)
+        self.assertFalse((self.target / '.artel/run/T-9').exists())
+        self.assertTrue(self.root.joinpath('.artel/run/T-9').is_dir(), 'other tickets stay')
+
+    def test_links_the_context_store(self):
+        self.write('.artel/context/root/CLAUDE.md', '# c\n')
+        code, report = self.move_in()
+        self.assertTrue(report['contextLinked'])
+        link = self.target / '.artel' / 'context'
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(link.resolve(), (self.root / '.artel' / 'context').resolve())
+
+    def test_no_link_without_a_store(self):
+        code, report = self.move_in()
+        self.assertFalse(report['contextLinked'])
+        self.assertFalse(os.path.lexists(self.target / '.artel' / 'context'))
+
+    def test_moves_the_ticket_run_state(self):
+        self.write('.artel/run/T-1/run-state.json', '{"run_active": true}\n')
+        code, report = self.move_in()
+        self.assertTrue(report['runMoved'])
+        self.assertFalse((self.root / '.artel/run/T-1').exists())
+        self.assertEqual(self.read('.artel/run/T-1/run-state.json', self.target),
+                         '{"run_active": true}\n')
+
+    def test_copies_session_baselines_but_not_logs(self):
+        self.write('.artel/run/.hooks/baseline-s1.json', '{"keys": []}\n')
+        self.write('.artel/run/.hooks/stopblocks-s1.json', '{"consecutive": 0}\n')
+        self.write('.artel/run/.hooks/knowledge-mirror.log', 'log\n')
+        self.move_in()
+        hooks = self.target / '.artel/run/.hooks'
+        self.assertTrue((hooks / 'baseline-s1.json').is_file())
+        self.assertTrue((hooks / 'stopblocks-s1.json').is_file())
+        self.assertFalse((hooks / 'knowledge-mirror.log').exists())
+        self.assertTrue((self.root / '.artel/run/.hooks/baseline-s1.json').is_file(), 'copied')
+
+    def test_default_host_files(self):
+        self.write('.claude/settings.json', '{}\n')
+        self.write('.claude/tools/agent/agent.dart', 'main() {}\n')
+        self.write('.mcp.json', '{}\n')
+        self.write('build/out.bin', 'binary\n')
+        code, report = self.move_in()
+        for rel in ('.claude/settings.json', '.claude/tools/agent/agent.dart', '.mcp.json'):
+            self.assertTrue((self.target / rel).is_file(), rel)
+            self.assertIn(rel, report['copied'])
+        self.assertFalse((self.target / 'build').exists())
+
+    def test_worktreeinclude_replaces_the_default(self):
+        self.write('.worktreeinclude', '/.mcp.json\nbuild/keep.txt\n')
+        git(self.root, 'add', '.worktreeinclude')
+        git(self.root, 'commit', '-q', '-m', 'include')
+        self.write('.claude/settings.json', '{}\n')
+        self.write('.mcp.json', '{}\n')
+        self.write('build/keep.txt', 'k\n')
+        self.write('build/drop.txt', 'd\n')
+        self.write('.artel/config.json', '{}\n')
+        code, report = self.move_in()
+        self.assertEqual(code, 0, report)
+        self.assertTrue((self.target / '.mcp.json').is_file())
+        self.assertTrue((self.target / 'build/keep.txt').is_file())
+        self.assertFalse((self.target / 'build/drop.txt').exists())
+        self.assertFalse((self.target / '.claude').exists())
+        self.assertTrue((self.target / '.artel/config.json').is_file(), 'artel is always handled')
+
+    def test_never_copies_tracked_or_untracked_files(self):
+        self.write('.worktreeinclude', '*.txt\n')
+        git(self.root, 'add', '.worktreeinclude')
+        git(self.root, 'commit', '-q', '-m', 'include')
+        code, report = self.move_in()
+        self.assertNotIn('app.txt', report['copied'])
+
+    def test_never_overwrites_a_file_the_branch_tracks(self):
+        git(self.root, 'checkout', '-q', BRANCH)
+        self.write('.mcp.json', 'from the branch\n')
+        git(self.root, 'add', '-f', '.mcp.json')
+        git(self.root, 'commit', '-q', '-m', 'track mcp on the branch')
+        git(self.root, 'checkout', '-q', 'main')
+        mine = self.write('.mcp.json', 'from main\n')
+        future = time.time() + 3600  # newer than the checkout: only the tracked filter saves it
+        os.utime(mine, (future, future))
+        code, report = self.move_in()
+        self.assertEqual(code, 0, report)
+        self.assertEqual(self.read('.mcp.json', self.target), 'from the branch\n')
+        self.assertNotIn('.mcp.json', report['copied'])
+
+    def test_never_copies_nested_worktrees(self):
+        self.write('.claude/settings.json', '{}\n')
+        self.move_in()
+        git(self.root, 'branch', 'feature/T-2-work')
+        code, report = self.run_script('move-in', '--ticket', 'T-2', '--name', 'T-2',
+                                       '--branch', 'feature/T-2-work', '--base', 'main')
+        self.assertEqual(code, 0, report)
+        second = self.root / '.claude/worktrees/T-2'
+        self.assertTrue((second / '.claude/settings.json').is_file())
+        self.assertFalse((second / '.claude/worktrees').exists())
+
+    def test_writes_a_manifest(self):
+        self.write('.mcp.json', '{}\n')
+        self.move_in()
+        manifest = json.loads(self.read('.artel/worktree.json', self.target))
+        self.assertEqual(manifest['ticket'], 'T-1')
+        self.assertEqual(manifest['branch'], BRANCH)
+        self.assertEqual(manifest['copied'], ['.mcp.json'])
+        self.assertEqual(manifest['main'], str(self.root))
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -394,5 +394,187 @@ class TestMoveInRecovery(RepoCase):
         self.assertTrue(self.target.is_dir())
 
 
+class HandBackCase(RepoCase):
+    def setUp(self):
+        super().setUp()
+        self.write('.claude/settings.local.json', '{"allow": []}\n')
+        code, report = self.move_in()
+        self.assertEqual(code, 0, report)
+
+
+class TestHandBack(HandBackCase):
+    def test_returns_the_branch_with_its_work(self):
+        self.write('app.txt', 'v1\ncommitted\n', self.target)
+        git(self.target, 'commit', '-q', '-am', 'work')
+        self.write('app.txt', 'v1\ncommitted\nwip\n', self.target)
+        self.write('notes.txt', 'untracked\n', self.target)
+        code, report = self.hand_back()
+        self.assertEqual((code, report['status']), (0, 'ok'), report)
+        self.assertFalse(self.target.exists())
+        self.assertEqual(self.worktree_paths(), [str(self.root)])
+        self.assertEqual(self.branch_of(self.root), BRANCH)
+        self.assertEqual(report['mainWasOn'], 'main')
+        self.assertTrue(report['stashApplied'])
+        self.assertEqual(self.read('app.txt'), 'v1\ncommitted\nwip\n')
+        self.assertEqual(self.read('notes.txt'), 'untracked\n')
+        self.assertEqual(self.stashes(), '')
+        self.assertIn(BRANCH, git(self.root, 'branch', '--list', BRANCH))
+
+    def test_a_clean_worktree_needs_no_stash(self):
+        code, report = self.hand_back()
+        self.assertEqual(code, 0, report)
+        self.assertFalse(report['stashApplied'])
+        self.assertEqual(self.branch_of(self.root), BRANCH)
+
+    def test_check_changes_nothing(self):
+        self.write('app.txt', 'wip\n', self.target)
+        code, report = self.hand_back('--check')
+        self.assertEqual(code, 0, report)
+        self.assertTrue(report['check'])
+        self.assertEqual(report['uncommitted'], 1)
+        self.assertEqual(report['branch'], BRANCH)
+        self.assertTrue(self.target.is_dir())
+        self.assertEqual(self.stashes(), '')
+        self.assertEqual(self.branch_of(self.root), 'main')
+
+    def test_refused_when_the_main_checkout_is_dirty(self):
+        self.write('app.txt', 'someone else\n')
+        code, report = self.hand_back()
+        self.assertEqual((code, report['status']), (1, 'refused'), report)
+        self.assertTrue(self.target.is_dir())
+        self.assertEqual(self.read('app.txt'), 'someone else\n')
+
+    def test_refused_inside_the_worktree(self):
+        code, report = self.hand_back(cwd=self.target)
+        self.assertEqual((code, report['status']), (1, 'refused'), report)
+        self.assertTrue(self.target.is_dir())
+
+    def test_check_runs_from_inside_the_worktree(self):
+        code, report = self.hand_back('--check', cwd=self.target)
+        self.assertEqual(code, 0, report)
+        self.assertEqual(report['branch'], BRANCH)
+        self.assertEqual(report['mainWasOn'], 'main')
+
+    def test_refused_on_a_detached_worktree(self):
+        git(self.target, 'checkout', '-q', '--detach')
+        code, report = self.hand_back()
+        self.assertEqual((code, report['status']), (1, 'refused'), report)
+
+    def test_refused_with_nothing_to_hand_back(self):
+        code, report = self.run_script('hand-back', '--ticket', 'T-404')
+        self.assertEqual((code, report['status']), (1, 'refused'), report)
+
+    def test_moves_run_state_and_baselines_back(self):
+        self.write('.artel/run/T-1/run-state.json', '{"completed": true}\n', self.target)
+        self.write('.artel/run/.hooks/baseline-s1.json', '{"keys": ["k"]}\n', self.target)
+        code, report = self.hand_back()
+        self.assertTrue(report['runMoved'])
+        self.assertEqual(self.read('.artel/run/T-1/run-state.json'), '{"completed": true}\n')
+        self.assertEqual(self.read('.artel/run/.hooks/baseline-s1.json'), '{"keys": ["k"]}\n')
+
+    def test_newer_main_baseline_wins(self):
+        self.write('.artel/run/.hooks/baseline-s1.json', 'worktree\n', self.target)
+        old = time.time() - 60
+        os.utime(self.target / '.artel/run/.hooks/baseline-s1.json', (old, old))
+        self.write('.artel/run/.hooks/baseline-s1.json', 'main\n')
+        self.hand_back()
+        self.assertEqual(self.read('.artel/run/.hooks/baseline-s1.json'), 'main\n')
+
+    def test_merges_a_store_the_worktree_grew(self):
+        self.write('.artel/context/root/CLAUDE.md', '# saved in the worktree\n', self.target)
+        code, report = self.hand_back()
+        self.assertEqual(code, 0, report)
+        self.assertEqual(self.read('.artel/context/root/CLAUDE.md'), '# saved in the worktree\n')
+
+    def test_reports_environment_changes_without_copying_them(self):
+        self.write('.claude/settings.local.json', '{"allow": ["Bash(make:*)"]}\n', self.target)
+        self.write('.claude/new.json', '{}\n', self.target)
+        code, report = self.hand_back()
+        self.assertEqual(code, 0, report)
+        self.assertEqual(sorted(report['envChanged']),
+                         ['.claude/new.json', '.claude/settings.local.json'])
+        self.assertEqual(self.read('.claude/settings.local.json'), '{"allow": []}\n')
+        self.assertFalse((self.root / '.claude/new.json').exists())
+
+    def test_marks_the_hand_back_done(self):
+        self.hand_back()
+        marker = json.loads(self.read('.artel/run/T-1/worktree.json'))
+        self.assertEqual(marker['handBack'], 'done')
+        self.assertEqual(marker['branch'], BRANCH)
+
+    def test_a_refused_removal_rolls_back(self):
+        self.write('app.txt', 'wip\n', self.target)
+        self.write('.artel/run/T-1/run-state.json', '{}\n', self.target)
+        git(self.root, 'worktree', 'lock', str(self.target))
+        code, report = self.hand_back()
+        self.assertEqual((code, report['status']), (1, 'rolled-back'), report)
+        self.assertTrue(self.target.is_dir())
+        self.assertEqual(self.read('app.txt', self.target), 'wip\n')
+        self.assertTrue((self.target / '.artel/run/T-1/run-state.json').is_file())
+        self.assertFalse((self.root / '.artel/run/T-1').exists())
+        self.assertEqual(self.stashes(), '')
+        self.assertEqual(self.branch_of(self.root), 'main')
+
+    def test_finishes_an_interrupted_hand_back(self):
+        self.write('app.txt', 'wip\n', self.target)
+        git(self.target, 'stash', 'push', '-q', '--include-untracked',
+            '-m', 'artel return-from-worktree T-1')
+        stash = git(self.root, 'rev-parse', 'stash@{0}')
+        self.write('.artel/run/T-1/worktree.json', json.dumps({
+            'ticket': 'T-1', 'branch': BRANCH, 'stash': stash, 'handBack': 'pending',
+            'mainWasOn': 'main', 'runMoved': False, 'envChanged': []}))
+        git(self.root, 'worktree', 'remove', str(self.target))
+        code, report = self.hand_back()
+        self.assertEqual((code, report['status']), (0, 'ok'), report)
+        self.assertEqual(self.branch_of(self.root), BRANCH)
+        self.assertEqual(self.read('app.txt'), 'wip\n')
+        self.assertEqual(self.stashes(), '')
+
+
+class TestHandBackRecovery(HandBackCase):
+    """hand-back failures after the worktree's work was stashed must name the stash."""
+
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(os.chdir, os.getcwd())
+        self.write('app.txt', 'wip\n', self.target)
+
+    def run_hand_back(self):
+        with self.assertRaises(worktree.Stop) as caught:
+            worktree.hand_back(worktree.parse(['hand-back', '--ticket', 'T-1']))
+        return caught.exception.report
+
+    def assert_stash_kept(self, report):
+        self.assertIn(report['stash'], git(self.root, 'stash', 'list', '--format=%H'))
+
+    def test_a_failure_after_the_stash_names_it(self):
+        os.chdir(self.root)
+        with mock.patch.object(worktree, 'transfer_out', side_effect=OSError('disk full')):
+            report = self.run_hand_back()
+        self.assertEqual(report['status'], 'error')
+        self.assertIn('OSError: disk full', report['reason'])
+        self.assertEqual(report['path'], str(self.target))
+        self.assert_stash_kept(report)
+
+    def test_a_failed_checkout_after_removal_names_the_stash_and_a_rerun_finishes(self):
+        os.chdir(self.root)
+        real = worktree.git
+
+        def fake(*args, **kwargs):
+            if args == ('checkout', BRANCH):
+                raise worktree.Stop('error', 'git checkout {} failed: injected'.format(BRANCH))
+            return real(*args, **kwargs)
+        with mock.patch.object(worktree, 'git', side_effect=fake):
+            report = self.run_hand_back()
+        self.assertEqual(report['status'], 'error')
+        self.assert_stash_kept(report)
+        self.assertFalse(self.target.exists())
+        code, again = self.hand_back()
+        self.assertEqual((code, again['status']), (0, 'ok'), again)
+        self.assertEqual(self.branch_of(self.root), BRANCH)
+        self.assertEqual(self.read('app.txt'), 'wip\n')
+        self.assertEqual(self.stashes(), '')
+
+
 if __name__ == '__main__':
     unittest.main()

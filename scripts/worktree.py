@@ -19,6 +19,7 @@ A stash is dropped only after it applied cleanly. Never `--force`, never a branc
 Contract: docs/worktrees.md
 """
 import argparse
+import filecmp
 import json
 import os
 import shutil
@@ -272,6 +273,13 @@ def recovery_fields(stash, target):
     return fields
 
 
+def fill_recovery(report, stash, target):
+    """Add recovery_fields() to an `error` report without overwriting what it already says."""
+    if report['status'] == 'error':
+        for key, value in recovery_fields(stash, target).items():
+            report.setdefault(key, value)
+
+
 def move_in(args):
     if in_linked_worktree():
         raise Stop('refused', 'run move-in from the main checkout, not from inside a worktree')
@@ -334,9 +342,116 @@ def move_in(args):
             report['stashApplied'] = True
         return report
     except Stop as stop:
-        if stop.report['status'] == 'error':
-            for key, value in recovery_fields(stash, target).items():
-                stop.report.setdefault(key, value)
+        fill_recovery(stop.report, stash, target)
+        raise
+    except Exception as exc:
+        raise Stop('error', '{}: {}'.format(type(exc).__name__, exc),
+                   **recovery_fields(stash, target))
+
+
+# --- hand-back ----------------------------------------------------------------------------
+
+def transfer_out(root, target, ticket):
+    src = target / RUN_DIR / ticket
+    moved = src.is_dir()
+    if moved:
+        merge_tree(src, root / RUN_DIR / ticket)
+    copy_hook_state(target, root)
+    store = target / CONTEXT
+    if store.is_dir() and not store.is_symlink():
+        merge_tree(store, root / CONTEXT)
+    return moved
+
+
+def changed_environment(root, target):
+    """Worktree environment files that differ from, or are missing in, the main checkout."""
+    changed = []
+    for rel in environment(target, root / '.worktreeinclude'):
+        mine = root / rel
+        if not mine.is_file() or not filecmp.cmp(mine, target / rel, shallow=False):
+            changed.append(rel)
+    return changed
+
+
+def finish(root, marker, pending):
+    branch = pending['branch']
+    if current_branch() != branch:
+        git('checkout', branch)
+    report = {'status': 'ok', 'branch': branch, 'mainWasOn': pending.get('mainWasOn'),
+              'runMoved': pending.get('runMoved', False),
+              'envChanged': pending.get('envChanged', []), 'stashApplied': False}
+    stash = pending.get('stash')
+    if stash and stash_listed(stash):
+        stash_apply(stash, root)
+        report['stashApplied'] = True
+    write_json(marker, dict(pending, handBack='done'))
+    git('worktree', 'prune', check=False)
+    return report
+
+
+def hand_back(args):
+    if in_linked_worktree() and not args.check:
+        raise Stop('refused', 'run hand-back from the main checkout; the worktree is about '
+                              'to be removed')
+    root = Path(worktrees()[0]['path'])
+    os.chdir(root)  # --check may start inside the worktree; everything below is main-relative
+    name = args.name or args.ticket
+    target = root / WORKTREES_DIR / name
+    run_dir = root / RUN_DIR / args.ticket
+    marker = run_dir / MARKER_NAME
+    entry = next((e for e in worktrees()[1:] if same_path(e['path'], target)), None)
+
+    if entry is None:
+        pending = read_json(marker)
+        if pending.get('handBack') != 'pending':
+            raise Stop('refused', 'no worktree at {} and no interrupted hand-back to finish'
+                       .format(target))
+        if current_branch() != pending['branch'] and changes():
+            raise Stop('refused', 'the main checkout has uncommitted changes; an interrupted '
+                                  'hand-back cannot check out {}'.format(pending['branch']))
+        if args.check:
+            return {'status': 'ok', 'check': True, 'recovery': True,
+                    'branch': pending['branch'], 'mainWasOn': current_branch()}
+        try:
+            return finish(root, marker, pending)
+        except Stop as stop:
+            fill_recovery(stop.report, pending.get('stash'), target)
+            raise
+
+    if entry['branch'] is None:
+        raise Stop('refused', 'the worktree is on a detached HEAD; check out its branch first')
+    if changes():
+        raise Stop('refused', 'the main checkout has uncommitted changes (they may belong to '
+                              'another session)')
+    main_was_on = current_branch()
+    if args.check:
+        return {'status': 'ok', 'check': True, 'recovery': False, 'path': str(target),
+                'branch': entry['branch'], 'mainWasOn': main_was_on,
+                'uncommitted': len(changes(target))}
+
+    run_existed = run_dir.exists()
+    stash = stash_push(BACK_TAG.format(args.ticket), cwd=target)
+    try:
+        run_moved = transfer_out(root, target, args.ticket)
+        pending = dict(read_json(target / MANIFEST), ticket=args.ticket, name=name,
+                       branch=entry['branch'], mainWasOn=main_was_on, stash=stash,
+                       runMoved=run_moved, envChanged=changed_environment(root, target),
+                       handBack='pending')
+        write_json(marker, pending)
+
+        proc = git('worktree', 'remove', target, check=False)
+        if proc.returncode != 0:
+            if run_existed:
+                marker.unlink()
+            else:
+                shutil.rmtree(run_dir, ignore_errors=True)
+            if stash:
+                stash_apply(stash, target)
+            raise Stop('rolled-back', 'git worktree remove failed: {}'.format(proc.stderr.strip()),
+                       path=str(target))
+        return finish(root, marker, pending)
+    except Stop as stop:
+        fill_recovery(stop.report, stash, target)
         raise
     except Exception as exc:
         raise Stop('error', '{}: {}'.format(type(exc).__name__, exc),
@@ -355,13 +470,17 @@ def parse(argv):
     move.add_argument('--base', required=True)
     move.add_argument('--create-from')
     move.add_argument('--track', action='store_true')
+    back = sub.add_parser('hand-back')
+    back.add_argument('--ticket', required=True)
+    back.add_argument('--name')
+    back.add_argument('--check', action='store_true')
     return parser.parse_args(argv)
 
 
 def main(argv):
     args = parse(argv)
     try:
-        report = move_in(args)
+        report = (move_in if args.command == 'move-in' else hand_back)(args)
     except Stop as stop:
         report = stop.report
     except Exception as exc:  # noqa: BLE001 -- the JSON report is the contract

@@ -120,9 +120,9 @@ failure handling for when to stop.
 Reached from Step 1's Stay route or from Step 2's "Move to the worktree" answer; the procedure is
 `${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md` §4.
 
-1. **Ask (Stay route only).** Skip when the session is already inside a linked worktree.
-   Otherwise ask the worktree question from Step 2.5 on its own; **Work here** → go to Step 3.
-   Detect `BASE_BRANCH` as Step 2.1 does.
+1. **Ask (Stay route only).** Inside a linked worktree, skip the rest of this step — go straight
+   to Step 3. Otherwise ask the worktree question from Step 2.5 on its own; **Work here** → go to
+   Step 3. Detect `BASE_BRANCH` as Step 2.1 does.
 2. **Map the branch** to `move-in` arguments: the Stay route or a local branch → `--branch <name>`;
    a branch only on `origin` → `--branch <name> --create-from origin/<name> --track`; **Create** →
    `--branch <NEW_BRANCH> --create-from origin/<BASE_BRANCH>` (the local `<BASE_BRANCH>` when the

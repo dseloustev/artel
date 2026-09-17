@@ -622,8 +622,8 @@ Entry template:
 - **Notes:** worker, not orchestrator; user-invoked only (`disable-model-invocation`). Never
   creates a branch without asking. Fixed order: branch → `setup.commands` (fatal on failure,
   silently skipped when empty) → restore → `/init` → optional host index refresh, with the
-  optional worktree move right after the branch step. Scope is setup,
-  nothing else — it never commits, pushes, or runs the quality gate. Idempotent — safe to re-run.
+  optional worktree move right after the branch step. Scope is setup, nothing else — it never
+  commits, pushes, or runs the quality gate. Idempotent — safe to re-run.
 
 ### move-to-worktree
 

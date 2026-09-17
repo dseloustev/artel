@@ -85,6 +85,10 @@ class InitBranchWorktreeCase(unittest.TestCase):
     def test_never_creates_a_worktree_without_asking(self):
         self.assertIn('Never create a branch or a worktree without asking', self.text)
 
+    def test_inside_a_worktree_the_move_is_skipped(self):
+        self.assertIn('Inside a linked worktree, skip the rest of this step — go straight\n'
+                      '   to Step 3.', self.text)
+
 
 class WorktreeContractCase(unittest.TestCase):
     def setUp(self):

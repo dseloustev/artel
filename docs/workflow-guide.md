@@ -135,7 +135,10 @@ planning/work-list docs after arming, then one commit+push per completed phase �
 `autonomous-run.md §14`); **`pr-create`** (commit + push when the tree is dirty, then the PR
 itself); **`add-automation`** / **`remove-automation`** (each commits exactly the scaffold
 paths; `remove-automation` also pushes when an upstream exists). Everything else writes only
-files: `init-branch` may create a branch (only when asked) but never commits; `merge-conflicts` stages and stops;
+files: `init-branch` may create a branch (only when asked) but never commits; `move-to-worktree` /
+`return-from-worktree` (and `init-branch`'s worktree option) move uncommitted work between the
+main checkout and `.claude/worktrees/` through `git stash` and switch the main checkout's branch,
+but never commit, push or delete a branch; `merge-conflicts` stages and stops;
 `implementer` changes source but leaves committing to the orchestrators' checkpoints.
 
 One thing writes **outside** the repo: with `knowledge.adapter: "kartoteka"` configured
@@ -175,8 +178,10 @@ names and their globs are in the policy file; the classifier procedure is
 
 ### The hooks that enforce the contract
 
-Six hooks — registered across `SessionStart`, `PreToolUse`, `PostToolUse`, and `Stop` — turn
-the contract from a promise into enforcement ([hooks/README.md](../hooks/README.md)):
+Seven hooks — registered across `SessionStart`, `PreToolUse`, `PostToolUse`, and `Stop` — turn
+the contract from a promise into enforcement ([hooks/README.md](../hooks/README.md)); the eighth
+is the session router ([Turn one](#turn-one-the-router)). In a ticket worktree every hook works
+on that worktree, not the main checkout ([worktrees.md](worktrees.md) §7):
 
 - **Run stop gate** (`stop_gate.py`, `autonomous-run.md §8`) — blocks a session from ending
   while a run is `run_active`, not `completed`, and not paused. Waiting on a human (any
@@ -185,6 +190,11 @@ the contract from a promise into enforcement ([hooks/README.md](../hooks/README.
 - **Sensitive-path guard** (`sensitive_guard.py`) — during an armed run, denies edits to a
   policy path whose floor outranks the effective mode, or before `TASKLIST_READY` is in
   `gates_confirmed`. Inert in ordinary (non-run) sessions.
+- **VCS guard** (`vcs_guard.py`) — always armed, run or not: denies any call that *writes* to a
+  pull-request or issue platform other than the one `vcs.adapter` / `tracker.adapter` declares,
+  so a project moved to GitHub cannot post to Bitbucket. Reads stay allowed; an unrecognized
+  verb is denied unless `guard.extraReadTools` matches the tool name. It covers `gh` and
+  platform-named tools, not `git push` — hooks/README.md spells out the perimeter.
 - **Fast-verify** (`session_baseline.py` + `fast_verify_post_edit.py` + `verify_stop_gate.py`)
   — runs `verify.fast` on each edited file (filtered by `verify.surface`) for same-turn
   feedback, and blocks completion while findings *introduced this session* stay red (baselined
@@ -471,10 +481,23 @@ what to run next. Run all of these from the host repo root.
     (`autonomous-run.md §5`) so the loop starts fresh; deleting `pr-description.md` is
     unnecessary (it always regenerates). *Next:* re-run the affected gate.
 
+16. **Parallel tickets in worktrees.** *Pre:* a ticket to start, or one already on its branch in
+    the main checkout. *Run:* `/artel:init-branch PROJ-XXXX` and answer **Move to
+    `.claude/worktrees/PROJ-XXXX`** — or `/artel:move-to-worktree PROJ-XXXX` for a ticket already
+    on its branch. *Produces:* the ticket's branch in `.claude/worktrees/PROJ-XXXX` with its
+    uncommitted work, artel config and run state; this session continues there, and the main
+    checkout is free for a new session on another ticket. *Next:* work the ticket as usual; when
+    it is done, `/artel:return-from-worktree PROJ-XXXX` hands the branch back to the main
+    checkout (which must have no uncommitted changes) and removes the worktree, keeping the
+    branch. What moves and what doesn't: [worktrees.md](worktrees.md). See
+    [move-to-worktree](skills-reference.md#move-to-worktree) and
+    [return-from-worktree](skills-reference.md#return-from-worktree).
+
 ## Troubleshooting & recovery
 
 | Symptom | What it means | What to do |
 |---|---|---|
+| A worktree move or hand-back reports **`conflict`** | The uncommitted work was stashed but did not apply where it was going; the stash is kept ([worktrees.md](worktrees.md) §6) | Resolve the conflicts in the path the report names, then `git stash drop` the stash entry it names. Nothing was lost. An **`error`** that names a `stash` means the same work is kept there: `git stash apply <stash>` restores it |
 | Edit **denied** naming a sensitive-paths category and floor | The sensitive-path guard is armed and the path's floor outranks the effective mode, or `TASKLIST_READY` isn't confirmed yet (hooks/README.md, `autonomous-run.md §10`) | Re-run at or above the required mode, or use `--step` for a `full-gates` floor. Never lower the floor. |
 | Session won't end: **"run incomplete"** block | Run stop gate: `run-state.json` is `run_active: true`, `completed: false`, `pause_reason: null` (`autonomous-run.md §8`) | Let the run finish, or if it legitimately paused, have the orchestrator set the matching `pause_reason` (hand-edit `.artel/run/<TICKET_ID>/run-state.json` only as a fallback, when no session is live — same as the abort row). A truly finished run should already have `completed: true`. |
 | Run stops with a **consolidated findings report** | A capped loop hit its bound (verify/review/runtime/QA, or the global correction budget — `autonomous-run.md §5`) | Read the consolidated findings, give guidance, and resume. Counters reset only on that user-guided resume; for the review loop specifically, deleting `review.md` resets its round counter. |

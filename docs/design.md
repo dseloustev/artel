@@ -156,6 +156,17 @@ move to the decision log.
 - **`issue-draft` calibration and operator smoke test** (from the 0.10.0 redesign, 2026-09-04).
   The template and its kartoteka consultation have never been exercised against real tickets;
   which kartoteka project and which tickets to sample is itself unresolved.
+- **Worktrees: the live smoke test has not been run** (from the 2026-09-17 worktree design,
+  released in 0.14.0). The suite drives `scripts/worktree.py` against throwaway repositories, but
+  three things need a real Claude Code session: that `$CLAUDE_PROJECT_DIR` really stays on the
+  main checkout after `EnterWorktree` while the hook payload's `cwd` follows the worktree (the
+  premise of the hook fix, taken from Claude Code's docs — if the variable already follows,
+  that fix is a harmless guard and this entry should say so); an `init-branch` → work →
+  `return-from-worktree` round trip; and whether the Flutter host's analyzer, run from the main
+  checkout, descends into `.claude/worktrees/` (if it does, `docs/testing-flutter.md` needs an
+  `analysis_options.yaml` exclude). Two extensions are parked behind it: a ticket-level lock so
+  two sessions cannot run the same ticket, and a `/artel:worktrees` listing (ticket, branch,
+  path, dirty state) once parallel use is common.
 - **`deep-review`'s forecast constants are placeholders** (from the 0.8.0 design, 2026-09-02).
   The `0.5` weight for unlisted reviewers is a guess, not a measurement, and whether
   `review-forecaster` should run on `opus` or `sonnet` was deliberately started at `opus` to be
@@ -697,3 +708,21 @@ move to the decision log.
   nothing follows it; when a release is finished on a branch afterwards, the tag follows the
   notes rather than the commit that first carried the version. The general rule: the tag points
   at the tree the `[<version>]` section actually describes.
+- **2026-09-17 — one ticket, one worktree, one session.** To run several sessions on one host
+  repo, a ticket's work can move into `.claude/worktrees/<name>` and the current session moves
+  with it (`EnterWorktree`); `/artel:return-from-worktree` hands the branch back to the main
+  checkout. The git work lives in a tested script (`scripts/worktree.py`), not in skill prose:
+  stashes, the one-branch-one-worktree rule and removal are where work gets lost. Rejected:
+  letting Claude Code create the worktree (`EnterWorktree(name)` names the branch
+  `worktree-<name>`, carries no uncommitted work, and `ExitWorktree(remove)` deletes the branch);
+  sibling directories outside the repo (they need an approval to enter, and a session inside a
+  worktree can only switch to paths under `.claude/worktrees/`); merging the task branch locally
+  on hand-back (it would bypass the PR flow). Uncommitted work travels as a stash, dropped only
+  after it applied, so a failure always leaves it recoverable. The context store is shared by
+  symlink, the run state moves, and host files are copied per `.worktreeinclude` — Claude Code's
+  file, so one list serves `claude -w` too. The two skills are user-invoked only, so
+  `init-branch` follows the shared procedure in [worktrees.md](worktrees.md) rather than chaining
+  one. The move exposed a latent bug: hooks run from `$CLAUDE_PROJECT_DIR`, which per Claude
+  Code's docs stays on the main checkout, so every gate checked the wrong tree in any worktree
+  session; `hook_common.read_hook_input()` now moves into the session's linked worktree. Released
+  as 0.14.0. Spec: `docs/superpowers/specs/2026-09-17-worktree-isolation-design.md` (local).

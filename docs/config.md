@@ -35,6 +35,16 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   mirror of root docs (`CLAUDE.md`, `CHANGELOG.md`) and the spec trail (`<specs.dir>/<TICKET_ID>/`,
   `<specs.dir>/.active_ticket`), used to declutter or archive the working tree and bring it back
   later. Not committed; add it to the host `.gitignore`, same as `.artel/run/`.
+- `.artel/worktree.json` — only inside a ticket worktree under `.claude/worktrees/`: the manifest
+  `scripts/worktree.py move-in` writes (ticket, branch, main checkout, what was copied). Hand-back
+  leaves its copy at `.artel/run/<TICKET_ID>/worktree.json` with a `handBack` marker — `pending`
+  until it finishes, then `done`. Not committed.
+
+In a ticket worktree ([worktrees.md](worktrees.md)) the committed or ignored files above are
+copies of the main checkout's, `.artel/context/` is a symlink to the main checkout's store, and
+`.artel/run/<TICKET_ID>/` is the ticket's own run state, moved there. Which *other* ignored files
+a worktree receives is set by `.worktreeinclude` at the repo root (gitignore syntax; without it,
+`/.claude/` and `/.mcp.json`) — Claude Code's file, not an artel key.
 
 Nothing host-writable is ever written into the plugin install or cache directory. The plugin
 ships read-only skills, agents and hooks; everything a run produces lands in the host repo.
@@ -281,7 +291,7 @@ closed on an unknown verb must not fail open on a malformed value of the key it 
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `setup.commands` | array of strings | `[]` | Ordered shell commands run once after a ticket branch is created (dependency install, code generation). Same execution rules as `verify.commands`: run from the host repo root, non-interactive, stop at the first non-zero exit. | `init-branch`'s post-branch setup step |
+| `setup.commands` | array of strings | `[]` | Ordered shell commands run once after a ticket branch is created (dependency install, code generation). Same execution rules as `verify.commands`: run from the host repo root, non-interactive, stop at the first non-zero exit. | `init-branch`'s post-branch setup step; `move-to-worktree` (in the new worktree) and `return-from-worktree` (in the main checkout) |
 
 An empty list silently skips the step — a project whose toolchain needs nothing after a branch
 switch simply leaves it unset.

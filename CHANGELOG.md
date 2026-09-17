@@ -6,6 +6,60 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Worktrees: one ticket, one worktree, one session.** `/artel:move-to-worktree [ticket-id]`
+  moves a ticket that is already on its branch into `.claude/worktrees/<name>` and continues the
+  session there (`EnterWorktree`), so other sessions can work on other tickets in the main
+  checkout at the same time. `/artel:return-from-worktree [ticket-id]` hands the branch back to
+  the main checkout and removes the worktree; the branch is kept. Uncommitted work, untracked
+  files included, travels by `git stash` and is dropped only after it applied. Artel's config is
+  copied, the context store is shared through a symlink, the ticket's run state moves with it,
+  hook baselines and stop-block counters are copied newest-wins, and other ignored files follow
+  `.worktreeinclude` (default: `.claude/` and `.mcp.json`). Dependencies and generated code are
+  never copied: `setup.commands` rebuilds them in whichever checkout the work lands in. Neither
+  skill commits, pushes, merges, deletes a branch or uses `--force`, and both ask once before
+  anything moves. Hand-back refuses while the main checkout has uncommitted changes, which may
+  belong to another session, and an interrupted hand-back finishes when re-run. The mechanics
+  are `scripts/worktree.py` (`move-in`, `hand-back [--check]`), which prints one JSON status:
+  `ok`, `refused`, `conflict`, `rolled-back` or `error`. A `conflict` or `error` names the kept
+  stash, so `git stash apply <stash>` restores the work. The contract is `docs/worktrees.md`. On
+  OpenCode, which has no `EnterWorktree`, the skills print `cd <path> && opencode` instead.
+  `tests/test_worktree.py` drives the script against throwaway repositories, and
+  `tests/test_worktree_docs.py` pins the contract across the skills.
+
+### Changed
+
+- **`init-branch` offers the worktree.** Alongside its branch question it asks whether to work
+  here or move to `.claude/worktrees/<name>`. On the stay route (the branch already carries the
+  ticket) it asks that question alone. The move runs right after the branch step and before
+  `setup.commands`, so dependencies land in the checkout that will use them. A ticket branch
+  already checked out in a linked worktree is offered as **Enter worktree `<path>`**, since git
+  refuses a second checkout of it. Inside a linked worktree the question is skipped.
+- **Operator docs cover worktrees.** `docs/workflow-guide.md` gains a parallel-tickets recipe and
+  a `conflict` troubleshooting row. Its list of what writes to the repo now names the worktree
+  skills, and its hook inventory now includes the VCS guard, which shipped in 0.13.0.
+  `docs/config.md` documents `.artel/` inside a worktree, `.worktreeinclude` and the new
+  `setup.commands` consumers. `docs/design.md` records the worktree decision, and its Open
+  follow-ups section gains the pending live smoke test, a ticket lock and a worktree listing.
+- **The release tag follows the notes.** `docs/design.md` records why `v0.13.0` sits on the
+  merge rather than on its `chore(release)` commit. The repo-local `bump-version` skill states
+  the rule: the tag points at the tree its version's CHANGELOG section describes.
+
+### Fixed
+
+- **Hooks gate the worktree the session works in.** `hooks.json` starts every hook in
+  `$CLAUDE_PROJECT_DIR`, which stays on the main checkout after a session enters a linked
+  worktree. The gates therefore read the main checkout's `.artel/` and verified its files while
+  the session edited the worktree. The stop gates, fast verify and the sensitive-path guard were
+  all affected, and so were plain `claude -w` sessions in an artel host. `hook_common.read_hook_input()` now moves the
+  process into the linked worktree that the payload's `cwd` names, but only when that worktree
+  belongs to the same repository. Otherwise the hook stays where it started. Every hook reads its
+  input before touching `.artel/` (`tests/test_hook_common.py` pins the order). The one exception
+  is `using_artel.py`, which reads no input. `relpath_from_tool_input()` now strips the directory
+  the hook moved into, so a `cwd` that is a subdirectory of the repo root also resolves
+  correctly. A worktree without `.artel/config.json` leaves the hooks inert.
+
 ## [0.13.0] - 2026-09-16
 
 ### Added

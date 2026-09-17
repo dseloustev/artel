@@ -14,10 +14,14 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / 'scripts' / 'worktree.py'
 BRANCH = 'feature/T-1-work'
+
+sys.path.insert(0, str(ROOT / 'scripts'))
+import worktree  # noqa: E402
 
 
 def git(cwd, *args):
@@ -319,6 +323,75 @@ class TestMoveInEnvironment(RepoCase):
         self.assertEqual(manifest['branch'], BRANCH)
         self.assertEqual(manifest['copied'], ['.mcp.json'])
         self.assertEqual(manifest['main'], str(self.root))
+
+
+class TestMoveInRecovery(RepoCase):
+    """Failure paths that need a fault injected mid-run: nothing is lost, and the report
+    points at the kept stash and at where the main checkout really is."""
+
+    def setUp(self):
+        super().setUp()
+        old_cwd = os.getcwd()
+        os.chdir(self.root)
+        self.addCleanup(os.chdir, old_cwd)
+        git(self.root, 'checkout', '-q', BRANCH)
+        self.write('app.txt', 'v1\nwip\n')
+
+    def args(self):
+        return worktree.parse(['move-in', '--ticket', 'T-1', '--name', 'T-1',
+                               '--branch', BRANCH, '--base', 'main'])
+
+    def failing(self, match):
+        real = worktree.git
+
+        def fake(*args, **kwargs):
+            if match(args):
+                return subprocess.CompletedProcess(args, 1, '', 'injected failure')
+            return real(*args, **kwargs)
+        return mock.patch.object(worktree, 'git', side_effect=fake)
+
+    def run_move_in(self):
+        with self.assertRaises(worktree.Stop) as caught:
+            worktree.move_in(self.args())
+        return caught.exception.report
+
+    def assert_stash_kept(self, report):
+        self.assertIn(report['stash'], git(self.root, 'stash', 'list', '--format=%H'))
+
+    def test_an_exclude_failure_changes_nothing(self):
+        with mock.patch.object(worktree, 'ensure_excluded', side_effect=OSError('read-only')):
+            with self.assertRaises(OSError):
+                worktree.move_in(self.args())
+        self.assertEqual(self.branch_of(self.root), BRANCH)
+        self.assertEqual(self.read('app.txt'), 'v1\nwip\n')
+        self.assertEqual(self.stashes(), '')
+
+    def test_a_failed_stash_reapply_is_an_error_that_names_the_stash(self):
+        self.write('.claude/worktrees', 'a file where the directory should be\n')
+        with self.failing(lambda args: args[:2] == ('stash', 'apply')):
+            report = self.run_move_in()
+        self.assertEqual(report['status'], 'error')
+        self.assertEqual(report['mainNowOn'], BRANCH)
+        self.assert_stash_kept(report)
+
+    def test_a_failed_restore_checkout_keeps_the_stash_off_the_wrong_branch(self):
+        self.write('.claude/worktrees', 'a file where the directory should be\n')
+        with self.failing(lambda args: args == ('checkout', BRANCH)):
+            report = self.run_move_in()
+        self.assertEqual(report['status'], 'error')
+        self.assertEqual(report['mainNowOn'], 'main')
+        self.assert_stash_kept(report)
+        self.assertEqual(self.status(self.root), '')
+
+    def test_a_failure_after_the_worktree_exists_names_the_stash_and_path(self):
+        with mock.patch.object(worktree, 'transfer_in', side_effect=OSError('disk full')):
+            report = self.run_move_in()
+        self.assertEqual(report['status'], 'error')
+        self.assertIn('OSError: disk full', report['reason'])
+        self.assertEqual(report['path'], str(self.target))
+        self.assertEqual(report['mainNowOn'], 'main')
+        self.assert_stash_kept(report)
+        self.assertTrue(self.target.is_dir())
 
 
 if __name__ == '__main__':

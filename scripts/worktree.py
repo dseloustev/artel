@@ -257,6 +257,21 @@ def transfer_in(root, target, ticket):
     return {'copied': copied, 'contextLinked': linked, 'runMoved': moved}
 
 
+def recovery_fields(stash, target):
+    """What an operator needs after a failure: where the main checkout really is, the stash
+    that is still kept, and the worktree if it exists."""
+    fields = {}
+    try:
+        fields['mainNowOn'] = current_branch()
+        if stash and stash_listed(stash):
+            fields['stash'] = stash
+    except Stop:
+        pass
+    if os.path.lexists(target):
+        fields['path'] = str(target)
+    return fields
+
+
 def move_in(args):
     if in_linked_worktree():
         raise Stop('refused', 'run move-in from the main checkout, not from inside a worktree')
@@ -273,41 +288,59 @@ def move_in(args):
     if target.exists():
         raise Stop('refused', '{} exists but is not a worktree of {}'.format(target, args.branch))
 
+    # Ensure excluded before making any changes
+    ensure_excluded(root, args.name)
+
     original = current_branch()
     stash = stash_push(MOVE_TAG.format(args.ticket))
     main_now_on = original
-    if original == args.branch:
-        if git('checkout', args.base, check=False).returncode == 0:
-            main_now_on = args.base
+
+    try:
+        if original == args.branch:
+            if git('checkout', args.base, check=False).returncode == 0:
+                main_now_on = args.base
+            else:
+                git('checkout', '--detach')
+                main_now_on = None
+
+        add = ['worktree', 'add']
+        if args.create_from:
+            add += (['--track'] if args.track else []) + ['-b', args.branch, target, args.create_from]
         else:
-            git('checkout', '--detach')
-            main_now_on = None
-    ensure_excluded(root, args.name)
+            add += [target, args.branch]
+        proc = git(*add, check=False)
+        if proc.returncode != 0:
+            reason = 'git worktree add failed: {}'.format(proc.stderr.strip())
+            restored = True
+            if original and main_now_on != original:
+                restored = git('checkout', original, check=False).returncode == 0
+            applied = False
+            if stash and restored and git('stash', 'apply', stash, check=False).returncode == 0:
+                stash_drop(stash)
+                applied = True
+            if restored and (applied or not stash):
+                raise Stop('rolled-back', reason, mainNowOn=original)
+            raise Stop('error', reason + '; the rollback did not complete',
+                       **recovery_fields(stash, target))
 
-    add = ['worktree', 'add']
-    if args.create_from:
-        add += (['--track'] if args.track else []) + ['-b', args.branch, target, args.create_from]
-    else:
-        add += [target, args.branch]
-    proc = git(*add, check=False)
-    if proc.returncode != 0:
-        if original and main_now_on != original:
-            git('checkout', original, check=False)
-        if stash and git('stash', 'apply', stash, check=False).returncode == 0:
-            stash_drop(stash)
-        raise Stop('rolled-back', 'git worktree add failed: {}'.format(proc.stderr.strip()),
-                   mainNowOn=original)
-
-    moved = transfer_in(root, target, args.ticket)
-    write_json(target / MANIFEST, dict(moved, ticket=args.ticket, name=args.name,
-                                       branch=args.branch, main=str(root)))
-    report = dict(moved, status='ok', path=str(target), branch=args.branch,
-                  created=bool(args.create_from), alreadyExisted=False,
-                  mainNowOn=main_now_on, stashApplied=False)
-    if stash:
-        stash_apply(stash, target)
-        report['stashApplied'] = True
-    return report
+        moved = transfer_in(root, target, args.ticket)
+        write_json(target / MANIFEST, dict(moved, ticket=args.ticket, name=args.name,
+                                           branch=args.branch, main=str(root)))
+        report = dict(moved, status='ok', path=str(target), branch=args.branch,
+                      created=bool(args.create_from), alreadyExisted=False,
+                      mainNowOn=main_now_on, stashApplied=False)
+        if stash:
+            stash_apply(stash, target)
+            report['stashApplied'] = True
+        return report
+    except Stop as stop:
+        if stop.report['status'] == 'error':
+            for key, value in recovery_fields(stash, target).items():
+                stop.report.setdefault(key, value)
+        raise
+    except Exception as exc:
+        raise Stop('error', '{}: {}'.format(type(exc).__name__, exc),
+                   **recovery_fields(stash, target))
 
 
 # --- entry point --------------------------------------------------------------------------

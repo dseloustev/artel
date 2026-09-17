@@ -110,7 +110,9 @@ input before touching `.artel/` (`tests/test_hook_common.py` pins the order; `us
 which reads no input, is the one exception). See [docs/worktrees.md](../docs/worktrees.md) §7.
 
 Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines, verify-stop
-counters) — never inside the plugin directory.
+counters) — never inside the plugin directory. The verify-layer, session-layer and platform-layer
+hooks return immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured
+plugin leaves zero footprint; `hook_common.py` is the shared helper library, not a registered hook.
 
 ## The OpenCode bridge
 

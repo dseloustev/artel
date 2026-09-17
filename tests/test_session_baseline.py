@@ -122,5 +122,18 @@ class TestIdempotence(BaselineCase):
         self.assertEqual(self.keys(), ['original:1'])
 
 
+class TestInputBeforeConfig(BaselineCase):
+    def test_config_is_checked_after_the_input_is_read(self):
+        # read_hook_input() may move the process into a worktree that has the config the
+        # starting directory lacks; a config check before it would see the wrong tree.
+        def enter_configured_worktree():
+            self.write_config()
+            return {'session_id': SESSION}
+        with mock.patch.object(h, 'changed_files', return_value=[]), \
+                mock.patch.object(h, 'read_hook_input', side_effect=enter_configured_worktree):
+            self.assertEqual(sb.main(), 0)
+        self.assertTrue(self.baseline.exists())
+
+
 if __name__ == '__main__':
     unittest.main()

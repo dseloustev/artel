@@ -55,11 +55,11 @@ def deny(reason):
 
 
 def main():
+    data = h.read_hook_input()  # first: it moves into the session's worktree
     config = h.load_config()
     state = _run_state(config)
     if state is None:
         return 0  # no active autopilot run — guard disarmed
-    data = h.read_hook_input()
     rel = h.relpath_from_tool_input(data)
     if not rel:
         return 0

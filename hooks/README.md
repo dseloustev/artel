@@ -101,10 +101,16 @@ Five layers:
     `/opt/homebrew/bin` supplies in a terminal. A config that is present but not valid JSON
     is named as such rather than reported as `knowledge.adapter: none`.
 
+Every hook runs in the root of the checkout the session works in. `hooks.json` starts each one
+in `$CLAUDE_PROJECT_DIR`, which stays on the main checkout when a session enters a linked
+worktree (`EnterWorktree`, `/artel:move-to-worktree`); `hook_common.read_hook_input()` then
+moves the process into that worktree — only one of the same repository, named by the payload's
+`cwd` — so the gates check the files the session actually edits. Every hook therefore reads its
+input before touching `.artel/` (`tests/test_hook_common.py` pins the order; `using_artel.py`,
+which reads no input, is the one exception). See [docs/worktrees.md](../docs/worktrees.md) §7.
+
 Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines, verify-stop
-counters) — never inside the plugin directory. The verify-layer, session-layer and platform-layer
-hooks return immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured
-plugin leaves zero footprint; `hook_common.py` is the shared helper library, not a registered hook.
+counters) — never inside the plugin directory.
 
 ## The OpenCode bridge
 

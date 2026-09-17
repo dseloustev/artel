@@ -1,7 +1,11 @@
+import ast
+import io
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
@@ -88,6 +92,116 @@ class TestResolveActiveTicket(unittest.TestCase):
         d.mkdir(parents=True, exist_ok=True)
         (d / '.active_ticket').write_bytes(b'\xff\xfe garbage')
         self.assertIsNone(h.resolve_active_ticket({}))
+
+
+def git(cwd, *args):
+    subprocess.run(['git', '-C', str(cwd)] + list(args), check=True, capture_output=True, text=True)
+
+
+def make_repo(path):
+    path.mkdir(parents=True)
+    git(path, 'init', '-q')
+    git(path, 'config', 'user.email', 'test@example.com')
+    git(path, 'config', 'user.name', 'Test')
+    git(path, 'config', 'commit.gpgsign', 'false')
+    (path / 'a.txt').write_text('a\n', encoding='utf-8')
+    git(path, 'add', 'a.txt')
+    git(path, 'commit', '-q', '-m', 'init')
+    return path
+
+
+class TestEnterSessionRoot(unittest.TestCase):
+    """hooks.json starts every hook in $CLAUDE_PROJECT_DIR (the main checkout); a session
+    that entered a linked worktree must be gated there instead."""
+
+    def setUp(self):
+        self._old_cwd = os.getcwd()
+        self._tmp = tempfile.TemporaryDirectory()
+        base = Path(os.path.realpath(self._tmp.name))
+        self.main = make_repo(base / 'main')
+        self.worktree = self.main / '.claude' / 'worktrees' / 'T-1'
+        git(self.main, 'worktree', 'add', '-q', '-b', 'feature/T-1', str(self.worktree))
+        self.other = make_repo(base / 'other')
+        os.chdir(self.main)
+
+    def tearDown(self):
+        os.chdir(self._old_cwd)
+        self._tmp.cleanup()
+
+    def here(self):
+        return Path(os.getcwd()).resolve()
+
+    def test_moves_into_a_linked_worktree(self):
+        h.enter_session_root({'cwd': str(self.worktree)})
+        self.assertEqual(self.here(), self.worktree.resolve())
+
+    def test_moves_to_the_worktree_root_from_a_subdirectory(self):
+        sub = self.worktree / 'deep' / 'dir'
+        sub.mkdir(parents=True)
+        h.enter_session_root({'cwd': str(sub)})
+        self.assertEqual(self.here(), self.worktree.resolve())
+
+    def test_stays_for_a_subdirectory_of_the_main_checkout(self):
+        sub = self.main / 'src'
+        sub.mkdir()
+        h.enter_session_root({'cwd': str(sub)})
+        self.assertEqual(self.here(), self.main.resolve())
+
+    def test_stays_for_another_repository(self):
+        h.enter_session_root({'cwd': str(self.other)})
+        self.assertEqual(self.here(), self.main.resolve())
+
+    def test_stays_without_a_usable_cwd(self):
+        for data in ({}, {'cwd': ''}, {'cwd': str(self.main / 'missing')}):
+            h.enter_session_root(data)
+            self.assertEqual(self.here(), self.main.resolve(), data)
+
+    def test_stays_when_the_current_directory_is_not_a_repository(self):
+        os.chdir(self.main.parent)
+        h.enter_session_root({'cwd': str(self.worktree)})
+        self.assertEqual(self.here(), self.main.parent.resolve())
+
+    def test_read_hook_input_enters_the_worktree(self):
+        payload = '{"session_id": "s", "cwd": "%s"}' % self.worktree
+        with mock.patch.object(sys, 'stdin', io.StringIO(payload)):
+            data = h.read_hook_input()
+        self.assertEqual(data['session_id'], 's')
+        self.assertEqual(self.here(), self.worktree.resolve())
+
+    def test_relpath_is_relative_to_the_entered_root(self):
+        sub = self.worktree / 'lib'
+        sub.mkdir()
+        os.chdir(self.worktree)
+        data = {'tool_input': {'file_path': str(self.worktree.resolve() / 'lib' / 'a.dart')},
+                'cwd': str(sub)}
+        self.assertEqual(h.relpath_from_tool_input(data), 'lib/a.dart')
+
+
+HOOKS_DIR = Path(__file__).resolve().parent.parent / 'hooks'
+# using_artel never reads its input: SessionStart fires before any worktree move, and its
+# in-process test would block on a terminal's stdin.
+READS_NO_INPUT = {'using_artel.py'}
+
+
+class TestHooksReadInputFirst(unittest.TestCase):
+    """read_hook_input() moves the process into the session's worktree, so no hook may
+    touch hook_common (config, run state, git) before calling it."""
+
+    def first_h_call(self, path):
+        tree = ast.parse(path.read_text(encoding='utf-8'))
+        main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+        calls = [n for n in ast.walk(main)
+                 if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                 and n.value.id == 'h']
+        calls.sort(key=lambda n: (n.lineno, n.col_offset))
+        return calls[0].attr if calls else None
+
+    def test_every_hook_reads_its_input_first(self):
+        hooks = sorted(p for p in HOOKS_DIR.glob('*.py')
+                       if p.name != 'hook_common.py' and p.name not in READS_NO_INPUT)
+        self.assertTrue(hooks)
+        for path in hooks:
+            self.assertEqual(self.first_h_call(path), 'read_hook_input', path.name)
 
 
 if __name__ == '__main__':

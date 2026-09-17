@@ -10,9 +10,9 @@ MAX_LINES = 10
 
 
 def main():
+    data = h.read_hook_input()  # first: it moves into the session's worktree
     if not h.CONFIG_PATH.exists():
         return 0  # unconfigured host: hooks stay inert
-    data = h.read_hook_input()
     config = h.load_config()
     rel = h.relpath_from_tool_input(data)
     if not rel or not h.is_verifiable(rel, config) or not Path(rel).exists():

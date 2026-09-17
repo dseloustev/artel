@@ -16,9 +16,9 @@ def _counter(session):
 
 
 def main():
+    data = h.read_hook_input()  # first: it moves into the session's worktree
     if not h.CONFIG_PATH.exists():
         return 0  # unconfigured host: hooks stay inert
-    data = h.read_hook_input()
     # No stop_hook_active early-return: the consecutive-blocks counter below is the loop
     # bound (2 blocks max, then a loud pass-through) — an early return here would allow
     # the continuation's stop attempt unconditionally and dead-code the counter.

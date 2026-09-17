@@ -259,13 +259,14 @@ def _read_rejection_body(exc):
 
 
 def main():
+    data = h.read_hook_input()  # first: it moves into the session's worktree
     if not h.CONFIG_PATH.exists():
         return 0  # unconfigured host: hooks stay inert
     config = h.load_config()
     base_url, project, error = knowledge_target(config)
     if base_url is None and error is None:
-        return 0  # adapter off: the cheapest path, checked before stdin or a path match
-    rel = h.relpath_from_tool_input(h.read_hook_input())
+        return 0  # adapter off: the cheapest path, checked before a path match
+    rel = h.relpath_from_tool_input(data)
     if not rel:
         return 0
     identity = artifact_identity(rel, config)

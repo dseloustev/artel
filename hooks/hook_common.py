@@ -1,11 +1,15 @@
 """Shared plumbing for the artel hooks. Stdlib only; every helper fails open.
 
-Cwd is always the host repo root (hooks.json prefixes every command with
-cd "$CLAUDE_PROJECT_DIR"). The plugin root is derived from this file's own location,
-so the verify subprocess needs no environment variable.
+Cwd is the root of the checkout the session works in. hooks.json starts every hook in
+$CLAUDE_PROJECT_DIR, which stays on the main checkout when a session enters a linked
+worktree; read_hook_input() then moves the process into that worktree (see
+enter_session_root). Every hook therefore reads its input before touching `.artel/`.
+The plugin root is derived from this file's own location, so the verify subprocess
+needs no environment variable.
 """
 import fnmatch
 import json
+import os
 import re
 import subprocess
 import sys
@@ -20,10 +24,43 @@ DEFAULT_TICKET_PATTERN = r'^(?:{projectKey}-)?(\d+)(?:-p?(\d+))?$'
 
 
 def read_hook_input():
+    """The hook's stdin payload ({} when unreadable). Also moves the process into the
+    session's checkout root, so call it before anything reads `.artel/`."""
     try:
-        return json.load(sys.stdin)
+        data = json.load(sys.stdin)
     except Exception:
         return {}
+    if isinstance(data, dict):
+        enter_session_root(data)
+    return data
+
+
+def _git_path(cwd, flag):
+    """`git rev-parse --path-format=absolute <flag>` run in cwd, resolved; '' on failure."""
+    proc = subprocess.run(['git', '-C', str(cwd), 'rev-parse', '--path-format=absolute', flag],
+                          capture_output=True, text=True, timeout=10)
+    out = proc.stdout.strip() if proc.returncode == 0 else ''
+    return str(Path(out).resolve()) if out else ''
+
+
+def enter_session_root(data):
+    """chdir into the linked worktree the session is working in, when that worktree belongs
+    to the same repository as the current directory. Anything else -- no `cwd`, the main
+    checkout, another repository, any error -- leaves the process where it is."""
+    try:
+        cwd = data.get('cwd') or ''
+        if not cwd or not Path(cwd).is_dir() or Path(cwd).resolve() == Path.cwd().resolve():
+            return  # the common case costs no subprocess
+        common = _git_path(cwd, '--git-common-dir')
+        if not common or _git_path(cwd, '--git-dir') == common:
+            return  # not a repository, or the main checkout: stay in $CLAUDE_PROJECT_DIR
+        if _git_path(Path.cwd(), '--git-common-dir') != common:
+            return  # a different repository
+        root = _git_path(cwd, '--show-toplevel')
+        if root and root != str(Path.cwd().resolve()):
+            os.chdir(root)
+    except Exception:
+        return
 
 
 def load_config():
@@ -96,10 +133,13 @@ def finding_keys(envelope):
 
 
 def relpath_from_tool_input(data):
+    """The edited file relative to the checkout root the hook runs in; falls back to the
+    payload's `cwd`, then to the path as given."""
     file_path = (data.get('tool_input') or {}).get('file_path') or ''
-    cwd = data.get('cwd') or ''
-    if cwd and file_path.startswith(cwd.rstrip('/') + '/'):
-        return file_path[len(cwd.rstrip('/')) + 1:]
+    for base in (os.getcwd(), data.get('cwd') or ''):
+        base = base.rstrip('/')
+        if base and file_path.startswith(base + '/'):
+            return file_path[len(base) + 1:]
     return file_path
 
 

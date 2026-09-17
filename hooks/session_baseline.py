@@ -8,9 +8,9 @@ import hook_common as h  # noqa: E402
 
 
 def main():
+    data = h.read_hook_input()  # first: it moves into the session's worktree
     if not h.CONFIG_PATH.exists():
         return 0  # unconfigured host: hooks stay inert, zero footprint
-    data = h.read_hook_input()
     session = data.get('session_id') or 'unknown'
     config = h.load_config()
     h.STATE_DIR.mkdir(parents=True, exist_ok=True)

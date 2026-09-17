@@ -79,6 +79,13 @@ class WorktreeContractCase(unittest.TestCase):
         self.assertIn('.claude/worktrees/<name>', self.text)
         self.assertIn('.worktreeinclude', self.text)
 
+    def test_the_procedures_ask_before_anything_moves(self):
+        self.assertIn('**Ask first.** Nothing moves without the user\'s answer', self.text)
+        self.assertIn('**Ask.** Confirm once (header `Hand back`)', self.text)
+        self.assertLess(self.text.index('**Ask first.**'), self.text.index('move-in --ticket'))
+        self.assertLess(self.text.index('**Ask.** Confirm once'),
+                        self.text.index('**Leave** the worktree'))
+
     def test_the_reference_has_an_entry_per_skill(self):
         reference = read('docs/skills-reference.md')
         for name in NEW_SKILLS:

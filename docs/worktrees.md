@@ -10,8 +10,8 @@ the contract the two skills and `init-branch` follow; the mechanics live in
 
 | Operation | Entry points |
 |---|---|
-| Move a ticket's work into a worktree | `/artel:init-branch` (asks), `/artel:move-to-worktree` |
-| Hand the branch back to the main checkout | `/artel:return-from-worktree` |
+| Move a ticket's work into a worktree | `/artel:init-branch` (asks), `/artel:move-to-worktree` (asks) |
+| Hand the branch back to the main checkout | `/artel:return-from-worktree` (asks) |
 
 ## 1. The model
 
@@ -64,17 +64,21 @@ Skills follow these steps; `init-branch` supplies the branch arguments from its 
    | exists only on `origin` | `--create-from origin/<branch> --track` |
    | is new | `--create-from origin/<BASE_BRANCH>` (the local `<BASE_BRANCH>` when `origin/<BASE_BRANCH>` is missing) |
 
-2. **Run** from the main checkout:
+2. **Ask first.** Nothing moves without the user's answer: `init-branch` asks its worktree
+   question, `move-to-worktree` asks once (header `Worktree`). Entering a worktree that already
+   exists for the ticket needs no question — nothing moves.
+
+3. **Run** from the main checkout:
 
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py move-in --ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <branch> [--create-from <ref> [--track]]
    ```
 
-3. **Act on `status`** (§6). Only `ok` continues.
-4. **Enter** the worktree: `EnterWorktree` with `path` set to the report's `path`.
+4. **Act on `status`** (§6). Only `ok` continues.
+5. **Enter** the worktree: `EnterWorktree` with `path` set to the report's `path`.
    **OpenCode** has no `EnterWorktree`: print `cd <path> && opencode` and stop — the rest of the
    work happens in that new session.
-5. Everything after this point runs inside the worktree.
+6. Everything after this point runs inside the worktree.
 
 ## 5. Hand-back procedure
 
@@ -89,13 +93,16 @@ Skills follow these steps; `init-branch` supplies the branch arguments from its 
    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name> --check
    ```
 
-3. **Leave** the worktree when the session is inside it: `ExitWorktree` with
+3. **Ask.** Confirm once (header `Hand back`), naming the branch the main checkout switches to,
+   how many uncommitted files move, and that the worktree is removed. No answer, no hand-back.
+
+4. **Leave** the worktree when the session is inside it: `ExitWorktree` with
    `action: "keep"`. If it reports that no worktree session is active (the session was started
    inside the worktree), stop without changes and tell the user to run
    `/artel:return-from-worktree <TICKET_ID>` from a session in the main checkout. **OpenCode:**
    the same message.
-4. **Run** the same command without `--check` — the session is back in the main checkout.
-5. **Act on `status`** (§6).
+5. **Run** the same command without `--check` — the session is back in the main checkout.
+6. **Act on `status`** (§6).
 
 ## 6. Statuses and recovery
 

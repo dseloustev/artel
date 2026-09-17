@@ -575,6 +575,22 @@ class TestHandBackRecovery(HandBackCase):
         self.assertEqual(self.read('app.txt'), 'wip\n')
         self.assertEqual(self.stashes(), '')
 
+    def test_an_unexpected_failure_while_finishing_names_the_stash(self):
+        os.chdir(self.root)
+        real = worktree.git
+
+        def fake(*args, **kwargs):
+            if args == ('checkout', BRANCH):
+                raise worktree.Stop('error', 'git checkout {} failed: injected'.format(BRANCH))
+            return real(*args, **kwargs)
+        with mock.patch.object(worktree, 'git', side_effect=fake):
+            self.run_hand_back()
+        with mock.patch.object(worktree, 'stash_apply', side_effect=OSError('disk full')):
+            report = self.run_hand_back()
+        self.assertEqual(report['status'], 'error')
+        self.assertIn('OSError: disk full', report['reason'])
+        self.assert_stash_kept(report)
+
 
 if __name__ == '__main__':
     unittest.main()

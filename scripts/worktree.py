@@ -417,6 +417,9 @@ def hand_back(args):
         except Stop as stop:
             fill_recovery(stop.report, pending.get('stash'), target)
             raise
+        except Exception as exc:
+            raise Stop('error', '{}: {}'.format(type(exc).__name__, exc),
+                       **recovery_fields(pending.get('stash'), target))
 
     if entry['branch'] is None:
         raise Stop('refused', 'the worktree is on a detached HEAD; check out its branch first')

@@ -67,6 +67,25 @@ class WorktreeSkillsCase(unittest.TestCase):
             self.assertIn('**OpenCode:**', body(name), name)
 
 
+class InitBranchWorktreeCase(unittest.TestCase):
+    def setUp(self):
+        self.text = body('init-branch')
+
+    def test_asks_the_worktree_question(self):
+        self.assertIn('header `Worktree`', self.text)
+
+    def test_follows_the_shared_procedure(self):
+        self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md', self.text)
+        self.assertIn('${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py move-in', self.text)
+
+    def test_the_move_comes_before_setup(self):
+        self.assertLess(self.text.index('### Step 2b'), self.text.index('### Step 3'))
+        self.assertIn('branch → worktree → setup commands', self.text)
+
+    def test_never_creates_a_worktree_without_asking(self):
+        self.assertIn('Never create a branch or a worktree without asking', self.text)
+
+
 class WorktreeContractCase(unittest.TestCase):
     def setUp(self):
         self.text = read('docs/worktrees.md')

@@ -1,6 +1,6 @@
 ---
 name: init-branch
-description: "Bootstrap work on a ticket in one shot: make sure the ticket has a working branch (the current one when its name already carries a ticket ID; otherwise only what the user picks — never a branch created without asking), run the project's configured post-branch setup commands (setup.commands), restore that ticket's context via /artel:restore-context, and refresh CLAUDE.md via /init. Use when starting work on a ticket, or whenever someone says 'set up a branch for this ticket', 'init the branch', 'prepare a branch for work', or 'start work on <ticket>'."
+description: "Bootstrap work on a ticket in one shot: make sure the ticket has a working branch (the current one when its name already carries a ticket ID; otherwise only what the user picks — never a branch created without asking), optionally move that work into its own git worktree so other sessions can work in parallel, run the project's configured post-branch setup commands (setup.commands), restore that ticket's context via /artel:restore-context, and refresh CLAUDE.md via /init. Use when starting work on a ticket, or whenever someone says 'set up a branch for this ticket', 'init the branch', 'prepare a branch for work', or 'start work on <ticket>'."
 argument-hint: "[ticket-id]"
 disable-model-invocation: true
 model: sonnet
@@ -10,14 +10,15 @@ model: sonnet
 
 `init-branch` takes a ticket from "nothing local yet" to "work happening on a branch for it, with
 its prior context restored and `CLAUDE.md` refreshed" in one shot: check the current branch (and
-only when it carries no ticket ID, ask which branch to work on), run the configured post-branch
-setup commands, restore the ticket's spec trail from the context store, and reconcile `CLAUDE.md`
-against the current tree.
+only when it carries no ticket ID, ask which branch to work on), offer to move the work into its
+own git worktree, run the configured post-branch setup commands, restore the ticket's spec trail
+from the context store, and reconcile `CLAUDE.md` against the current tree.
 
 It is a **worker that runs inline** (like `sync-phases` / `generate-idea`) — it runs `git` and
 chains a couple of sub-skills directly rather than delegating to an agent. Because it mutates the
-working tree (may switch or create a branch, restores files, rewrites `CLAUDE.md`), it is
-user-invoked only (`disable-model-invocation: true`) — never auto-triggered.
+working tree (may switch or create a branch, may move the session into a worktree, restores
+files, rewrites `CLAUDE.md`), it is user-invoked only (`disable-model-invocation: true`) — never
+auto-triggered.
 
 ## Ticket Resolution
 
@@ -43,7 +44,7 @@ failure handling for when to stop.
 
 | Current branch | Route |
 |---|---|
-| `BRANCH_TICKET` equals `TICKET_ID` | **Stay.** Run no git command. `BRANCH_NAME` = `CURRENT_BRANCH`. Go to Step 3. |
+| `BRANCH_TICKET` equals `TICKET_ID` | **Stay.** Run no git command. `BRANCH_NAME` = `CURRENT_BRANCH`. Go to Step 2b, then Step 3. |
 | `BRANCH_TICKET` is another ticket | **Stop.** Run no git command and no later step. Report: "Current branch `<CURRENT_BRANCH>` belongs to `<BRANCH_TICKET>`, not `<TICKET_ID>`. Switch to a branch for `<TICKET_ID>` (or to the default branch) and re-run." |
 | No token (default branch, `develop`, `feature/some-topic`, detached HEAD) | Go to Step 2. |
 
@@ -61,7 +62,9 @@ failure handling for when to stop.
    equals `TICKET_ID` (skip `origin/HEAD`). Record each as its bare branch name (`origin/`
    stripped), noting whether it exists locally; a branch present both locally and on `origin` is
    one entry, at the position of its first appearance. This is how a re-run finds the branch an
-   earlier run created, whatever its slug. Call the result `EXISTING`, in that order.
+   earlier run created, whatever its slug. Call the result `EXISTING`, in that order. Note which
+   entries are checked out in a linked worktree (`git worktree list --porcelain`) — git refuses
+   to check those out a second time.
 4. **Propose a new name** `NEW_BRANCH`: `feature/<TICKET_ID>-<slug>` when `PHASE_NUM` is null,
    `feature/<TICKET_ID>-<PHASE_NUM>-<slug>` when set. Never a hardcoded project key —
    `TICKET_ID` already carries `ticket.projectKey`. The slug comes from the first available source:
@@ -78,14 +81,25 @@ failure handling for when to stop.
 5. **Ask once** via `AskUserQuestion` (header `Branch`), options in this order:
    - **Check out `<name>`** — one option per `EXISTING` entry, the first two only (if `NEW_BRANCH`
      equals a later entry, that entry replaces the second); the first is marked recommended. None
-     when `EXISTING` is empty;
+     when `EXISTING` is empty. An entry checked out in a linked worktree is offered as **Enter
+     worktree `<path>`** instead;
    - **Create `<NEW_BRANCH>`** — from `origin/<BASE_BRANCH>`; recommended when `EXISTING` is empty.
      Omitted when `NEW_BRANCH` equals an `EXISTING` name — that branch is offered for checkout
      instead;
    - **Stay on `<CURRENT_BRANCH>`** (or "Stay on the detached HEAD") — no branch change.
 
    The automatic free-text answer is a branch name the user wants instead.
-6. Act on the answer:
+
+   In the same `AskUserQuestion` call, ask the **worktree question** (header `Worktree`):
+   **Work here** / **Move to `.claude/worktrees/<name>`**, where `<name>` is `TICKET_ID`, or
+   `<TICKET_ID>-<PHASE_NUM>` when `PHASE_NUM` is set. Its answer is ignored when the branch answer
+   is "Stay on …" or "Enter worktree …". Skip the question entirely when the session is already
+   inside a linked worktree (`git rev-parse --path-format=absolute --git-dir` differs from
+   `--git-common-dir`).
+6. Act on the answer. **Enter worktree `<path>`:** call `EnterWorktree` with that `path` (OpenCode:
+   print `cd <path> && opencode` and stop), set `BRANCH_NAME` to that branch, and go to Step 3.
+   **Move to the worktree** chosen: run no checkout here — go to Step 2b with the branch and how
+   it comes to exist. Otherwise:
    - **Check out** a local branch: `git checkout <name>`. A branch only on `origin`:
      `git checkout -b <name> origin/<name>` (tracking).
    - **Create:** `git checkout -b <NEW_BRANCH> origin/<BASE_BRANCH>` (fallback: the local
@@ -95,19 +109,43 @@ failure handling for when to stop.
    - **Stay:** run no git command. `BRANCH_NAME` = `CURRENT_BRANCH`. Continue with Step 3 — the
      setup, restore and `/init` are still useful on the current branch.
 
-   Set `BRANCH_NAME` to the branch now checked out.
+   Set `BRANCH_NAME` to the branch now checked out, then go to Step 3.
 7. **The checkout is fatal on failure.** Any `git` error in step 6 — including one caused by
    uncommitted changes that conflict with the target branch — halts the skill; report the command
    and its output. A branch this skill is meant to bootstrap can't be worked on without a valid
    checkout.
 
+### Step 2b: Move to a worktree (optional)
+
+Reached from Step 1's Stay route or from Step 2's "Move to the worktree" answer; the procedure is
+`${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md` §4.
+
+1. **Ask (Stay route only).** Skip when the session is already inside a linked worktree.
+   Otherwise ask the worktree question from Step 2.5 on its own; **Work here** → go to Step 3.
+   Detect `BASE_BRANCH` as Step 2.1 does.
+2. **Map the branch** to `move-in` arguments: the Stay route or a local branch → `--branch <name>`;
+   a branch only on `origin` → `--branch <name> --create-from origin/<name> --track`; **Create** →
+   `--branch <NEW_BRANCH> --create-from origin/<BASE_BRANCH>` (the local `<BASE_BRANCH>` when the
+   remote ref is unavailable); a typed name → whichever of these applies.
+3. **Run** from the repo root:
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py move-in --ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <branch> [--create-from <ref> [--track]]
+   ```
+
+4. **Fatal unless `ok`**, like a failed checkout: report per `docs/worktrees.md` §6 and stop.
+5. **Enter:** `EnterWorktree` with `path` set to the report's `path`. `BRANCH_NAME` = the branch.
+   From here on every step runs inside the worktree. **OpenCode:** print
+   `cd <path> && opencode`, skip Steps 3–6 and report — re-running `/artel:init-branch` in that
+   session takes Step 1's Stay route and finishes the setup there.
+
 ### Step 3: Run the post-branch setup commands
 
 Read `setup.commands` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`, "setup" section). Empty or absent
-→ skip silently. Otherwise run the commands in order from the repo root, stopping at the first
-non-zero exit. **A failure here is fatal**, like Step 2: a branch whose dependencies did not
-install can't be worked on — report the failing command and its output and stop. Note the
-outcome (ran / skipped) for the report.
+→ skip silently. Otherwise run the commands in order from the checkout root (the worktree's,
+after Step 2b), stopping at the first non-zero exit. **A failure here is fatal**, like Step 2: a
+branch whose dependencies did not install can't be worked on — report the failing command and
+its output and stop. Note the outcome (ran / skipped) for the report.
 
 ### Step 4: Restore the ticket's context
 
@@ -151,6 +189,9 @@ Print a concise summary:
 - Ticket used and what happened to the branch: stayed on `BRANCH_NAME` (it already carried the
   ticket), checked out existing `BRANCH_NAME`, created `BRANCH_NAME` from `BASE_BRANCH`, or stayed
   on a non-ticket branch at the user's choice.
+- Where the work continues: the main checkout, or the worktree path (moved now, or entered) — with
+  `/artel:return-from-worktree <TICKET_ID>` as the way back, and which branch the main checkout is
+  on now.
 - Whether the setup commands ran or were skipped (none configured).
 - What Step 4 restored (ticket artifacts vs. common root files only, or "nothing found — new
   ticket").
@@ -162,26 +203,28 @@ Print a concise summary:
 
 ## Rules
 
-- **Never create a branch without asking.** The only path that switches or creates a branch is
-  the user's answer in Step 2. A current branch carrying this ticket's ID is used as-is, whatever
-  its prefix, phase or slug; one carrying another ticket's ID stops the skill.
-- **Scope is setup, nothing else.** This skill settles the branch, restores context, refreshes
-  `CLAUDE.md`, and refreshes the index. It does not commit, push, run the quality gate, or save
-  changes back to the context store — those are separate, deliberate operations
-  (`/artel:save-context` for the last one).
-- **Order matters and is fixed:** branch → setup commands → restore → `/init` → reindex. `/init`
-  runs after the restore so it refines the restored `CLAUDE.md`; the reindex runs last so it picks
-  up whatever the restore or `/init` changed.
-- **Stop on a fatal step.** Another ticket's branch (Step 1), a failed checkout (Step 2), a failed
-  setup command (Step 3), or a missing context store (Step 4) halts the skill — report and stop. A
-  ticket with no saved artifacts (Step 4 warning) and a reindex error (Step 6) are non-fatal; log
-  and continue.
+- **Never create a branch or a worktree without asking.** The only paths that switch or create a
+  branch, or move work into a worktree, are the user's answers in Steps 2 and 2b. A current
+  branch carrying this ticket's ID is used as-is, whatever its prefix, phase or slug; one
+  carrying another ticket's ID stops the skill.
+- **Scope is setup, nothing else.** This skill settles the branch (and, when asked, its
+  worktree), restores context, refreshes `CLAUDE.md`, and refreshes the index. It does not commit,
+  push, run the quality gate, or save changes back to the context store — those are separate,
+  deliberate operations (`/artel:save-context` for the last one).
+- **Order matters and is fixed:** branch → worktree → setup commands → restore → `/init` →
+  reindex. The worktree move comes before setup so dependencies and generated code land in the
+  checkout that will use them. `/init` runs after the restore so it refines the restored
+  `CLAUDE.md`; the reindex runs last so it picks up whatever the restore or `/init` changed.
+- **Stop on a fatal step.** Another ticket's branch (Step 1), a failed checkout (Step 2), a
+  worktree move that did not end `ok` (Step 2b), a failed setup command (Step 3), or a missing
+  context store (Step 4) halts the skill — report and stop. A ticket with no saved artifacts
+  (Step 4 warning) and a reindex error (Step 6) are non-fatal; log and continue.
 - **Never reimplement the restore.** Delegate to `restore-context`; that skill owns the store copy
   logic and the store is authoritative.
 - **Idempotent — safe to re-run.** A re-run on the branch an earlier run created or checked out
-  takes Step 1's stay route — no git command — then re-runs restore/`init`/reindex in place;
-  `restore-context` overwrites with identical store content, `/init` reconciles in place, and an
-  index refresh is incremental.
+  takes Step 1's stay route — no git command, and no worktree question inside a worktree — then
+  re-runs restore/`init`/reindex in place; `restore-context` overwrites with identical store
+  content, `/init` reconciles in place, and an index refresh is incremental.
 
 ## Examples
 
@@ -195,3 +238,6 @@ Print a concise summary:
   phase-scoped.
 - On `feature/PROJ-1000-fix-fee`: `init-branch PROJ-3085` — stops: the branch belongs to
   `PROJ-1000`.
+- On `main`: `init-branch 3085`, answering **Create** and **Move to `.claude/worktrees/PROJ-3085`**
+  — the main checkout stays on `main`; `feature/PROJ-3085-adding-accounts` is created inside the
+  worktree, this session moves there, and setup, restore, `/init` and reindex run in it.

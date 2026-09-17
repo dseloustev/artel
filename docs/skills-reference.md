@@ -600,8 +600,8 @@ Entry template:
 
 ### init-branch
 
-- **Purpose:** Bootstrap work on a ticket in one shot: branch check, post-branch setup, context
-  restore, CLAUDE.md refresh.
+- **Purpose:** Bootstrap work on a ticket in one shot: branch check, optional move into a
+  worktree, post-branch setup, context restore, CLAUDE.md refresh.
 - **Invocation:** `/artel:init-branch [ticket-id]`
 - **Reads:** the current branch name; `setup.commands`; the ticket grammar (`ticket.projectKey`
   for the branch-name token scan); the tracker summary or `idea.md` title (branch slug); the
@@ -610,15 +610,19 @@ Entry template:
   only at the user's choice: an existing branch for the ticket checked out, or a new
   `feature/<TICKET_ID>-<slug>` (phase runs: `feature/<TICKET_ID>-<N>-<slug>`) created from the
   detected base branch. Then restored `CLAUDE.md` / `CHANGELOG.md` / ticket spec trail (via
-  `restore-context`) and a refreshed `CLAUDE.md` (via the built-in `/init`).
+  `restore-context`) and a refreshed `CLAUDE.md` (via the built-in `/init`). At the user's
+  choice, the branch is checked out or created in `.claude/worktrees/<name>` instead and the
+  session moves there (`scripts/worktree.py move-in`, [worktrees.md](worktrees.md)).
 - **Pauses:** when the current branch carries no ticket ID (check out an existing ticket branch /
-  create one / stay); when no slug source exists (a short description); when the default branch
+  create one / stay, plus the worktree question); on the Stay route in the main checkout (the
+  worktree question alone); when no slug source exists (a short description); when the default branch
   is ambiguous or the context store is missing (the user decides whether to continue).
 - **Stops:** when the current branch carries a *different* ticket's ID — it never switches away
   from another ticket's branch on its own.
 - **Notes:** worker, not orchestrator; user-invoked only (`disable-model-invocation`). Never
   creates a branch without asking. Fixed order: branch → `setup.commands` (fatal on failure,
-  silently skipped when empty) → restore → `/init` → optional host index refresh. Scope is setup,
+  silently skipped when empty) → restore → `/init` → optional host index refresh, with the
+  optional worktree move right after the branch step. Scope is setup,
   nothing else — it never commits, pushes, or runs the quality gate. Idempotent — safe to re-run.
 
 ### move-to-worktree

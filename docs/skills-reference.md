@@ -621,6 +621,46 @@ Entry template:
   silently skipped when empty) → restore → `/init` → optional host index refresh. Scope is setup,
   nothing else — it never commits, pushes, or runs the quality gate. Idempotent — safe to re-run.
 
+### move-to-worktree
+
+- **Purpose:** Move a ticket already on its branch out of the main checkout into its own git
+  worktree and continue the session there, so other sessions can work on other tickets.
+- **Invocation:** `/artel:move-to-worktree [ticket-id]`
+- **Reads:** the current branch; `git worktree list`; the detected `origin` default branch;
+  `setup.commands`; the main checkout's `.worktreeinclude`, `.artel/` and ignored files.
+- **Writes:** `.claude/worktrees/<name>` on the ticket's branch, with the main checkout's
+  uncommitted work, copied `.artel/` config and ignored host files, a symlink to the context
+  store, the ticket's moved `.artel/run/<TICKET_ID>/`, copied hook baselines and
+  `.artel/worktree.json`; the main checkout switches to the base branch. Possibly
+  `/.claude/worktrees/` in `.git/info/exclude`. Then `setup.commands` in the worktree.
+- **Pauses:** once, to confirm the move.
+- **Stops:** inside a worktree; when the current branch is not the ticket's (points at
+  `init-branch`); on any script status but `ok` ([worktrees.md](worktrees.md) §6).
+- **Notes:** worker; user-invoked only (`disable-model-invocation`). An existing worktree for the
+  ticket is entered, not recreated. A stash is dropped only after it applied; never `--force`,
+  never a branch deletion. OpenCode: prints `cd <path> && opencode` instead of entering.
+  Counterpart: `return-from-worktree`.
+
+### return-from-worktree
+
+- **Purpose:** Hand a finished worktree's branch back to the main checkout and remove the
+  worktree.
+- **Invocation:** `/artel:return-from-worktree [ticket-id]`
+- **Reads:** `git worktree list`; the worktree's `.artel/worktree.json`; both checkouts' status;
+  `setup.commands`.
+- **Writes:** the main checkout switched to the ticket's branch with the worktree's uncommitted
+  work applied; `.artel/run/<TICKET_ID>/` and hook baselines merged back (newer wins), plus the
+  `.artel/run/<TICKET_ID>/worktree.json` marker; a context store the worktree grew merged back;
+  the worktree removed. Then `setup.commands` in the main checkout.
+- **Pauses:** once, to confirm; to pick a worktree when a ticket has several.
+- **Stops:** when the main checkout has uncommitted changes; on a detached worktree; when the
+  session was started inside the worktree (run it from the main checkout); on any script status
+  but `ok`.
+- **Notes:** worker; user-invoked only (`disable-model-invocation`). Leaves with
+  `ExitWorktree` `keep` only. The branch is never deleted, never `--force`. Changed environment
+  files (`.claude/`, `.mcp.json`, config) are reported as `envChanged`, never copied back. An
+  interrupted hand-back is finished by a re-run.
+
 ### set-home
 
 - **Purpose:** Move the project to a different VCS platform — rewrite `vcs.*` in

@@ -14,7 +14,9 @@ agent's work. A handful are self-declared procedural workers instead (e.g. `sync
 they run their documented procedure inline and say so in their own body. `set-home` moves a
 project to a different VCS platform, rewriting `vcs.*` in `.artel/config.json` and re-pointing
 the git remotes together; `migrate-prs` follows it to recreate a Bitbucket project's still-open
-pull requests on GitHub.
+pull requests on GitHub. `move-to-worktree` and `return-from-worktree` are workers too: they
+move a ticket's work into its own git worktree and back, through `scripts/worktree.py`
+([docs/worktrees.md](../docs/worktrees.md)).
 
 Three of them are not pipeline stages: `using-artel` is the session router the `using_artel`
 hook injects at turn one (a routing table over every other skill —

@@ -88,6 +88,12 @@ class TestSkillBuild(BuildBase):
             self.assertIn(GLOSSARY_MARKER, path.read_text(encoding='utf-8'),
                           path.parent.name + ' has no glossary')
 
+    def test_glossary_routes_worktree_tools_to_the_opencode_fallback(self):
+        text = (self.out / 'skills' / 'artel-move-to-worktree' / 'SKILL.md').read_text(
+            encoding='utf-8')
+        glossary = text[text.index(GLOSSARY_MARKER):]
+        self.assertIn('`EnterWorktree` / `ExitWorktree` — not available on OpenCode', glossary)
+
     def test_artel_refs_prefixed_but_ast_index_refs_survive(self):
         router = (self.out / 'skills' / 'artel-using-artel' / 'SKILL.md').read_text(
             encoding='utf-8')

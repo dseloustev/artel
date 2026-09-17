@@ -74,6 +74,7 @@ it). `<ticket>-<N>` is a phase-scoped run.
 | The user wants… | Run |
 |---|---|
 | a branch set up for a ticket | `/artel:init-branch <ticket>` |
+| a ticket's work moved into its own worktree / handed back | `/artel:move-to-worktree [ticket]` · `/artel:return-from-worktree [ticket]` |
 | the project moved to a different VCS platform | `/artel:set-home <repo-url>` |
 | Bitbucket's still-open pull requests recreated on GitHub after set-home | `/artel:migrate-prs [pr-id ...]` |
 | merge conflicts resolved | `/artel:merge-conflicts [branch]` |

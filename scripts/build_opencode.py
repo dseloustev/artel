@@ -35,6 +35,8 @@ dialect; this glossary translates it. Apply it throughout:
   with the message as its prompt. OpenCode has no resume-by-id: the agent re-reads its
   context files, which are its state.
 - `AskUserQuestion` — the `question` tool.
+- `EnterWorktree` / `ExitWorktree` — not available on OpenCode; follow the skill's
+  **OpenCode:** instruction at that step instead.
 - `$0`, `$1`, ..., `$ARGUMENTS` — the arguments this skill was invoked with (from the
   `/artel-<name>` command or the caller's request).
 - `CLAUDE.md` — the host project's conventions doc (on OpenCode usually `AGENTS.md`).

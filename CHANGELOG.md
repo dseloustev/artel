@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-19
+
 ### Added
 
 - **Fix-section tasks are recorded in the task queue.** `## Code Review Fixes`, `## Runtime

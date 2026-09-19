@@ -221,9 +221,7 @@ first `- [ ]` under the section its dispatch names — and never calls
                 task_update(task_id, status="blocked")
 
 **Never `ready`.** No step above moves a fix row to `ready`, and the mirror never
-creates one that way: `task_ready` claims the oldest `ready` row for the ticket
-with no notion of section, so a `ready` fix row would go to whichever queue-path
-implementer asked next — a phase-scoped run included.
+creates one that way; §6, "Why never offer them", says why.
 
 **No holder.** Only a `task_ready` claim sets a row's holder, so an
 `in_progress` fix row names none: `actor` stays empty and `updated_at` says when

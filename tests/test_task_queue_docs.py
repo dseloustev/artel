@@ -398,6 +398,51 @@ class TestFixWritersRecordTheirAppend(unittest.TestCase):
         self.assertIn('`FV · tasklist · <checkbox text>`', text)
 
 
+class TestLongFixTitlesStayFindable(unittest.TestCase):
+    """A fix row's title is capped at 500 characters and its whitespace collapsed.
+
+    Runtime-fix checkboxes quoted whole errors, which run past the cap, and an
+    implementer composing the full title never found the row the script had cut.
+    Readers match the title as the script builds it, and the runtime writers
+    keep the error out of the checkbox line in the first place.
+    """
+
+    def setUp(self):
+        self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+
+    def test_the_fix_row_protocol_matches_the_capped_title(self):
+        claim = self.doc.split('## 3. Claiming, reporting and promoting')[1].split('## 4.')[0]
+        fix_block = claim.split('**Fix-section rows are recorded, not claimed.**')[1]
+        self.assertIn('first 500 characters', fix_block)
+        self.assertIn('whitespace runs collapsed to one space', fix_block)
+
+    def test_the_implementer_matches_the_capped_title(self):
+        step_one = (ROOT / 'agents/implementer.md').read_text(
+            encoding='utf-8').split('### Step 1')[1].split('### Step 2')[0]
+        paragraph = step_one.split('On the queue path that task also has a row')[1].split(
+            '**Fallback path.**')[0]
+        self.assertIn('first 500 characters', paragraph)
+        self.assertIn('whitespace runs collapsed to one space', paragraph)
+
+    def test_done_flips_a_truncated_row_s_box_by_prefix(self):
+        text = (ROOT / 'skills/tasks/SKILL.md').read_text(encoding='utf-8')
+        done = text.split('### `done <task-id>`')[1].split('### `block')[0]
+        self.assertIn('500 characters long', done)
+        self.assertIn("starts with the title's third segment", done)
+
+    def test_runtime_writers_put_a_one_line_summary_on_the_checkbox(self):
+        runtime = {
+            'skills/dev/SKILL.md': ('### 7. Runtime gate', '### 7.5'),
+            'skills/feature-development/SKILL.md': ('| 8 | `RUNTIME_OK` |', '\n'),
+        }
+        for rel, (start, end) in runtime.items():
+            with self.subTest(rel):
+                step = (ROOT / rel).read_text(encoding='utf-8').split(start)[1].split(end)[0]
+                self.assertIn('one-line summary', step)
+                self.assertIn('nested under it as an indented block', step)
+                self.assertNotIn('append the quoted error as a', step)
+
+
 class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
     """`--local` has to survive the hop from orchestrator to agent.
 

@@ -208,7 +208,9 @@ first `- [ ]` under the section its dispatch names — and never calls
 `task_ready` for it; the row is a record of that work, not the source of it:
 
     find      task_list(project=<project>, ticket_key=<TICKET_KEY>)
-                → the row titled "<CODE> · <source> · <checkbox text>" (§6)
+                → the row titled "<CODE> · <source> · <checkbox text>" (§6), as
+                  the script builds it: cut to its first 500 characters, and
+                  compared with whitespace runs collapsed to one space
                 → none (an older ticket, a mirror that failed): not an error;
                   work from the file and report `row not found; file only`
     guard     title contains "[HITL:" → task_update(task_id, status="blocked"),
@@ -346,7 +348,11 @@ The checkbox text is the title's third segment **verbatim**, bold markers
 included, because `/artel:tasks done` flips the box whose text is everything after
 the title's second ` · `. Lines nested under a checkbox — its body, its
 acceptance criteria, an indented sub-step — go to the row's description, never
-its title.
+its title. A title runs to 500 characters at most: the script cuts a longer one
+there (kartoteka's cap), so its third segment is only the start of the box and
+`done` matches on that start. A writer quoting something long — the runtime gate
+quoting an error — therefore puts a one-line summary on the checkbox and nests the
+quote under it.
 
 **Titles are identity, and fix sections repeat.** `task_create` is idempotent on
 the title and ignores a status passed for one that exists, so a re-appended task

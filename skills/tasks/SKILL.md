@@ -178,7 +178,9 @@ exclude each other: both given → print the argument hint and stop.
    the daemon is gone, so it must not fall behind the queue. A fix-section row's box may sit in
    any `phase-*/tasks.md` instead: look in `tasklist.md` and every phase file, under that
    section's heading and beneath its `### <source>` heading (directly under the section
-   heading for the source `tasklist`). Not found → warn: "queue
+   heading for the source `tasklist`). A fix row whose title is 500 characters long may have
+   been cut at that cap (`docs/task-queue.md` §6): flip the unchecked box whose text
+   starts with the title's third segment. Not found → warn: "queue
    updated; no matching checkbox in tasklist.md — the file is now behind the queue".
 3. Do **not** promote the iteration; report whether its siblings are all done and leave the
    promotion to the implementer's loop. A fix-section row has no promotion and no siblings to

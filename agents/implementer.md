@@ -72,7 +72,9 @@ On the queue path that task also has a row, which records the work and never
 directs it (§3, fix-section rows). `task_list(project=<project>, ticket_key=<TICKET_KEY>)`
 and find the row titled `<CODE> · <source> · <checkbox text>`: the code from §6's
 table, `<source>` the nearest `### ` heading above the box inside its section
-(`tasklist` when there is none), the checkbox text verbatim. Then
+(`tasklist` when there is none), the checkbox text verbatim — the title as the script
+builds it: cut to its first 500 characters, and compared with
+whitespace runs collapsed to one space, so a longer checkbox matches on its start. Then
 `task_update(task_id, status="in_progress")` when you start,
 `task_update(task_id, status="done")` when you flip the checkbox, and
 `task_update(task_id, status="blocked")` on every exit **Rules** lists for a held

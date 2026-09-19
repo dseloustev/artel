@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -56,6 +57,28 @@ Based on [vision.md](./vision.md).
 
 - [ ] Run every command in `verify.commands` (config.md), in order
 '''
+
+# The `iterations` array 0.14.0 printed for TASKLIST, captured before fix sections
+# existed. Existing consumers read it, so no fix-section change may alter a byte.
+GOLDEN_ITERATIONS_0_14_0 = (
+    r'[{"title": "I1: Scaffold the adapter", "status": "backlog", "description": "Goal: Add '
+    r'the adapter file without wiring it in.\n\nTest: The module compiles.", "children": [{"'
+    r'title": "I1 \u00b7 lib/wallet/adapter.dart \u00b7 Create the adapter class", "status":'
+    r' "ready", "description": "Section: lib/wallet/adapter.dart (new file)", "hitl": null},'
+    r' {"title": "I1 \u00b7 lib/wallet/adapter.dart \u00b7 Add the license header", "status"'
+    r': "done", "description": "Section: lib/wallet/adapter.dart (new file)", "hitl": null},'
+    r' {"title": "I1 \u00b7 After changes \u00b7 Run `verify.fast` (config.md) \u2014 must p'
+    r'ass clean", "status": "ready", "description": "Section: After changes", "hitl": null}]'
+    r'}, {"title": "I2: Wire it in", "status": "backlog", "description": "Goal: Call the ada'
+    r'pter from the wallet screen.\n\nTest: The balance renders from the adapter.", "childre'
+    r'n": [{"title": "I2 \u00b7 lib/wallet/screen.dart \u00b7 [HITL: touches a sensitive sur'
+    r'face] Swap the provider", "status": "backlog", "description": "Section: lib/wallet/scr'
+    r'een.dart\nHITL: touches a sensitive surface", "hitl": "touches a sensitive surface"}, '
+    r'{"title": "I2 \u00b7 After changes \u00b7 Run `verify.fast` (config.md) \u2014 must pa'
+    r'ss clean", "status": "backlog", "description": "Section: After changes", "hitl": null}'
+    r']}]'
+)
+
 
 
 class TestParseTasklist(unittest.TestCase):
@@ -306,6 +329,175 @@ def run_cli(*args):
     return proc.returncode, json.loads(proc.stdout)
 
 
+# Two review rounds after generation. Round 2 re-uses round 1's checkbox text on
+# purpose: the source heading is what keeps the two rows apart.
+FIX_TASKLIST = TASKLIST + '''
+## Code Review Fixes
+
+### review-r1
+- [x] **Task 1: Guard the null wallet**
+  - Return early when the wallet is absent.
+  - Acceptance criteria:
+    - A null wallet renders the empty state.
+- [ ] **Task 2: [HITL: needs a product call] Rename the balance label**
+  - Acceptance criteria:
+    - The label reads "Available".
+
+### review-r2
+- [ ] **Task 1: Guard the null wallet**
+  - [ ] Cover the refresh path too
+'''
+
+
+def _sections(text):
+    return tasklist_tasks.build_sections(tasklist_tasks.parse_sections(text))
+
+
+class TestFixSections(unittest.TestCase):
+    def setUp(self):
+        self.rows, self.warnings = _sections(FIX_TASKLIST)
+        self.fv, self.crf = self.rows
+
+    def test_one_parent_per_section_in_document_order(self):
+        self.assertEqual([r['title'] for r in self.rows],
+                         ['FV: Final Verification', 'CRF: Code Review Fixes'])
+
+    def test_parents_are_backlog_labels(self):
+        self.assertEqual([r['status'] for r in self.rows], ['backlog', 'backlog'])
+
+    def test_source_heading_is_the_middle_segment_and_the_text_is_kept_verbatim(self):
+        # `/artel:tasks done` flips the box whose text is everything after the
+        # title's second ` · ` -- bold markers included.
+        self.assertEqual([c['title'] for c in self.crf['children']], [
+            'CRF · review-r1 · **Task 1: Guard the null wallet**',
+            'CRF · review-r1 · **Task 2: [HITL: needs a product call] Rename the balance label**',
+            'CRF · review-r2 · **Task 1: Guard the null wallet**',
+        ])
+
+    def test_a_box_directly_under_the_heading_takes_the_default_source(self):
+        self.assertEqual(
+            self.fv['children'][0]['title'],
+            'FV · tasklist · Run every command in `verify.commands` (config.md), in order')
+
+    def test_nested_lines_go_to_the_description_never_the_title(self):
+        self.assertEqual(self.crf['children'][0]['description'],
+                         'Source: review-r1\n\n'
+                         '- Return early when the wallet is absent.\n'
+                         '- Acceptance criteria:\n'
+                         '  - A null wallet renders the empty state.')
+
+    def test_a_nested_checkbox_is_part_of_its_task_not_a_task(self):
+        self.assertEqual(len(self.crf['children']), 3)
+        self.assertEqual(self.crf['children'][2]['description'],
+                         'Source: review-r2\n\n- [ ] Cover the refresh path too')
+
+    def test_checked_is_done_and_everything_else_is_backlog_never_ready(self):
+        self.assertEqual([c['status'] for c in self.crf['children']],
+                         ['done', 'backlog', 'backlog'])
+        self.assertEqual(self.fv['children'][0]['status'], 'backlog')
+
+    def test_hitl_is_extracted_and_the_row_stays_backlog(self):
+        child = self.crf['children'][1]
+        self.assertEqual(child['hitl'], 'needs a product call')
+        self.assertEqual(child['status'], 'backlog')
+        self.assertEqual(child['description'].splitlines()[:2],
+                         ['Source: review-r1', 'HITL: needs a product call'])
+
+    def test_two_rounds_with_the_same_text_are_two_rows(self):
+        # The regression this change exists for: without the source, round 2's
+        # open box shared round 1's `done` title and came back `done`.
+        first, second = self.crf['children'][0], self.crf['children'][2]
+        self.assertNotEqual(first['title'], second['title'])
+        self.assertEqual((first['status'], second['status']), ('done', 'backlog'))
+        self.assertEqual(self.warnings, [])
+
+    def test_a_paragraph_ends_a_task_s_body(self):
+        rows, _ = _sections('## Final Verification\n\nRun after everything.\n\n'
+                            '- [ ] Run the gate\n\n**Gate:** do not merge red.\n')
+        self.assertEqual(rows[0]['children'][0]['description'], 'Source: tasklist')
+
+
+class TestFixSectionEdges(unittest.TestCase):
+    def test_no_iterations_still_means_backlog_never_ready(self):
+        # deep-review creates a tasklist holding nothing but its fixes. The
+        # iteration rule "first iteration is ready" must not leak into them.
+        rows, _ = _sections('# Tasklist — AW-1234\n\n## Code Review Fixes\n\n'
+                            '### deep-review-2026-09-18\n- [ ] **Task 1: Split the adapter**\n')
+        self.assertEqual(rows[0]['children'][0]['status'], 'backlog')
+
+    def test_a_repeated_title_warns_and_the_later_box_gets_no_row(self):
+        rows, warnings = _sections('## Code Review Fixes\n\n- [x] **Task 1: Same**\n'
+                                   '- [ ] **Task 1: Same**\n')
+        self.assertEqual([c['status'] for c in rows[0]['children']], ['done'])
+        self.assertEqual(len(warnings), 1)
+        self.assertIn('CRF · tasklist · **Task 1: Same**', warnings[0])
+        self.assertIn('new `### <source>` heading', warnings[0])
+
+    def test_a_heading_that_appears_twice_is_one_section(self):
+        rows, _ = _sections('## Code Review Fixes\n\n### review-r1\n- [ ] A\n\n'
+                            '## Runtime Fixes\n\n### runtime-r1\n- [ ] B\n\n'
+                            '## Code Review Fixes\n\n### review-r2\n- [ ] C\n')
+        self.assertEqual([r['title'] for r in rows],
+                         ['CRF: Code Review Fixes', 'RTF: Runtime Fixes'])
+        self.assertEqual([c['title'] for c in rows[0]['children']],
+                         ['CRF · review-r1 · A', 'CRF · review-r2 · C'])
+
+    def test_every_section_has_its_code(self):
+        text = ''.join('## {}\n\n- [ ] t\n\n'.format(h) for h in (
+            'Code Review Fixes', 'Runtime Fixes', 'Verify Fixes', 'Final Verification'))
+        rows, _ = _sections(text)
+        self.assertEqual([r['title'] for r in rows], [
+            'CRF: Code Review Fixes', 'RTF: Runtime Fixes',
+            'VF: Verify Fixes', 'FV: Final Verification'])
+
+    def test_a_section_with_no_task_emits_no_parent(self):
+        rows, _ = _sections('## Code Review Fixes\n\nNothing yet.\n')
+        self.assertEqual(rows, [])
+
+    def test_a_phase_file_yields_its_fix_sections_and_no_iteration(self):
+        # sync-phases writes `# Phase N:` and `## Tasks`, so the extract holds
+        # no iteration; its fix sections live nowhere else.
+        text = ('# Phase 2: Wire it in\n\n## Tasks\n\n- [ ] 2.1 Swap the provider\n\n'
+                '## Code Review Fixes\n\n### review-p2-r1\n- [ ] **Task 1: X**\n')
+        iterations, _ = tasklist_tasks.parse_tasklist(text)
+        rows, _ = _sections(text)
+        self.assertEqual(iterations, [])
+        self.assertEqual([c['title'] for c in rows[0]['children']],
+                         ['CRF · review-p2-r1 · **Task 1: X**'])
+
+
+class TestFixSectionsAreNotIterationChildren(unittest.TestCase):
+    """A fix section's tasks never land in an iteration.
+
+    `## Code Review Fixes`, `## Runtime Fixes` and `## Verify Fixes` are `##`
+    headings, so they close the iteration above them, and their tasks are emitted
+    in `data.sections` instead (TestFixSections below). Filed as children of the
+    last iteration they would be `ready` or `backlog` behind a promotion, and
+    task_ready would offer them -- docs/task-queue.md §6.
+    """
+
+    SECTIONS = ('## Code Review Fixes', '## Runtime Fixes', '## Verify Fixes')
+
+    def _children(self, extra):
+        iterations, _ = tasklist_tasks.parse_tasklist(TASKLIST + extra)
+        self.assertEqual(2, len(iterations), 'the two real iterations, and no more')
+        return [c['text'] for it in iterations for c in it['children']]
+
+    def test_bare_checkboxes_under_a_fix_heading_are_not_children(self):
+        for heading in self.SECTIONS:
+            with self.subTest(heading):
+                extra = '\n{}\n\n- [ ] **Task 1: fix what the gate found**\n'.format(heading)
+                self.assertNotIn('**Task 1: fix what the gate found**',
+                                 self._children(extra))
+
+    def test_a_fix_heading_with_a_section_is_not_mirrored_either(self):
+        # The `### ` under a fix heading is its source, not an iteration section.
+        for heading in self.SECTIONS:
+            with self.subTest(heading):
+                extra = ('\n{}\n\n### `lib/a.dart`\n'
+                         '- [ ] fix what the gate found\n'.format(heading))
+                self.assertNotIn('fix what the gate found', self._children(extra))
+
 class TestCli(unittest.TestCase):
     def setUp(self):
         import tempfile
@@ -326,6 +518,37 @@ class TestCli(unittest.TestCase):
         self.assertEqual(out['data']['ticket_key'], 'AW-1234')
         self.assertEqual(len(out['data']['iterations']), 2)
         self.assertEqual(out['data']['warnings'], [])
+
+
+    def test_a_tasklist_without_a_fix_section_prints_exactly_what_0_14_0_did(self):
+        text = TASKLIST.split('\n---\n\n## Final Verification')[0] + '\n'
+        _, out = run_cli('--tasklist', self._write(text), '--ticket-key', 'AW-1234')
+        self.assertEqual(json.dumps(out['data']),
+                         '{"ticket_key": "AW-1234", "warnings": [], "iterations": '
+                         + GOLDEN_ITERATIONS_0_14_0 + '}')
+
+    def test_fix_sections_leave_the_iterations_array_untouched(self):
+        code, out = run_cli('--tasklist', self._write(FIX_TASKLIST), '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 0)
+        self.assertEqual(json.dumps(out['data']['iterations']), GOLDEN_ITERATIONS_0_14_0)
+        self.assertEqual(list(out['data']), ['ticket_key', 'warnings', 'iterations', 'sections'])
+        self.assertEqual([s['title'] for s in out['data']['sections']],
+                         ['FV: Final Verification', 'CRF: Code Review Fixes'])
+
+    def test_a_tasklist_of_fixes_alone_exits_0_with_no_iterations(self):
+        text = ('# Tasklist — AW-1234\n\n## Code Review Fixes\n\n'
+                '### deep-review-2026-09-18\n- [ ] **Task 1: Split the adapter**\n')
+        code, out = run_cli('--tasklist', self._write(text), '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data']['iterations'], [])
+        self.assertEqual(len(out['data']['sections']), 1)
+
+    def test_a_fix_heading_with_no_task_and_no_iteration_is_still_malformed(self):
+        code, out = run_cli('--tasklist', self._write('## Code Review Fixes\n\nNone.\n'),
+                            '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'tasklist_malformed')
+
 
     def test_missing_file_exits_2_tasklist_not_found(self):
         code, out = run_cli('--tasklist', '/nonexistent/tasklist.md',

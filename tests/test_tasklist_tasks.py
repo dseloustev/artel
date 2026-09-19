@@ -80,7 +80,6 @@ GOLDEN_ITERATIONS_0_14_0 = (
 )
 
 
-
 class TestParseTasklist(unittest.TestCase):
     def setUp(self):
         self.iterations, self.warnings = tasklist_tasks.parse_tasklist(TASKLIST)
@@ -316,7 +315,6 @@ class TestFixSectionsAreNotIterationChildren(unittest.TestCase):
                 self.assertNotIn('fix what the gate found', self._children(extra))
 
 
-
 # Two review rounds after generation. Round 2 re-uses round 1's checkbox text on
 # purpose: the source heading is what keeps the two rows apart.
 FIX_TASKLIST = TASKLIST + '''
@@ -462,7 +460,6 @@ class TestFixSectionEdges(unittest.TestCase):
                          ['CRF · review-p2-r1 · **Task 1: X**'])
 
 
-
 SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'tasklist_tasks.py'
 
 
@@ -494,7 +491,6 @@ class TestCli(unittest.TestCase):
         self.assertEqual(out['data']['ticket_key'], 'AW-1234')
         self.assertEqual(len(out['data']['iterations']), 2)
         self.assertEqual(out['data']['warnings'], [])
-
 
     def test_a_tasklist_without_a_fix_section_prints_exactly_what_0_14_0_did(self):
         text = TASKLIST.split('\n---\n\n## Final Verification')[0] + '\n'
@@ -565,7 +561,6 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual([s['title'] for s in out['data']['sections']],
                          ['FV: Final Verification'])
-
 
     def test_missing_file_exits_2_tasklist_not_found(self):
         code, out = run_cli('--tasklist', '/nonexistent/tasklist.md',

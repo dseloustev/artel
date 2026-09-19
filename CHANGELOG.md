@@ -54,6 +54,17 @@ All notable changes to this project are documented here. The format follows
   adds a **fix work open** line. `release` refuses a fix row, because releasing sets `ready`.
   `done` finds a fix row's checkbox in `tasklist.md` or a phase file.
 
+### Upgrading
+
+- **Existing tickets' fix tasks take their source from the file as it stands.** A fix task with
+  no `### <source>` heading above it in its section gets the source `tasklist`. A legacy `###`
+  heading inside a fix section, such as `### Blocking` or `### Tasks`, becomes the source of the
+  tasks under it. Nothing needs editing for the next mirror to record them.
+- **Rows made by hand before 0.15.0 under other titles are not adopted.** A re-mirror creates
+  new rows beside them, because titles are the identity. Close the old ones with
+  `/artel:tasks done` or `block`, or give the batch a `### <source>` heading that matches the
+  hand-made titles.
+
 ## [0.14.0] - 2026-09-17
 
 ### Added

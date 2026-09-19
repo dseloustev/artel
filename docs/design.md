@@ -142,6 +142,14 @@ move to the decision log.
   [task-queue.md](task-queue.md) §6) are already shaped for it: one parent row per section, so
   a fix dispatch can claim from its own section by `parent_id` once the protocol adopts it, and
   gain the holder those rows lack today.
+- **A generated ticket never reads fully done in kartoteka's rollup.** Fix-section parents
+  (`CRF: …`, `RTF: …`, `VF: …`, `FV: …`) stay `backlog` by design, because nothing claims,
+  promotes or completes a label row and the next round appending to its section would
+  reopen it ([task-queue.md](task-queue.md) §6, "Section rows are labels"). Every generated
+  tasklist has a Final Verification section, so its `FV` parent remains `backlog` after the
+  last box is ticked, and kartoteka's per-ticket rollup never shows the ticket done. Two
+  ways out: mark a section parent `done` when its last child completes and back to
+  `backlog` when a writer appends to the section, or have kartoteka's rollup skip label rows.
 - **Spec-trail frontmatter is unblocked on kartoteka's side, not adopted** (from the 2026-09-15
   OKF review, decision log below). kartoteka 0.35.0 indexes a workspace artifact without its
   leading YAML frontmatter block, while the store and `artifact_get` keep it verbatim. That opens
@@ -562,8 +570,8 @@ move to the decision log.
   mode.** After writing the file the skill asks which set to apply and appends the chosen task
   blocks to the ticket-wide `tasklist.md`, then `Skill: implementer` once per task and
   `verify.commands` once — the pipeline's own review-fix path ([task-queue.md](task-queue.md)
-  §6: file-scan work, never mirrored until 2026-09-19, below). No re-review loop; re-running the skill refreshes the
-  forecast.
+  §6: file-scan work, never mirrored until 2026-09-19, below). No re-review loop; re-running
+  the skill refreshes the forecast.
 - **2026-09-04 — `knowledge.project` names the kartoteka namespace, with no default.**
   kartoteka 0.31.0 namespaces its store and index by project so one daemon can serve several
   repositories out of one database, and it refuses any write — `POST /api/artifacts`,

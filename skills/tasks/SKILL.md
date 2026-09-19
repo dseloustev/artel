@@ -1,6 +1,6 @@
 ---
 name: tasks
-description: "Operate the ticket's kartoteka task queue from the conversation: list the queue and diagnose it (drained, promotion pending, blocked, held), add a task through tasklist.md so file and queue stay in step, mark a task done or blocked, or release a task a dead agent left in_progress. Use when the user asks what is in the queue, who holds a task, wants a task added to a ticket, or wants a stuck task released."
+description: "Operate the ticket's kartoteka task queue from the conversation: list the queue and diagnose it (drained, promotion pending, blocked, held), add a task through tasklist.md so file and queue stay in step — an iteration task, or a review, runtime or verify fix (`add --fix`) — mark a task done or blocked, or release a task a dead agent left in_progress. Use when the user asks what is in the queue, who holds a task, wants a task or a fix added to a ticket, or wants a stuck task released."
 argument-hint: 'list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--section <name>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]'
 model: sonnet
 ---
@@ -81,7 +81,8 @@ write, and a queue wired up for another checkout must not be written to from thi
 
 ### `add <ticket> "<title>" --iteration N [--section <name>] [--hitl <reason>] [--raw]`
 
-`--raw` → skip to **Raw** below.
+`--raw` → skip to **Raw** below — unless `--fix` was given too: `--raw` with `--fix` → print
+the argument hint and stop.
 
 1. **Tasklist in scope**: `<specs.dir>/<TICKET_ID>/tasklist.md`. Missing → stop: "no tasklist
    for <TICKET_ID>; create one with `/artel:tasklist` or `/artel:generate-tasklist`, or pass
@@ -129,8 +130,9 @@ implementer will not claim it". No file is edited.
 ### `add <ticket> "<title>" --fix CRF|RTF|VF|FV [--hitl <reason>]`
 
 A task for a fix section: `CRF` is `## Code Review Fixes`, `RTF` `## Runtime Fixes`, `VF`
-`## Verify Fixes`, `FV` `## Final Verification` (case-insensitive). `--fix` and `--iteration`
-exclude each other: both given → print the argument hint and stop.
+`## Verify Fixes`, `FV` `## Final Verification` (case-insensitive). `--fix` takes no
+`--iteration` and no `--section`, and a fix is never a bare row (**Raw**, above): `--fix`
+with any of them → print the argument hint and stop.
 
 1. **File in scope**: `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` when the ticket
    carries a phase suffix — the file the implementer scans for that section on a phase-scoped

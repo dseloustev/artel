@@ -265,6 +265,8 @@ keep it from draining; they are the fifth line, not a variant of the first four:
   `queue drained: iteration work complete`, then
   continue from the file — the first incomplete `- [ ]` in scope (§6).
   This is the normal end of a successful ticket, not a stall.
+  A ticket with no iteration rows at all — a tasklist holding only fixes — is
+  drained by this line too: it has no iteration child left undone.
 - iteration children in `backlog` with none `ready` — a promotion did not happen, or an
   iteration was already complete when it was promoted into. Repair it rather than
   reporting a stall: promote every `I<N> · ` child of the lowest-numbered
@@ -342,9 +344,12 @@ middle segment, the way an iteration's `### ` section is:
 Dates come from `date +%F`, never from memory. A writer starting a batch never
 reuses a heading already in the section: it appends `-2`, then `-3`, …
 (`review-r1-2`). The one exception is `/artel:tasks add --fix`, whose additions
-on one day are one batch. A checkbox with no `###` above it in its section —
-Final Verification as `tasklist-writer` writes it, and every fix task written
-before 0.15.0 — has no heading, so the source is `tasklist`.
+on one day are one batch. A box's source is the nearest `###` heading above it
+in its section, whatever that heading says — a fix task written before 0.15.0
+under a `### Blocking` or `### Tasks` takes that heading as its source. A box with
+no `###` above it in its section — Final Verification as `tasklist-writer` writes
+it, and a pre-0.15.0 fix task written straight under the section heading — has no
+heading, so the source is `tasklist`.
 
 No other `###` heading goes inside a batch. The nearest `###` above a box is its
 source, so a writer's own grouping — a reviewer's `### Blocking` or `### Important`

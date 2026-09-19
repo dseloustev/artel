@@ -214,13 +214,14 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
 
 
 class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
-    """The queue holds `## Iteration N:` work and nothing else.
+    """The queue offers `## Iteration N:` work and nothing else.
 
-    "Queue before file" was written unqualified. None of the four sections below
-    is ever mirrored, so on the queue path the three fix loops claimed nothing
-    and applied no fix -- each gate re-ran to its cap and escalated -- and
-    `## Final Verification` never came up at all, which is the state every
-    successful ticket ends in.
+    "Queue before file" was written unqualified, so on the queue path the three
+    fix loops claimed nothing and applied no fix -- each gate re-ran to its cap
+    and escalated -- and `## Final Verification` never came up at all, which is
+    the state every successful ticket ends in. The four sections below are
+    file-scan work on both paths; on the queue path they are also recorded as
+    rows, which task_ready never offers.
     """
 
     GATE_SECTIONS = ('## Code Review Fixes', '## Runtime Fixes', '## Verify Fixes',
@@ -443,7 +444,9 @@ class TestFixWritersRecordTheirAppend(unittest.TestCase):
     def test_each_orchestrator_record_step_runs_the_script_where_it_appends(self):
         for (rel, start, end), phrases in FIX_WRITER_STEPS.items():
             step = (ROOT / rel).read_text(encoding='utf-8').split(start)[1].split(end)[0]
-            for phrase in ('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py',
+            for phrase in ('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py'
+                           ' --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>',
+                           'without the phase suffix',
                            'data.sections', 'task_create') + phrases:
                 with self.subTest(rel=rel, step=start, phrase=phrase):
                     self.assertIn(phrase, step)

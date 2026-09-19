@@ -84,7 +84,7 @@ and §2, on the queue path run:
     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
 
 and `task_create` the rows it emits — `data.iterations`, then `data.sections` (§2 steps
-2–3). The step is create-only and idempotent, so
+2–4, surfacing every `data.warnings` line). The step is create-only and idempotent, so
 this repairs a tasklist that was hand-edited or generated before the queue was
 reachable, and never resets a `done` row or undoes a promotion. Exit `2` → report
 and continue on the fallback path. On phase-scoped runs this lands after
@@ -139,10 +139,11 @@ code** (runtime errors / ERROR logs / a broken UI tree) → append a `- [ ]` tas
 new `### runtime-r<n>` source heading (`### runtime-p<N>-r<n>` on a phase-scoped run, n the
 retry this round is — `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6), its line a
 one-line summary of the error with the quoted error nested under it as an indented block
-(nested lines go to the row's description; the checkbox line is the row's title, capped at
-500 characters),
-and on the queue path (§1 rows 2-4) record it before the implementer round: run
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py` on that file and `task_create` its
+(nested lines go to the row's description; the checkbox line is the row's title, capped
+at 500 characters), and on the queue path (§1 rows 2-4) record it before the implementer
+round: run
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>`
+— `<TICKET_ID>` the canonical key, without the phase suffix — and `task_create` its
 `data.sections` (§2's fix-writer rule);
 when the RED stems from incomplete cross-phase wiring (this phase's code invokes pieces a later
 phase will build), word the fix task to create the **minimal stubs** that restore launch —

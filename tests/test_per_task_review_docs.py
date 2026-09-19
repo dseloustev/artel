@@ -149,5 +149,47 @@ class TestCompletionContract(unittest.TestCase):
             self.assertIn('**No subagents**', read(rel), rel + ' lacks the no-subagent rule')
 
 
+class TestReviewFixesAreRecorded(unittest.TestCase):
+    """The reviewer writes the fix batch; run-reviewer records it in the queue.
+
+    The agent never writes to kartoteka. The skill that dispatched it mirrors
+    the batch before any implementer is dispatched, and honours --local, which
+    feature-development passes on (docs/task-queue.md §2, §6).
+    """
+
+    def test_ticket_mode_opens_its_batch_with_the_round(self):
+        ticket = section(read('agents/reviewer.md'), '## Ticket mode')
+        self.assertIn('### review-r<R>', ticket)
+        self.assertIn('### review-p<PHASE_NUM>-r<R>', ticket)
+
+    def test_task_mode_opens_its_batch_with_the_report_number(self):
+        self.assertIn('### task-gate-<NNN>',
+                      section(read('agents/reviewer.md'), '## Task mode'))
+
+    def test_the_agent_never_writes_rows(self):
+        text = read('agents/reviewer.md')
+        for name in ('task_create', 'task_update'):
+            self.assertNotIn(name, text)
+
+    def test_run_reviewer_mirrors_the_batch_and_takes_local(self):
+        text = read('skills/run-reviewer/SKILL.md')
+        hint = [ln for ln in text.splitlines() if ln.startswith('argument-hint:')][0]
+        self.assertIn('--local', hint)
+        self.assertIn('## Record the fix tasks', text)
+        self.assertIn('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py', text)
+        self.assertIn('data.sections', text)
+
+    def test_feature_development_passes_local_to_both_review_calls(self):
+        text = read('skills/feature-development/SKILL.md')
+        gate7 = text.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
+        self.assertIn('--local', gate7)
+        gate5 = text.split('| 5 | `IMPLEMENT_STEP_OK`')[1].split('\n')[0]
+        self.assertIn('`Skill: run-reviewer --task …` (plus `--local` when this run was'
+                      ' invoked with it)', gate5)
+
+    def test_section_16_names_the_task_gate_source(self):
+        self.assertIn('### task-gate-<NNN>', section(read(CONTRACT), '## 16.'))
+
+
 if __name__ == '__main__':
     unittest.main()

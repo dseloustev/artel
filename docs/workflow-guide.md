@@ -70,7 +70,7 @@ config nothing is injected.
 | PR description / open the PR | `/artel:pr-description PROJ-XXXX` · `/artel:pr-create PROJ-XXXX` |
 | Resume an interrupted run | re-invoke the same entry-point command — resume is automatic |
 | Ask the archive: what was decided about X, what is filed under a ticket, is the index fresh | `/artel:knowledge <query>` · `/artel:knowledge PROJ-XXXX` · `/artel:knowledge status` (needs `knowledge.adapter: "kartoteka"`) |
-| See or operate the ticket's task queue: list, add, done, block, release | `/artel:tasks list PROJ-XXXX` · `/artel:tasks add PROJ-XXXX "<title>" --iteration N` (same requirement) |
+| See or operate the ticket's task queue: list, add, done, block, release | `/artel:tasks list PROJ-XXXX` · `/artel:tasks add PROJ-XXXX "<title>" --iteration N` or `--fix CRF` for a review fix (same requirement) |
 
 (`<plugin-root>` is the plugin's install directory — inside a skill it is
 `${CLAUDE_PLUGIN_ROOT}`; from your own shell, the path `/plugin` shows for the installed artel
@@ -225,7 +225,8 @@ environment error (bad toolchain/invocation — **never** edit app code in respo
   references in `data.unresolved`. The `PLAN_GROUNDED` gate (feature-development gate 3.5) calls
   it with `--strict`.
 - `tasklist_tasks.py --tasklist <path> --ticket-key <KEY>` — parses a tasklist into
-  the task rows that mirror it, as JSON. Contacts nothing; the caller makes the
+  the task rows that mirror it, as JSON: `data.iterations`, and `data.sections` for the four
+  fix sections the queue records but never offers. Contacts nothing; the caller makes the
   `task_create` MCP calls. Adds `tasklist_not_found`, `tasklist_malformed` and
   `title_collision` to the shared error kinds. See `docs/task-queue.md`.
 
@@ -301,7 +302,8 @@ start, and each phase closes with the `verify.commands` gate + a checkpoint comm
   tasks. Each completion is a short contract pointing at a report under
   `.artel/run/<TICKET_ID>/reports/`; with `review.perTask: true` (config.md) every task's diff
   is also reviewed before the next task starts (`autonomous-run.md §16`) — findings land under
-  `## Code Review Fixes` for one fix round, then the phase review owns whatever is left.
+  `## Code Review Fixes`, recorded in the task queue on the queue path, for one fix round, then
+  the phase review owns whatever is left.
 - *Gate 6 — index.* Optional host index-refresh hook
   ([orchestrator-common.md](orchestrator-common.md) §1); silently absent when the host has not
   wired one up. Refreshing is the only part that is a host hook — how the stages above and
@@ -440,7 +442,8 @@ what to run next. Run all of these from the host repo root.
 
 9. **Review loop.** *Pre:* implemented changes on the branch. *Run:*
    `/artel:run-reviewer PROJ-XXXX`. *Produces:* `review.md` with `**Review round:** N` and, in
-   ticket mode, a `## Code Review Fixes` write-back to the tasklist. *Next:* implement the fix
+   ticket mode, a `## Code Review Fixes` write-back to the tasklist, recorded as fix rows in the
+   task queue when kartoteka is on (`/artel:tasks list` shows them). *Next:* implement the fix
    tasks, then re-run (capped review rounds — `autonomous-run.md §5`). See
    [run-reviewer](skills-reference.md#run-reviewer).
 

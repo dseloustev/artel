@@ -457,12 +457,13 @@ this config:
 |---|---|
 | `task_create` | mirroring one tasklist row into the queue (idempotent on title) |
 | `task_ready` | claiming the next ready task for this actor |
-| `task_update` | reporting a task `done`, `blocked` or released back to `ready` |
+| `task_update` | reporting a task `done`, `blocked` or released back to `ready`; moving a fix-section row `in_progress` |
 | `task_list` | reading the ticket's rows, for promotion and for an empty-queue report |
 
 Absent tools degrade the same way the read half's do: the run continues from `tasklist.md`
-and records that it did. Only iteration work is ever mirrored — gate-remediation sections
-and `## Final Verification` are always worked from the file (`docs/task-queue.md` §6).
+and records that it did. Only iteration work is ever offered: gate-remediation sections
+and `## Final Verification` are recorded as rows but always worked from the file
+(`docs/task-queue.md` §6).
 
 #### The conversational front doors
 

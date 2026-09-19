@@ -213,8 +213,11 @@ the phase's gates pass (sync status back to `tasklist.md`).
   `dev` and `feature-development` alike run the parser and `task_create` its rows.
   The re-mirror is what covers a resumed run and a tasklist written before the
   adapter was reachable, neither of which re-runs the skill that wrote it.
-  Create-only and idempotent; a failure reports and falls back rather than
-  blocking the run.
+  Every writer of a fix section — `run-reviewer`, `deep-review`, the runtime gate
+  and the phase checkpoint — records its batch the same way right after the
+  append, so the queue shows fix work before the first fix is dispatched (§6:
+  recorded, never offered). Create-only and idempotent; a failure reports and
+  falls back rather than blocking the run.
 
 `pr-description` is the exception to skip-if-exists: invoked by `feature-development` at run completion
 (after all gates are green, before `completed: true`), it always regenerates `pr-description.md` — the

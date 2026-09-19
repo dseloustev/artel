@@ -524,5 +524,28 @@ class TestStalledClaimIsNotClearedUnilaterally(unittest.TestCase):
         self.assertNotIn('status="ready"', section)
 
 
+class TestNoLiveDocHidesTheFixSections(unittest.TestCase):
+    """The queue records the four fix sections; no live prompt may still deny it.
+
+    A prompt that says the queue never holds them sends an agent back to skipping
+    their rows, and the queue goes blind again for the longest part of a review
+    cycle.
+    """
+
+    RETIRED = ('never become rows', 'What the queue does not hold',
+               'those sections are never mirrored', 'queue never holds',
+               'Only iteration work is ever mirrored', 'because it is never mirrored',
+               'Do **not** run the tasklist mirror')
+
+    def test_no_live_file_carries_a_retired_phrase(self):
+        live = (sorted(ROOT.glob('agents/*.md')) + sorted(ROOT.glob('skills/*/SKILL.md'))
+                + sorted(ROOT.glob('docs/*.md')) + [ROOT / 'README.md'])
+        for path in live:
+            text = path.read_text(encoding='utf-8')
+            for phrase in self.RETIRED:
+                with self.subTest(path=str(path.relative_to(ROOT)), phrase=phrase):
+                    self.assertNotIn(phrase, text)
+
+
 if __name__ == '__main__':
     unittest.main()

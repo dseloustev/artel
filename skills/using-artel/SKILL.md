@@ -139,7 +139,7 @@ a skill that resolves ticket context first; use the skill.
 
 | Thought | Reality |
 |---|---|
-| "I'll read `tasklist.md` to see what's next" | With the adapter on, the queue is authoritative for iteration work — `/artel:tasks list`; the file still owns the review/runtime/verify-fix and Final Verification sections. |
+| "I'll read `tasklist.md` to see what's next" | With the adapter on, the queue is authoritative for iteration work — `/artel:tasks list`; the file still owns the review/runtime/verify-fix and Final Verification sections, and the queue now shows their rows too. |
 | "I'll call `search_knowledge` myself" | `/artel:knowledge` keeps the search budget, the citations and the ⚠ NON-CURRENT markers. |
 | "I'll `task_create` it directly" | `/artel:tasks add` keeps `tasklist.md` and the queue in step; a bare row breaks promotion. |
 | "I'll grep for that class" | With the index on PATH, `/ast-index:ast-index` answers in milliseconds; grep is for regex, literals and comments. |

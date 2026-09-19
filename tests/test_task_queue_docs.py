@@ -228,6 +228,26 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
         for section in self.GATE_SECTIONS[:3]:
             self.assertIn(section, paragraph)
         self.assertIn('Final Verification', paragraph)
+        for status in ('in_progress', 'done', 'blocked'):
+            self.assertIn('status="{}"'.format(status), paragraph)
+        self.assertIn('`row not found; file only`', paragraph)
+        self.assertIn('never `ready`', paragraph)
+        self.assertNotIn('never\nmirrored', paragraph)
+
+    def test_step_five_completes_a_fix_row_without_promotion(self):
+        step_five = self.agent.split('### Step 5')[1].split('### Step 6')[0]
+        self.assertIn('A fix-section row gets `done` and nothing else', step_five)
+
+    def test_the_empty_claim_reads_iteration_children_only(self):
+        step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
+        self.assertIn('Every iteration child `done`', step_one)
+        self.assertIn('never earn\na promotion repair', step_one)
+
+    def test_the_skill_prompt_keeps_the_fix_row_current(self):
+        text = (ROOT / 'skills/implementer/SKILL.md').read_text(encoding='utf-8')
+        self.assertIn('`task_ready` never offers their rows', text)
+        self.assertIn('`row not found; file only`', text)
+        self.assertNotIn('those sections are never mirrored', text)
 
     def test_the_doc_lists_every_section_it_records_but_never_offers(self):
         section = self.doc.split('## 6. What the queue records but never offers')[1]

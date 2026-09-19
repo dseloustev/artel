@@ -6,6 +6,47 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Fix-section tasks are recorded in the task queue.** `## Code Review Fixes`, `## Runtime
+  Fixes`, `## Verify Fixes` and `## Final Verification` now become kartoteka rows: one parent
+  per section (`CRF: Code Review Fixes`, `RTF: Runtime Fixes`, `VF: Verify Fixes`,
+  `FV: Final Verification`) and a child per checkbox titled `<CODE> · <source> · <checkbox
+  text>`. `/artel:tasks list` shows review, runtime and verify fixes moving `backlog` →
+  `in_progress` → `done` instead of reporting a drained queue while hours of fix work run.
+  The rows are recorded, never offered: always `backlog` or `done` when mirrored, never
+  `ready`, moved by `task_update` alone, so `task_ready` still hands out iteration work only
+  and phase-scoped claiming is untouched. The implementer still finds its task by file scan
+  and keeps the row current; a missing row is `row not found; file only`, never an error.
+  Every writer records its append before the first fix is dispatched: `run-reviewer` (phase
+  and per-task review), `deep-review` Step 6 (which used to skip the mirror), the runtime gate
+  and the phase checkpoint in `dev` and `feature-development`, and the generation mirror for
+  Final Verification. Each batch opens with a `### <source>` heading (`review-r2`,
+  `task-gate-007`, `deep-review-2026-09-18`, `runtime-p1-r1`, `checkpoint-r1`,
+  `manual-2026-09-19`), because titles are identity: a re-appended task matching an old `done`
+  row would come back `done`. The parser warns on a repeated fix title within the file, and the
+  mirror warns on an open box that resolves to a `done` row. On a phase-scoped run the phase
+  file's fix sections are mirrored too. `--local`, `knowledge.adapter: none` and missing tools
+  behave exactly as in 0.14.0. Contract: `docs/task-queue.md` §2, §3, §5, §6.
+- **`scripts/tasklist_tasks.py` emits `data.sections`** after `data.iterations`. It accepts
+  checkboxes directly under the `##` heading (source `tasklist`), keeps nested acceptance
+  criteria out of the title and in the description, and parses a file that has fix sections
+  but no iterations, such as a deep-review-only tasklist or a phase file. A tasklist with no fix
+  section prints exactly the 0.14.0 output.
+- **`/artel:tasks add … --fix CRF|RTF|VF|FV`** adds a task to a fix section, which the skill
+  could not do before, under a `### manual-<date>` heading, and records it.
+- **`/artel:run-reviewer --local`**, which `feature-development` passes on, so a local-only
+  run writes no rows.
+
+### Changed
+
+- **The empty-queue diagnosis reads iteration children only.** Open fix rows no longer make
+  a finished ticket look stalled or send the implementer into a promotion repair with nothing
+  to promote. `/artel:tasks list` counts fix rows toward **blocked** and **held** (with no
+  holder, since only a claim sets one), never toward **promotion pending** or **drained**, and
+  adds a **fix work open** line. `release` refuses a fix row, because releasing sets `ready`.
+  `done` finds a fix row's checkbox in `tasklist.md` or a phase file.
+
 ## [0.14.0] - 2026-09-17
 
 ### Added

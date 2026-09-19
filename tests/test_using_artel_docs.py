@@ -181,6 +181,12 @@ class TestTasksSkill(unittest.TestCase):
         release = text[text.index('### `release <task-id>`'):]
         self.assertIn('is a fix-section row', release)
 
+    def test_add_fix_names_sync_phases_when_the_phase_file_is_missing(self):
+        text = read(TASKS)
+        fix = text[text.index('### `add <ticket> "<title>" --fix'):text.index('### `done')]
+        self.assertIn('/artel:sync-phases <TICKET_ID>-<PHASE_NUM>', fix)
+        self.assertNotIn('--raw', fix)
+
 
 REFERENCE = 'docs/skills-reference.md'
 GUIDE = 'docs/workflow-guide.md'

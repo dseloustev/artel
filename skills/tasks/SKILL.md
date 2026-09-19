@@ -134,7 +134,12 @@ exclude each other: both given → print the argument hint and stop.
 
 1. **File in scope**: `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` when the ticket
    carries a phase suffix — the file the implementer scans for that section on a phase-scoped
-   run — else `<specs.dir>/<TICKET_ID>/tasklist.md`. Missing → the same stop as `--iteration`'s.
+   run — else `<specs.dir>/<TICKET_ID>/tasklist.md`.
+   Missing → stop. For `tasklist.md`: "no tasklist for <TICKET_ID>; create one with
+   `/artel:tasklist` or `/artel:generate-tasklist`". For a phase file: "no
+   `phase-<PHASE_NUM>/tasks.md` for <TICKET_ID>-<PHASE_NUM>; extract it with
+   `/artel:sync-phases <TICKET_ID>-<PHASE_NUM>`, or drop the phase suffix to add the fix to
+   `tasklist.md`".
 2. **Append the checkbox** — `- [ ] <title>`, with ` [HITL: <reason>]` appended when `--hitl`
    was given — under the source heading `### manual-<YYYY-MM-DD>` (`### manual-p<N>-<YYYY-MM-DD>`
    in a phase file; the date from `date +%F`) inside the section (`docs/task-queue.md` §6):

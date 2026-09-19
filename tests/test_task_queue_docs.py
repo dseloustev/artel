@@ -348,8 +348,9 @@ class TestFixRowsAreRecordedNeverOffered(unittest.TestCase):
     def test_the_source_heading_rule_names_every_writer(self):
         for source in ('### review-r<R>', '### review-p<PHASE_NUM>-r<R>',
                        '### task-gate-<NNN>', '### deep-review-<YYYY-MM-DD>',
-                       '### runtime-r<n>', '### checkpoint-r<k>',
-                       '### manual-<YYYY-MM-DD>'):
+                       '### runtime-r<n>', '### runtime-p<N>-r<n>',
+                       '### checkpoint-r<k>', '### checkpoint-p<N>-r<k>',
+                       '### manual-<YYYY-MM-DD>', '### manual-p<N>-<YYYY-MM-DD>'):
             self.assertIn(source, self.records)
         self.assertIn('the source is `tasklist`', self.records)
 
@@ -402,6 +403,20 @@ FIX_WRITERS = {
     'skills/tasks/SKILL.md': ('### manual-<YYYY-MM-DD>',),
 }
 
+# The orchestrators' own record steps, scoped: dev and feature-development also
+# re-mirror on entry to implementation, and that text alone -- script, then
+# `data.sections` -- satisfies a whole-file assertIn with a record step deleted.
+# (file, start, end) -> phrases the step itself must carry.
+FIX_WRITER_STEPS = {
+    ('skills/dev/SKILL.md', '### 7. Runtime gate', '### 7.5'):
+        ('### runtime-r<n>', '### runtime-p<N>-r<n>'),
+    ('skills/feature-development/SKILL.md', '| 8 | `RUNTIME_OK` |', '\n'):
+        ('### runtime-r<n>', '### runtime-p<N>-r<n>', 'never on a `--local` run'),
+    ('skills/feature-development/SKILL.md', '3. **Quality gate (phase-end only).**',
+     '4. **Stage explicitly.**'):
+        ('### checkpoint-r<k>', '### checkpoint-p<N>-r<k>'),
+}
+
 
 class TestFixWritersRecordTheirAppend(unittest.TestCase):
     """A fix task is logged when it is appended, by whoever appends it.
@@ -424,6 +439,14 @@ class TestFixWritersRecordTheirAppend(unittest.TestCase):
             for heading in headings:
                 with self.subTest(rel=rel, heading=heading):
                     self.assertIn(heading, text)
+
+    def test_each_orchestrator_record_step_runs_the_script_where_it_appends(self):
+        for (rel, start, end), phrases in FIX_WRITER_STEPS.items():
+            step = (ROOT / rel).read_text(encoding='utf-8').split(start)[1].split(end)[0]
+            for phrase in ('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py',
+                           'data.sections', 'task_create') + phrases:
+                with self.subTest(rel=rel, step=start, phrase=phrase):
+                    self.assertIn(phrase, step)
 
     def test_final_verification_is_written_without_a_source_heading(self):
         text = (ROOT / 'agents/tasklist-writer.md').read_text(encoding='utf-8')

@@ -825,13 +825,14 @@ Entry template:
 
 - **Purpose:** Operate a ticket's kartoteka task queue from the conversation: list and diagnose,
   add, mark done or blocked, release a held task.
-- **Invocation:** `/artel:tasks list|add|done|block|release [ticket-id] [<task-id> | "<title>" --iteration N [--section <name>] [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]`
+- **Invocation:** `/artel:tasks list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--section <name>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]`
 - **Reads:** `.artel/config.json` (`knowledge.adapter`), `<specs.dir>/.active_ticket`,
   `<specs.dir>/<TICKET_ID>/tasklist.md` (and `phase-<N>/tasks.md` when present); over MCP:
   `task_list`, `task_create`, `task_update`.
-- **Writes:** `add` appends a checkbox to `tasklist.md` (and the phase file) and mirrors it
-  through `scripts/tasklist_tasks.py` + create-only `task_create`; `done` flips the matching
-  checkbox after `task_update`; `block` / `release` update the row only.
+- **Writes:** `add` appends a checkbox to `tasklist.md` (and the phase file) — or, with
+  `--fix`, under a `### manual-<date>` heading in a fix section — and mirrors it through
+  `scripts/tasklist_tasks.py` + create-only `task_create`; `done` flips the matching checkbox
+  after `task_update`; `block` / `release` update the row only.
 - **Pauses:** `release` always confirms via `AskUserQuestion` (shows holder and age); nothing
   else pauses.
 - **Notes:** worker. The write side of [task-queue.md](task-queue.md) applied to the
@@ -839,4 +840,6 @@ Entry template:
   implementer's) and never promotes an iteration (the implementer's repair). `add` composes no
   title by hand — the mirror script does, so the row carries the `I<N> · ` prefix, its
   `parent_id`, and queue order; `--raw` creates a bare `backlog` row that artel will not claim
-  and says so. `list` reports drained / promotion pending / blocked / held and repairs nothing.
+  and says so. `list` reports drained / promotion pending / blocked / held / fix work open and
+  repairs nothing; fix rows never count toward promotion pending or drained, and `release`
+  refuses them.

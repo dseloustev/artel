@@ -164,6 +164,23 @@ class TestTasksSkill(unittest.TestCase):
         release = text[text.index('### `release <task-id>`'):]
         self.assertIn('parents are never released', release)
 
+    def test_add_can_target_a_fix_section(self):
+        text = read(TASKS)
+        self.assertIn('--fix CRF|RTF|VF|FV', argument_hint(TASKS))
+        self.assertIn('### `add <ticket> "<title>" --fix CRF|RTF|VF|FV [--hitl <reason>]`', text)
+        self.assertIn('### manual-<YYYY-MM-DD>', text)
+
+    def test_list_keeps_fix_rows_out_of_promotion_and_drained(self):
+        text = read(TASKS)
+        listing = text[text.index('### `list'):text.index('### `add')]
+        self.assertIn('never for **promotion pending** or **drained**', listing)
+        self.assertIn('**fix work open**', listing)
+
+    def test_release_refuses_a_fix_row(self):
+        text = read(TASKS)
+        release = text[text.index('### `release <task-id>`'):]
+        self.assertIn('is a fix-section row', release)
+
 
 REFERENCE = 'docs/skills-reference.md'
 GUIDE = 'docs/workflow-guide.md'

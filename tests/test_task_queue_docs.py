@@ -367,6 +367,7 @@ FIX_WRITERS = {
     'skills/deep-review/SKILL.md': ('### deep-review-<YYYY-MM-DD>',),
     'skills/dev/SKILL.md': ('### runtime-r<n>',),
     'skills/feature-development/SKILL.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
+    'skills/tasks/SKILL.md': ('### manual-<YYYY-MM-DD>',),
 }
 
 

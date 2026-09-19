@@ -32,6 +32,13 @@ MAX_TITLE_CHARS = 500
 # it is the idempotency key, so letting it follow the input dialect would mirror
 # one tasklist as two disjoint sets of rows the day someone reworded a heading.
 ITERATION_RE = re.compile(r'^##\s+(?:Iteration|Phase)\s+(\d+)\s*:\s*(.+?)\s*$')
+# What an iteration heading looks like before ITERATION_RE decides whether it
+# parses. A line matching this and not that is an iteration the file meant to
+# have and the parser cannot see (`## Iteration 1 - Scaffold`, no colon).
+ITERATION_LIKE_RE = re.compile(r'^##\s+(?:Iteration|Phase)\b')
+# The H1 sync-phases gives a phase extract (`# Phase N: Title`). Such a file
+# never holds an iteration, so a fix section there is no sign of lost ones.
+PHASE_FILE_RE = re.compile(r'^#\s+Phase\s+\d+\s*:')
 HEADING_2_RE = re.compile(r'^##\s+')
 SECTION_RE = re.compile(r'^###\s+(.+?)\s*$')
 CHECKBOX_RE = re.compile(r'^\s*-\s+\[([ xX])\]\s+(.+?)\s*$')
@@ -324,6 +331,32 @@ def build_sections(sections):
     return rows, warnings
 
 
+def malformed_reason(text, iterations, sections):
+    """Why a tasklist with no parsed iteration is malformed, or None when it is not.
+
+    A file of fixes alone -- deep-review's, or a phase extract -- legitimately
+    has no iteration. Three shapes do not, and each would otherwise mirror a few
+    fix rows and read as a whole work list: `/artel:tasks list` would call an
+    unstarted ticket drained.
+    """
+    if iterations:
+        return None
+    lines = text.splitlines()
+    unparsed = [line.strip() for line in lines
+                if ITERATION_LIKE_RE.match(line) and not ITERATION_RE.match(line)]
+    if unparsed:
+        return ('`{}` looks like an iteration heading but does not parse; write it'
+                ' `## Iteration N: <name>` (or `## Phase N: <name>`)'.format(unparsed[0]))
+    phase_file = any(PHASE_FILE_RE.match(line) for line in lines)
+    if not phase_file and any(section['code'] == 'FV' for section in sections):
+        return ('a `## Final Verification` section but no `## Iteration N:` or'
+                ' `## Phase N:` section: every generated tasklist ends with Final'
+                ' Verification, so its iterations are missing or unparseable')
+    if not any(section['tasks'] for section in sections):
+        return 'no `## Iteration N:` or `## Phase N:` sections and no fix-section tasks'
+    return None
+
+
 def envelope(ok, elapsed_ms, data=None, error=None):
     out = {'ok': ok, 'verb': 'tasklist-tasks', 'elapsed_ms': elapsed_ms}
     if error is not None:
@@ -369,10 +402,9 @@ def main(argv):
     text = tasklist_file.read_text(encoding='utf-8')
     iterations, warnings = parse_tasklist(text)
     sections = parse_sections(text)
-    if not iterations and not any(section['tasks'] for section in sections):
-        return fail('tasklist_malformed',
-                    'no `## Iteration N:` or `## Phase N:` sections and no fix-section'
-                    ' tasks in {}'.format(tasklist_path))
+    reason = malformed_reason(text, iterations, sections)
+    if reason:
+        return fail('tasklist_malformed', '{}: {}'.format(tasklist_path, reason))
     rows, row_warnings = build_rows(iterations)
     collisions = find_collisions(rows)
     if collisions:

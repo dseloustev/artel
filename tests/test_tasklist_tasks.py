@@ -517,6 +517,47 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(out['error']['kind'], 'tasklist_malformed')
 
+    def test_final_verification_with_no_iteration_is_malformed(self):
+        # Every generated tasklist ends with `## Final Verification`, so a file
+        # carrying it and no iteration lost its iterations: mirroring its FV row
+        # alone would let `/artel:tasks list` read "drained" on an unstarted ticket.
+        text = ('# Development Tasklist\n\n## Final Verification\n\n'
+                '- [ ] Run every command in `verify.commands` (config.md), in order\n')
+        code, out = run_cli('--tasklist', self._write(text), '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'tasklist_malformed')
+        self.assertIn('## Final Verification', out['error']['message'])
+
+    def test_an_iteration_heading_that_does_not_parse_is_malformed(self):
+        # No colon, so ITERATION_RE misses it; the fix task beside it must not
+        # turn the file into a fixes-only tasklist that mirrors cleanly.
+        text = ('## Iteration 1 - Scaffold\n\n### `lib/a.dart`\n- [ ] Create the adapter\n\n'
+                '## Code Review Fixes\n\n### review-r1\n- [ ] **Task 1: Guard it**\n')
+        code, out = run_cli('--tasklist', self._write(text), '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'tasklist_malformed')
+        self.assertIn('## Iteration 1 - Scaffold', out['error']['message'])
+
+    def test_a_phase_file_exits_0_with_its_fix_sections(self):
+        text = ('# Phase 2: Wire it in\n\n## Tasks\n\n- [ ] 2.1 Swap the provider\n\n'
+                '## Code Review Fixes\n\n### review-p2-r1\n- [ ] **Task 1: X**\n')
+        code, out = run_cli('--tasklist', self._write(text), '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data']['iterations'], [])
+        self.assertEqual([s['title'] for s in out['data']['sections']],
+                         ['CRF: Code Review Fixes'])
+
+    def test_a_phase_file_given_a_final_verification_fix_still_exits_0(self):
+        # `/artel:tasks add <KEY>-<N> … --fix FV` appends `## Final Verification`
+        # to the phase file. A `# Phase N:` extract never holds an iteration, so
+        # the section is no sign of lost iterations there.
+        text = ('# Phase 2: Wire it in\n\n## Tasks\n\n- [ ] 2.1 Swap the provider\n\n'
+                '## Final Verification\n\n### manual-p2-2026-09-19\n- [ ] Run the smoke test\n')
+        code, out = run_cli('--tasklist', self._write(text), '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 0)
+        self.assertEqual([s['title'] for s in out['data']['sections']],
+                         ['FV: Final Verification'])
+
 
     def test_missing_file_exits_2_tasklist_not_found(self):
         code, out = run_cli('--tasklist', '/nonexistent/tasklist.md',

@@ -31,8 +31,10 @@ All notable changes to this project are documented here. The format follows
 - **`scripts/tasklist_tasks.py` emits `data.sections`** after `data.iterations`. It accepts
   checkboxes directly under the `##` heading (source `tasklist`), keeps nested acceptance
   criteria out of the title and in the description, and parses a file that has fix sections
-  but no iterations, such as a deep-review-only tasklist or a phase file. A tasklist with no fix
-  section prints exactly the 0.14.0 output.
+  but no iterations, such as a deep-review-only tasklist or a phase file. A file that lost its
+  iterations still exits 2 `tasklist_malformed` and names why: an `## Iteration`/`## Phase`
+  heading that does not parse, or a `## Final Verification` section with no iteration beside it
+  outside a phase file. A tasklist with no fix section prints exactly the 0.14.0 output.
 - **`/artel:tasks add … --fix CRF|RTF|VF|FV`** adds a task to a fix section, which the skill
   could not do before, under a `### manual-<date>` heading, and records it.
 - **`/artel:run-reviewer --local`**, which `feature-development` passes on, so a local-only

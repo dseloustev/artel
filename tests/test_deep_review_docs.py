@@ -208,5 +208,30 @@ class TestRetiredNames(unittest.TestCase):
         self.assertNotIn('dual pass', read('agents/reviewer.md'))
 
 
+class TestApplyRecordsTheFixes(unittest.TestCase):
+    """Step 6 records the fixes it appends; it used to skip the mirror.
+
+    The fix tasks deep-review applies are the longest-running work of a review
+    cycle, and they were invisible in the task queue until they were done.
+    """
+
+    def setUp(self):
+        self.step = read(SKILL).split('## Step 6: Apply')[1].split('## Rules')[0]
+
+    def test_the_mirror_runs_before_the_first_implementer(self):
+        self.assertNotIn('Do **not** run the tasklist mirror', self.step)
+        mirror = self.step.index('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py')
+        self.assertLess(mirror, self.step.index('Skill: implementer'))
+        self.assertIn('data.sections', self.step)
+
+    def test_the_batch_opens_with_a_dated_source_heading(self):
+        self.assertIn('### deep-review-<YYYY-MM-DD>', self.step)
+        self.assertIn('date +%F', self.step)
+        self.assertIn('not their\n   `### Tasks` heading', self.step)
+
+    def test_the_forecast_contract_says_who_adds_the_heading(self):
+        self.assertIn('### deep-review-<YYYY-MM-DD>', read(CONTRACT))
+
+
 if __name__ == '__main__':
     unittest.main()

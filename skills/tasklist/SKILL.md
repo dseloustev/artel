@@ -29,9 +29,11 @@ On the queue path, run:
 
     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
 
-Exit `0` → follow `docs/task-queue.md` §2 steps 2–3: `task_create` each iteration
+Exit `0` → follow `docs/task-queue.md` §2 steps 2–4: `task_create` each iteration
 row, then each of its children with `parent_id` set to the iteration's
-`task_id`, in the order emitted. Surface every `data.warnings` line.
+`task_id`, in the order emitted; then each `data.sections` entry the same way —
+at generation time that is the `## Final Verification` section. Surface every
+`data.warnings` line.
 
 Exit `2` → print `error.kind` and `error.message`, mirror nothing, and continue.
 A failed mirror never blocks the run: the file on disk is the fallback.

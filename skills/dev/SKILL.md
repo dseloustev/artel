@@ -83,7 +83,8 @@ and §2, on the queue path run:
 
     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
 
-and `task_create` the rows it emits. The step is create-only and idempotent, so
+and `task_create` the rows it emits — `data.iterations`, then `data.sections` (§2 steps
+2–3). The step is create-only and idempotent, so
 this repairs a tasklist that was hand-edited or generated before the queue was
 reachable, and never resets a `done` row or undoes a promotion. Exit `2` → report
 and continue on the fallback path. On phase-scoped runs this lands after
@@ -134,7 +135,12 @@ the default branch plus the working tree) and match them against the globs; no m
 on. No `runtime.run` configured → the gate records `skipped (not configured)` (run-app reports
 this itself). Otherwise `Skill: run-app` with `--gate`. RED caused by a **runtime error in app
 code** (runtime errors / ERROR logs / a broken UI tree) → append the quoted error as a `- [ ]`
-task under `## Runtime Fixes` in the phase-aware tasklist (mirroring `## Code Review Fixes`);
+task under `## Runtime Fixes` in the phase-aware tasklist (mirroring `## Code Review Fixes`),
+beneath a new `### runtime-r<n>` source heading (`### runtime-p<N>-r<n>` on a phase-scoped
+run, n the retry this round is — `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6), and on the
+queue path (§1 rows 2-4) record it before the implementer round: run
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py` on that file and `task_create` its
+`data.sections` (§2's fix-writer rule);
 when the RED stems from incomplete cross-phase wiring (this phase's code invokes pieces a later
 phase will build), word the fix task to create the **minimal stubs** that restore launch —
 no-op implementations / placeholder surfaces with a `TODO: phase <M>` marker — rather than real

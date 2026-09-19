@@ -116,6 +116,13 @@ class TestMirrorStep(unittest.TestCase):
                 'python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py', text,
                 rel + ' does not invoke the script the plugin-root way')
 
+    def test_every_producer_creates_the_sections_too(self):
+        # Final Verification is written at generation time; the generation
+        # mirror is what gives its rows to the queue.
+        for rel in MIRROR_FILES:
+            self.assertIn('data.sections', (ROOT / rel).read_text(encoding='utf-8'),
+                          rel + ' mirrors iterations only')
+
 
 class TestClaimLoop(unittest.TestCase):
     def test_implementer_claims_reports_and_promotes(self):
@@ -170,6 +177,8 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
     to implementation while it had no mirror step at all. It has one now, so the
     claim is checked against the skill file rather than against a phrasing.
     `implementer` is the one that must stay out: it claims, it never mirrors.
+    The reviewer agent must stay out too: it writes the batch, run-reviewer
+    records it.
     """
 
     def test_exactly_the_mirroring_skills_invoke_the_parser(self):
@@ -178,13 +187,18 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
             'skills/tasklist/SKILL.md',
             'skills/dev/SKILL.md',
             'skills/feature-development/SKILL.md',
+            'skills/run-reviewer/SKILL.md',
+            'skills/deep-review/SKILL.md',
             'skills/implementer/SKILL.md',
+            'agents/reviewer.md',
         ) if 'tasklist_tasks.py' in (ROOT / rel).read_text(encoding='utf-8')}
         self.assertEqual(carriers, {
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
             'skills/dev/SKILL.md',
             'skills/feature-development/SKILL.md',
+            'skills/run-reviewer/SKILL.md',
+            'skills/deep-review/SKILL.md',
         })
 
     def test_autonomous_run_credits_both_orchestrators_with_the_remirror(self):
@@ -342,6 +356,45 @@ class TestFixRowsAreRecordedNeverOffered(unittest.TestCase):
     def test_the_parent_id_follow_up_is_recorded(self):
         self.assertIn('parent_id', self.records)
         self.assertIn('design.md', self.records)
+
+
+# Every skill that appends to a fix section and records the append in the queue
+# (docs/task-queue.md §2's fix-writer rule), with the source heading it opens its
+# batch with (§6). run-reviewer's headings are the reviewer agent's, pinned in
+# tests/test_per_task_review_docs.py.
+FIX_WRITERS = {
+    'skills/run-reviewer/SKILL.md': (),
+    'skills/deep-review/SKILL.md': ('### deep-review-<YYYY-MM-DD>',),
+    'skills/dev/SKILL.md': ('### runtime-r<n>',),
+    'skills/feature-development/SKILL.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
+}
+
+
+class TestFixWritersRecordTheirAppend(unittest.TestCase):
+    """A fix task is logged when it is appended, by whoever appends it.
+
+    Left to the next orchestrator re-mirror, a review's fixes would sit
+    unrecorded for the whole fix round -- the round the queue exists to show.
+    """
+
+    def test_every_fix_writer_runs_the_script_and_creates_sections(self):
+        for rel, _ in FIX_WRITERS.items():
+            with self.subTest(rel):
+                text = (ROOT / rel).read_text(encoding='utf-8')
+                self.assertIn('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py', text)
+                self.assertIn('data.sections', text)
+                self.assertIn('docs/task-queue.md', text)
+
+    def test_every_fix_writer_opens_its_batch_with_its_source_heading(self):
+        for rel, headings in FIX_WRITERS.items():
+            text = (ROOT / rel).read_text(encoding='utf-8')
+            for heading in headings:
+                with self.subTest(rel=rel, heading=heading):
+                    self.assertIn(heading, text)
+
+    def test_final_verification_is_written_without_a_source_heading(self):
+        text = (ROOT / 'agents/tasklist-writer.md').read_text(encoding='utf-8')
+        self.assertIn('`FV · tasklist · <checkbox text>`', text)
 
 
 class TestLocalOnlyReachesTheImplementer(unittest.TestCase):

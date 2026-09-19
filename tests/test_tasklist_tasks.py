@@ -283,6 +283,40 @@ class TestTitleCap(unittest.TestCase):
         self.assertEqual(len(tasklist_tasks.find_collisions(rows)), 1)
 
 
+class TestFixSectionsAreNotIterationChildren(unittest.TestCase):
+    """A fix section's tasks never land in an iteration.
+
+    `## Code Review Fixes`, `## Runtime Fixes` and `## Verify Fixes` are `##`
+    headings, so they close the iteration above them, and their tasks are emitted
+    in `data.sections` instead (TestFixSections below). Filed as children of the
+    last iteration they would be `ready` or `backlog` behind a promotion, and
+    task_ready would offer them -- docs/task-queue.md §6.
+    """
+
+    SECTIONS = ('## Code Review Fixes', '## Runtime Fixes', '## Verify Fixes')
+
+    def _children(self, extra):
+        iterations, _ = tasklist_tasks.parse_tasklist(TASKLIST + extra)
+        self.assertEqual(2, len(iterations), 'the two real iterations, and no more')
+        return [c['text'] for it in iterations for c in it['children']]
+
+    def test_bare_checkboxes_under_a_fix_heading_are_not_children(self):
+        for heading in self.SECTIONS:
+            with self.subTest(heading):
+                extra = '\n{}\n\n- [ ] **Task 1: fix what the gate found**\n'.format(heading)
+                self.assertNotIn('**Task 1: fix what the gate found**',
+                                 self._children(extra))
+
+    def test_a_fix_heading_with_a_section_is_not_mirrored_either(self):
+        # The `### ` under a fix heading is its source, not an iteration section.
+        for heading in self.SECTIONS:
+            with self.subTest(heading):
+                extra = ('\n{}\n\n### `lib/a.dart`\n'
+                         '- [ ] fix what the gate found\n'.format(heading))
+                self.assertNotIn('fix what the gate found', self._children(extra))
+
+
+
 # Two review rounds after generation. Round 2 re-uses round 1's checkbox text on
 # purpose: the source heading is what keeps the two rows apart.
 FIX_TASKLIST = TASKLIST + '''
@@ -418,39 +452,6 @@ class TestFixSectionEdges(unittest.TestCase):
         self.assertEqual(iterations, [])
         self.assertEqual([c['title'] for c in rows[0]['children']],
                          ['CRF · review-p2-r1 · **Task 1: X**'])
-
-
-class TestFixSectionsAreNotIterationChildren(unittest.TestCase):
-    """A fix section's tasks never land in an iteration.
-
-    `## Code Review Fixes`, `## Runtime Fixes` and `## Verify Fixes` are `##`
-    headings, so they close the iteration above them, and their tasks are emitted
-    in `data.sections` instead (TestFixSections below). Filed as children of the
-    last iteration they would be `ready` or `backlog` behind a promotion, and
-    task_ready would offer them -- docs/task-queue.md §6.
-    """
-
-    SECTIONS = ('## Code Review Fixes', '## Runtime Fixes', '## Verify Fixes')
-
-    def _children(self, extra):
-        iterations, _ = tasklist_tasks.parse_tasklist(TASKLIST + extra)
-        self.assertEqual(2, len(iterations), 'the two real iterations, and no more')
-        return [c['text'] for it in iterations for c in it['children']]
-
-    def test_bare_checkboxes_under_a_fix_heading_are_not_children(self):
-        for heading in self.SECTIONS:
-            with self.subTest(heading):
-                extra = '\n{}\n\n- [ ] **Task 1: fix what the gate found**\n'.format(heading)
-                self.assertNotIn('**Task 1: fix what the gate found**',
-                                 self._children(extra))
-
-    def test_a_fix_heading_with_a_section_is_not_mirrored_either(self):
-        # The `### ` under a fix heading is its source, not an iteration section.
-        for heading in self.SECTIONS:
-            with self.subTest(heading):
-                extra = ('\n{}\n\n### `lib/a.dart`\n'
-                         '- [ ] fix what the gate found\n'.format(heading))
-                self.assertNotIn('fix what the gate found', self._children(extra))
 
 
 

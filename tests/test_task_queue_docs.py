@@ -34,6 +34,10 @@ CLAIM_FILES = (
 # Files that describe the loop and must agree with the reference doc.
 LOOP_FILES = (QUEUE_DOC,) + MIRROR_FILES + CLAIM_FILES
 
+# The four sections the queue records but never offers, with their title codes.
+FIX_SECTION_CODES = (('Code Review Fixes', 'CRF'), ('Runtime Fixes', 'RTF'),
+                     ('Verify Fixes', 'VF'), ('Final Verification', 'FV'))
+
 
 class TestQueueDoc(unittest.TestCase):
     def test_reference_doc_exists(self):
@@ -225,14 +229,19 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
             self.assertIn(section, paragraph)
         self.assertIn('Final Verification', paragraph)
 
-    def test_the_doc_lists_every_section_the_queue_never_holds(self):
-        section = self.doc.split('## 6. What the queue does not hold')[1]
-        for name in self.GATE_SECTIONS:
-            self.assertIn('| `' + name + '` | file scan, on either path |', section)
+    def test_the_doc_lists_every_section_it_records_but_never_offers(self):
+        section = self.doc.split('## 6. What the queue records but never offers')[1]
+        for heading, code in FIX_SECTION_CODES:
+            rows = [ln for ln in section.splitlines()
+                    if ln.startswith('| `## ' + heading + '` |')]
+            self.assertEqual(1, len(rows), heading + ' needs exactly one table row')
+            self.assertIn('`{}: {}`'.format(code, heading), rows[0])
+            self.assertIn('`{} · <source> · <checkbox text>`'.format(code), rows[0])
+            self.assertIn('file scan, on either path', rows[0])
 
     def test_a_drained_queue_is_a_documented_branch_not_a_stall(self):
         empty = self.doc.split('## 5. When the queue is empty')[1].split('## 6.')[0]
-        self.assertIn('- every **child** row `done` — the iteration work is complete.',
+        self.assertIn('- every **iteration child** row `done` — the iteration work is complete.',
                       empty)
         self.assertIn('`queue drained: iteration work complete`', empty)
         step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
@@ -252,6 +261,67 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
         self.assertIn('is not a stall: mark it `done` and treat the queue as drained.',
                       empty)
         self.assertIn('there is nothing left to promote — take the', empty)
+
+
+class TestFixRowsAreRecordedNeverOffered(unittest.TestCase):
+    """The four fix sections become rows that task_ready never hands out.
+
+    On a host run on 2026-09-18 a deep review appended 21 fix tasks and the
+    implementer worked nine of them over several hours while `/artel:tasks list`
+    read "queue drained". The rows make that work visible; keeping them out of
+    `ready` keeps task_ready -- which claims with no notion of section -- from
+    handing one to an iteration dispatch or across a phase boundary.
+    """
+
+    def setUp(self):
+        self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+        self.mirror = self.doc.split('## 2. Mirroring the tasklist')[1].split('## 3.')[0]
+        self.claim = self.doc.split(
+            '## 3. Claiming, reporting and promoting')[1].split('## 4.')[0]
+        self.empty = self.doc.split('## 5. When the queue is empty')[1].split('## 6.')[0]
+        self.records = self.doc.split('## 6. What the queue records but never offers')[1]
+        self.fix_block = self.claim.split('**Fix-section rows are recorded, not claimed.**')[1]
+
+    def test_the_old_title_and_claim_are_gone(self):
+        self.assertNotIn('What the queue does not hold', self.doc)
+        self.assertNotIn('never become rows', self.doc)
+
+    def test_the_mirror_creates_sections_after_iterations(self):
+        self.assertIn('Then each entry of `data.sections`', self.mirror)
+        self.assertIn('fix task #<id> is done in the queue but open in the file: <title>',
+                      self.mirror)
+
+    def test_a_fix_writer_creates_sections_only_from_the_file_it_wrote(self):
+        self.assertIn('**A fix-section writer creates `data.sections` only.**', self.mirror)
+        self.assertIn('`phase-<N>/tasks.md` on a phase-scoped run', self.mirror)
+
+    def test_the_fix_row_protocol_moves_rows_by_task_update_alone(self):
+        for status in ('in_progress', 'done', 'blocked'):
+            self.assertIn('task_update(task_id, status="{}")'.format(status), self.fix_block)
+        self.assertIn('row not found; file only', self.fix_block)
+        self.assertNotIn('status="ready"', self.fix_block)
+        self.assertNotIn('task_ready(', self.fix_block)
+
+    def test_holder_absence_and_hitl_are_stated(self):
+        self.assertIn('**No holder.**', self.fix_block)
+        self.assertIn('**A HITL fix task is never claimable,**', self.fix_block)
+
+    def test_the_empty_queue_reads_iteration_children_only(self):
+        self.assertIn('iteration children in `backlog` with none `ready`', self.empty)
+        self.assertIn('- fix-section rows open, `in_progress` or `blocked`', self.empty)
+        self.assertIn('never repair, promote or release one', self.empty)
+
+    def test_the_source_heading_rule_names_every_writer(self):
+        for source in ('### review-r<R>', '### review-p<PHASE_NUM>-r<R>',
+                       '### task-gate-<NNN>', '### deep-review-<YYYY-MM-DD>',
+                       '### runtime-r<n>', '### checkpoint-r<k>',
+                       '### manual-<YYYY-MM-DD>'):
+            self.assertIn(source, self.records)
+        self.assertIn('the source is `tasklist`', self.records)
+
+    def test_the_parent_id_follow_up_is_recorded(self):
+        self.assertIn('parent_id', self.records)
+        self.assertIn('design.md', self.records)
 
 
 class TestLocalOnlyReachesTheImplementer(unittest.TestCase):

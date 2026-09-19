@@ -5,7 +5,9 @@ queue, and what they do when it is not there.
 
 Referenced by `agents/implementer.md`, `skills/implementer/SKILL.md`,
 `skills/generate-tasklist/SKILL.md`, `skills/tasklist/SKILL.md`,
-`skills/dev/SKILL.md` and `skills/feature-development/SKILL.md`. Spelled here
+`skills/dev/SKILL.md`, `skills/feature-development/SKILL.md`,
+`skills/run-reviewer/SKILL.md`, `skills/deep-review/SKILL.md` and
+`skills/tasks/SKILL.md`. Spelled here
 once because they need identical rules and two copies drifting apart hands the
 same task to two agents.
 
@@ -21,8 +23,8 @@ write that does not name one, so `task_create` and `task_ready` carry it, and
 across every project.
 
 **The queue is authoritative for which iteration task to work next** — and only
-for that. §6 lists the four sections it never holds, every one of which is worked
-from the file on both paths. The tasklist in scope stays current as a rendered
+for that. §6 lists the four sections it records but never offers, every one of
+which is worked from the file on both paths. The tasklist in scope stays current as a rendered
 view besides, because §4's fallback reads it and a fallback pointed at a file
 claiming nothing is done would redo the whole ticket.
 
@@ -83,8 +85,9 @@ fifth case, fall back and record it as spelled there.
 
 ## 2. Mirroring the tasklist
 
-Run by `generate-tasklist` and `tasklist` after `tasklist.md` is written, and by
-`dev` and `feature-development` alike on entry to implementation.
+Run by `generate-tasklist` and `tasklist` after `tasklist.md` is written, by
+`dev` and `feature-development` alike on entry to implementation, and by every
+writer of a fix section right after its append (§6).
 
 1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <path> --ticket-key <TICKET_KEY>`
    Exit `0` → continue. Exit `2` → report `error.kind` and `error.message`, mirror
@@ -95,11 +98,27 @@ Run by `generate-tasklist` and `tasklist` after `tasklist.md` is written, and by
    with `parent_id` set to the iteration row's `task_id`. Every call names the
    project; a `Rejected:` line naming `kartoteka project add` on the first one is
    §1's sixth case — mirror nothing more and continue on the fallback path.
-3. Surface every `data.warnings` line to the user; none of them stop the mirror.
+3. Then each entry of `data.sections`, in order — present only when the file has
+   a fix section with a task in it — exactly as in step 2: the section row
+   (`CRF: Code Review Fixes`, …), then its `children` with `parent_id` set to
+   that row's `task_id`. A child the script emitted `backlog` that comes back
+   `done` is an earlier round's row under the same title (§6, "Titles are
+   identity"): the open checkbox has no row of its own. Say so loudly —
+   `fix task #<id> is done in the queue but open in the file: <title>` — and
+   carry on.
+4. Surface every `data.warnings` line to the user; none of them stop the mirror.
+
+**A fix-section writer creates `data.sections` only.** It runs step 1 on the file
+it wrote — `tasklist.md`, or `phase-<N>/tasks.md` on a phase-scoped run — and
+skips step 2: a fix row's parent is its section row, never an iteration, and
+re-creating every iteration row to record three fixes buys nothing. It resolves
+§1 like every other caller; on the fallback path it runs nothing, and the file
+alone carries the tasks, exactly as before fix rows existed.
 
 **Order matters.** `task_ready` claims `ORDER BY task_id LIMIT 1` and the table
 has no priority column, so insertion order is queue order. Mirror in the order
-the script emits.
+the script emits. Fix-section rows are never `ready`, so where they land in that
+order changes nothing.
 
 **The step is create-only and safe to re-run.** `task_create` is idempotent on
 `(ticket_key, title)` *and discards* a changed status or description, returning
@@ -111,10 +130,16 @@ a hazard.
 mirrors under `AW-1234`, the same rule `docs/knowledge-consultation.md` §2 states
 for `related()`.
 
-**`phase-<N>/tasks.md` is never mirrored.** It is an extract of one iteration
-that `sync-phases` syncs back to the ticket-wide tasklist; mirroring both would
-create two rows per checkbox. On phase-scoped runs `sync-phases` therefore runs
-before this step, which both orchestrators' existing step order already does.
+**`phase-<N>/tasks.md`'s iteration tasks are never mirrored.** It is an extract
+of one iteration that `sync-phases` syncs back to the ticket-wide tasklist;
+mirroring both would create two rows per checkbox. On phase-scoped runs
+`sync-phases` therefore runs before this step, which both orchestrators'
+existing step order already does. Its fix sections are the exception, because
+they live nowhere else: on a phase-scoped run the review, runtime and checkpoint
+gates append to the phase file, and `sync-phases` never copies a fix section
+back. Their writer mirrors the phase file's `data.sections` (the extract has no
+`## Iteration N:` heading, so its `data.iterations` is empty anyway), and the
+source heading names the phase (§6), so two phases' fixes never share a title.
 
 ## 3. Claiming, reporting and promoting
 
@@ -177,6 +202,41 @@ and nothing is ever promoted. Claiming one is what triggers the pause. The
 orchestrator asks the user; clearing it sets the task back to `ready`, which
 also clears the holder.
 
+**Fix-section rows are recorded, not claimed.** The rows §6 describes move by a
+protocol of their own. The implementer still takes its task by file scan — the
+first `- [ ]` under the section its dispatch names — and never calls
+`task_ready` for it; the row is a record of that work, not the source of it:
+
+    find      task_list(project=<project>, ticket_key=<TICKET_KEY>)
+                → the row titled "<CODE> · <source> · <checkbox text>" (§6)
+                → none (an older ticket, a mirror that failed): not an error;
+                  work from the file and report `row not found; file only`
+    guard     title contains "[HITL:" → task_update(task_id, status="blocked"),
+                return `HITL: <reason>`, do not implement
+                resumed with the answer → task_update(task_id, status="in_progress")
+    start     task_update(task_id, status="in_progress")
+    work      implement; flip the checkbox in the tasklist in scope, exactly as before
+    report    task_update(task_id, status="done") — no promotion: nothing waits on a fix row
+    abort     red gate, any DEVIATION halt, or Abort task ->
+                task_update(task_id, status="blocked")
+
+**Never `ready`.** No step above moves a fix row to `ready`, and the mirror never
+creates one that way: `task_ready` claims the oldest `ready` row for the ticket
+with no notion of section, so a `ready` fix row would go to whichever queue-path
+implementer asked next — a phase-scoped run included.
+
+**No holder.** Only a `task_ready` claim sets a row's holder, so an
+`in_progress` fix row names none: `actor` stays empty and `updated_at` says when
+the work started. `/artel:tasks list` shows it that way rather than inventing one.
+
+**A HITL fix task is never claimable,** so the reason above for keeping a HITL
+iteration task claimable — a child never completed deadlocks promotion — does not
+reach it: nothing is promoted on a fix row. It goes `blocked` when the
+implementer returns `HITL:` and back to `in_progress` when the orchestrator
+resumes that implementer with the user's answer. The implementer makes both
+updates because it holds the row id; its `HITL:` line carries none for the
+orchestrator to use.
+
 ## 4. The fallback path
 
 Scan the tasklist in scope (`tasklist.md`, or `phase-<N>/tasks.md` on a
@@ -193,55 +253,121 @@ record is the only trail that divergence leaves.
 `task_ready` returning nothing on the queue path means no work is `ready`. That is
 not by itself a completion and not by itself a stall — check
 `task_list(project=<project>, ticket_key=<TICKET_KEY>)` and report which of these
-four it is:
+it is. The first four read **iteration children only** — rows titled `I<N> · …`.
+Fix-section rows (§6) are never `ready`, so they can neither stall the queue nor
+keep it from draining; they are the fifth line, not a variant of the first four:
 
-- every **child** row `done` — the iteration work is complete. An `I<N>: …` parent
+- every **iteration child** row `done` — the iteration work is complete. An `I<N>: …` parent
   still `backlog` because its iteration was already complete when it was mirrored
   is not a stall: mark it `done` and treat the queue as drained. Report
   `queue drained: iteration work complete`, then
   continue from the file — the first incomplete `- [ ]` in scope (§6).
   This is the normal end of a successful ticket, not a stall.
-- rows in `backlog` with none `ready` — a promotion did not happen, or an
+- iteration children in `backlog` with none `ready` — a promotion did not happen, or an
   iteration was already complete when it was promoted into. Repair it rather than
   reporting a stall: promote every `I<N> · ` child of the lowest-numbered
   iteration that still has an unfinished child, then claim again. If every child
   of that iteration is already `done`, promote the next one and repeat. If no
   iteration has an unfinished child, there is nothing left to promote — take the
   first bullet.
-- rows in `blocked` — a HITL task or an aborted task is waiting on the user.
-- rows in `in_progress` — a holder is still working, or stalled and left the row
+- iteration children in `blocked` — a HITL task or an aborted task is waiting on the user.
+- iteration children in `in_progress` — a holder is still working, or stalled and left the row
   held. `actor` names the holder and `updated_at` says how long ago. Report it;
   do not clear another agent's claim on your own judgement. Nothing available
   here separates a slow verify loop from a dead holder, and clearing a live
   claim puts two agents on one task — the outcome the store's atomic claim
   exists to prevent. Releasing it is the user's call.
+- fix-section rows open, `in_progress` or `blocked` — gate work the file still
+  holds (§6), not a stall. Report them beside whichever line above applies —
+  `fix rows: <n> open, <m> in progress, <k> blocked` — and
+  never repair, promote or release one: the implementer that works them keeps them current.
 
-## 6. What the queue does not hold
+## 6. What the queue records but never offers
 
-Only iteration work is mirrored — the `## Iteration N:` sections, or `## Phase N:`,
-which the parser accepts as the same heading. It closes the current iteration at
-any other `##` heading, so four sections of a tasklist never become rows and never
-will:
+Only iteration work is **offered** — the `## Iteration N:` sections, or `## Phase N:`,
+which the parser accepts as the same heading. Four more sections are **recorded**:
+the parser emits them in `data.sections`, one parent row per section and a child
+per checkbox, and `task_ready` never hands one out.
 
-| Section | Worked by |
+| Section | Parent row | Child title | Worked by |
+|---|---|---|---|
+| `## Code Review Fixes` | `CRF: Code Review Fixes` | `CRF · <source> · <checkbox text>` | file scan, on either path |
+| `## Runtime Fixes` | `RTF: Runtime Fixes` | `RTF · <source> · <checkbox text>` | file scan, on either path |
+| `## Verify Fixes` | `VF: Verify Fixes` | `VF · <source> · <checkbox text>` | file scan, on either path |
+| `## Final Verification` | `FV: Final Verification` | `FV · <source> · <checkbox text>` | file scan, on either path |
+
+**Why record them.** They are where the longest-running part of a review cycle
+happens. On a host run on 2026-09-18 a deep review appended 21 tasks under
+`## Code Review Fixes`, and the implementer completed nine of them over several
+hours while `/artel:tasks list` reported the queue drained. The queue is where
+people look to see what an agent is doing, and that work never became searchable
+history either.
+
+**Why never offer them.** They are gate remediation and the end-of-feature gate,
+not planned iteration work, and they are appended after the iterations were
+mirrored. `task_ready` claims the oldest `ready` row for the ticket with no notion
+of section (§2, "Order matters"), so a `ready` fix row would go to whichever
+queue-path implementer asked next — a phase-scoped run included, across the
+boundary §3's wrong-phase check exists to hold. So the parser emits them
+`backlog`, or `done` for a checked box, and never `ready` — even in a file with no
+iterations — and §3's fix-section protocol moves them by `task_update` alone. The
+file stays their source of truth on every path.
+
+**Section rows are labels.** A section's parent stays `backlog`: nothing claims,
+promotes or completes it, because the next round that appends to its section
+reopens it.
+
+**The source heading.** Each writer opens its batch with a `### <source>` heading
+inside the section and puts its checkboxes under it. That heading is the title's
+middle segment, the way an iteration's `### ` section is:
+
+    ## Code Review Fixes
+
+    ### review-r2
+    - [ ] **Task 3: Guard the null wallet**
+      - Acceptance criteria:
+        - A null wallet renders the empty state.
+
+| Writer | Source heading |
 |---|---|
-| `## Code Review Fixes` | file scan, on either path |
-| `## Runtime Fixes` | file scan, on either path |
-| `## Verify Fixes` | file scan, on either path |
-| `## Final Verification` | file scan, on either path |
+| `reviewer` ticket mode, via `run-reviewer` | `### review-r<R>`, R the `**Review round:**` it writes — `### review-p<PHASE_NUM>-r<R>` on a phase-scoped run |
+| `reviewer` task mode, via `run-reviewer` (`autonomous-run.md` §16) | `### task-gate-<NNN>`, the `NNN` of the report it answers |
+| `deep-review` Step 6 | `### deep-review-<YYYY-MM-DD>` |
+| runtime gate — `dev` step 7, `feature-development` gate 8 | `### runtime-r<n>`, n the retry this round is — `### runtime-p<N>-r<n>` on a phase-scoped run |
+| phase checkpoint — `feature-development` `## Checkpoint commits & pushes`, shared by `dev` | `### checkpoint-r<k>`, k the verify round — `### checkpoint-p<N>-r<k>` on a phase-scoped run |
+| `/artel:tasks add --fix` | `### manual-<YYYY-MM-DD>` — `### manual-p<N>-<YYYY-MM-DD>` in a phase file |
 
-This is deliberate: they are gate remediation and the end-of-feature gate, not
-planned iteration work, and they are appended after the mirror has run.
+Dates come from `date +%F`, never from memory. A writer starting a batch never
+reuses a heading already in the section: it appends `-2`, then `-3`, …
+(`review-r1-2`). The one exception is `/artel:tasks add --fix`, whose additions
+on one day are one batch. A checkbox with no `###` above it in its section —
+Final Verification as `tasklist-writer` writes it, and every fix task written
+before 0.15.0 — has no heading, so the source is `tasklist`.
+
+The checkbox text is the title's third segment **verbatim**, bold markers
+included, because `/artel:tasks done` flips the box whose text is everything after
+the title's second ` · `. Lines nested under a checkbox — its body, its
+acceptance criteria, an indented sub-step — go to the row's description, never
+its title.
+
+**Titles are identity, and fix sections repeat.** `task_create` is idempotent on
+the title and ignores a status passed for one that exists, so a re-appended task
+whose title matches an old `done` row would come back `done` — new work,
+invisible again. The source heading keeps rounds apart, and two warnings catch a
+writer that repeats one anyway: the script warns when a fix title repeats inside
+the file (the later box gets no row of its own), and §2 step 3 warns when an open
+box resolves to a `done` row.
 
 **Recognise such a dispatch by the section the orchestrator names**: the review
 gate's fixes, the runtime gate's fixes, the checkpoint's verify fixes, or the
 Final Verification gate. On either path the implementer scans the tasklist in
 scope for the first incomplete `- [ ]` under that heading; `task_ready` is not
-called at all, because it can only ever answer for iteration work.
+called at all, because it never offers these rows. On the queue path the
+implementer keeps the row current per §3's fix-section protocol.
 
 **So `task_ready` returning nothing does not mean there is nothing to do.** It
-means no *iteration* work is ready. When every child row is `done`, the iteration
-work is finished and the run
+means no *iteration* work is ready. When every iteration child row is `done`, the
+iteration work is finished and the run
 continues from the file — the first incomplete `- [ ]` in scope —
 report `queue drained: iteration work complete` so the orchestrator can tell that
 from a stall. §5 covers the cases where rows remain, including a parent left
@@ -252,3 +378,9 @@ complete, or the tasklist carrying none — there is nothing left to work at all
 Report the ticket complete and return; do not loop and
 do not re-claim. This is the only state in which reporting completion is right,
 and it is a state read off the file, never inferred from an empty queue.
+
+**Claiming them is a follow-up, and the rows are shaped for it.** kartoteka
+0.28.0's `task_ready` narrows by `parent_id`, and one parent per section is what
+that needs: a fix dispatch could claim from its own section and gain the holder
+these rows lack today. It changes the claim protocol, so it is the open follow-up
+in [design.md](design.md#open-follow-ups), not this section.

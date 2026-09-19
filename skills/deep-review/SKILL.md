@@ -262,29 +262,51 @@ Otherwise ask via `AskUserQuestion` which fixes to work. Offer only the options 
 
 ## Step 6: Apply
 
-1. Copy the chosen `### Tasks` block(s) from `deep-review.md` under `## Code Review Fixes` in
-   the ticket-wide `<specs.dir>/<TICKET_ID>/tasklist.md`:
+1. Copy the checkbox items of the chosen `### Tasks` block(s) from `deep-review.md` — not their
+   `### Tasks` heading — under `## Code Review Fixes` in the ticket-wide
+   `<specs.dir>/<TICKET_ID>/tasklist.md`, beneath one new source heading
+   `### deep-review-<YYYY-MM-DD>`, the date from `date +%F`. The heading keeps this batch's
+   rows apart from an earlier round's with the same text
+   (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); when it is already in the section, use
+   `-2`, then `-3`, ….
    - The file is missing → create it with `# Tasklist — <TICKET_ID>` and the section, and
      display `Created <specs.dir>/<TICKET_ID>/tasklist.md with only a ## Code Review Fixes section.`
    - The section is missing → append `## Code Review Fixes` at the end of the file.
+   - The source heading goes at the end of the section, before the next `## ` heading.
    - Renumber the copied tasks to continue from the highest `Task N` already in the file.
-   - A block reading `- none` copies nothing.
-   - Do **not** run the tasklist mirror: `## Code Review Fixes` is file-scan work that the
-     queue never holds (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6).
+   - A block reading `- none` copies nothing, and no heading.
 
    Display `Appended <count> tasks under ## Code Review Fixes in <specs.dir>/<TICKET_ID>/tasklist.md.`
 
-2. For each appended task, in order: `Skill: implementer` with `<TICKET_ID>` (plus `--local`
-   when this run was invoked with it), naming `## Code Review Fixes` in the invocation — the
-   implementer treats a dispatch that names that section as file-scan work and takes the
-   first incomplete box under it. On a `HITL:` or `DEVIATION` return, or an aborted task, stop
-   the loop and report it; the remaining tasks stay unchecked for the user to decide.
+2. Record them in the task queue before any implementer is dispatched
+   (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §2, fix-writer rule). Decide the path per
+   task-queue.md §1: `--local` was passed, `knowledge.adapter` is `none` or absent,
+   `knowledge.project` is unset, or the kartoteka task tools are absent → skip this step and
+   display `Task queue: not used (<reason>)`. Otherwise run
 
-3. Run `verify.commands` once more, exactly as in Step 0, and record the result (`passed`,
+       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+
+   and for each entry of `data.sections`, in order,
+   `task_create(project=<project>, ticket_key=<TICKET_ID>, title=…, description=…, status=…)`
+   the section row, then each of its `children` with `parent_id` set to that row's `task_id` —
+   not `data.iterations`. A child emitted `backlog` that comes back `done` → display
+   `fix task #<id> is done in the queue but open in the file: <title>`. Surface every
+   `data.warnings` line. Exit `2`, or a `Rejected:` line naming `kartoteka project add` →
+   display it and continue: the tasks are in the file. Display
+   `Recorded <n> fix rows in the task queue.`
+
+3. For each appended task, in order: `Skill: implementer` with `<TICKET_ID>` (plus `--local`
+   when this run was invoked with it), naming `## Code Review Fixes` in the invocation — the
+   implementer treats a dispatch that names that section as file-scan work, takes the first
+   incomplete box under it, and on the queue path keeps its row current. On a `HITL:` or
+   `DEVIATION` return, or an aborted task, stop the loop and report it; the remaining tasks
+   stay unchecked for the user to decide.
+
+4. Run `verify.commands` once more, exactly as in Step 0, and record the result (`passed`,
    `failed` with the quoted output, or `skipped`). A failure here is reported, not
    terminated on — the tasks that were worked are already in the tree.
 
-4. Report:
+5. Report:
    ```
    Applied fixes for <TICKET_ID>:
    - Tasks appended: <count>
@@ -297,7 +319,8 @@ Otherwise ask via `AskUserQuestion` which fixes to work. Offer only the options 
 
 - **Orchestrator only.** This skill never reads the diff, never judges code, never writes a
   review or a forecast, and never edits code. Copying task blocks between two files under
-  `<specs.dir>` is the only text it moves.
+  `<specs.dir>` is the only text it moves, and the rows Step 6 records are its only writes to
+  kartoteka.
 - **Read-only on the VCS host** — the PR is fetched, never commented on or edited.
 - **Ticket-wide only** — a phase suffix is accepted and discarded.
 - **Two agents, one seat each** — the `reviewer` is dispatched once; there is no second

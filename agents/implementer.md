@@ -49,9 +49,11 @@ one without the phase suffix, and `<hostname>` is what `hostname -s` prints — 
 dispatch, never recalled or composed: a guessed name records a machine that does not exist,
 and `/artel:tasks list` then reports it as holding the row. A `Rejected:` line naming
 `kartoteka project add` is §1's sixth case: fall back to the file and record it as §1
-spells it. Nothing returned → consult `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §5. Every row `done` is the normal end
+spells it. Nothing returned → consult `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §5, which
+reads iteration children (`I<N> · `) only. Every iteration child `done` is the normal end
 of iteration work: report `queue drained: iteration work complete` and continue
-from the file per §6. Rows still `backlog`, `blocked` or `in_progress` mean the
+from the file per §6 — open fix-section rows never stall the queue and never earn
+a promotion repair. Iteration children still `backlog`, `blocked` or `in_progress` mean the
 queue is stalled, not finished — report which. A task returned is now held by
 you and `in_progress`. If it is the first child of its iteration, also
 `task_update` the `I<N>: …` parent to `in_progress`. On a phase-scoped run, read
@@ -60,13 +62,26 @@ back, per §3, and that is the one release that is not `blocked`.
 
 **A fix-list dispatch is file-scan work, on either path.** When the orchestrator's
 prompt names `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` or the
-Final Verification gate, do not call `task_ready` at all — those sections are never
-mirrored (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6).
+Final Verification gate, do not call `task_ready` at all — it never offers those
+sections' rows (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6).
 Find the first incomplete `- [ ]` under the named section and work it exactly as
-before the queue existed. Nothing is claimed, so Step 5's `task_update` and
-promotion have nothing to act on either: close it by flipping the checkbox and
-reporting. A dispatch that names no section but whose only incomplete `- [ ]` sits
+before the queue existed. A dispatch that names no section but whose only incomplete `- [ ]` sits
 under one of those headings is the same work, and takes the same route.
+
+On the queue path that task also has a row, which records the work and never
+directs it (§3, fix-section rows). `task_list(project=<project>, ticket_key=<TICKET_KEY>)`
+and find the row titled `<CODE> · <source> · <checkbox text>`: the code from §6's
+table, `<source>` the nearest `### ` heading above the box inside its section
+(`tasklist` when there is none), the checkbox text verbatim — the title as the script
+builds it: cut to its first 500 characters, and compared with
+whitespace runs collapsed to one space, so a longer checkbox matches on its start. Then
+`task_update(task_id, status="in_progress")` when you start,
+`task_update(task_id, status="done")` when you flip the checkbox, and
+`task_update(task_id, status="blocked")` on every exit **Rules** lists for a held
+task — a red gate, any `DEVIATION` halt, a `HITL:` return, an aborted task — and
+never `ready`. No row by that title — an older ticket, a mirror that failed — is
+not an error: work on from the file and put `row not found; file only` in the
+report. Nothing is claimed, so there is no promotion to run.
 
 **Fallback path.** Find the first incomplete `- [ ]` task within scope (phase or
 ticket), exactly as before the queue existed. A dispatch carrying **Task queue:**
@@ -86,7 +101,9 @@ On the queue path, release the claim first — see **Rules**, below.
 
 If the task carries a `[HITL: …]` tag, do not implement. On the queue path,
 `task_update(task_id, status="blocked")` first. Either way return the single line
-`HITL: <reason>` and stop — the orchestrator owns the pause.
+`HITL: <reason>` and stop — the orchestrator owns the pause. A fix-section row set
+`blocked` this way goes back to `in_progress` when the orchestrator resumes you with
+the answer: you hold its id, and the orchestrator does not.
 
 ### Step 2 — Plan internally
 
@@ -120,7 +137,7 @@ both paths — it is what the fallback reads.
 On the queue path, then `task_update(task_id, status="done")` and run the
 promotion step in `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3: `task_list` the
 ticket scoped to `<project>`, and if no `I<N> · ` sibling is left undone, mark the `I<N>: …` parent
-`done` and promote every `I<N+1> · ` child from `backlog` to `ready`.
+`done` and promote every `I<N+1> · ` child from `backlog` to `ready`. A fix-section row gets `done` and nothing else — no sibling scan, no promotion.
 
 A red gate is never "done" — if the loop stopped-and-asked (verify budget
 exhausted, no-progress, exit-2 environment error, or out-of-scope baseline
@@ -154,7 +171,7 @@ phase suffix — the run directory is ticket-top-level; create the directory if 
 - files changed, with the actual diff (`git diff` of the touched paths, plus new files in full)
 - verify evidence: the iteration count and the path of the last envelope in the ticket's
   `verify/` dir
-- the queue path taken and the claim id, when any
+- the queue path taken and the claim id or fix-row id, when any — or `row not found; file only`
 - the deviations in full (`implementation-notes.md` stays the durable record — this is the
   per-task view)
 - anything the reviewer should know that the diff does not show (a decision taken, a risk left)
@@ -174,8 +191,8 @@ the work — all of that is in the report.
 ## Rules
 
 - **HITL boundary** — never implement a `[HITL: …]`-tagged task; on the queue path set it `blocked` with `task_update`, then return `HITL: <reason>` and let the orchestrator pause.
-- **Release the claim on any exit that is not a completion** — on the queue path a task you hold must never be left `in_progress` when you stop working it. That covers Step 5's red gate, any `DEVIATION` halt (including an unresolved `ref:` anchor in Step 1), and the protocol's **Abort task** outcome. `task_update(task_id, status="blocked")` before returning, every time. `task_ready` offers `ready` rows only, so a held row is never re-offered and §3's promotion never fires while a sibling is unfinished — one missed release wedges the ticket's queue silently. **One exception:** a claim `task_ready` handed you from another phase goes back with `task_update(task_id, status="ready")`, not `blocked` — you never worked it, and the run that owns its phase has to be able to claim it (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3).
-- **Queue before file, for iteration work only** — on the queue path a claim from `task_ready` decides which `## Iteration N:` task to work, never a scan of `tasklist.md`. Everything else in the tasklist is file-scan work on both paths, because it is never mirrored: `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` and `## Final Verification` all sit outside the iterations, and `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6 says how to recognise a dispatch that means them. The file stays current as the fallback's input, not as the iteration work list.
+- **Release the claim on any exit that is not a completion** — on the queue path a task you hold must never be left `in_progress` when you stop working it. That covers Step 5's red gate, any `DEVIATION` halt (including an unresolved `ref:` anchor in Step 1), and the protocol's **Abort task** outcome. `task_update(task_id, status="blocked")` before returning, every time. `task_ready` offers `ready` rows only, so a held row is never re-offered and §3's promotion never fires while a sibling is unfinished — one missed release wedges the ticket's queue silently. **One exception:** a claim `task_ready` handed you from another phase goes back with `task_update(task_id, status="ready")`, not `blocked` — you never worked it, and the run that owns its phase has to be able to claim it (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3). A fix-section row you set `in_progress` takes the same `blocked` on the same exits — and never `ready`, which would make it claimable.
+- **Queue before file, for iteration work only** — on the queue path a claim from `task_ready` decides which `## Iteration N:` task to work, never a scan of `tasklist.md`. The four other sections — `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` and `## Final Verification` — are file-scan work on both paths: `task_ready` never offers their rows, and the file decides which one is next. On the queue path their rows are a record you keep current (`in_progress`, `done`, `blocked`), never a work list you take from; `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6 says how to recognise a dispatch that means them. The file stays current as the fallback's input, not as the iteration work list.
 - **Phase boundary** — if a phase is set, never touch tasks from other phases.
 - **One task per cycle** — complete the current task before picking the next.
 - **No subagents** — do all of this task's work yourself: never spawn a helper to implement part of it, and never spawn a reviewer to check it. Review is the orchestrator's, dispatched against your report after you return (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16 per task when configured, the phase review always); a reviewer you spawn duplicates that seat at full cost and its verdict counts for nothing. Self-review means reading your own diff before Step 6.

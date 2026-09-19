@@ -213,8 +213,11 @@ the phase's gates pass (sync status back to `tasklist.md`).
   `dev` and `feature-development` alike run the parser and `task_create` its rows.
   The re-mirror is what covers a resumed run and a tasklist written before the
   adapter was reachable, neither of which re-runs the skill that wrote it.
-  Create-only and idempotent; a failure reports and falls back rather than
-  blocking the run.
+  Every writer of a fix section — `run-reviewer`, `deep-review`, the runtime gate
+  and the phase checkpoint — records its batch the same way right after the
+  append, so the queue shows fix work before the first fix is dispatched (§6:
+  recorded, never offered). Create-only and idempotent; a failure reports and
+  falls back rather than blocking the run.
 
 `pr-description` is the exception to skip-if-exists: invoked by `feature-development` at run completion
 (after all gates are green, before `completed: true`), it always regenerates `pr-description.md` — the
@@ -364,16 +367,19 @@ Per iteration-task dispatch:
    `Report:` path so the three files pair up. The one-line output carries the file count:
    `0 file(s)` → journal `task review: skipped (empty diff)` and move on.
 3. **Review** — `Skill: run-reviewer` with `$0 --task "<task title>" --report <report path>
-   --package <diff path>`. The `reviewer` agent's task mode writes `NNN-<slug>-review.md` and
-   appends every Blocking / Important finding and every spec gap as a task under
-   `## Code Review Fixes` in the phase-aware tasklist — the same section and format the phase
-   review uses, so nothing downstream learns a new shape.
+   --package <diff path>` (plus `--local` on a run that holds it). The `reviewer` agent's task
+   mode writes `NNN-<slug>-review.md` and appends every Blocking / Important finding and every
+   spec gap as a task under `## Code Review Fixes` in the phase-aware tasklist — the same
+   section and format the phase review uses, so nothing downstream learns a new shape —
+   beneath a `### task-gate-<NNN>` source heading, and `run-reviewer` records the batch in the
+   task queue before step 4's round starts (`docs/task-queue.md` §6).
 4. **One fix round** — when it appended fix tasks: increment `counters.correction_rounds` (the
    `MAX_TOTAL_CORRECTION_ROUNDS` check applies), then loop `Skill: implementer` naming
-   `## Code Review Fixes` until no fix task from this review is left unchecked (one round = the
-   whole list, counted once). `MAX_TASK_REVIEW_ROUNDS = 1`: there is no per-task re-review — a
-   fix task the round could not close stays unchecked and the phase review owns it from there;
-   it is what `REVIEW_OK` sees. The implementer's usual returns apply inside the round (`HITL:`,
+   `## Code Review Fixes` (plus `--local` on a run that holds it) until no fix task from this
+   review is left unchecked (one round = the whole list, counted once).
+   `MAX_TASK_REVIEW_ROUNDS = 1`: there is no per-task re-review — a fix task the round could
+   not close stays unchecked and the phase review owns it from there; it is what `REVIEW_OK`
+   sees. The implementer's usual returns apply inside the round (`HITL:`,
    `DEVIATION`, aborted task), handled exactly as in the main loop.
 5. **Journal** — one `task review` entry (§11) per task: the verdict, the fix-task count, the
    round taken or `skipped (<why>)`, and the three report paths under `artifacts`. On resume

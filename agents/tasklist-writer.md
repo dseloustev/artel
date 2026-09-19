@@ -108,6 +108,11 @@ Run after **all iterations above are complete and checked off**. This is the end
 **Gate:** Do not mark the ticket as done until the `verify.commands` gate exits clean (or is recorded skipped, when the list is empty).
 ```
 
+Its checkboxes sit directly under the heading, with no `###` subheading: the task queue records
+them as `FV · tasklist · <checkbox text>` rows under an `FV: Final Verification` parent
+(`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6), created by the mirror that runs after you write
+the file. They are still worked from the file, after the iterations.
+
 ## Per-run workflow
 
 ### Step 1 — Draft and list questions

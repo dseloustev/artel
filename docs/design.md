@@ -138,7 +138,18 @@ move to the decision log.
   [task-queue.md](task-queue.md) §3 still claims unscoped and releases a wrong-phase row back to
   `ready`, and still recovers plan order by sorting client-side. Adopting them changes the claim
   protocol (a phase-scoped run must first learn its iteration's `task_id`), so it wants its own
-  design pass rather than an in-place edit.
+  design pass rather than an in-place edit. Fix-section rows (0.15.0,
+  [task-queue.md](task-queue.md) §6) are already shaped for it: one parent row per section, so
+  a fix dispatch can claim from its own section by `parent_id` once the protocol adopts it, and
+  gain the holder those rows lack today.
+- **A generated ticket never reads fully done in kartoteka's rollup.** Fix-section parents
+  (`CRF: …`, `RTF: …`, `VF: …`, `FV: …`) stay `backlog` by design, because nothing claims,
+  promotes or completes a label row and the next round appending to its section would
+  reopen it ([task-queue.md](task-queue.md) §6, "Section rows are labels"). Every generated
+  tasklist has a Final Verification section, so its `FV` parent remains `backlog` after the
+  last box is ticked, and kartoteka's per-ticket rollup never shows the ticket done. Two
+  ways out: mark a section parent `done` when its last child completes and back to
+  `backlog` when a writer appends to the section, or have kartoteka's rollup skip label rows.
 - **Spec-trail frontmatter is unblocked on kartoteka's side, not adopted** (from the 2026-09-15
   OKF review, decision log below). kartoteka 0.35.0 indexes a workspace artifact without its
   leading YAML frontmatter block, while the store and `artifact_get` keep it verbatim. That opens
@@ -559,8 +570,8 @@ move to the decision log.
   mode.** After writing the file the skill asks which set to apply and appends the chosen task
   blocks to the ticket-wide `tasklist.md`, then `Skill: implementer` once per task and
   `verify.commands` once — the pipeline's own review-fix path ([task-queue.md](task-queue.md)
-  §6: file-scan work, never mirrored). No re-review loop; re-running the skill refreshes the
-  forecast.
+  §6: file-scan work, never mirrored until 2026-09-19, below). No re-review loop; re-running
+  the skill refreshes the forecast.
 - **2026-09-04 — `knowledge.project` names the kartoteka namespace, with no default.**
   kartoteka 0.31.0 namespaces its store and index by project so one daemon can serve several
   repositories out of one database, and it refuses any write — `POST /api/artifacts`,
@@ -726,3 +737,29 @@ move to the decision log.
   Code's docs stays on the main checkout, so every gate checked the wrong tree in any worktree
   session; `hook_common.read_hook_input()` now moves into the session's linked worktree. Released
   as 0.14.0. Spec: `docs/superpowers/specs/2026-09-17-worktree-isolation-design.md` (local).
+- **2026-09-19 — Fix-section tasks are recorded in the task queue, never offered.**
+  `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` and `## Final Verification`
+  become rows: one parent per section (`CRF: Code Review Fixes`, …) and a child per checkbox
+  titled `<CODE> · <source> · <checkbox text>`, created by whoever appends the checkbox, right
+  after the append. On a host run on 2026-09-18 a deep review's 21 fix tasks ran for hours
+  while `/artel:tasks list` read "queue drained". They are never `ready`: `task_ready` claims
+  the oldest ready row for the ticket with no notion of section, so a ready fix row would go
+  to any queue-path implementer and break phase-scoped claiming. The implementer still finds
+  its task by file scan and moves the row by `task_update` (`in_progress`, `done`, `blocked`).
+  The row is a record, the file stays the source of truth, and no holder is recorded, because
+  only a claim sets one. Rejected: claimable fix rows now (that needs `task_ready`'s
+  `parent_id`, the open follow-up above) and invisible ones (the old behaviour). `<source>` is
+  a `### <source>` heading each writer opens its batch with, because titles are identity and
+  `task_create` ignores the status of an existing title: a re-appended task matching an old
+  `done` row would come back `done`, invisible again. The script warns on a repeat inside the
+  file, and the mirror warns on an open box that resolves to a `done` row. The heading was
+  chosen over a hidden HTML marker (people and LLM copies drop what they cannot see) and a
+  per-task `Source:` bullet (every writer, every task). Phase files are mirrored for their fix
+  sections, which live nowhere else, and the source names the phase. Fix writers create
+  `data.sections` only; `data.sections` is absent when empty, so a tasklist without one prints
+  exactly the 0.14.0 output. The implementer, not the orchestrator as first proposed, moves a
+  `HITL:` fix row `blocked` and back: it holds the row id, and its `HITL:` line carries none.
+  The reviewer agent writes the batch and `run-reviewer` records it, which gained `--local` so
+  a local-only `feature-development` run still writes no rows. `/artel:tasks` gained
+  `add --fix` and refuses to `release` a fix row, since releasing sets `ready`. kartoteka
+  needed nothing new. Prompt: `docs/superpowers/prompts/2026-09-19-review-fix-queue.md` (local).

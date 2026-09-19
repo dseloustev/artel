@@ -34,6 +34,10 @@ CLAIM_FILES = (
 # Files that describe the loop and must agree with the reference doc.
 LOOP_FILES = (QUEUE_DOC,) + MIRROR_FILES + CLAIM_FILES
 
+# The four sections the queue records but never offers, with their title codes.
+FIX_SECTION_CODES = (('Code Review Fixes', 'CRF'), ('Runtime Fixes', 'RTF'),
+                     ('Verify Fixes', 'VF'), ('Final Verification', 'FV'))
+
 
 class TestQueueDoc(unittest.TestCase):
     def test_reference_doc_exists(self):
@@ -112,6 +116,13 @@ class TestMirrorStep(unittest.TestCase):
                 'python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py', text,
                 rel + ' does not invoke the script the plugin-root way')
 
+    def test_every_producer_creates_the_sections_too(self):
+        # Final Verification is written at generation time; the generation
+        # mirror is what gives its rows to the queue.
+        for rel in MIRROR_FILES:
+            self.assertIn('data.sections', (ROOT / rel).read_text(encoding='utf-8'),
+                          rel + ' mirrors iterations only')
+
 
 class TestClaimLoop(unittest.TestCase):
     def test_implementer_claims_reports_and_promotes(self):
@@ -166,6 +177,8 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
     to implementation while it had no mirror step at all. It has one now, so the
     claim is checked against the skill file rather than against a phrasing.
     `implementer` is the one that must stay out: it claims, it never mirrors.
+    The reviewer agent must stay out too: it writes the batch, run-reviewer
+    records it.
     """
 
     def test_exactly_the_mirroring_skills_invoke_the_parser(self):
@@ -174,13 +187,18 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
             'skills/tasklist/SKILL.md',
             'skills/dev/SKILL.md',
             'skills/feature-development/SKILL.md',
+            'skills/run-reviewer/SKILL.md',
+            'skills/deep-review/SKILL.md',
             'skills/implementer/SKILL.md',
+            'agents/reviewer.md',
         ) if 'tasklist_tasks.py' in (ROOT / rel).read_text(encoding='utf-8')}
         self.assertEqual(carriers, {
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
             'skills/dev/SKILL.md',
             'skills/feature-development/SKILL.md',
+            'skills/run-reviewer/SKILL.md',
+            'skills/deep-review/SKILL.md',
         })
 
     def test_autonomous_run_credits_both_orchestrators_with_the_remirror(self):
@@ -196,13 +214,14 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
 
 
 class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
-    """The queue holds `## Iteration N:` work and nothing else.
+    """The queue offers `## Iteration N:` work and nothing else.
 
-    "Queue before file" was written unqualified. None of the four sections below
-    is ever mirrored, so on the queue path the three fix loops claimed nothing
-    and applied no fix -- each gate re-ran to its cap and escalated -- and
-    `## Final Verification` never came up at all, which is the state every
-    successful ticket ends in.
+    "Queue before file" was written unqualified, so on the queue path the three
+    fix loops claimed nothing and applied no fix -- each gate re-ran to its cap
+    and escalated -- and `## Final Verification` never came up at all, which is
+    the state every successful ticket ends in. The four sections below are
+    file-scan work on both paths; on the queue path they are also recorded as
+    rows, which task_ready never offers.
     """
 
     GATE_SECTIONS = ('## Code Review Fixes', '## Runtime Fixes', '## Verify Fixes',
@@ -224,15 +243,40 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
         for section in self.GATE_SECTIONS[:3]:
             self.assertIn(section, paragraph)
         self.assertIn('Final Verification', paragraph)
+        for status in ('in_progress', 'done', 'blocked'):
+            self.assertIn('status="{}"'.format(status), paragraph)
+        self.assertIn('`row not found; file only`', paragraph)
+        self.assertIn('never `ready`', paragraph)
+        self.assertNotIn('never\nmirrored', paragraph)
 
-    def test_the_doc_lists_every_section_the_queue_never_holds(self):
-        section = self.doc.split('## 6. What the queue does not hold')[1]
-        for name in self.GATE_SECTIONS:
-            self.assertIn('| `' + name + '` | file scan, on either path |', section)
+    def test_step_five_completes_a_fix_row_without_promotion(self):
+        step_five = self.agent.split('### Step 5')[1].split('### Step 6')[0]
+        self.assertIn('A fix-section row gets `done` and nothing else', step_five)
+
+    def test_the_empty_claim_reads_iteration_children_only(self):
+        step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
+        self.assertIn('Every iteration child `done`', step_one)
+        self.assertIn('never earn\na promotion repair', step_one)
+
+    def test_the_skill_prompt_keeps_the_fix_row_current(self):
+        text = (ROOT / 'skills/implementer/SKILL.md').read_text(encoding='utf-8')
+        self.assertIn('`task_ready` never offers their rows', text)
+        self.assertIn('`row not found; file only`', text)
+        self.assertNotIn('those sections are never mirrored', text)
+
+    def test_the_doc_lists_every_section_it_records_but_never_offers(self):
+        section = self.doc.split('## 6. What the queue records but never offers')[1]
+        for heading, code in FIX_SECTION_CODES:
+            rows = [ln for ln in section.splitlines()
+                    if ln.startswith('| `## ' + heading + '` |')]
+            self.assertEqual(1, len(rows), heading + ' needs exactly one table row')
+            self.assertIn('`{}: {}`'.format(code, heading), rows[0])
+            self.assertIn('`{} · <source> · <checkbox text>`'.format(code), rows[0])
+            self.assertIn('file scan, on either path', rows[0])
 
     def test_a_drained_queue_is_a_documented_branch_not_a_stall(self):
         empty = self.doc.split('## 5. When the queue is empty')[1].split('## 6.')[0]
-        self.assertIn('- every **child** row `done` — the iteration work is complete.',
+        self.assertIn('- every **iteration child** row `done` — the iteration work is complete.',
                       empty)
         self.assertIn('`queue drained: iteration work complete`', empty)
         step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
@@ -252,6 +296,209 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
         self.assertIn('is not a stall: mark it `done` and treat the queue as drained.',
                       empty)
         self.assertIn('there is nothing left to promote — take the', empty)
+
+
+class TestFixRowsAreRecordedNeverOffered(unittest.TestCase):
+    """The four fix sections become rows that task_ready never hands out.
+
+    On a host run on 2026-09-18 a deep review appended 21 fix tasks and the
+    implementer worked nine of them over several hours while `/artel:tasks list`
+    read "queue drained". The rows make that work visible; keeping them out of
+    `ready` keeps task_ready -- which claims with no notion of section -- from
+    handing one to an iteration dispatch or across a phase boundary.
+    """
+
+    def setUp(self):
+        self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+        self.mirror = self.doc.split('## 2. Mirroring the tasklist')[1].split('## 3.')[0]
+        self.claim = self.doc.split(
+            '## 3. Claiming, reporting and promoting')[1].split('## 4.')[0]
+        self.empty = self.doc.split('## 5. When the queue is empty')[1].split('## 6.')[0]
+        self.records = self.doc.split('## 6. What the queue records but never offers')[1]
+        self.fix_block = self.claim.split('**Fix-section rows are recorded, not claimed.**')[1]
+
+    def test_the_old_title_and_claim_are_gone(self):
+        self.assertNotIn('What the queue does not hold', self.doc)
+        self.assertNotIn('never become rows', self.doc)
+
+    def test_the_mirror_creates_sections_after_iterations(self):
+        self.assertIn('Then each entry of `data.sections`', self.mirror)
+        self.assertIn('fix task #<id> is done in the queue but open in the file: <title>',
+                      self.mirror)
+
+    def test_a_fix_writer_creates_sections_only_from_the_file_it_wrote(self):
+        self.assertIn('**A fix-section writer creates `data.sections` only.**', self.mirror)
+        self.assertIn('`phase-<N>/tasks.md` on a phase-scoped run', self.mirror)
+
+    def test_the_fix_row_protocol_moves_rows_by_task_update_alone(self):
+        for status in ('in_progress', 'done', 'blocked'):
+            self.assertIn('task_update(task_id, status="{}")'.format(status), self.fix_block)
+        self.assertIn('row not found; file only', self.fix_block)
+        self.assertNotIn('status="ready"', self.fix_block)
+        self.assertNotIn('task_ready(', self.fix_block)
+
+    def test_holder_absence_and_hitl_are_stated(self):
+        self.assertIn('**No holder.**', self.fix_block)
+        self.assertIn('**A HITL fix task is never claimable,**', self.fix_block)
+
+    def test_the_empty_queue_reads_iteration_children_only(self):
+        self.assertIn('iteration children in `backlog` with none `ready`', self.empty)
+        self.assertIn('- fix-section rows open, `in_progress` or `blocked`', self.empty)
+        self.assertIn('never repair, promote or release one', self.empty)
+
+    def test_the_source_heading_rule_names_every_writer(self):
+        for source in ('### review-r<R>', '### review-p<PHASE_NUM>-r<R>',
+                       '### task-gate-<NNN>', '### deep-review-<YYYY-MM-DD>',
+                       '### runtime-r<n>', '### runtime-p<N>-r<n>',
+                       '### checkpoint-r<k>', '### checkpoint-p<N>-r<k>',
+                       '### manual-<YYYY-MM-DD>', '### manual-p<N>-<YYYY-MM-DD>'):
+            self.assertIn(source, self.records)
+        self.assertIn('the source is `tasklist`', self.records)
+
+    def test_the_parent_id_follow_up_is_recorded(self):
+        self.assertIn('parent_id', self.records)
+        self.assertIn('design.md', self.records)
+
+
+class TestReviewerGroupingsNeverBecomeTheSource(unittest.TestCase):
+    """The nearest `###` above a fix box is its source, whatever it says.
+
+    A live reviewer grouped its batch under `### Blocking` / `### Important`.
+    Under the source rule those headings replace `review-r<R>`, and every
+    round's Blocking tasks share one title prefix again -- the merge the source
+    heading exists to prevent. Priority goes where the parser never reads it.
+    """
+
+    RULE = 'No other `###` heading'
+    WHERE = '`####` heading, which the parser ignores as a source'
+
+    def test_the_contract_states_the_rule(self):
+        records = (ROOT / QUEUE_DOC).read_text(encoding='utf-8').split(
+            '## 6. What the queue records but never offers')[1]
+        source = records.split('**The source heading.**')[1].split('**Titles are identity')[0]
+        self.assertIn(self.RULE, source)
+        self.assertIn(self.WHERE, source)
+
+    def test_the_reviewer_states_it_in_both_writing_modes(self):
+        text = (ROOT / 'agents/reviewer.md').read_text(encoding='utf-8')
+        modes = {
+            'ticket': text.split('## Ticket mode')[1].split('## Standalone mode')[0],
+            'task': text.split('## Task mode')[1].split('## Review focus')[0],
+        }
+        for mode, body in modes.items():
+            with self.subTest(mode):
+                self.assertIn(self.RULE, body)
+                self.assertIn(self.WHERE, body)
+                self.assertIn('**Task N (Blocking): …**', body)
+
+
+# Every skill that appends to a fix section and records the append in the queue
+# (docs/task-queue.md §2's fix-writer rule), with the source heading it opens its
+# batch with (§6). run-reviewer's headings are the reviewer agent's, pinned in
+# tests/test_per_task_review_docs.py.
+FIX_WRITERS = {
+    'skills/run-reviewer/SKILL.md': (),
+    'skills/deep-review/SKILL.md': ('### deep-review-<YYYY-MM-DD>',),
+    'skills/dev/SKILL.md': ('### runtime-r<n>',),
+    'skills/feature-development/SKILL.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
+    'skills/tasks/SKILL.md': ('### manual-<YYYY-MM-DD>',),
+}
+
+# The orchestrators' own record steps, scoped: dev and feature-development also
+# re-mirror on entry to implementation, and that text alone -- script, then
+# `data.sections` -- satisfies a whole-file assertIn with a record step deleted.
+# (file, start, end) -> phrases the step itself must carry.
+FIX_WRITER_STEPS = {
+    ('skills/dev/SKILL.md', '### 7. Runtime gate', '### 7.5'):
+        ('### runtime-r<n>', '### runtime-p<N>-r<n>'),
+    ('skills/feature-development/SKILL.md', '| 8 | `RUNTIME_OK` |', '\n'):
+        ('### runtime-r<n>', '### runtime-p<N>-r<n>', 'never on a `--local` run'),
+    ('skills/feature-development/SKILL.md', '3. **Quality gate (phase-end only).**',
+     '4. **Stage explicitly.**'):
+        ('### checkpoint-r<k>', '### checkpoint-p<N>-r<k>'),
+}
+
+
+class TestFixWritersRecordTheirAppend(unittest.TestCase):
+    """A fix task is logged when it is appended, by whoever appends it.
+
+    Left to the next orchestrator re-mirror, a review's fixes would sit
+    unrecorded for the whole fix round -- the round the queue exists to show.
+    """
+
+    def test_every_fix_writer_runs_the_script_and_creates_sections(self):
+        for rel, _ in FIX_WRITERS.items():
+            with self.subTest(rel):
+                text = (ROOT / rel).read_text(encoding='utf-8')
+                self.assertIn('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py', text)
+                self.assertIn('data.sections', text)
+                self.assertIn('docs/task-queue.md', text)
+
+    def test_every_fix_writer_opens_its_batch_with_its_source_heading(self):
+        for rel, headings in FIX_WRITERS.items():
+            text = (ROOT / rel).read_text(encoding='utf-8')
+            for heading in headings:
+                with self.subTest(rel=rel, heading=heading):
+                    self.assertIn(heading, text)
+
+    def test_each_orchestrator_record_step_runs_the_script_where_it_appends(self):
+        for (rel, start, end), phrases in FIX_WRITER_STEPS.items():
+            step = (ROOT / rel).read_text(encoding='utf-8').split(start)[1].split(end)[0]
+            for phrase in ('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py'
+                           ' --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>',
+                           'without the phase suffix',
+                           'data.sections', 'task_create') + phrases:
+                with self.subTest(rel=rel, step=start, phrase=phrase):
+                    self.assertIn(phrase, step)
+
+    def test_final_verification_is_written_without_a_source_heading(self):
+        text = (ROOT / 'agents/tasklist-writer.md').read_text(encoding='utf-8')
+        self.assertIn('`FV · tasklist · <checkbox text>`', text)
+
+
+class TestLongFixTitlesStayFindable(unittest.TestCase):
+    """A fix row's title is capped at 500 characters and its whitespace collapsed.
+
+    Runtime-fix checkboxes quoted whole errors, which run past the cap, and an
+    implementer composing the full title never found the row the script had cut.
+    Readers match the title as the script builds it, and the runtime writers
+    keep the error out of the checkbox line in the first place.
+    """
+
+    def setUp(self):
+        self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+
+    def test_the_fix_row_protocol_matches_the_capped_title(self):
+        claim = self.doc.split('## 3. Claiming, reporting and promoting')[1].split('## 4.')[0]
+        fix_block = claim.split('**Fix-section rows are recorded, not claimed.**')[1]
+        self.assertIn('first 500 characters', fix_block)
+        self.assertIn('whitespace runs collapsed to one space', fix_block)
+
+    def test_the_implementer_matches_the_capped_title(self):
+        step_one = (ROOT / 'agents/implementer.md').read_text(
+            encoding='utf-8').split('### Step 1')[1].split('### Step 2')[0]
+        paragraph = step_one.split('On the queue path that task also has a row')[1].split(
+            '**Fallback path.**')[0]
+        self.assertIn('first 500 characters', paragraph)
+        self.assertIn('whitespace runs collapsed to one space', paragraph)
+
+    def test_done_flips_a_truncated_row_s_box_by_prefix(self):
+        text = (ROOT / 'skills/tasks/SKILL.md').read_text(encoding='utf-8')
+        done = text.split('### `done <task-id>`')[1].split('### `block')[0]
+        self.assertIn('500 characters long', done)
+        self.assertIn("starts with the title's third segment", done)
+
+    def test_runtime_writers_put_a_one_line_summary_on_the_checkbox(self):
+        runtime = {
+            'skills/dev/SKILL.md': ('### 7. Runtime gate', '### 7.5'),
+            'skills/feature-development/SKILL.md': ('| 8 | `RUNTIME_OK` |', '\n'),
+        }
+        for rel, (start, end) in runtime.items():
+            with self.subTest(rel):
+                step = (ROOT / rel).read_text(encoding='utf-8').split(start)[1].split(end)[0]
+                self.assertIn('one-line summary', step)
+                self.assertIn('nested under it as an indented block', step)
+                self.assertNotIn('append the quoted error as a', step)
 
 
 class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
@@ -285,6 +532,39 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
             encoding='utf-8').split('| 5 | `IMPLEMENT_STEP_OK`')[1].split('\n')[0]
         self.assertIn('--local', gate)
         self.assertIn('**Task queue:**', gate)
+
+    def test_feature_development_passes_it_to_every_row_writer(self):
+        # Only gate 5's main loop carried it, so every fix round -- review,
+        # runtime, QA, checkpoint -- ran its implementer on the queue path, and
+        # gate 4's tasklist mirrored rows on a run that asked for none.
+        text = (ROOT / 'skills/feature-development/SKILL.md').read_text(encoding='utf-8')
+        flag = text.split('`--local`: skip')[1].split('## Workflow')[0]
+        for skill in ('`analysis`', '`researcher`', '`tasklist`', '`run-reviewer`',
+                      '`implementer`'):
+            self.assertIn(skill, flag)
+        self.assertIn('fix rounds included', flag)
+        gate4 = text.split('| 4 | `TASKLIST_READY`')[1].split('\n')[0]
+        self.assertIn('`Skill: tasklist` with `$0`, plus `--local`', gate4)
+        gate7 = text.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
+        self.assertIn('`Skill: implementer` (fix tasks from `## Code Review Fixes`, plus'
+                      ' `--local`', gate7)
+
+    def test_the_per_task_fix_round_carries_it(self):
+        text = (ROOT / 'docs/autonomous-run.md').read_text(encoding='utf-8')
+        step = text.split('## 16. Per-task review')[1].split('4. **One fix round**')[1].split(
+            '5. **Journal**')[0]
+        self.assertIn('(plus `--local` on a run that holds it)', step)
+
+    def test_the_tasklist_skill_takes_it_and_skips_the_mirror(self):
+        text = (ROOT / 'skills/tasklist/SKILL.md').read_text(encoding='utf-8')
+        hints = [ln for ln in text.splitlines() if ln.startswith('argument-hint:')]
+        self.assertEqual(1, len(hints), 'exactly one argument-hint line')
+        self.assertIn('[--local]', hints[0])
+        mirror = text.split('### Mirror the tasklist into the task queue')[1]
+        self.assertIn('`--local` was passed', mirror)
+        reference = (ROOT / 'docs/skills-reference.md').read_text(encoding='utf-8')
+        hint = hints[0].split(':', 1)[1].strip().strip('"')
+        self.assertIn('- **Invocation:** `/artel:tasklist {}`'.format(hint), reference)
 
 
 class TestAbortedClaimIsReleased(unittest.TestCase):
@@ -378,6 +658,29 @@ class TestStalledClaimIsNotClearedUnilaterally(unittest.TestCase):
             '## 5. When the queue is empty')[1]
         self.assertIn('do not clear another agent', section)
         self.assertNotIn('status="ready"', section)
+
+
+class TestNoLiveDocHidesTheFixSections(unittest.TestCase):
+    """The queue records the four fix sections; no live prompt may still deny it.
+
+    A prompt that says the queue never holds them sends an agent back to skipping
+    their rows, and the queue goes blind again for the longest part of a review
+    cycle.
+    """
+
+    RETIRED = ('never become rows', 'What the queue does not hold',
+               'those sections are never mirrored', 'queue never holds',
+               'Only iteration work is ever mirrored', 'because it is never mirrored',
+               'Do **not** run the tasklist mirror')
+
+    def test_no_live_file_carries_a_retired_phrase(self):
+        live = (sorted(ROOT.glob('agents/*.md')) + sorted(ROOT.glob('skills/*/SKILL.md'))
+                + sorted(ROOT.glob('docs/*.md')) + [ROOT / 'README.md'])
+        for path in live:
+            text = path.read_text(encoding='utf-8')
+            for phrase in self.RETIRED:
+                with self.subTest(path=str(path.relative_to(ROOT)), phrase=phrase):
+                    self.assertNotIn(phrase, text)
 
 
 if __name__ == '__main__':

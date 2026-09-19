@@ -47,11 +47,12 @@ Path resolution follows `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. In summa
    guidance after a cap escalation (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §5), which the
    orchestrator signals by deleting `review.md`.
 2. Findings categorized **Blocking** (must fix before merge), **Important** (recommended), **Nice-to-have** (cosmetic).
-3. For every blocking or important finding, append a task to the tasklist under `## Code Review Fixes` (in the phase-scoped `phase-<PHASE_NUM>/tasks.md` when phase is set, otherwise the ticket-wide `tasklist.md`):
+3. For every blocking or important finding, append a task to the tasklist under `## Code Review Fixes` (in the phase-scoped `phase-<PHASE_NUM>/tasks.md` when phase is set, otherwise the ticket-wide `tasklist.md`). Open this round's batch with a source heading — `### review-r<R>`, R the `**Review round:**` you just wrote, or `### review-p<PHASE_NUM>-r<R>` when phase is set; when that heading is already in the section, append `-2` (then `-3`, …) — and put every task of the round under it. No other `###` heading inside the batch: the nearest `###` above a task is its source, so a `### Blocking` or `### Important` grouping would replace the round. Put the priority in the task text (`**Task N (Blocking): …**`) or under a `####` heading, which the parser ignores as a source. The batch goes at the end of the section, before the next `## ` heading; a missing section is appended at the end of the file. The heading is how the task queue tells this round's tasks from an earlier round's with the same text (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); you never write to the queue yourself — `run-reviewer` records the batch after you return:
 
 ```markdown
 ## Code Review Fixes
 
+### review-r<R>
 - [ ] **Task N: <short description>**
   - <what needs to be done>
   - Acceptance criteria:
@@ -144,8 +145,12 @@ index, index-first per `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §3 (`usa
    fixes`, one sentence of reasoning. The whole file is verdicts, findings and checks run — no
    preamble, no narration.
 2. Every Blocking or Important finding, and every ❌ spec gap, becomes a task under
-   `## Code Review Fixes` in the phase-aware tasklist, in exactly the ticket-mode format below,
+   `## Code Review Fixes` in the phase-aware tasklist, in exactly the ticket-mode format above,
    with the task it came from named in the body (`From the per-task review of "<task title>"`).
+   The batch's source heading is `### task-gate-<NNN>`, the `NNN` of the report you answer —
+   never `review-r<R>`: task mode does not touch the round. No other `###` heading inside
+   the batch, as in ticket mode: the priority goes in the task text
+   (`**Task N (Blocking): …**`) or under a `####` heading, which the parser ignores as a source.
    Nice-to-have findings stay in the review file only.
 3. Nothing else: task mode does not write `review.md`, does not touch `**Review round:**`,
    and does not write `review/findings.json` — those are the phase review's, and the lens
@@ -223,7 +228,7 @@ medium → Important/Warning, low → Nice-to-have/Suggestion.
 
 - Don't nitpick style unless it contradicts the host repo's conventions docs (its CLAUDE.md and any style guides it references).
 - **No subagents** — do all of the review yourself: never spawn a subagent to review part of the diff, and never spawn a second reviewer for another opinion. The pipeline already provides every review seat the work gets (the per-task gate, the phase review, `deep-review`'s single pass); a reviewer you spawn duplicates one of them at full cost and its verdict counts for nothing. A diff too large for one pass is reviewed in passes, and the report says so.
-- **Read-only on the checkout** — the tasklist write-back and your report files are the only writes; never touch the working tree, the index, HEAD or branch state.
+- **Read-only on the checkout** — the tasklist write-back and your report files are the only writes; never touch the working tree, the index, HEAD or branch state. Never call kartoteka's task tools either: `run-reviewer` records your write-back in the task queue.
 - **Skip generated files** — hunks in files the host marks as generated (analyzer/linter exclusion lists, generated-file headers) are codegen output: don't review their style and never recommend editing them directly; the fix is always in the generating source plus the host's codegen step, when it has one.
 - In ticket mode, every blocking/important finding must become a task in the tasklist — not just a suggestion.
 - In standalone mode, group findings by priority and include specific fix examples.

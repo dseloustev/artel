@@ -253,7 +253,7 @@ Entry template:
 ### tasklist
 
 - **Purpose:** Break the approved plan down into small, trackable checkbox tasks.
-- **Invocation:** `/artel:tasklist [ticket-id] or [ticket-id]-[phase]`
+- **Invocation:** `/artel:tasklist [ticket-id] or [ticket-id]-[phase] [--local]`
 - **Reads:** the plan and its upstream inputs, resolved internally by the `task-planner` agent.
 - **Writes:** (via the agent) `tasklist.md` (or the phase tasks file) with
   `Status: TASKLIST_READY` and HITL tags (autonomous-run.md §4); unresolved questions to
@@ -288,7 +288,9 @@ Entry template:
   file or `tasklist.md` (first `- [ ]` task in scope) — `--local` forces the file
   ([task-queue.md](task-queue.md) §1); `idea.md`, `vision.md`.
 - **Writes:** (via the agent) the source changes for the task; the tasklist checkbox and
-  Progress Report; deviation records per [deviation-protocol.md](deviation-protocol.md); the
+  Progress Report; on the queue path, a fix-section task's row moved by `task_update` alone —
+  never claimed ([task-queue.md](task-queue.md) §3); deviation records per
+  [deviation-protocol.md](deviation-protocol.md); the
   task's report — diff, verify evidence, decisions — at
   `.artel/run/<TICKET_ID>/reports/NNN-<slug>.md`, so the completion message itself stays a
   short contract (task, changed paths, `Report:` path, `Verify iterations:`, `Deviations:`).
@@ -331,7 +333,7 @@ Entry template:
 - **Purpose:** Review the ticket's changes and classify findings as Blocking / Important /
   Nice-to-have; with `--task`, review one task's diff right after its implementer returned.
 - **Invocation:** `/artel:run-reviewer [ticket-id] or [ticket-id]-[phase]
-  [--task "<task title>" --report <path> --package <path>]`
+  [--task "<task title>" --report <path> --package <path>] [--local]`
 - **Reads:** input artifacts and the priority taxonomy, resolved internally by the `reviewer`
   agent (PRD/plan/conventions in ticket mode). In task mode: the task's text from the
   tasklist, the implementer's report and the diff package `scripts/review_package.py` wrote
@@ -341,7 +343,9 @@ Entry template:
   ticket-parsing.md §4); in ticket mode, a tasklist write-back under `## Code Review Fixes`.
   Task mode writes `.artel/run/<TICKET_ID>/reports/NNN-<slug>-review.md` and the same
   `## Code Review Fixes` write-back, and nothing else — no `review.md`, no round bump, no
-  lenses.
+  lenses. Either mode opens its write-back with a `### <source>` heading, and the skill records
+  the batch as fix rows in the task queue unless `--local` or the adapter rules it out
+  ([task-queue.md](task-queue.md) §6).
 - **Pauses:** never.
 - **Notes:** orchestrator (dispatches the `reviewer` agent). Capped at `MAX_REVIEW_ROUNDS`
   (autonomous-run.md §5) — the cap is enforced by the calling orchestrators, which loop it
@@ -520,7 +524,8 @@ Entry template:
   table of definite issues, a table of the remaining changes with a pass percentage and cited
   precedents, proposed fixes for changes under the threshold, and the consultation record. The
   reviewer's own report lands at `.artel/run/<TICKET_ID>/reports/deep-review-findings.md`. On
-  apply: `## Code Review Fixes` tasks appended to the ticket-wide `tasklist.md`.
+  apply: `## Code Review Fixes` tasks appended to the ticket-wide `tasklist.md` under a
+  `### deep-review-<date>` heading, and recorded as fix rows in the task queue on the queue path.
 - **Pauses:** on a `verify.commands` failure (stop and report — review does not proceed; an
   empty list degrades the gate to `skipped` and continues); when `deep-review.md` already
   exists (overwrite?); after the file is written, to ask which fixes to apply (definite issues
@@ -825,13 +830,14 @@ Entry template:
 
 - **Purpose:** Operate a ticket's kartoteka task queue from the conversation: list and diagnose,
   add, mark done or blocked, release a held task.
-- **Invocation:** `/artel:tasks list|add|done|block|release [ticket-id] [<task-id> | "<title>" --iteration N [--section <name>] [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]`
+- **Invocation:** `/artel:tasks list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--section <name>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]`
 - **Reads:** `.artel/config.json` (`knowledge.adapter`), `<specs.dir>/.active_ticket`,
   `<specs.dir>/<TICKET_ID>/tasklist.md` (and `phase-<N>/tasks.md` when present); over MCP:
   `task_list`, `task_create`, `task_update`.
-- **Writes:** `add` appends a checkbox to `tasklist.md` (and the phase file) and mirrors it
-  through `scripts/tasklist_tasks.py` + create-only `task_create`; `done` flips the matching
-  checkbox after `task_update`; `block` / `release` update the row only.
+- **Writes:** `add` appends a checkbox to `tasklist.md` (and the phase file) — or, with
+  `--fix`, under a `### manual-<date>` heading in a fix section — and mirrors it through
+  `scripts/tasklist_tasks.py` + create-only `task_create`; `done` flips the matching checkbox
+  after `task_update`; `block` / `release` update the row only.
 - **Pauses:** `release` always confirms via `AskUserQuestion` (shows holder and age); nothing
   else pauses.
 - **Notes:** worker. The write side of [task-queue.md](task-queue.md) applied to the
@@ -839,4 +845,6 @@ Entry template:
   implementer's) and never promotes an iteration (the implementer's repair). `add` composes no
   title by hand — the mirror script does, so the row carries the `I<N> · ` prefix, its
   `parent_id`, and queue order; `--raw` creates a bare `backlog` row that artel will not claim
-  and says so. `list` reports drained / promotion pending / blocked / held and repairs nothing.
+  and says so. `list` reports drained / promotion pending / blocked / held / fix work open and
+  repairs nothing; fix rows never count toward promotion pending or drained, and `release`
+  refuses them.

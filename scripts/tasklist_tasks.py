@@ -32,6 +32,13 @@ MAX_TITLE_CHARS = 500
 # it is the idempotency key, so letting it follow the input dialect would mirror
 # one tasklist as two disjoint sets of rows the day someone reworded a heading.
 ITERATION_RE = re.compile(r'^##\s+(?:Iteration|Phase)\s+(\d+)\s*:\s*(.+?)\s*$')
+# What an iteration heading looks like before ITERATION_RE decides whether it
+# parses. A line matching this and not that is an iteration the file meant to
+# have and the parser cannot see (`## Iteration 1 - Scaffold`, no colon).
+ITERATION_LIKE_RE = re.compile(r'^##\s+(?:Iteration|Phase)\b')
+# The H1 sync-phases gives a phase extract (`# Phase N: Title`). Such a file
+# never holds an iteration, so a fix section there is no sign of lost ones.
+PHASE_FILE_RE = re.compile(r'^#\s+Phase\s+\d+\s*:')
 HEADING_2_RE = re.compile(r'^##\s+')
 SECTION_RE = re.compile(r'^###\s+(.+?)\s*$')
 CHECKBOX_RE = re.compile(r'^\s*-\s+\[([ xX])\]\s+(.+?)\s*$')
@@ -39,6 +46,25 @@ GOAL_RE = re.compile(r'^\*\*Goal:\*\*\s*(.+?)\s*$')
 TEST_RE = re.compile(r'^\*\*Test:\*\*\s*(.+?)\s*$')
 HITL_RE = re.compile(r'\[HITL:\s*([^\]]+)\]')
 NEW_FILE_RE = re.compile(r'\s*\(new file\)\s*$')
+
+# The four sections the queue records but never offers (docs/task-queue.md §6):
+# gate remediation and the end-of-feature gate, appended after the iterations
+# were mirrored. The code is their title prefix, as `I<N>` is an iteration's.
+FIX_SECTIONS = {
+    'Code Review Fixes': 'CRF',
+    'Runtime Fixes': 'RTF',
+    'Verify Fixes': 'VF',
+    'Final Verification': 'FV',
+}
+FIX_HEADING_RE = re.compile(
+    r'^##\s+(Code Review Fixes|Runtime Fixes|Verify Fixes|Final Verification)\s*$')
+# A fix task starts at column 0. An indented checkbox under it is one of its
+# sub-steps, which belongs in its description rather than in a row of its own.
+TASK_RE = re.compile(r'^-\s+\[([ xX])\]\s+(.+?)\s*$')
+# The source of a fix task with no `### <source>` heading above it in its
+# section: Final Verification as tasklist-writer writes it, and every fix task
+# written before writers opened their batches with one.
+DEFAULT_SOURCE = 'tasklist'
 
 
 def _section(raw):
@@ -110,6 +136,59 @@ def parse_tasklist(text):
                 'hitl': hitl.group(1).strip() if hitl else None,
             })
     return iterations, warnings
+
+
+def parse_sections(text):
+    """The four fix sections, in order of first appearance, with their tasks.
+
+    A pass of its own rather than a branch of parse_tasklist, so the iteration
+    parse -- and the `iterations` array every existing consumer reads -- stays
+    exactly what it was. A heading that appears twice is one section: its tasks
+    share one parent row either way.
+    """
+    sections = []
+    by_code = {}
+    current = None
+    source = DEFAULT_SOURCE
+    task = None
+    for line in text.splitlines():
+        match = FIX_HEADING_RE.match(line)
+        if match:
+            code = FIX_SECTIONS[match.group(1)]
+            if code not in by_code:
+                by_code[code] = {'code': code, 'heading': match.group(1), 'tasks': []}
+                sections.append(by_code[code])
+            current, source, task = by_code[code], DEFAULT_SOURCE, None
+            continue
+        if HEADING_2_RE.match(line):
+            current, task = None, None  # any other `## …` closes the section
+            continue
+        if current is None:
+            continue
+        match = SECTION_RE.match(line)
+        if match:
+            source, task = match.group(1).strip('`').strip(), None
+            continue
+        match = TASK_RE.match(line)
+        if match:
+            hitl = HITL_RE.search(match.group(2))
+            task = {'source': source, 'text': match.group(2),
+                    'done': match.group(1).lower() == 'x',
+                    'hitl': hitl.group(1).strip() if hitl else None,
+                    'detail': []}
+            current['tasks'].append(task)
+            continue
+        if task is not None and line[:1] in (' ', '\t'):
+            task['detail'].append(line)
+        elif line.strip():
+            task = None  # a paragraph or a `**Gate:**` line is not the task's body
+    return sections
+
+
+def _detail(lines):
+    """A fix task's nested lines, dedented to their shallowest indent."""
+    indent = min(len(line) - len(line.lstrip()) for line in lines if line.strip())
+    return '\n'.join(line[indent:].rstrip() for line in lines).strip('\n')
 
 
 def _capped(title):
@@ -200,6 +279,84 @@ def find_collisions(rows):
     return repeated
 
 
+def build_sections(sections):
+    """(rows, warnings) -- one parent row per fix section, its tasks as children.
+
+    Never `ready`, parents included: kartoteka's task_ready claims the oldest
+    ready row for the ticket with no notion of section, so a ready fix row
+    would be handed to any queue-path implementer. A checked box is `done`;
+    every other task is `backlog`, even in a tasklist with no iterations, and
+    moves only by task_update (docs/task-queue.md §3).
+    """
+    rows = []
+    warnings = []
+    seen = set()
+    for section in sections:
+        code = section['code']
+        children = []
+        for task in section['tasks']:
+            title, truncated = _capped('{} · {} · {}'.format(
+                code, task['source'], task['text']))
+            if truncated:
+                warnings.append('task title truncated to {} chars: {}'.format(
+                    MAX_TITLE_CHARS, title))
+            key = _normalized(title)
+            if key in seen:
+                # Titles are identity: the store answers a repeat with the first
+                # row -- `done`, if an earlier round finished it -- and the open
+                # box vanishes from the queue again. A warning, not a failure:
+                # one repeated fix must not stop the iteration rows mirroring.
+                warnings.append(
+                    'fix task repeats a title already in this file and gets no row of'
+                    ' its own -- give its batch a new `### <source>` heading: {}'.format(
+                        title))
+                continue
+            seen.add(key)
+            description = ['Source: ' + task['source']]
+            if task['hitl']:
+                description.append('HITL: ' + task['hitl'])
+            if any(line.strip() for line in task['detail']):
+                description.extend(['', _detail(task['detail'])])
+            children.append({'title': title,
+                             'status': 'done' if task['done'] else 'backlog',
+                             'description': '\n'.join(description),
+                             'hitl': task['hitl']})
+        if children:
+            rows.append({'title': '{}: {}'.format(code, section['heading']),
+                         'status': 'backlog',
+                         'description': 'Tasks under `## {}`, worked from the tasklist'
+                                        ' file. Recorded here; never offered by'
+                                        ' task_ready.'.format(section['heading']),
+                         'children': children})
+    return rows, warnings
+
+
+def malformed_reason(text, iterations, sections):
+    """Why a tasklist with no parsed iteration is malformed, or None when it is not.
+
+    A file of fixes alone -- deep-review's, or a phase extract -- legitimately
+    has no iteration. Three shapes do not, and each would otherwise mirror a few
+    fix rows and read as a whole work list: `/artel:tasks list` would call an
+    unstarted ticket drained.
+    """
+    if iterations:
+        return None
+    lines = text.splitlines()
+    unparsed = [line.strip() for line in lines
+                if ITERATION_LIKE_RE.match(line) and not ITERATION_RE.match(line)]
+    if unparsed:
+        return ('`{}` looks like an iteration heading but does not parse; write it'
+                ' `## Iteration N: <name>` (or `## Phase N: <name>`)'.format(unparsed[0]))
+    phase_file = any(PHASE_FILE_RE.match(line) for line in lines)
+    if not phase_file and any(section['code'] == 'FV' for section in sections):
+        return ('a `## Final Verification` section but no `## Iteration N:` or'
+                ' `## Phase N:` section: every generated tasklist ends with Final'
+                ' Verification, so its iterations are missing or unparseable')
+    if not any(section['tasks'] for section in sections):
+        return 'no `## Iteration N:` or `## Phase N:` sections and no fix-section tasks'
+    return None
+
+
 def envelope(ok, elapsed_ms, data=None, error=None):
     out = {'ok': ok, 'verb': 'tasklist-tasks', 'elapsed_ms': elapsed_ms}
     if error is not None:
@@ -242,22 +399,29 @@ def main(argv):
     if not tasklist_file.is_file():
         return fail('tasklist_not_found', 'tasklist not found: {}'.format(tasklist_path))
 
-    iterations, warnings = parse_tasklist(tasklist_file.read_text(encoding='utf-8'))
-    if not iterations:
-        return fail('tasklist_malformed',
-                    'no `## Iteration N:` or `## Phase N:` sections in {}'.format(
-                        tasklist_path))
+    text = tasklist_file.read_text(encoding='utf-8')
+    iterations, warnings = parse_tasklist(text)
+    sections = parse_sections(text)
+    reason = malformed_reason(text, iterations, sections)
+    if reason:
+        return fail('tasklist_malformed', '{}: {}'.format(tasklist_path, reason))
     rows, row_warnings = build_rows(iterations)
     collisions = find_collisions(rows)
     if collisions:
         return fail('title_collision',
                     'titles are the idempotency key and these repeat: {}'.format(
                         '; '.join(collisions)))
-    print(envelope(True, elapsed(), data={
+    section_rows, section_warnings = build_sections(sections)
+    data = {
         'ticket_key': ticket_key,
-        'warnings': warnings + row_warnings,
+        'warnings': warnings + row_warnings + section_warnings,
         'iterations': rows,
-    }))
+    }
+    if section_rows:
+        # Only when there is one, so a tasklist without a fix section prints
+        # exactly what 0.14.0 printed.
+        data['sections'] = section_rows
+    print(envelope(True, elapsed(), data=data))
     return 0
 
 

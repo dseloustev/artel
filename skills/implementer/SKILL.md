@@ -40,8 +40,11 @@ Implement the next incomplete task now, per your agent definition's workflow:
    `task_ready` claim on the queue path, the first `- [ ]` in scope on the fallback
    path. The **Task queue** field above is §1's `--local` input. A dispatch naming
    `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` or Final Verification
-   is file-scan work on either path — those sections are never mirrored (§6), so do
-   not call `task_ready` for one. If the task carries a `[HITL: …]` tag, STOP and
+   is file-scan work on either path — `task_ready` never offers their rows (§6), so do
+   not call it for one. On the queue path keep that task's row current per §3's
+   fix-section protocol: `in_progress` when you start, `done` when you flip the box,
+   `blocked` on any other exit, never `ready`; a missing row is `row not found; file only`,
+   not an error. If the task carries a `[HITL: …]` tag, STOP and
    return `HITL: <reason>` instead of implementing — the orchestrator owns that pause.
 2. Implement directly (no proposal step). Apply the verify loop (max MAX_VERIFY_ITERATIONS = 4) via
    the `/artel:inner-loop` skill: run the gate sequence from your agent configuration (inner loop on
@@ -50,7 +53,8 @@ Implement the next incomplete task now, per your agent definition's workflow:
    Report, and report per your completion contract. A red gate is never "done" — leave
    the checkbox as it is and return a `DEVIATION` report instead of a completion.
 4. On the queue path a completion is `task_update(task_id, status="done")` followed by
-   the promotion step (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3), before returning.
+   the promotion step (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3), before returning —
+   for a fix-section row, `done` alone.
    Every other exit — red gate, any `DEVIATION` halt, an aborted task — releases the
    claim first with `task_update(task_id, status="blocked")`. `task_ready` offers
    `ready` rows only, so a task left `in_progress` is never re-offered and the ticket's

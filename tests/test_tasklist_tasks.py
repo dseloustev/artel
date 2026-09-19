@@ -283,52 +283,6 @@ class TestTitleCap(unittest.TestCase):
         self.assertEqual(len(tasklist_tasks.find_collisions(rows)), 1)
 
 
-class TestGateRemediationSectionsAreNotMirrored(unittest.TestCase):
-    """The queue holds iteration work and nothing else.
-
-    `implementer` is dispatched for these three sections too, and works them
-    from the file -- `agents/implementer.md` Step 1 and docs/task-queue.md §6.
-    A parser that emitted rows for them would file gate remediation behind a
-    promotion that never comes, because nothing is their parent iteration.
-    There was a test for `## Final Verification` and none for these three, and
-    that gap is what let the too-broad "queue before file" rule through review.
-    """
-
-    SECTIONS = ('## Code Review Fixes', '## Runtime Fixes', '## Verify Fixes')
-
-    def _children(self, extra):
-        iterations, _ = tasklist_tasks.parse_tasklist(TASKLIST + extra)
-        self.assertEqual(2, len(iterations), 'the two real iterations, and no more')
-        return [c['text'] for it in iterations for c in it['children']]
-
-    def test_bare_checkboxes_under_a_fix_heading_are_not_children(self):
-        for heading in self.SECTIONS:
-            with self.subTest(heading):
-                extra = '\n{}\n\n- [ ] **Task 1: fix what the gate found**\n'.format(heading)
-                self.assertNotIn('**Task 1: fix what the gate found**',
-                                 self._children(extra))
-
-    def test_a_fix_heading_with_a_section_is_not_mirrored_either(self):
-        # The `### ` gate is what skips a bare checkbox, so a fix list that
-        # happened to group its items by file would otherwise sail through it.
-        for heading in self.SECTIONS:
-            with self.subTest(heading):
-                extra = ('\n{}\n\n### `lib/a.dart`\n'
-                         '- [ ] fix what the gate found\n'.format(heading))
-                self.assertNotIn('fix what the gate found', self._children(extra))
-
-
-SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'tasklist_tasks.py'
-
-
-def run_cli(*args):
-    import json
-    import subprocess
-    proc = subprocess.run([sys.executable, str(SCRIPT)] + list(args),
-                          capture_output=True, text=True)
-    return proc.returncode, json.loads(proc.stdout)
-
-
 # Two review rounds after generation. Round 2 re-uses round 1's checkbox text on
 # purpose: the source heading is what keeps the two rows apart.
 FIX_TASKLIST = TASKLIST + '''
@@ -497,6 +451,19 @@ class TestFixSectionsAreNotIterationChildren(unittest.TestCase):
                 extra = ('\n{}\n\n### `lib/a.dart`\n'
                          '- [ ] fix what the gate found\n'.format(heading))
                 self.assertNotIn('fix what the gate found', self._children(extra))
+
+
+
+SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'tasklist_tasks.py'
+
+
+def run_cli(*args):
+    import json
+    import subprocess
+    proc = subprocess.run([sys.executable, str(SCRIPT)] + list(args),
+                          capture_output=True, text=True)
+    return proc.returncode, json.loads(proc.stdout)
+
 
 class TestCli(unittest.TestCase):
     def setUp(self):

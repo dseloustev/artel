@@ -346,6 +346,12 @@ on one day are one batch. A checkbox with no `###` above it in its section —
 Final Verification as `tasklist-writer` writes it, and every fix task written
 before 0.15.0 — has no heading, so the source is `tasklist`.
 
+No other `###` heading goes inside a batch. The nearest `###` above a box is its
+source, so a writer's own grouping — a reviewer's `### Blocking` or `### Important`
+— would stand in for the round and give every round's Blocking tasks one title
+prefix again. Priority goes in the task text (`**Task N (Blocking): …**`) or under a
+`####` heading, which the parser ignores as a source.
+
 The checkbox text is the title's third segment **verbatim**, bold markers
 included, because `/artel:tasks done` flips the box whose text is everything after
 the title's second ` · `. Lines nested under a checkbox — its body, its

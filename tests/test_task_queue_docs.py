@@ -358,6 +358,38 @@ class TestFixRowsAreRecordedNeverOffered(unittest.TestCase):
         self.assertIn('design.md', self.records)
 
 
+class TestReviewerGroupingsNeverBecomeTheSource(unittest.TestCase):
+    """The nearest `###` above a fix box is its source, whatever it says.
+
+    A live reviewer grouped its batch under `### Blocking` / `### Important`.
+    Under the source rule those headings replace `review-r<R>`, and every
+    round's Blocking tasks share one title prefix again -- the merge the source
+    heading exists to prevent. Priority goes where the parser never reads it.
+    """
+
+    RULE = 'No other `###` heading'
+    WHERE = '`####` heading, which the parser ignores as a source'
+
+    def test_the_contract_states_the_rule(self):
+        records = (ROOT / QUEUE_DOC).read_text(encoding='utf-8').split(
+            '## 6. What the queue records but never offers')[1]
+        source = records.split('**The source heading.**')[1].split('**Titles are identity')[0]
+        self.assertIn(self.RULE, source)
+        self.assertIn(self.WHERE, source)
+
+    def test_the_reviewer_states_it_in_both_writing_modes(self):
+        text = (ROOT / 'agents/reviewer.md').read_text(encoding='utf-8')
+        modes = {
+            'ticket': text.split('## Ticket mode')[1].split('## Standalone mode')[0],
+            'task': text.split('## Task mode')[1].split('## Review focus')[0],
+        }
+        for mode, body in modes.items():
+            with self.subTest(mode):
+                self.assertIn(self.RULE, body)
+                self.assertIn(self.WHERE, body)
+                self.assertIn('**Task N (Blocking): …**', body)
+
+
 # Every skill that appends to a fix section and records the append in the queue
 # (docs/task-queue.md §2's fix-writer rule), with the source heading it opens its
 # batch with (§6). run-reviewer's headings are the reviewer agent's, pinned in

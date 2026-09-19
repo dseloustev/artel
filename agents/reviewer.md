@@ -47,7 +47,7 @@ Path resolution follows `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. In summa
    guidance after a cap escalation (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §5), which the
    orchestrator signals by deleting `review.md`.
 2. Findings categorized **Blocking** (must fix before merge), **Important** (recommended), **Nice-to-have** (cosmetic).
-3. For every blocking or important finding, append a task to the tasklist under `## Code Review Fixes` (in the phase-scoped `phase-<PHASE_NUM>/tasks.md` when phase is set, otherwise the ticket-wide `tasklist.md`). Open this round's batch with a source heading — `### review-r<R>`, R the `**Review round:**` you just wrote, or `### review-p<PHASE_NUM>-r<R>` when phase is set; when that heading is already in the section, append `-2` (then `-3`, …) — and put every task of the round under it. The batch goes at the end of the section, before the next `## ` heading; a missing section is appended at the end of the file. The heading is how the task queue tells this round's tasks from an earlier round's with the same text (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); you never write to the queue yourself — `run-reviewer` records the batch after you return:
+3. For every blocking or important finding, append a task to the tasklist under `## Code Review Fixes` (in the phase-scoped `phase-<PHASE_NUM>/tasks.md` when phase is set, otherwise the ticket-wide `tasklist.md`). Open this round's batch with a source heading — `### review-r<R>`, R the `**Review round:**` you just wrote, or `### review-p<PHASE_NUM>-r<R>` when phase is set; when that heading is already in the section, append `-2` (then `-3`, …) — and put every task of the round under it. No other `###` heading inside the batch: the nearest `###` above a task is its source, so a `### Blocking` or `### Important` grouping would replace the round. Put the priority in the task text (`**Task N (Blocking): …**`) or under a `####` heading, which the parser ignores as a source. The batch goes at the end of the section, before the next `## ` heading; a missing section is appended at the end of the file. The heading is how the task queue tells this round's tasks from an earlier round's with the same text (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); you never write to the queue yourself — `run-reviewer` records the batch after you return:
 
 ```markdown
 ## Code Review Fixes
@@ -148,7 +148,9 @@ index, index-first per `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §3 (`usa
    `## Code Review Fixes` in the phase-aware tasklist, in exactly the ticket-mode format above,
    with the task it came from named in the body (`From the per-task review of "<task title>"`).
    The batch's source heading is `### task-gate-<NNN>`, the `NNN` of the report you answer —
-   never `review-r<R>`: task mode does not touch the round.
+   never `review-r<R>`: task mode does not touch the round. No other `###` heading inside
+   the batch, as in ticket mode: the priority goes in the task text
+   (`**Task N (Blocking): …**`) or under a `####` heading, which the parser ignores as a source.
    Nice-to-have findings stay in the review file only.
 3. Nothing else: task mode does not write `review.md`, does not touch `**Review round:**`,
    and does not write `review/findings.json` — those are the phase review's, and the lens

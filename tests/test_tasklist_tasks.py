@@ -438,6 +438,14 @@ class TestFixSectionEdges(unittest.TestCase):
             'CRF: Code Review Fixes', 'RTF: Runtime Fixes',
             'VF: Verify Fixes', 'FV: Final Verification'])
 
+    def test_a_level_four_heading_is_not_a_source(self):
+        # Where a reviewer puts its priority groupings (docs/task-queue.md §6):
+        # `####` must leave the batch's `###` source in place.
+        rows, _ = _sections('## Code Review Fixes\n\n### review-r1\n#### Blocking\n'
+                            '- [ ] **Task 1: A**\n\n#### Important\n- [ ] **Task 2: B**\n')
+        self.assertEqual([c['title'] for c in rows[0]['children']],
+                         ['CRF · review-r1 · **Task 1: A**', 'CRF · review-r1 · **Task 2: B**'])
+
     def test_a_section_with_no_task_emits_no_parent(self):
         rows, _ = _sections('## Code Review Fixes\n\nNothing yet.\n')
         self.assertEqual(rows, [])

@@ -375,10 +375,11 @@ Per iteration-task dispatch:
    task queue before step 4's round starts (`docs/task-queue.md` §6).
 4. **One fix round** — when it appended fix tasks: increment `counters.correction_rounds` (the
    `MAX_TOTAL_CORRECTION_ROUNDS` check applies), then loop `Skill: implementer` naming
-   `## Code Review Fixes` until no fix task from this review is left unchecked (one round = the
-   whole list, counted once). `MAX_TASK_REVIEW_ROUNDS = 1`: there is no per-task re-review — a
-   fix task the round could not close stays unchecked and the phase review owns it from there;
-   it is what `REVIEW_OK` sees. The implementer's usual returns apply inside the round (`HITL:`,
+   `## Code Review Fixes` (plus `--local` on a run that holds it) until no fix task from this
+   review is left unchecked (one round = the whole list, counted once).
+   `MAX_TASK_REVIEW_ROUNDS = 1`: there is no per-task re-review — a fix task the round could
+   not close stays unchecked and the phase review owns it from there; it is what `REVIEW_OK`
+   sees. The implementer's usual returns apply inside the round (`HITL:`,
    `DEVIATION`, aborted task), handled exactly as in the main loop.
 5. **Journal** — one `task review` entry (§11) per task: the verdict, the fix-task count, the
    round taken or `skipped (<why>)`, and the three report paths under `artifacts`. On resume

@@ -41,11 +41,13 @@ is considered, exactly as in `docs/knowledge-consultation.md` §1.
 | no | `kartoteka` | **absent** | Fallback path (§4). Record: `kartoteka is configured for this project but its MCP tools are not available in this session` |
 
 **Where `--local` is available.** The flag exists on the orchestrators that carry
-it — `feature-development`, `analysis`, `researcher` — and on
-`skills/implementer/SKILL.md`, which receives it from its caller rather than from
-the user. `skills/dev/SKILL.md` deliberately has none, pinned by
+it — `feature-development`, `analysis`, `researcher`, `deep-review` — and on the
+skills that write or keep rows on an orchestrator's behalf: `tasklist` and
+`run-reviewer`, and `skills/implementer/SKILL.md`, which receives it from its caller
+rather than from the user. `skills/dev/SKILL.md` deliberately has none, pinned by
 `tests/test_knowledge_consultation_docs.py::test_dev_does_not_carry_the_flag`. An
-orchestrator holding the flag passes it down to the implementer skill, which sets
+orchestrator holding the flag passes it to each of those it invokes — to the
+implementer skill on every dispatch, fix rounds included — and the implementer skill sets
 the **Task queue:** field of the agent's dispatch to
 `local-only (--local was passed)`; `agents/implementer.md` reads that field rather
 than parsing a flag of its own. Where no orchestrator carries the flag — a `dev`

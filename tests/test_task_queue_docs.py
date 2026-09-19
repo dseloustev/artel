@@ -475,6 +475,39 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
         self.assertIn('--local', gate)
         self.assertIn('**Task queue:**', gate)
 
+    def test_feature_development_passes_it_to_every_row_writer(self):
+        # Only gate 5's main loop carried it, so every fix round -- review,
+        # runtime, QA, checkpoint -- ran its implementer on the queue path, and
+        # gate 4's tasklist mirrored rows on a run that asked for none.
+        text = (ROOT / 'skills/feature-development/SKILL.md').read_text(encoding='utf-8')
+        flag = text.split('`--local`: skip')[1].split('## Workflow')[0]
+        for skill in ('`analysis`', '`researcher`', '`tasklist`', '`run-reviewer`',
+                      '`implementer`'):
+            self.assertIn(skill, flag)
+        self.assertIn('fix rounds included', flag)
+        gate4 = text.split('| 4 | `TASKLIST_READY`')[1].split('\n')[0]
+        self.assertIn('`Skill: tasklist` with `$0`, plus `--local`', gate4)
+        gate7 = text.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
+        self.assertIn('`Skill: implementer` (fix tasks from `## Code Review Fixes`, plus'
+                      ' `--local`', gate7)
+
+    def test_the_per_task_fix_round_carries_it(self):
+        text = (ROOT / 'docs/autonomous-run.md').read_text(encoding='utf-8')
+        step = text.split('## 16. Per-task review')[1].split('4. **One fix round**')[1].split(
+            '5. **Journal**')[0]
+        self.assertIn('(plus `--local` on a run that holds it)', step)
+
+    def test_the_tasklist_skill_takes_it_and_skips_the_mirror(self):
+        text = (ROOT / 'skills/tasklist/SKILL.md').read_text(encoding='utf-8')
+        hints = [ln for ln in text.splitlines() if ln.startswith('argument-hint:')]
+        self.assertEqual(1, len(hints), 'exactly one argument-hint line')
+        self.assertIn('[--local]', hints[0])
+        mirror = text.split('### Mirror the tasklist into the task queue')[1]
+        self.assertIn('`--local` was passed', mirror)
+        reference = (ROOT / 'docs/skills-reference.md').read_text(encoding='utf-8')
+        hint = hints[0].split(':', 1)[1].strip().strip('"')
+        self.assertIn('- **Invocation:** `/artel:tasklist {}`'.format(hint), reference)
+
 
 class TestAbortedClaimIsReleased(unittest.TestCase):
     """A red gate must not leave a task held forever.

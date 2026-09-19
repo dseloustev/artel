@@ -27,7 +27,8 @@ All notable changes to this project are documented here. The format follows
   row would come back `done`. The parser warns on a repeated fix title within the file, and the
   mirror warns on an open box that resolves to a `done` row. On a phase-scoped run the phase
   file's fix sections are mirrored too. `--local`, `knowledge.adapter: none` and missing tools
-  behave exactly as in 0.14.0. Contract: `docs/task-queue.md` §2, §3, §5, §6.
+  write no rows: the file alone carries the work. Contract: `docs/task-queue.md` §2, §3, §5,
+  §6.
 - **`scripts/tasklist_tasks.py` emits `data.sections`** after `data.iterations`. It accepts
   checkboxes directly under the `##` heading (source `tasklist`), keeps nested acceptance
   criteria out of the title and in the description, and parses a file that has fix sections
@@ -37,11 +38,15 @@ All notable changes to this project are documented here. The format follows
   outside a phase file. A tasklist with no fix section prints exactly the 0.14.0 output.
 - **`/artel:tasks add … --fix CRF|RTF|VF|FV`** adds a task to a fix section, which the skill
   could not do before, under a `### manual-<date>` heading, and records it.
-- **`/artel:run-reviewer --local`**, which `feature-development` passes on, so a local-only
-  run writes no rows.
+- **`/artel:run-reviewer --local`** and **`/artel:tasklist --local`**, which
+  `feature-development` passes on, so a local-only run writes no rows.
 
 ### Changed
 
+- **`feature-development` hands `--local` to every step that could write a row.** Gate 4's
+  `tasklist` and every implementer dispatch — the review, runtime, QA and checkpoint fix
+  rounds and the per-task review's round, not only gate 5's main loop — now carry it. In
+  0.14.0 a local-only run still mirrored its iteration rows at gate 4.
 - **The empty-queue diagnosis reads iteration children only.** Open fix rows no longer make
   a finished ticket look stalled or send the implementer into a promotion repair with nothing
   to promote. `/artel:tasks list` counts fix rows toward **blocked** and **held** (with no

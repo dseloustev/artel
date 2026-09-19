@@ -253,7 +253,7 @@ Entry template:
 ### tasklist
 
 - **Purpose:** Break the approved plan down into small, trackable checkbox tasks.
-- **Invocation:** `/artel:tasklist [ticket-id] or [ticket-id]-[phase]`
+- **Invocation:** `/artel:tasklist [ticket-id] or [ticket-id]-[phase] [--local]`
 - **Reads:** the plan and its upstream inputs, resolved internally by the `task-planner` agent.
 - **Writes:** (via the agent) `tasklist.md` (or the phase tasks file) with
   `Status: TASKLIST_READY` and HITL tags (autonomous-run.md §4); unresolved questions to

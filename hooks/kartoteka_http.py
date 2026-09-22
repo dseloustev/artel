@@ -159,16 +159,6 @@ def plaintext_off_loopback(base_url):
     return not (host == 'localhost' or host == '::1' or host.startswith('127.'))
 
 
-def _ticket_matcher(config):
-    ticket_cfg = config.get('ticket') or {}
-    project_key = ticket_cfg.get('projectKey') or 'PROJ'
-    pattern = ticket_cfg.get('pattern') or h.DEFAULT_TICKET_PATTERN
-    try:
-        compiled = re.compile(pattern.replace('{projectKey}', re.escape(project_key)),
-                              re.IGNORECASE)
-    except re.error:
-        return None, project_key
-    return compiled, project_key
 
 
 def artifact_identity(rel, config):
@@ -192,7 +182,7 @@ def artifact_identity(rel, config):
         return None
     if filename not in MIRRORED:
         return None
-    compiled, project_key = _ticket_matcher(config)
+    compiled, project_key = h.ticket_matcher(config)
     if compiled is None:
         return None
     match = compiled.match(ticket_dir)

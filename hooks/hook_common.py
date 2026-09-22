@@ -143,6 +143,33 @@ def relpath_from_tool_input(data):
     return file_path
 
 
+def ticket_matcher(config):
+    """Compiles the ticket pattern into a regex and extracts the project key.
+
+    Returns (compiled_regex, project_key), or (None, project_key) if the pattern
+    is invalid (on re.error)."""
+    ticket_cfg = config.get('ticket') or {}
+    project_key = ticket_cfg.get('projectKey') or 'PROJ'
+    pattern = ticket_cfg.get('pattern') or DEFAULT_TICKET_PATTERN
+    try:
+        compiled = re.compile(pattern.replace('{projectKey}', re.escape(project_key)),
+                              re.IGNORECASE)
+    except re.error:
+        return None, project_key
+    return compiled, project_key
+
+
+def canonical_ticket(value, config):
+    """Canonical <projectKey>-<number> for any accepted spelling of a ticket ID, or None.
+
+    Accepts formats like 'AW-12', 'aw-12-3', '12', etc. Strips phase suffix and normalizes."""
+    compiled, project_key = ticket_matcher(config)
+    if compiled is None:
+        return None
+    match = compiled.match((value or '').strip())
+    return '{}-{}'.format(project_key.upper(), match.group(1)) if match else None
+
+
 def resolve_active_ticket(config):
     """Base ticket ID (canonical <projectKey>-<number>, phase suffix stripped) from
     <specs.dir>/.active_ticket, or None. .artel/run/<TICKET>/ is always ticket-top-level."""
@@ -157,18 +184,7 @@ def resolve_active_ticket(config):
     first = lines[0].strip() if lines else ''
     if not first:
         return None
-    ticket_cfg = config.get('ticket') or {}
-    project_key = ticket_cfg.get('projectKey') or 'PROJ'
-    pattern = ticket_cfg.get('pattern') or DEFAULT_TICKET_PATTERN
-    try:
-        compiled = re.compile(pattern.replace('{projectKey}', re.escape(project_key)),
-                              re.IGNORECASE)
-    except re.error:
-        return None
-    match = compiled.match(first)
-    if not match:
-        return None
-    return '{}-{}'.format(project_key.upper(), match.group(1))
+    return canonical_ticket(first, config)
 
 
 def ticket_run_dir(ticket):

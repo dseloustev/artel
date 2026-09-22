@@ -94,6 +94,60 @@ class TestResolveActiveTicket(unittest.TestCase):
         self.assertIsNone(h.resolve_active_ticket({}))
 
 
+class TestCanonicalTicket(unittest.TestCase):
+    def test_default_project_key_and_pattern(self):
+        config = {}
+        self.assertEqual(h.canonical_ticket('PROJ-123', config), 'PROJ-123')
+        self.assertEqual(h.canonical_ticket('123', config), 'PROJ-123')
+
+    def test_phase_suffix_stripped(self):
+        config = {'ticket': {'projectKey': 'AW'}}
+        self.assertEqual(h.canonical_ticket('AW-12-3', config), 'AW-12')
+        self.assertEqual(h.canonical_ticket('aw-12-p2', config), 'AW-12')
+
+    def test_case_insensitive_project_key(self):
+        config = {'ticket': {'projectKey': 'AW'}}
+        self.assertEqual(h.canonical_ticket('aw-12', config), 'AW-12')
+
+    def test_custom_pattern(self):
+        config = {'ticket': {'projectKey': 'TST', 'pattern': r'^TSK-(\d+)$'}}
+        self.assertEqual(h.canonical_ticket('TSK-99', config), 'TST-99')
+
+    def test_broken_pattern_returns_none(self):
+        config = {'ticket': {'pattern': '[invalid('}}
+        self.assertIsNone(h.canonical_ticket('AW-1', config))
+
+    def test_no_match_returns_none(self):
+        config = {'ticket': {'projectKey': 'AW'}}
+        self.assertIsNone(h.canonical_ticket('nonsense', config))
+
+
+class TestTicketMatcher(unittest.TestCase):
+    def test_returns_compiled_regex_and_project_key(self):
+        config = {'ticket': {'projectKey': 'AW'}}
+        compiled, project_key = h.ticket_matcher(config)
+        self.assertIsNotNone(compiled)
+        self.assertEqual(project_key, 'AW')
+
+    def test_default_project_key_and_pattern(self):
+        config = {}
+        compiled, project_key = h.ticket_matcher(config)
+        self.assertIsNotNone(compiled)
+        self.assertEqual(project_key, 'PROJ')
+
+    def test_broken_pattern_returns_none_regex(self):
+        config = {'ticket': {'pattern': '[invalid('}}
+        compiled, project_key = h.ticket_matcher(config)
+        self.assertIsNone(compiled)
+        self.assertEqual(project_key, 'PROJ')
+
+    def test_regex_is_case_insensitive(self):
+        config = {'ticket': {'projectKey': 'AW'}}
+        compiled, _ = h.ticket_matcher(config)
+        self.assertIsNotNone(compiled.match('aw-123'))
+        self.assertIsNotNone(compiled.match('AW-123'))
+
+
 def git(cwd, *args):
     subprocess.run(['git', '-C', str(cwd)] + list(args), check=True, capture_output=True, text=True)
 

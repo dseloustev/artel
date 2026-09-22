@@ -13,7 +13,6 @@ Contract: docs/spec-storage.md §2.
 """
 import json
 import os
-import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -26,19 +25,8 @@ FILENAME = 'spec-store.json'
 WALL_CLOCK_HOURS = 3  # autonomous-run.md §2; the constant stop_gate.py and sensitive_guard.py use
 CONTEXT_TICKETS = Path('.artel/context/tickets')
 
-
-def canonical_ticket(value, config):
-    """<PROJECTKEY>-<number> for any accepted spelling of a ticket id, else None."""
-    ticket_cfg = config.get('ticket') or {}
-    project_key = ticket_cfg.get('projectKey') or 'PROJ'
-    pattern = ticket_cfg.get('pattern') or h.DEFAULT_TICKET_PATTERN
-    try:
-        compiled = re.compile(pattern.replace('{projectKey}', re.escape(project_key)),
-                              re.IGNORECASE)
-    except re.error:
-        return None
-    match = compiled.match((value or '').strip())
-    return '{}-{}'.format(project_key.upper(), match.group(1)) if match else None
+# Re-export canonical_ticket from hook_common: shared with kartoteka_http, resolve_active_ticket
+canonical_ticket = h.canonical_ticket
 
 
 def path_for(ticket):

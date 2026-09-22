@@ -192,6 +192,133 @@ def cmd_put(args, config):
     return OK
 
 
+PROBE_STAGE, PROBE_NAME = 'artel-probe', 'probe.md'
+SHORT_KEY_REASON = ("kartoteka cannot store tickets keyed {}-…: its ticket-key grammar needs a "
+                    "project key of two or more characters")
+
+
+def probe(store, ticket):
+    """None when this daemon can hold the ticket's spec trail, else the §2.1 record.
+
+    One PATCH to an address that never exists. A current, registered daemon
+    answers 404 {"error"} and writes nothing; every other answer is one row of
+    the resolution table, with one follow-up listing to tell an old daemon from
+    a disabled artifact store. A GET cannot do this: scoped reads for an unregistered
+    project answer silent zeros, and a daemon before 0.43.0 serves them fine.
+    """
+    try:
+        status, payload = store.request(
+            'PATCH', artifact_path(ticket, PROBE_STAGE, PROBE_NAME),
+            body={'project': store.project, 'edits': [{'append': 'probe'}]})
+    except Failure as exc:
+        if exc.kind == 'unreachable':
+            return 'kartoteka is unreachable: {}'.format(exc)
+        if exc.kind != 'store_off':
+            return str(exc)  # unauthorized: already the record
+        # A 404 without kartoteka's {"error"} is a route that is not there. A
+        # daemon before 0.43.0 has no PATCH route but still serves the listing;
+        # a daemon with [workspace] off serves neither. The listing tells them
+        # apart (verified against 0.42.0: an unknown route answers a plain-text
+        # 404, never a 405).
+        try:
+            store.request('GET', '/api/artifacts',
+                          query={'project': store.project, 'ticket_key': ticket})
+        except Failure as listing_exc:
+            return str(listing_exc)  # store_off: the workspace is off
+        return 'the kartoteka daemon predates artifact_patch (0.43.0); upgrade it'
+    error = payload.get('error', '') if isinstance(payload, dict) else ''
+    if status == 404:
+        return None
+    if status == 400 and 'kartoteka project add' in error:
+        return ('kartoteka refused knowledge.project as unregistered; run kartoteka project add '
+                '{}').format(store.project)
+    return 'kartoteka answered the probe with HTTP {}: {}'.format(status, error or payload)
+
+
+def _emit(decision, ticket, config):
+    out = dict(decision, ticket=ticket, written=True, local_trail=[])
+    if decision['store'] == 'kartoteka':
+        pending = {p.get('path') for p in decision.get('pending') or []}
+        out['local_trail'] = [p for p in sd.local_trail(ticket, config) if p not in pending]
+    print(json.dumps(out))
+    return OK
+
+
+def cmd_decide(args, config):
+    ticket = sd.canonical_ticket(args.ticket, config)
+    if ticket is None:
+        raise Failure('invalid_argument', 'not a ticket id: {}'.format(args.ticket))
+    previous = sd.load(ticket) or {}
+    carried = {'versions': previous.get('versions') or {}, 'pending': previous.get('pending') or []}
+    adapter = (config.get('knowledge') or {}).get('adapter') or 'none'
+    if adapter == 'none':
+        print(json.dumps({'store': 'files', 'reason': None, 'written': False}))
+        return OK
+
+    def files(reason):
+        decision = sd.new_decision('files', reason, args.decided_by, **carried)
+        sd.write(ticket, decision)
+        return _emit(decision, ticket, config)
+
+    def unavailable(record):
+        print(json.dumps({'store': None, 'reason': record, 'versions': carried['versions']}))
+        return UNAVAILABLE
+
+    if args.files is not None:
+        return files(args.files)
+    if args.local:
+        return files('local-only run requested')
+    project_key = (config.get('ticket') or {}).get('projectKey') or 'PROJ'
+    if len(project_key) < 2:
+        return files(SHORT_KEY_REASON.format(project_key.upper()))
+    try:
+        store = Store(config)
+    except Failure as exc:
+        # The record line docs/knowledge-consultation.md and docs/task-queue.md
+        # already spell for an empty or malformed key -- byte for byte, because a
+        # paraphrase of a gate message is how two documents come to disagree.
+        for key in ('knowledge.project', 'knowledge.baseUrl'):
+            if key in str(exc):
+                return unavailable(
+                    'kartoteka is configured for this project but {} is not set'.format(key))
+        return unavailable(str(exc))
+    record = probe(store, ticket)
+    if record:
+        return unavailable(record)
+    try:
+        rows = store.listing(ticket)
+    except Failure as exc:
+        return unavailable(str(exc))
+    versions = {row['name']: row['version'] for row in rows}
+    decision = sd.new_decision('kartoteka', None, args.decided_by, versions, carried['pending'])
+    sd.write(ticket, decision)
+    return _emit(decision, ticket, config)
+
+
+def cmd_decision(args, config):
+    ticket = sd.canonical_ticket(args.ticket, config)
+    decision = sd.load(ticket) if ticket else None
+    if decision is None:
+        print('{}')
+        return ABSENT
+    print(json.dumps(dict(decision, ticket=ticket, fresh=sd.is_fresh(decision))))
+    return OK
+
+
+def cmd_pending_add(args, config):
+    ticket_key, _, _ = address(args.path, config)
+    decision = sd.load(ticket_key)
+    if decision is None:
+        raise Failure('no_decision', 'no storage decision for {}; run decide first'.format(
+            ticket_key))
+    pending = [p for p in decision.get('pending') or [] if p.get('path') != args.path]
+    pending.append({'path': args.path, 'base_version': args.base_version})
+    decision['pending'] = pending
+    sd.write(ticket_key, decision)
+    print(json.dumps({'ticket': ticket_key, 'pending': pending}))
+    return OK
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog='spec_store.py', description=__doc__.splitlines()[0])
     verbs = parser.add_subparsers(dest='verb', required=True)
@@ -213,6 +340,22 @@ def build_parser():
     put.add_argument('--expected-version', type=int)
     put.add_argument('--author')
     put.set_defaults(run=cmd_put)
+    decide = verbs.add_parser('decide')
+    decide.add_argument('ticket')
+    decide.add_argument('--decided-by', required=True)
+    mode = decide.add_mutually_exclusive_group()
+    mode.add_argument('--local', action='store_true')
+    mode.add_argument('--files', metavar='REASON')
+    decide.set_defaults(run=cmd_decide)
+    decision = verbs.add_parser('decision')
+    decision.add_argument('ticket')
+    decision.set_defaults(run=cmd_decision)
+    pending = verbs.add_parser('pending')
+    pending_verbs = pending.add_subparsers(dest='pending_verb', required=True)
+    pending_add = pending_verbs.add_parser('add')
+    pending_add.add_argument('path')
+    pending_add.add_argument('--base-version', type=int, required=True)
+    pending_add.set_defaults(run=cmd_pending_add)
     return parser
 
 

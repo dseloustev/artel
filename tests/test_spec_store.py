@@ -159,3 +159,123 @@ class TestConfigErrors(StoreCase):
         self.fake.stop()
         proc = self.run_cli('get', 'specs/.current/AW-12/plan.md')
         self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'unreachable'))
+
+
+class TestDecide(StoreCase):
+    def decide(self, *extra):
+        proc = self.run_cli('decide', 'AW-12-1', '--decided-by', 'feature-development', *extra)
+        return proc.returncode, json.loads(proc.stdout)
+
+    def stored(self):
+        path = self.repo / '.artel' / 'run' / 'AW-12' / 'spec-store.json'
+        return json.loads(path.read_text(encoding='utf-8')) if path.exists() else None
+
+    def test_available_writes_a_kartoteka_decision_with_versions(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'a')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'b')
+        code, out = self.decide()
+        self.assertEqual(code, 0)
+        self.assertEqual((out['store'], out['ticket'], out['versions']),
+                         ('kartoteka', 'AW-12', {'prd.md': 2}))
+        self.assertEqual(self.stored()['decided_by'], 'feature-development')
+        # The probe wrote nothing.
+        self.assertNotIn((PROJECT, 'AW-12', 'artel-probe', 'probe.md'), self.fake.artifacts)
+
+    def test_available_reports_the_local_trail(self):
+        (self.repo / 'specs' / '.current' / 'AW-12').mkdir(parents=True)
+        (self.repo / 'specs' / '.current' / 'AW-12' / 'plan.md').write_text('x', encoding='utf-8')
+        _, out = self.decide()
+        self.assertEqual(out['local_trail'], ['specs/.current/AW-12/plan.md'])
+
+    def test_adapter_none_is_files_and_writes_nothing(self):
+        self.config['knowledge'] = {'adapter': 'none'}
+        self.write_config()
+        code, out = self.decide()
+        self.assertEqual((code, out), (0, {'store': 'files', 'reason': None, 'written': False}))
+        self.assertIsNone(self.stored())
+
+    def test_local_flag_writes_a_files_decision(self):
+        code, out = self.decide('--local')
+        self.assertEqual((code, out['store'], out['reason']),
+                         (0, 'files', 'local-only run requested'))
+        self.assertEqual(self.stored()['store'], 'files')
+
+    def test_files_reason_carries_versions_and_pending_forward(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'a')
+        self.decide()
+        self.fake.stop()
+        code, out = self.decide('--files', 'kartoteka unavailable; working locally at the '
+                                           "user's request -- kartoteka is unreachable")
+        self.assertEqual((code, out['store'], out['versions']), (0, 'files', {'prd.md': 1}))
+
+    def test_one_character_project_key_is_files(self):
+        self.config['ticket']['projectKey'] = 'X'
+        self.write_config()
+        proc = self.run_cli('decide', 'X-12', '--decided-by', 'dev')
+        out = json.loads(proc.stdout)
+        self.assertEqual((proc.returncode, out['store']), (0, 'files'))
+        self.assertIn('two or more characters', out['reason'])
+
+    def assertUnavailable(self, fragment):
+        code, out = self.decide()
+        self.assertEqual((code, out['store']), (5, None))
+        self.assertIn(fragment, out['reason'])
+        self.assertIsNone(self.stored())
+
+    def test_unreachable(self):
+        self.fake.stop()
+        self.assertUnavailable('kartoteka is unreachable')
+
+    def test_old_daemon(self):
+        self.fake.mode = 'old'
+        self.assertUnavailable('predates artifact_patch (0.43.0)')
+
+    def test_workspace_off(self):
+        self.fake.mode = 'workspace_off'
+        self.assertUnavailable('[workspace] enabled = false')
+
+    def test_unregistered_project(self):
+        self.fake.mode = 'unregistered'
+        self.assertUnavailable('kartoteka project add ' + PROJECT)
+
+    def test_unauthorized(self):
+        self.fake.mode = 'unauthorized'
+        self.assertUnavailable('HTTP 401')
+
+    def test_missing_project_is_unavailable_naming_the_key(self):
+        self.config['knowledge']['project'] = ''
+        self.write_config()
+        self.assertUnavailable('knowledge.project')
+
+
+class TestDecisionAndPending(StoreCase):
+    def test_decision_reads_back_with_freshness(self):
+        self.assertEqual(self.run_cli('decision', 'AW-12').returncode, 3)
+        self.run_cli('decide', 'AW-12', '--decided-by', 'dev')
+        proc = self.run_cli('decision', 'AW-12-3')
+        out = json.loads(proc.stdout)
+        self.assertEqual((proc.returncode, out['store'], out['fresh']), (0, 'kartoteka', True))
+
+    def test_pending_add_records_path_and_base(self):
+        self.run_cli('decide', 'AW-12', '--decided-by', 'feature-development')
+        proc = self.run_cli('pending', 'add', 'specs/.current/AW-12/plan.md', '--base-version', '2')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = json.loads(self.run_cli('decision', 'AW-12').stdout)
+        self.assertEqual(out['pending'], [{'path': 'specs/.current/AW-12/plan.md',
+                                           'base_version': 2}])
+        # Idempotent: the same path is recorded once, with the latest base.
+        self.run_cli('pending', 'add', 'specs/.current/AW-12/plan.md', '--base-version', '3')
+        out = json.loads(self.run_cli('decision', 'AW-12').stdout)
+        self.assertEqual(out['pending'], [{'path': 'specs/.current/AW-12/plan.md',
+                                           'base_version': 3}])
+
+    def test_pending_survives_a_new_decide(self):
+        self.run_cli('decide', 'AW-12', '--decided-by', 'feature-development')
+        self.run_cli('pending', 'add', 'specs/.current/AW-12/plan.md', '--base-version', '2')
+        self.run_cli('decide', 'AW-12', '--decided-by', 'feature-development')
+        out = json.loads(self.run_cli('decision', 'AW-12').stdout)
+        self.assertEqual(len(out['pending']), 1)
+
+    def test_pending_without_a_decision_is_an_error(self):
+        proc = self.run_cli('pending', 'add', 'specs/.current/AW-12/plan.md', '--base-version', '2')
+        self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'no_decision'))

@@ -11,6 +11,10 @@ naming `kartoteka project add` on writes; reads answer silent zeros, as the
 real daemon does), 'unauthorized' (401 everywhere). `forced` goes finer: a method
 mapped to (status, payload) gets that one answer for every request -- a dict as
 JSON, a str as plain text, the way Starlette answers a 405 or an unhandled 500.
+`on_request`, a callable (method, path, query, body), runs just before each
+request is handled: a test forces a race with it -- seed a version so the next
+put conflicts, edit the body it is about to store, or touch a local file while
+the caller is mid-run.
 
 The write checks run in workspace.py's order: POST refuses a ticket_key outside
 TICKET_KEY before it asks whether the project is registered; PATCH looks the
@@ -36,6 +40,7 @@ class FakeKartoteka:
     def __init__(self):
         self.mode = 'ok'
         self.forced = {}     # method -> (status, JSON dict or plain-text str), every request
+        self.on_request = None  # callable(method, path, query, body), before each request
         self.artifacts = {}  # (project, ticket, stage, name) -> [version dict], oldest first
         self.requests = []   # (method, path, query, body, authorization)
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), _handler_for(self))
@@ -125,6 +130,8 @@ def _handler_for(fake):
             body = json.loads(self.rfile.read(length).decode('utf-8')) if length else None
             fake.requests.append(
                 (self.command, parts.path, query, body, self.headers.get('Authorization')))
+            if fake.on_request is not None:
+                fake.on_request(self.command, parts.path, query, body)
             return [unquote(s) for s in parts.path.split('/') if s], query, body
 
         def _gated(self, segments, write, ticket_key=None):

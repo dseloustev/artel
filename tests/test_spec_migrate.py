@@ -509,6 +509,48 @@ class TestDelete(MigrateCase):
         self.assertNotIn('unrelated.txt', log)
         self.assertIn('A  unrelated.txt', self.git('status', '--porcelain').stdout)
 
+    def test_a_tracked_file_edited_since_the_last_commit_is_removed(self):
+        # I6: git rm refused it, though the working-tree content is verified in kartoteka.
+        self.local(SPECS / 'AW-12/prd.md', 'committed')
+        self.commit_all()
+        self.local(SPECS / 'AW-12/prd.md', 'edited after the checkpoint')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'edited after the checkpoint')
+        out = self.delete('AW-12', '--commit')
+        self.assertEqual((out['removed'], out['kept']), (['specs/.current/AW-12/prd.md'], []))
+        self.assertFalse((self.repo / SPECS / 'AW-12/prd.md').exists())
+        self.assertIn('D\tspecs/.current/AW-12/prd.md',
+                      self.git('log', '-1', '--name-status', '--format=%s').stdout)
+
+    def test_a_tracked_file_with_staged_content_kartoteka_lacks_is_kept(self):
+        self.local(SPECS / 'AW-12/prd.md', 'committed')
+        self.commit_all()
+        self.local(SPECS / 'AW-12/prd.md', 'staged, stored nowhere')
+        self.git('add', str(SPECS / 'AW-12/prd.md'))
+        self.local(SPECS / 'AW-12/prd.md', 'working tree, verified')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'working tree, verified')
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [])
+        self.assertEqual(out['kept'], [{'logical': 'specs/.current/AW-12/prd.md',
+                                        'source': 'specs/.current/AW-12/prd.md', 'class': 'error',
+                                        'reason': 'has staged changes kartoteka does not hold; '
+                                                  'commit or unstage them first'}])
+        self.assertTrue((self.repo / SPECS / 'AW-12/prd.md').exists())
+
+    def test_a_file_that_changed_since_it_was_classified_is_kept(self):
+        tree = self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'P')
+
+        def rewrite(method, path, query, body):
+            if method == 'GET' and path.endswith('/versions'):
+                self.fake.on_request = None      # after the plan read it, before it is deleted
+                (self.repo / tree).write_text('written again meanwhile', encoding='utf-8')
+        self.fake.on_request = rewrite
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [])
+        self.assertEqual(out['kept'][0]['reason'],
+                         'it changed since it was classified; run migrate-specs again')
+        self.assertEqual((self.repo / tree).read_text(), 'written again meanwhile')
+
     def test_without_commit_the_removal_is_left_staged(self):
         self.local(SPECS / 'AW-12/prd.md', 'P')
         self.commit_all()

@@ -800,11 +800,12 @@ def deletion_sets(items, resolutions):
     deletable, kept = [], []
     for item in items:
         if _settled(item, resolutions, by_logical):
-            deletable.extend(item['sources'])
+            deletable.extend({'path': source, 'logical': item['logical'], 'ticket': item['ticket'],
+                              'sha256': item['sha256']} for source in item['sources'])
         else:
             kept.append({'logical': item['logical'], 'sources': item['sources'],
                          'class': item['class'], 'reason': item['reason']})
-    return sorted(deletable), kept
+    return sorted(deletable, key=lambda e: e['path']), kept
 
 
 def _fully_migrated(store, config, ticket, resolutions):
@@ -897,7 +898,8 @@ def cmd_migrate_apply(args, config):
     pending_left = tidy_decisions(tickets, config)
     deletable, kept = deletion_sets(plan_items(store, config, tickets, args.pending_only),
                                     resolutions)
-    print(json.dumps({'uploaded': uploaded, 'failed': failed, 'deletable': deletable,
+    print(json.dumps({'uploaded': uploaded, 'failed': failed,
+                      'deletable': [entry['path'] for entry in deletable],
                       'kept': kept, 'flipped': flipped, 'pending_left': pending_left}))
     return OK
 
@@ -932,6 +934,39 @@ def _prune_empty_parents(path, config, ticket):
         parent = os.path.dirname(parent)
 
 
+def _still_verified(path, digest):
+    """A reason this copy must not be deleted after all, or None.
+
+    Re-read right before the deletion, closing the window between the check and
+    the delete: the file kartoteka was proven to hold is the one that goes, not
+    whatever has been written there since."""
+    if os.path.islink(path):
+        return OUTSIDE_THE_TRAIL
+    try:
+        raw = Path(path).read_bytes()
+    except OSError as exc:
+        return 'unreadable: {}'.format(exc)
+    if digest is None or hashlib.sha256(raw).hexdigest() != digest:
+        return 'it changed since it was classified; run migrate-specs again'
+    return None
+
+
+def _unremovable(path):
+    """A reason `git rm` must not take this tracked file, or None.
+
+    git refuses a file whose index entry differs from BOTH HEAD and the working
+    tree, and it is right to: that staged content exists nowhere else, and the
+    verified copy is the working tree's. When the index matches either side, the
+    staged content is committed or is the verified content itself, so -f is
+    safe -- and needed, because an ordinary `git rm` refuses a file edited since
+    the last commit even when kartoteka holds that very edit."""
+    if _git('diff', '--cached', '--quiet', '--', path).returncode == 0:
+        return None
+    if _git('diff', '--quiet', '--', path).returncode == 0:
+        return None
+    return 'has staged changes kartoteka does not hold; commit or unstage them first'
+
+
 def _commit_subject(tickets):
     if len(tickets) <= 3:
         return 'chore: move {} spec trail to kartoteka'.format(', '.join(tickets))
@@ -957,11 +992,23 @@ def cmd_migrate_delete(args, config):
     _validate_resolutions(items, resolutions)
     deletable, kept = deletion_sets(items, resolutions)
     removed, committed_paths, committed_tickets = [], [], set()
-    for path in deletable:
-        ticket = _ticket_of(path, config)
+    for entry in deletable:
+        path, ticket = entry['path'], entry['ticket']
+
+        def keep(reason):
+            kept.append({'logical': entry['logical'], 'source': path, 'class': 'error',
+                         'reason': reason})
+
+        reason = _still_verified(path, entry['sha256'])
+        if reason:
+            keep(reason)
+            continue
         if _tracked(path):
-            if _git('rm', '-q', '--', path).returncode != 0:
-                kept.append({'logical': path, 'class': 'error', 'reason': 'git rm failed'})
+            reason = _unremovable(path)
+            if reason is None and _git('rm', '-q', '-f', '--', path).returncode != 0:
+                reason = 'git rm failed'
+            if reason:
+                keep(reason)
                 continue
             committed_paths.append(path)
             if ticket:
@@ -970,7 +1017,7 @@ def cmd_migrate_delete(args, config):
             try:
                 Path(path).unlink()
             except OSError as exc:
-                kept.append({'logical': path, 'class': 'error', 'reason': str(exc)})
+                keep(str(exc))
                 continue
         removed.append(path)
         _prune_empty_parents(path, config, ticket)

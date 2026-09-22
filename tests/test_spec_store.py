@@ -248,6 +248,32 @@ class TestDecide(StoreCase):
         self.fake.mode = 'workspace_off'
         self.assertUnavailable('[workspace] enabled = false')
 
+    def test_the_probe_never_writes_even_where_its_address_exists(self):
+        # expected_version 0: a missing address answers 404, an existing one
+        # 409 -- both "ready", and neither writes.
+        self.fake.seed(PROJECT, 'AW-12', 'artel-probe', 'probe.md', 'x')
+        code, out = self.decide()
+        self.assertEqual((code, out['store']), (0, 'kartoteka'))
+        self.assertEqual(len(self.fake.artifacts[(PROJECT, 'AW-12', 'artel-probe', 'probe.md')]), 1)
+        probe = next(r for r in self.fake.requests if r[0] == 'PATCH')
+        self.assertEqual(probe[3]['expected_version'], 0)
+
+    def test_a_405_on_the_probe_is_a_missing_route(self):
+        self.fake.forced['PATCH'] = (405, {'detail': 'Method Not Allowed'})
+        self.assertUnavailable('the kartoteka daemon predates artifact_patch (0.43.0); upgrade it')
+
+    def test_a_405_with_no_listing_either_is_a_disabled_store(self):
+        self.fake.mode = 'workspace_off'
+        self.fake.forced['PATCH'] = (405, 'Method Not Allowed')
+        self.assertUnavailable('[workspace] enabled = false')
+
+    def test_a_failing_follow_up_listing_is_not_an_old_daemon(self):
+        self.fake.mode = 'old'
+        self.fake.forced['GET'] = (500, 'Internal Server Error')
+        code, out = self.decide()
+        self.assertEqual(code, 5)
+        self.assertEqual(out['reason'], 'kartoteka answered HTTP 500: no error text')
+
     def test_unregistered_project(self):
         self.fake.mode = 'unregistered'
         self.assertUnavailable('kartoteka project add ' + PROJECT)

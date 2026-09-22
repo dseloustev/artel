@@ -207,42 +207,70 @@ SHORT_KEY_REASON = ("kartoteka cannot store tickets keyed {}-…: its ticket-key
                     "project key of two or more characters")
 
 
+def answered(status, payload):
+    """The one record for an answer nothing more specific explains.
+
+    The error text is kartoteka's JSON `error` (or FastAPI's `detail`), cut at
+    kh.ERROR_BODY_LIMIT: a 422 echoes the request body, and that body can be a
+    whole document -- which would then land in stderr and in a model's context.
+    """
+    text = None
+    if isinstance(payload, dict):
+        text = payload.get('error') or payload.get('detail')
+    text = str(text) if text else 'no error text'
+    if len(text) > kh.ERROR_BODY_LIMIT:
+        text = text[:kh.ERROR_BODY_LIMIT] + '...(truncated)'
+    return 'kartoteka answered HTTP {}: {}'.format(status, text)
+
+
+def _route_missing(store, ticket):
+    """The record for a PATCH route that is not there (a plain 404, or a 405).
+
+    A daemon before 0.43.0 has no PATCH route but still serves the listing; a
+    daemon with [workspace] off serves neither (verified against 0.42.0: an
+    unknown route answers a plain-text 404). Only a served listing means "old".
+    """
+    try:
+        status, payload = store.request('GET', '/api/artifacts',
+                                        query={'project': store.project, 'ticket_key': ticket})
+    except Failure as exc:
+        return str(exc)  # store_off: the workspace is off; or the listing's own record
+    if 200 <= status < 300:
+        return 'the kartoteka daemon predates artifact_patch (0.43.0); upgrade it'
+    return answered(status, payload)
+
+
 def probe(store, ticket):
     """None when this daemon can hold the ticket's spec trail, else the §2.1 record.
 
-    One PATCH to an address that never exists. A current, registered daemon
-    answers 404 {"error"} and writes nothing; every other answer is one row of
-    the resolution table, with one follow-up listing to tell an old daemon from
-    a disabled artifact store. A GET cannot do this: scoped reads for an unregistered
-    project answer silent zeros, and a daemon before 0.43.0 serves them fine.
+    One PATCH to an address that never exists, with expected_version 0.
+    kartoteka looks the artifact up before it compares versions, so a current,
+    registered daemon answers 404 {"error"} -- or 409 if someone did create
+    the address -- and writes nothing either way. Every other answer is one row
+    of the resolution table. A GET cannot do this: scoped reads for an
+    unregistered project answer silent zeros, and a daemon before 0.43.0
+    serves them fine.
     """
     try:
         status, payload = store.request(
             'PATCH', artifact_path(ticket, PROBE_STAGE, PROBE_NAME),
-            body={'project': store.project, 'edits': [{'append': 'probe'}]})
+            body={'project': store.project, 'edits': [{'append': 'probe'}],
+                  'expected_version': 0})
     except Failure as exc:
         if exc.kind == 'unreachable':
             return 'kartoteka is unreachable: {}'.format(exc)
         if exc.kind != 'store_off':
             return str(exc)  # unauthorized: already the record
-        # A 404 without kartoteka's {"error"} is a route that is not there. A
-        # daemon before 0.43.0 has no PATCH route but still serves the listing;
-        # a daemon with [workspace] off serves neither. The listing tells them
-        # apart (verified against 0.42.0: an unknown route answers a plain-text
-        # 404, never a 405).
-        try:
-            store.request('GET', '/api/artifacts',
-                          query={'project': store.project, 'ticket_key': ticket})
-        except Failure as listing_exc:
-            return str(listing_exc)  # store_off: the workspace is off
-        return 'the kartoteka daemon predates artifact_patch (0.43.0); upgrade it'
-    error = payload.get('error', '') if isinstance(payload, dict) else ''
-    if status == 404:
+        return _route_missing(store, ticket)  # a 404 without kartoteka's {"error"}
+    if status in (404, 409):
         return None
-    if status == 400 and 'kartoteka project add' in error:
+    if status == 405:
+        return _route_missing(store, ticket)
+    error = payload.get('error') if isinstance(payload, dict) else None
+    if status == 400 and 'kartoteka project add' in str(error or ''):
         return ('kartoteka refused knowledge.project as unregistered; run kartoteka project add '
                 '{}').format(store.project)
-    return 'kartoteka answered the probe with HTTP {}: {}'.format(status, error or payload)
+    return answered(status, payload)
 
 
 def _emit(decision, ticket, config):

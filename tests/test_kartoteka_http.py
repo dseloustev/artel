@@ -1,3 +1,4 @@
+import hashlib
 import os
 import socket
 import sys
@@ -62,6 +63,65 @@ class TestCall(unittest.TestCase):
                 else:
                     os.environ[k] = v
         self.assertEqual(status, 200)
+
+
+class TestTheFakeAnswersLikeKartoteka(unittest.TestCase):
+    """The fake is worth what it shares with kartoteka's workspace.py and web.py."""
+
+    def setUp(self):
+        self.fake = FakeKartoteka().start()
+        self.addCleanup(self.fake.stop)
+
+    def post(self, **fields):
+        body = {'project': 'p', 'ticket_key': 'AW-1', 'stage': 'prd', 'name': 'prd.md',
+                'content': 'a'}
+        body.update(fields)
+        return kh.call(self.fake.base_url, 'POST', '/api/artifacts', body=body)
+
+    def patch(self, **fields):
+        body = {'project': 'p', 'edits': [{'append': 'x'}]}
+        body.update(fields)
+        return kh.call(self.fake.base_url, 'PATCH', '/api/artifacts/AW-1/prd/prd.md', body=body)
+
+    def test_a_redacted_version_carries_the_markers_hash(self):
+        # redact_artifact recomputes content_hash from the marker, so putting
+        # the original text back is a new version, not an idempotent no-op.
+        row = self.fake.seed('p', 'AW-1', 'prd', 'prd.md', 'secret', redacted=True)
+        self.assertEqual((row['content'], row['content_hash']),
+                         ('[redacted]', hashlib.sha256(b'[redacted]').hexdigest()))
+        status, body = self.post(content='secret')
+        self.assertEqual((status, body['version'], body['content']), (200, 2, 'secret'))
+
+    def test_a_ticket_key_outside_the_grammar_is_refused_before_registration(self):
+        # put_artifact checks TICKET_KEY before require_registered.
+        self.fake.mode = 'unregistered'
+        for key in ('MY_PROJ-7', 'X-12', 'R-2026.10', 'aw-1'):
+            status, body = self.post(ticket_key=key)
+            self.assertEqual(status, 400, key)
+            self.assertTrue(body['error'].startswith(
+                "ticket_key {!r} does not match ^[A-Z][A-Z0-9]+-\\d+\\Z".format(key)), body)
+        status, body = self.post()
+        self.assertEqual(status, 400)
+        self.assertIn('kartoteka project add', body['error'])
+        self.assertEqual(self.fake.artifacts, {})
+
+    def test_patch_checks_existence_before_expected_version(self):
+        status, body = self.patch(expected_version=0)
+        self.assertEqual(status, 404)
+        self.assertIn('no such artifact', body['error'])
+        self.fake.seed('p', 'AW-1', 'prd', 'prd.md', 'a')
+        status, body = self.patch(expected_version=0)
+        self.assertEqual((status, body['current_version']), (409, 1))
+        self.assertIn('error', body)
+        self.assertEqual(len(self.fake.artifacts[('p', 'AW-1', 'prd', 'prd.md')]), 1)
+        status, body = self.patch(expected_version=1)
+        self.assertEqual((status, body['version'], body['content']), (200, 2, 'ax'))
+
+    def test_a_forced_answer_replaces_every_request_of_its_method(self):
+        self.fake.forced['PATCH'] = (405, {'detail': 'Method Not Allowed'})
+        self.fake.forced['GET'] = (500, 'Internal Server Error')
+        self.assertEqual(self.patch(), (405, {'detail': 'Method Not Allowed'}))
+        self.assertEqual(kh.call(self.fake.base_url, 'GET', '/api/artifacts'), (500, None))
 
 
 class TestUnreachable(unittest.TestCase):

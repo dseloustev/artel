@@ -8,18 +8,34 @@ daemon before artifact_patch really answers, verified against 0.42.0: Starlette'
 router-level not-found, not a 405), 'workspace_off' (the same plain 404 on every
 artifact route), 'unregistered' (400
 naming `kartoteka project add` on writes; reads answer silent zeros, as the
-real daemon does), 'unauthorized' (401 everywhere).
+real daemon does), 'unauthorized' (401 everywhere). `forced` goes finer: a method
+mapped to (status, payload) gets that one answer for every request -- a dict as
+JSON, a str as plain text, the way Starlette answers a 405 or an unhandled 500.
+
+The write checks run in workspace.py's order: POST refuses a ticket_key outside
+TICKET_KEY before it asks whether the project is registered; PATCH looks the
+artifact up (404) before it compares expected_version (409). A redacted version
+holds the marker and the marker's hash, because redact_artifact recomputes it.
 """
 import hashlib
 import json
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlsplit
+
+TICKET_KEY = re.compile(r'^[A-Z][A-Z0-9]+-\d+\Z')  # kartoteka models.TICKET_KEY
+REDACTION_MARKER = '[redacted]'                     # kartoteka workspace.REDACTION_MARKER
+
+
+def _sha256(text):
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
 
 class FakeKartoteka:
     def __init__(self):
         self.mode = 'ok'
+        self.forced = {}     # method -> (status, JSON dict or plain-text str), every request
         self.artifacts = {}  # (project, ticket, stage, name) -> [version dict], oldest first
         self.requests = []   # (method, path, query, body, authorization)
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), _handler_for(self))
@@ -46,10 +62,11 @@ class FakeKartoteka:
 
     def seed(self, project, ticket, stage, name, content, author_agent=None, redacted=False):
         versions = self.artifacts.setdefault((project, ticket, stage, name), [])
+        stored = REDACTION_MARKER if redacted else content
         versions.append({
             'version': len(versions) + 1,
-            'content': '[redacted]' if redacted else content,
-            'content_hash': hashlib.sha256(content.encode('utf-8')).hexdigest(),
+            'content': stored,
+            'content_hash': _sha256(stored),
             'author_agent': author_agent,
             'created_at': '2026-09-22T10:00:{:02d}+00:00'.format(len(versions)),
             'redacted_at': '2026-09-22T11:00:00+00:00' if redacted else None,
@@ -79,13 +96,27 @@ def _handler_for(fake):
             self.end_headers()
             self.wfile.write(raw)
 
-        def _send_not_found(self):
-            raw = b'Not Found'
-            self.send_response(404)
+        def _send_text(self, status, text):
+            raw = text.encode('utf-8')
+            self.send_response(status)
             self.send_header('Content-Type', 'text/plain')
             self.send_header('Content-Length', str(len(raw)))
             self.end_headers()
             self.wfile.write(raw)
+
+        def _send_not_found(self):
+            self._send_text(404, 'Not Found')
+
+        def _forced(self):
+            answer = fake.forced.get(self.command)
+            if answer is None:
+                return False
+            status, payload = answer
+            if isinstance(payload, str):
+                self._send_text(status, payload)
+            else:
+                self._send(status, payload)
+            return True
 
         def _read(self):
             parts = urlsplit(self.path)
@@ -96,17 +127,24 @@ def _handler_for(fake):
                 (self.command, parts.path, query, body, self.headers.get('Authorization')))
             return [unquote(s) for s in parts.path.split('/') if s], query, body
 
-        def _gated(self, segments, write):
+        def _gated(self, segments, write, ticket_key=None):
             if fake.mode == 'unauthorized':
                 return 401, {'detail': 'missing or invalid bearer token'}
             if fake.mode == 'workspace_off' and segments[:2] == ['api', 'artifacts']:
                 return 404, None  # plain-text Not Found, like an unmounted route
+            if ticket_key is not None and not TICKET_KEY.match(ticket_key):
+                # put_artifact's first check, before require_registered.
+                return 400, {'error': (
+                    'ticket_key {!r} does not match {} \u2014 e.g. AW-1200. A key that does not '
+                    'match opens a trail nothing joins to.').format(ticket_key, TICKET_KEY.pattern)}
             if fake.mode == 'unregistered' and write:
                 return 400, {'error': "unknown project; run: kartoteka project add <name>"}
             return None
 
         def do_GET(self):
             segments, query, _ = self._read()
+            if self._forced():
+                return
             gated = self._gated(segments, write=False)
             if gated:
                 return self._send_not_found() if gated[1] is None else self._send(*gated)
@@ -137,14 +175,18 @@ def _handler_for(fake):
 
         def do_POST(self):
             segments, _, body = self._read()
-            gated = self._gated(segments, write=True)
+            if self._forced():
+                return
+            route = segments == ['api', 'artifacts']
+            gated = self._gated(segments, write=True,
+                                ticket_key=body.get('ticket_key') if route else None)
             if gated:
                 return self._send_not_found() if gated[1] is None else self._send(*gated)
-            if segments != ['api', 'artifacts']:
+            if not route:
                 return self._send(404, {'detail': 'Not Found'})
             key = (body['project'], body['ticket_key'], body['stage'], body['name'])
             newest = fake.newest(*key)
-            digest = hashlib.sha256(body['content'].encode('utf-8')).hexdigest()
+            digest = _sha256(body['content'])
             if newest is not None and newest['content_hash'] == digest:
                 return self._send(200, _row(key, newest))
             current = newest['version'] if newest else 0
@@ -157,6 +199,8 @@ def _handler_for(fake):
 
         def do_PATCH(self):
             segments, _, body = self._read()
+            if self._forced():
+                return
             if fake.mode == 'old':
                 return self._send_not_found()
             gated = self._gated(segments, write=True)
@@ -167,6 +211,11 @@ def _handler_for(fake):
             if newest is None:
                 return self._send(404, {'error': 'no such artifact {}/{}/{}; create it with '
                                                  'artifact_put'.format(*segments[2:5])})
+            expected = body.get('expected_version')
+            if expected is not None and expected != newest['version']:
+                # After the lookup, as patch_artifact does: a missing artifact is 404 first.
+                return self._send(409, {'error': 'artifact is at version {}'.format(
+                    newest['version']), 'current_version': newest['version']})
             text = newest['content']
             for edit in body['edits']:
                 if 'append' in edit:

@@ -70,11 +70,13 @@ tools are `artifact_get`, `artifact_put`, `artifact_patch`, `artifact_list` and
 - A row-5 or row-6 failure, or a user who chose to work locally, is recorded with
   `decide <TICKET_ID> --decided-by <skill> --files "<record>"`.
 
-`decide` makes one probe: a `PATCH` to `(<TICKET_ID>, artel-probe, probe.md)`, an address that
-never exists, which a ready daemon answers 404 `{"error": …}` and writes nothing. A plain 404
-means the route is missing, and a listing then tells a daemon older than 0.43.0 (listing
-served) from one whose artifact store is off (listing missing). It ends with one scoped
-listing.
+`decide` makes one probe: a `PATCH` to `(<TICKET_ID>, artel-probe, probe.md)` with
+`expected_version: 0`. kartoteka looks the artifact up before it compares versions, so a ready
+daemon answers 404 `{"error": …}` for that address, which never exists — or 409 if something
+created it — and writes nothing either way. A plain 404 (no `error` field) or a 405 means the
+route is missing, and a listing then tells a daemon older than 0.43.0 (listing served) from one
+whose artifact store is off (listing missing); any other answer to that listing is recorded as
+it is (row 9). It ends with one scoped listing.
 
 ### 2.2 The decision file
 

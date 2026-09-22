@@ -67,6 +67,7 @@ def storable_project_key(project_key):
     as artel writes the key)."""
     return bool(STORABLE_PROJECT_KEY.match(project_key.upper()))
 
+
 # A large error page (an HTML 500 page from some intermediary, say) must not
 # bloat the log; a few hundred characters is enough of kartoteka's own JSON
 # body ("both guards describe what the caller got wrong...") to act on.
@@ -182,8 +183,6 @@ def plaintext_off_loopback(base_url):
         return False
     host = (parts.hostname or '').lower()
     return not (host == 'localhost' or host == '::1' or host.startswith('127.'))
-
-
 
 
 def artifact_identity(rel, config):

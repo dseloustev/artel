@@ -162,7 +162,9 @@ def ticket_matcher(config):
 def canonical_ticket(value, config):
     """Canonical <projectKey>-<number> for any accepted spelling of a ticket ID, or None.
 
-    Accepts formats like 'AW-12', 'aw-12-3', '12', etc. Strips phase suffix and normalizes."""
+    Accepts 'AW-12', 'aw-12-3', '12' and the like. A phase suffix never reaches the
+    result because the pattern's first group is the number alone; the key is
+    upper-cased here."""
     compiled, project_key = ticket_matcher(config)
     if compiled is None:
         return None

@@ -24,6 +24,7 @@ class FakeKartoteka:
         self.requests = []   # (method, path, query, body, authorization)
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), _handler_for(self))
         self._thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self._stopped = False
 
     @property
     def base_url(self):
@@ -34,6 +35,12 @@ class FakeKartoteka:
         return self
 
     def stop(self):
+        # A test that stops the fake itself (test_unreachable) leaves addCleanup's
+        # stop() to run again; ThreadingHTTPServer.shutdown()/server_close() are
+        # not safe to call twice, so the second call is a no-op.
+        if self._stopped:
+            return
+        self._stopped = True
         self.server.shutdown()
         self.server.server_close()
 

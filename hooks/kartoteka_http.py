@@ -290,6 +290,8 @@ def call(base_url, method, path, token=None, query=None, body=None, timeout=15):
             raw = exc.read()
         except Exception:
             raw = b''
+        finally:
+            exc.close()  # unclosed -> ResourceWarning; callers never see the object to close it
         return exc.code, _json_or_none(raw)
     except Exception as exc:
         raise Unreachable(redacted(str(exc), token)) from None

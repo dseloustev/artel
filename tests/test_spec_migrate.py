@@ -200,6 +200,65 @@ class TestClassify(MigrateCase):
         self.assertEqual(items[context]['class'], 'conflict')
         self.assertIsNot(items[tree], items[context])
 
+    def test_a_context_copy_with_no_known_base_is_a_conflict(self):
+        # I1: .artel/context copies are newer-wins snapshots shared across worktrees;
+        # the mirror-only rule (which can only lag) is the working tree's alone.
+        context = self.local('.artel/context/tickets/AW-12/spec-trail/plan.md', 'old snapshot')
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'orig')        # mirror v1
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'newer edit')  # mirror v2
+        item = self.plan('AW-12')['specs/.current/AW-12/plan.md']
+        self.assertEqual((item['class'], item['sources']), ('conflict', [context]))
+        self.assertEqual(item['reason'], 'a saved context copy with no known base; it may be '
+                                         'older than what kartoteka holds')
+        proc = self.cli('migrate', 'apply', 'AW-12')
+        self.assertEqual(json.loads(proc.stdout)['uploaded'], [])
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['content'],
+                         'newer edit')
+
+    def test_a_working_copy_older_than_the_newest_version_is_a_conflict(self):
+        tree = self.local(SPECS / 'AW-12/prd.md', 'edited long ago')
+        os.utime(self.repo / tree, (1577880000, 1577880000))  # 2020-01-01, before v2
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v2')
+        item = self.plan('AW-12')['specs/.current/AW-12/prd.md']
+        self.assertEqual((item['class'], item['reason']),
+                         ('conflict', "this copy is older than kartoteka's v2"))
+
+    def test_an_unreadable_created_at_leaves_the_age_check_out(self):
+        self.local(SPECS / 'AW-12/prd.md', 'edited after the last mirror')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v2')['created_at'] = 'whenever'
+        self.assertEqual(self.plan('AW-12')['specs/.current/AW-12/prd.md']['class'], 'successor')
+
+    def test_a_symlinked_candidate_is_never_read(self):
+        # I3: a committed symlink in the trail used to be read and uploaded.
+        outside = Path(self._tmp.name).parent / 'outside-the-repo.md'
+        outside.write_text('-----BEGIN PRIVATE KEY----- not really', encoding='utf-8')
+        self.addCleanup(outside.unlink)
+        link = self.repo / SPECS / 'AW-12' / 'prd.md'
+        link.parent.mkdir(parents=True)
+        os.symlink(outside, link)
+        self.commit_all()
+        item = self.plan('AW-12')['specs/.current/AW-12/prd.md']
+        self.assertEqual((item['class'], item['reason']),
+                         ('skipped', 'a symbolic link or a path outside the trail; not read'))
+        self.assertEqual(json.loads(self.cli('migrate', 'apply', 'AW-12').stdout)['uploaded'], [])
+        self.assertEqual(self.fake.artifacts, {})
+        self.assertEqual(json.loads(self.cli('migrate', 'delete', 'AW-12').stdout)['removed'], [])
+        self.assertTrue(outside.exists())
+        self.assertTrue(link.is_symlink())
+
+    def test_a_symlinked_ticket_directory_is_never_read(self):
+        outside = Path(self._tmp.name).parent / 'outside-trail-dir'
+        (outside).mkdir(exist_ok=True)
+        (outside / 'prd.md').write_text('not this ticket\'s', encoding='utf-8')
+        self.addCleanup(lambda: [(outside / 'prd.md').unlink(), outside.rmdir()])
+        (self.repo / SPECS).mkdir(parents=True)
+        os.symlink(outside, self.repo / SPECS / 'AW-12')
+        item = self.plan('AW-12')['specs/.current/AW-12/prd.md']
+        self.assertEqual(item['class'], 'skipped')
+        self.assertEqual(self.fake.artifacts, {})
+
     def test_oversized_is_skipped(self):
         self.local(SPECS / 'AW-12/prd.md', 'x' * (1048576 + 1))
         self.assertEqual(self.plan('AW-12')['specs/.current/AW-12/prd.md']['class'], 'skipped')
@@ -419,6 +478,13 @@ class TestDelete(MigrateCase):
         self.assertEqual(len(out['removed']), 2)
         self.assertFalse((self.repo / SPECS / 'AW-12').exists())
         self.assertFalse((self.repo / '.artel/context/tickets/AW-12/spec-trail').exists())
+
+    def test_pruning_stops_at_the_trail_root(self):
+        self.local('.artel/context/tickets/AW-12/spec-trail/phase-2/tasks.md', 'T')
+        self.fake.seed(PROJECT, 'AW-12', 'tasklist', 'phase-2.tasks.md', 'T')
+        self.delete('AW-12')
+        self.assertFalse((self.repo / '.artel/context/tickets/AW-12/spec-trail').exists())
+        self.assertTrue((self.repo / '.artel/context/tickets/AW-12').is_dir())
 
     def test_nothing_unverified_is_deleted(self):
         self.local(SPECS / 'AW-12/prd.md', 'local')        # conflict

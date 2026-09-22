@@ -22,6 +22,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
@@ -414,6 +415,68 @@ def migration_store(config, tickets):
     return store
 
 
+OUTSIDE_THE_TRAIL = 'a symbolic link or a path outside the trail; not read'
+
+
+def trail_roots(ticket, config):
+    """This ticket's two trail roots, in sd.local_trail's order: the working
+    tree's <specs.dir>/<TICKET_ID>, then save-context's context copy."""
+    specs_dir = (config.get('specs') or {}).get('dir') or 'specs/.current'
+    return [str(Path(specs_dir) / ticket), str(sd.CONTEXT_TICKETS / ticket / 'spec-trail')]
+
+
+def _trail_root_of(source, ticket, config):
+    """The ticket trail root this path sits under, as written, or None."""
+    source = os.path.normpath(source)
+    for root in trail_roots(ticket, config):
+        root = os.path.normpath(root)
+        if source.startswith(root + os.sep):
+            return root
+    return None
+
+
+def _outside_the_trail(source, ticket, config):
+    """Whether this candidate must never be read or deleted.
+
+    A symbolic link -- the file itself, its trail root, or any directory
+    between them -- or a real path that lands outside the real trail root. A
+    committed symlink under <specs.dir> can point anywhere, at a private key or
+    at another repository, and reading it would upload that file as this
+    ticket's document while deleting it would reach outside the trail. What sits
+    ABOVE a trail root may well be a link: a worktree's .artel/context is a
+    symlink to the main checkout's store (docs/worktrees.md)."""
+    root = _trail_root_of(source, ticket, config)
+    if root is None:
+        return True
+    walked = Path(root)
+    if walked.is_symlink():
+        return True
+    for part in Path(os.path.normpath(source)).relative_to(root).parts:
+        walked = walked / part
+        if walked.is_symlink():
+            return True
+    real_root, real = os.path.realpath(root), os.path.realpath(source)
+    return not real.startswith(real_root + os.sep)
+
+
+def _older_than(source, version):
+    """Whether this file was last written before kartoteka stored that version.
+
+    An unreadable file time, or a created_at that is not a timezone-aware ISO
+    stamp, answers False: the check only ever adds conflicts, and a stamp this
+    cannot read says nothing."""
+    stamp = version.get('created_at')
+    if not isinstance(stamp, str):
+        return False
+    try:
+        created = datetime.fromisoformat(stamp.replace('Z', '+00:00'))
+        if created.tzinfo is None:
+            return False
+        return datetime.fromtimestamp(os.stat(source).st_mtime, timezone.utc) < created
+    except (ValueError, TypeError, OSError):
+        return False
+
+
 def candidates(ticket, config, pending_only):
     """({logical path: [source paths]}, decision, {pending source: base_version})."""
     specs_dir = (config.get('specs') or {}).get('dir') or 'specs/.current'
@@ -451,7 +514,7 @@ def _known_base(sources, name, decision, pending):
     return None
 
 
-def _judge(item, text, versions, stored, decision, pending):
+def _judge(item, text, versions, stored, decision, pending, working_copy):
     """Classify the one local copy of an address kartoteka does not hold:
     absent, successor, or conflict (docs/spec-storage.md §7).
 
@@ -486,6 +549,15 @@ def _judge(item, text, versions, stored, decision, pending):
         return conflict('kartoteka moved from v{} to v{} since this copy was made'.format(
             base, newest['version']))
     if all(v.get('author_agent') is None for v in versions):
+        # Mirror-only history can only lag BEHIND the working tree, because the
+        # mirror hook wrote it from that very file. A .artel/context copy is a
+        # different thing: save-context snapshots, shared across worktrees and
+        # merged newer-wins, which can be older than anything kartoteka holds.
+        if working_copy is None:
+            return conflict('a saved context copy with no known base; it may be older than what '
+                            'kartoteka holds')
+        if _older_than(working_copy, newest):
+            return conflict("this copy is older than kartoteka's v{}".format(newest['version']))
         item.update({'class': 'successor',
                      'reason': 'kartoteka holds only mirror copies of this file, which can only lag'})
         return
@@ -504,6 +576,7 @@ def classify(store, config, ticket, logical, sources, decision, pending):
     of them is the newer work, so the user picks one.
     """
     ticket_key, stage, name = address(logical, config)
+    context_root = os.path.normpath(trail_roots(ticket, config)[1]) + os.sep
     items, groups, texts = [], {}, {}
 
     def new_item(copies, **fields):
@@ -515,6 +588,9 @@ def classify(store, config, ticket, logical, sources, decision, pending):
         return item
 
     for source in sources:
+        if _outside_the_trail(source, ticket, config):
+            new_item([source], **{'class': 'skipped', 'reason': OUTSIDE_THE_TRAIL})
+            continue
         try:
             raw = Path(source).read_bytes()
             text = raw.decode('utf-8')
@@ -552,7 +628,10 @@ def classify(store, config, ticket, logical, sources, decision, pending):
             unknown.append(item)
     skipped = [i for i in items if i['class'] == 'skipped']
     if len(unknown) == 1 and not skipped:
-        _judge(unknown[0], texts[unknown[0]['sha256']], versions, stored, decision, pending)
+        item = unknown[0]
+        working = next((s for s in item['sources']
+                        if not os.path.normpath(s).startswith(context_root)), None)
+        _judge(item, texts[item['sha256']], versions, stored, decision, pending, working)
         return items
     copies = ', '.join(i['source'] for i in unknown + skipped)
     redaction = any(_redacted(v) for v in versions)
@@ -779,18 +858,26 @@ def _tracked(path):
     return _git('ls-files', '--error-unmatch', '--', path).returncode == 0
 
 
-def _prune_empty_parents(path, config):
-    """Remove directories the deletion emptied, up to the ticket's own root --
-    never <specs.dir> itself or .artel/context/tickets."""
-    specs_dir = Path((config.get('specs') or {}).get('dir') or 'specs/.current').resolve()
-    stops = {specs_dir, sd.CONTEXT_TICKETS.resolve()}
-    parent = Path(path).parent.resolve()
-    while parent not in stops and parent != parent.parent:
+def _prune_empty_parents(path, config, ticket):
+    """Remove the directories this deletion emptied, up to and including the
+    ticket's own trail root -- never above it, and never through a symbolic
+    link. It walks the path as written, not as resolved: a worktree's
+    .artel/context is a link to the main checkout's store, and resolving would
+    walk out of this checkout entirely."""
+    root = _trail_root_of(path, ticket, config) if ticket else None
+    if root is None:
+        return
+    parent = os.path.dirname(os.path.normpath(path))
+    while True:
+        if os.path.islink(parent):
+            return
         try:
-            parent.rmdir()  # only succeeds when empty
+            os.rmdir(parent)  # only succeeds when empty
         except OSError:
             return
-        parent = parent.parent
+        if parent == root:
+            return
+        parent = os.path.dirname(parent)
 
 
 def _commit_subject(tickets):
@@ -819,12 +906,12 @@ def cmd_migrate_delete(args, config):
     deletable, kept = deletion_sets(items, resolutions)
     removed, committed_paths, committed_tickets = [], [], set()
     for path in deletable:
+        ticket = _ticket_of(path, config)
         if _tracked(path):
             if _git('rm', '-q', '--', path).returncode != 0:
                 kept.append({'logical': path, 'class': 'error', 'reason': 'git rm failed'})
                 continue
             committed_paths.append(path)
-            ticket = _ticket_of(path, config)
             if ticket:
                 committed_tickets.add(ticket)
         else:
@@ -834,7 +921,7 @@ def cmd_migrate_delete(args, config):
                 kept.append({'logical': path, 'class': 'error', 'reason': str(exc)})
                 continue
         removed.append(path)
-        _prune_empty_parents(path, config)
+        _prune_empty_parents(path, config, ticket)
     removed_normalized = {os.path.normpath(r) for r in removed}
     for ticket in tickets:
         decision = sd.load(ticket)

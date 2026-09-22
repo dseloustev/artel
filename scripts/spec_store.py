@@ -2,9 +2,10 @@
 """spec-store: artel's scripted access to kartoteka's artifact store.
 
 Where a spec document goes to a program rather than to a model, it goes through
-this script by pipe -- `spec_store.py get <path> | tasklist_tasks.py --tasklist -`
--- so the document never passes through an orchestrator's context
-(docs/spec-storage.md §4.2). Agents use kartoteka's MCP tools instead.
+this script by pipe -- `set -o pipefail; spec_store.py get <path> |
+tasklist_tasks.py --tasklist -` -- so the document never passes through an
+orchestrator's context (docs/spec-storage.md §4.2). Agents use kartoteka's MCP
+tools instead.
 
 Every document verb takes a logical path, `<specs.dir>/<TICKET_ID>/plan.md` or
 `<specs.dir>/<TICKET_ID>/phase-2/tasks.md`, and addresses the artifact exactly
@@ -16,6 +17,7 @@ Contract: docs/spec-storage.md
 """
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -149,7 +151,15 @@ def cmd_get(args, config):
     found = Store(config).get(ticket_key, stage, name, args.version)
     if found is None:
         return ABSENT
-    sys.stdout.write(found['content'])
+    try:
+        sys.stdout.write(found['content'])
+        sys.stdout.flush()
+    except BrokenPipeError:
+        # The reader stopped early: `grep -q` exits on its first match. The
+        # document was fetched, so this is success -- under `set -o pipefail`
+        # (docs/spec-storage.md §4.2) the pipe answers with the reader's status.
+        # stdout goes to devnull so the interpreter's exit flush cannot raise again.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
     return OK
 
 

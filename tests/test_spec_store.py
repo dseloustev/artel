@@ -72,6 +72,20 @@ class TestGet(StoreCase):
         self.assertEqual(proc.returncode, 2)
         self.assertEqual(self.error_of(proc)['kind'], 'not_a_spec_document')
 
+    def test_a_reader_that_stops_early_is_not_a_failure(self):
+        # `set -o pipefail; get <path> | grep -q <pattern>` (docs/spec-storage.md
+        # §4.2) must answer grep's match: a document bigger than the pipe buffer
+        # is still being written when grep -q exits on its first match.
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'needle\n' + 'x' * 400000 + '\n')
+        proc = subprocess.Popen(
+            [sys.executable, str(SCRIPT), 'get', 'specs/.current/AW-12/plan.md'],
+            cwd=self.repo, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertEqual(proc.stdout.read(7), b'needle\n')
+        proc.stdout.close()
+        stderr = proc.stderr.read()
+        proc.stderr.close()
+        self.assertEqual((proc.wait(timeout=30), stderr), (0, b''))
+
     def test_workspace_off_is_an_error_not_absence(self):
         self.fake.mode = 'workspace_off'
         proc = self.run_cli('get', 'specs/.current/AW-12/plan.md')

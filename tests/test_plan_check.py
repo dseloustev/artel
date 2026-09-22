@@ -115,6 +115,55 @@ class TestCliStdin(unittest.TestCase):
         a, b = json.loads(from_file.stdout), json.loads(from_stdin.stdout)
         self.assertEqual(a['data'], b['data'])
 
+    EMPTY_INPUT = ('no document on stdin; if it was piped from spec_store.py get, that command '
+                   'failed — its exit status and stderr say why (run the pipe with set -o '
+                   'pipefail)')
+
+    def run_stdin(self, raw):
+        repo = Path(__file__).resolve().parent.parent
+        proc = subprocess.run([sys.executable, str(SCRIPT), '--plan', '-'], cwd=repo, input=raw,
+                              capture_output=True)
+        return proc.returncode, json.loads(proc.stdout.decode('utf-8'))
+
+    def run_file(self, text):
+        import tempfile
+        with tempfile.NamedTemporaryFile('w', suffix='.md', delete=False,
+                                         encoding='utf-8') as handle:
+            handle.write(text)
+        self.addCleanup(Path(handle.name).unlink)
+        repo = Path(__file__).resolve().parent.parent
+        proc = subprocess.run([sys.executable, str(SCRIPT), '--plan', handle.name], cwd=repo,
+                              capture_output=True, text=True)
+        return proc.returncode, json.loads(proc.stdout)
+
+    def test_empty_stdin_is_refused_not_read_as_an_empty_plan(self):
+        # A failed `spec_store.py get` upstream prints nothing: without this, a
+        # plan that could not be read would pass the anti-hallucination check.
+        for raw in (b'', b' \n\t\r\n'):
+            code, out = self.run_stdin(raw)
+            self.assertEqual((code, out['ok']), (2, False), raw)
+            self.assertEqual(out['error'], {'kind': 'empty_input', 'message': self.EMPTY_INPUT})
+
+    def test_crlf_stdin_gives_the_same_data_as_the_lf_file(self):
+        plan = ('Creates new:Thing here.\n'
+                'Also touch `scripts/plan_check.py` and `no/such/file.py` normally.\n')
+        _, from_file = self.run_file(plan)
+        _, from_stdin = self.run_stdin(plan.replace('\n', '\r\n').encode('utf-8'))
+        self.assertEqual(from_stdin['data'], from_file['data'])
+
+    def test_bare_cr_line_endings_on_stdin_split_lines_like_the_file(self):
+        # Path.read_text() turns a lone \r into a line break; stdin must too, or
+        # the line-scoped `new:` marker would cover the whole document.
+        plan = ('Creates new:Thing here.\n'
+                'Also touch `scripts/plan_check.py` and `no/such/file.py` normally.\n')
+        _, from_file = self.run_file(plan)
+        _, from_stdin = self.run_stdin(plan.replace('\n', '\r').encode('utf-8'))
+        self.assertEqual(from_stdin['data'], from_file['data'])
+
+    def test_an_empty_plan_file_keeps_todays_behaviour(self):
+        code, out = self.run_file('')
+        self.assertEqual((code, out['ok'], out['data']['checked']), (0, True, 0))
+
 
 if __name__ == '__main__':
     unittest.main()

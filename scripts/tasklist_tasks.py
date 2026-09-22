@@ -28,6 +28,9 @@ from pathlib import Path
 # costs at worst a rejected row the server would have accepted.
 MAX_TITLE_CHARS = 500
 
+EMPTY_INPUT = ('no document on stdin; if it was piped from spec_store.py get, that command failed'
+               ' — its exit status and stderr say why (run the pipe with set -o pipefail)')
+
 # Either keyword: `generate-tasklist` writes `## Iteration N:`, `sync-phases` and
 # `task-planner` both treat `## Phase N:` as the same heading, and no agent prompt
 # mandates one over the other. The emitted title prefix stays `I<N>` for both --
@@ -400,7 +403,12 @@ def main(argv):
     if tasklist_path == '-':
         # A stored tasklist arrives by pipe from `spec_store.py get` (docs/spec-storage.md
         # §4.2): the document goes script to script, never through a model's context.
+        # Line endings as Path.read_text() leaves them, so both forms parse one text.
         text = sys.stdin.buffer.read().decode('utf-8')
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        if not text.strip():
+            # A failed `get` prints nothing; name the pipe, not a tasklist nobody wrote.
+            return fail('empty_input', EMPTY_INPUT)
         tasklist_path = '<stdin>'
     else:
         tasklist_file = Path(tasklist_path)

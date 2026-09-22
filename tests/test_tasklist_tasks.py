@@ -617,6 +617,37 @@ class TestCli(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn('<stdin>', json.loads(proc.stdout)['error']['message'])
 
+    EMPTY_INPUT = ('no document on stdin; if it was piped from spec_store.py get, that command '
+                   'failed — its exit status and stderr say why (run the pipe with set -o '
+                   'pipefail)')
+
+    def _stdin(self, raw):
+        import subprocess
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPT), '--tasklist', '-', '--ticket-key', 'AW-1234'],
+            input=raw, capture_output=True)
+        return proc.returncode, json.loads(proc.stdout.decode('utf-8'))
+
+    def test_empty_stdin_is_refused_not_read_as_a_malformed_tasklist(self):
+        # A failed `spec_store.py get` upstream prints nothing; the error must
+        # point at the pipe, not at a tasklist nobody wrote.
+        for raw in (b'', b' \n\t\r\n'):
+            code, out = self._stdin(raw)
+            self.assertEqual((code, out['ok']), (2, False), raw)
+            self.assertEqual(out['error'], {'kind': 'empty_input', 'message': self.EMPTY_INPUT})
+
+    def test_crlf_stdin_gives_the_same_envelope_as_the_lf_file(self):
+        code_file, from_file = run_cli('--tasklist', self._write(FIX_TASKLIST),
+                                       '--ticket-key', 'AW-1234')
+        code, from_stdin = self._stdin(FIX_TASKLIST.replace('\n', '\r\n').encode('utf-8'))
+        self.assertEqual(code, code_file)
+        from_file.pop('elapsed_ms'), from_stdin.pop('elapsed_ms')
+        self.assertEqual(from_stdin, from_file)
+
+    def test_an_empty_tasklist_file_keeps_todays_behaviour(self):
+        code, out = run_cli('--tasklist', self._write(''), '--ticket-key', 'AW-1234')
+        self.assertEqual((code, out['error']['kind']), (2, 'tasklist_malformed'))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -26,6 +26,8 @@ from pathlib import Path
 REF_NEW_RE = re.compile(r'\b(ref|new):([A-Za-z0-9_$./-]+)')
 BACKTICKED_PATH_RE = re.compile(r'`([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.[A-Za-z0-9]+)`')
 TRAILING_PUNCT_RE = re.compile(r'[.,;:]+$')
+EMPTY_INPUT = ('no document on stdin; if it was piped from spec_store.py get, that command failed'
+               ' — its exit status and stderr say why (run the pipe with set -o pipefail)')
 
 
 def extract_anchors(markdown):
@@ -174,7 +176,14 @@ def main(argv):
 
     if plan_path == '-':
         # A stored plan arrives by pipe from `spec_store.py get` (docs/spec-storage.md §4.2).
+        # Line endings as Path.read_text() leaves them, so both forms check one text.
         markdown = sys.stdin.buffer.read().decode('utf-8')
+        markdown = markdown.replace('\r\n', '\n').replace('\r', '\n')
+        if not markdown.strip():
+            # A failed `get` prints nothing, and an empty plan has no anchor to
+            # flag: read as a document, the failure would pass the check.
+            print(envelope(False, elapsed(), error={'kind': 'empty_input', 'message': EMPTY_INPUT}))
+            return 2
     else:
         plan_file = Path(plan_path)
         if not plan_file.is_file():

@@ -160,13 +160,22 @@ model's context:
 
 | On the files path | On the kartoteka path |
 |---|---|
-| `tasklist_tasks.py --tasklist <path> …` | `spec_store.py get <path> \| tasklist_tasks.py --tasklist - …` |
-| `plan_check.py --plan <path> --strict` | `spec_store.py get <path> \| plan_check.py --plan - --strict` |
-| `grep -q <pattern> <path>` | `spec_store.py get <path> \| grep -q <pattern>` |
+| `tasklist_tasks.py --tasklist <path> …` | `set -o pipefail; spec_store.py get <path> \| tasklist_tasks.py --tasklist - …` |
+| `plan_check.py --plan <path> --strict` | `set -o pipefail; spec_store.py get <path> \| plan_check.py --plan - --strict` |
+| `grep -q <pattern> <path>` | `set -o pipefail; spec_store.py get <path> \| grep -q <pattern>` |
 | `test -f <path>` | `spec_store.py exists <path>` |
-| `gh pr … --body-file <path>` | `spec_store.py get <path> \| gh pr … --body-file -` |
+| `gh pr … --body-file <path>` | `set -o pipefail; spec_store.py get <path> \| gh pr … --body-file -` |
 
 `spec_store.py` is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py`.
+
+**Every pipe that starts with `spec_store.py get` runs with `set -o pipefail`.** A failed `get`
+prints nothing on stdout, and without `pipefail` the pipe's status is the last command's alone:
+`grep -q` would answer "no match" and `gh` would post an empty body. With it, the pipe fails with
+`get`'s exit status, and `get`'s stderr says why. `tasklist_tasks.py --tasklist -` and
+`plan_check.py --plan -` also refuse empty or whitespace-only input (exit `2`, kind
+`empty_input`), so a failed `get` can never read as an empty document. `get` exits `0` when its
+reader stops early — `grep -q` does, on its first match — so `pipefail` reports the reader's
+answer.
 
 ### 4.3 The tasklist
 

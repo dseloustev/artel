@@ -49,13 +49,13 @@ Evaluated in this order:
 |---|---|---|---|
 | 1 | `--local` passed | **files** | `local-only run requested` |
 | 2 | `knowledge.adapter` `none` or absent | **files**, silently | — |
-| 3 | adapter `kartoteka`, `knowledge.project` or `baseUrl` empty or malformed | unavailable (§5) | `kartoteka is configured for this project but knowledge.<key> is not set` |
+| 3 | adapter `kartoteka`, `knowledge.project` empty or outside its grammar, or `knowledge.baseUrl` empty | unavailable (§5) | `kartoteka is configured for this project but knowledge.<key> is not set` |
 | 4 | `ticket.projectKey` is one character | **files** | `kartoteka cannot store tickets keyed <KEY>-…: its ticket-key grammar needs a project key of two or more characters` |
 | 5 | kartoteka's artifact tools are absent from this session | unavailable | `kartoteka's artifact tools are not available in this session` |
 | 6 | the tools are present but `artifact_patch` is not | unavailable | `the kartoteka daemon predates artifact_patch (0.43.0); upgrade it` |
 | 7 | the daemon refuses the project | unavailable | `kartoteka refused knowledge.project as unregistered; run kartoteka project add <project>` |
 | 8 | the daemon predates the route, or its artifact store is off | unavailable | `the kartoteka daemon predates artifact_patch (0.43.0); upgrade it` / `kartoteka's artifact store is off on that daemon ([workspace] enabled = false)` |
-| 9 | no answer, 401, or any other refusal | unavailable | `kartoteka is unreachable: <reason>`, or the 401 line naming `knowledge.tokenEnv` |
+| 9 | no answer, 401, or any other HTTP status | unavailable | `kartoteka is unreachable: <reason>` / the 401 line naming `knowledge.tokenEnv` / `kartoteka answered the probe with HTTP <status>: <error>` |
 | 10 | otherwise | **kartoteka** | — |
 
 **How to resolve.** Rows 1, 5 and 6 are yours: only you can see your own tool list. The artifact
@@ -66,7 +66,7 @@ tools are `artifact_get`, `artifact_put`, `artifact_patch`, `artifact_list` and
 
 - **Exit 0** prints the decision (`"store": "kartoteka"` or `"files"`). On the kartoteka path it
   also prints `local_trail`, this ticket's spec documents found on disk (§7).
-- **Exit 5** prints `{"store": null, "reason": "<record>"}` — go to §5.
+- **Exit 5** prints `{"store": null, "reason": "<record>", "versions": {...}}` — go to §5.
 - A row-5 or row-6 failure, or a user who chose to work locally, is recorded with
   `decide <TICKET_ID> --decided-by <skill> --files "<record>"`.
 
@@ -321,12 +321,12 @@ files. `.active_ticket`, evidence and anything skipped are never deleted.
 | `list <ticket-id>` | JSON `[{name, stage, version, created_at, redacted}]` | `0` |
 | `versions <path>` | JSON `[{version, content_hash, author_agent, created_at, redacted}]`, newest first | `0`; `3` none |
 | `put <path> [--expected-version N] [--author A]` (stdin) | JSON `{version, content_hash}` | `0`; `4` conflict, printing `{current_version}` |
-| `decide <ticket-id> --decided-by S [--local \| --files R]` | the decision, `local_trail` | `0`; `5` unavailable, printing `{store: null, reason}` |
+| `decide <ticket-id> --decided-by S [--local \| --files R]` | the decision, `local_trail` | `0`; `5` unavailable, printing `{store: null, reason, versions}` |
 | `decision <ticket-id>` | the decision and `fresh` | `0`; `3` none |
 | `pending add <path> --base-version N` | the pending list | `0` |
 | `migrate plan …` / `migrate apply …` | §7 | see `skills/migrate-specs/SKILL.md` |
 
-Every verb exits `2` on an error, with a JSON envelope `{"ok": false, "error": {"kind",
-"message"}}` on stderr. It never prints the token. It uses `knowledge.baseUrl`, and
+Every verb exits `2` on an error, with a JSON envelope `{"ok": false, "verb": "spec-store",
+"error": {"kind", "message"}}` on stderr. It never prints the token. It uses `knowledge.baseUrl`, and
 `knowledge.tokenEnv` when the daemon has `[auth]` on — a CLI-minted token is needed even
 where the MCP session signs in with GitHub.

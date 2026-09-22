@@ -166,3 +166,78 @@ class TestClassify(MigrateCase):
         self.local(SPECS / 'AW-12/prd.md', 'a')
         self.fake.stop()
         self.assertEqual(self.cli('migrate', 'plan', 'AW-12').returncode, 5)
+
+
+class TestApply(MigrateCase):
+    def apply(self, *args):
+        proc = self.cli('migrate', 'apply', *args)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def test_absent_is_uploaded_verified_and_becomes_deletable(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'logical': 'specs/.current/AW-12/prd.md', 'version': 1}])
+        stored = self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')
+        self.assertEqual((stored['content'], stored['author_agent']), ('P', 'artel:migrate-specs'))
+        self.assertEqual(out['deletable'], ['specs/.current/AW-12/prd.md'])
+
+    def test_a_successor_is_uploaded_against_the_newest_version(self):
+        self.local(SPECS / 'AW-12/prd.md', 'newer')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1')
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'][0]['version'], 2)
+        put = [r for r in self.fake.requests if r[0] == 'POST'][-1]
+        self.assertEqual(put[3]['expected_version'], 1)
+
+    def test_stale_and_current_upload_nothing_and_are_deletable(self):
+        self.local(SPECS / 'AW-12/prd.md', 'old')
+        self.local(SPECS / 'AW-12/plan.md', 'same')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'old')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'new', author_agent='a')
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'same')
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [])
+        self.assertEqual(sorted(out['deletable']),
+                         ['specs/.current/AW-12/plan.md', 'specs/.current/AW-12/prd.md'])
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'], 'new')
+
+    def test_an_unresolved_conflict_is_kept(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored', author_agent='a')
+        out = self.apply('AW-12')
+        self.assertEqual((out['uploaded'], out['deletable']), ([], []))
+        self.assertEqual(out['kept'][0]['class'], 'conflict')
+
+    def test_keep_local_uploads_and_keep_stored_discards(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local prd')
+        self.local(SPECS / 'AW-12/plan.md', 'local plan')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored prd', author_agent='a')
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'stored plan', author_agent='a')
+        out = self.apply('AW-12', '--resolve', 'specs/.current/AW-12/prd.md=keep-local',
+                         '--resolve', 'specs/.current/AW-12/plan.md=keep-stored')
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'], 'local prd')
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['content'],
+                         'stored plan')
+        self.assertEqual(sorted(out['deletable']),
+                         ['specs/.current/AW-12/plan.md', 'specs/.current/AW-12/prd.md'])
+
+    def test_keep_local_can_name_which_local_copy(self):
+        self.local(SPECS / 'AW-12/prd.md', 'tree')
+        self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', 'context')
+        self.apply('AW-12', '--resolve', 'specs/.current/AW-12/prd.md=keep-local:'
+                   '.artel/context/tickets/AW-12/spec-trail/prd.md')
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'], 'context')
+
+    def test_the_decision_is_flipped_to_kartoteka(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.decision('AW-12', store='files', reason='worked locally', versions={})
+        self.apply('AW-12')
+        decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
+        self.assertEqual((decision['store'], decision['decided_by'], decision['versions']),
+                         ('kartoteka', 'migrate-specs', {'prd.md': 1}))
+
+    def test_skipped_is_kept_and_never_uploaded(self):
+        self.local(SPECS / 'AW-12/prd.md', 'x' * (1048576 + 1))
+        out = self.apply('AW-12')
+        self.assertEqual((out['uploaded'], out['kept'][0]['class']), ([], 'skipped'))

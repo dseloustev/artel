@@ -538,6 +538,92 @@ def cmd_migrate_plan(args, config):
     return OK
 
 
+RESOLUTIONS = ('keep-local', 'keep-stored', 'skip')
+
+
+def parse_resolutions(values):
+    """--resolve <logical>=keep-local[:<source>] | keep-stored | skip, repeatable."""
+    resolved = {}
+    for value in values or []:
+        logical, eq, action = value.partition('=')
+        action, _, source = action.partition(':')
+        if not eq or action not in RESOLUTIONS:
+            raise Failure('invalid_argument', 'bad --resolve {!r}: expected <path>={}'.format(
+                value, '|'.join(RESOLUTIONS)))
+        resolved[logical] = (action, source or None)
+    return resolved
+
+
+def _upload_source(item, resolutions):
+    """(source path, expected_version) to upload for this item, or None."""
+    if item['class'] == 'absent':
+        return item['source'], 0
+    if item['class'] == 'successor':
+        return item['source'], item['newest_version']
+    action, source = resolutions.get(item['logical'], (None, None))
+    if item['class'] == 'conflict' and action == 'keep-local':
+        return source or item['source'] or item['sources'][0], item['newest_version'] or 0
+    return None
+
+
+def deletion_sets(store, config, tickets, pending_only, resolutions):
+    """(paths safe to delete, items to keep), recomputed from disk and the store.
+
+    Safe means kartoteka verifiably holds this content or something newer
+    (current, stale), or the user chose the stored copy (keep-stored). Every
+    local source of such an address goes -- the working tree and the context
+    copy alike."""
+    deletable, kept = [], []
+    for item in plan_items(store, config, tickets, pending_only):
+        action = resolutions.get(item['logical'], (None, None))[0]
+        if item['class'] in ('current', 'stale') or (
+                item['class'] == 'conflict' and action == 'keep-stored'):
+            deletable.extend(item['sources'])
+        else:
+            kept.append({'logical': item['logical'], 'class': item['class'],
+                         'reason': item['reason']})
+    return sorted(deletable), kept
+
+
+def _flip_decisions(store, tickets):
+    for ticket in tickets:
+        previous = sd.load(ticket) or {}
+        versions = {row['name']: row['version'] for row in store.listing(ticket)}
+        sd.write(ticket, sd.new_decision('kartoteka', None, 'migrate-specs', versions,
+                                         previous.get('pending') or []))
+
+
+def cmd_migrate_apply(args, config):
+    tickets = migration_tickets(args, config)
+    store = migration_store(config, tickets)
+    resolutions = parse_resolutions(args.resolve)
+    uploaded, failed = [], []
+    for item in plan_items(store, config, tickets, args.pending_only):
+        chosen = _upload_source(item, resolutions)
+        if chosen is None:
+            continue
+        source, expected = chosen
+        ticket_key, stage, name = address(item['logical'], config)
+        text = Path(source).read_text(encoding='utf-8')
+        status, payload = store.put(ticket_key, stage, name, text, expected, MIGRATION_AUTHOR)
+        if status == 409:
+            failed.append({'logical': item['logical'], 'reason': (
+                'kartoteka moved to v{} during the migration; run it again').format(
+                    payload.get('current_version'))})
+            continue
+        versions = store.versions(ticket_key, stage, name)
+        if versions and versions[0]['content_hash'] == _sha(text):
+            uploaded.append({'logical': item['logical'], 'version': versions[0]['version']})
+        else:
+            failed.append({'logical': item['logical'],
+                           'reason': 'the upload could not be verified; the local copy is kept'})
+    _flip_decisions(store, tickets)
+    deletable, kept = deletion_sets(store, config, tickets, args.pending_only, resolutions)
+    print(json.dumps({'uploaded': uploaded, 'failed': failed, 'deletable': deletable,
+                      'kept': kept}))
+    return OK
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog='spec_store.py', description=__doc__.splitlines()[0])
     verbs = parser.add_subparsers(dest='verb', required=True)
@@ -577,11 +663,13 @@ def build_parser():
     pending_add.set_defaults(run=cmd_pending_add)
     migrate = verbs.add_parser('migrate')
     migrate_verbs = migrate.add_subparsers(dest='migrate_verb', required=True)
-    for name, run in (('plan', cmd_migrate_plan),):
+    for name, run in (('plan', cmd_migrate_plan), ('apply', cmd_migrate_apply)):
         sub = migrate_verbs.add_parser(name)
         sub.add_argument('ticket', nargs='*')
         sub.add_argument('--all', action='store_true')
         sub.add_argument('--pending-only', action='store_true')
+        if name != 'plan':
+            sub.add_argument('--resolve', action='append', default=[])
         sub.set_defaults(run=run)
     return parser
 

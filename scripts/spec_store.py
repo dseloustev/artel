@@ -20,6 +20,7 @@ import difflib
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -673,16 +674,32 @@ RESOLUTIONS = ('keep-local', 'keep-stored', 'skip')
 
 
 def parse_resolutions(values):
-    """--resolve <logical>=keep-local[:<source>] | keep-stored | skip, repeatable."""
+    """--resolve <logical>=keep-local[:<source>][@<N>] | keep-stored | skip, repeatable.
+
+    `@<N>` is the stored newest version the conflict was shown against -- the
+    answer belongs to the version the user saw, and the upload carries it as
+    `expected_version`, so a store that moved meanwhile is refused rather than
+    overwritten. It is read off the end with rpartition and a digit check, so a
+    source path keeps every `@` it contains."""
     resolved = {}
     for value in values or []:
-        logical, eq, action = value.partition('=')
-        action, _, source = action.partition(':')
-        if not eq or action not in RESOLUTIONS:
-            raise Failure('invalid_argument', 'bad --resolve {!r}: expected <path>={}'.format(
-                value, '|'.join(RESOLUTIONS)))
-        resolved[logical] = (action, source or None)
+        logical, eq, answer = value.partition('=')
+        head, at, tail = answer.rpartition('@')
+        seen = None
+        if at and re.match(r'^[0-9]+$', tail):
+            answer, seen = head, int(tail)
+        action, _, source = answer.partition(':')
+        if not eq or action not in RESOLUTIONS or (seen is not None and action != 'keep-local'):
+            raise Failure('invalid_argument', 'bad --resolve {!r}: expected <path>={}, and '
+                                              '@<version> only on keep-local'.format(
+                                                  value, '|'.join(RESOLUTIONS)))
+        resolved[os.path.normpath(logical)] = (action, source or None, seen)
     return resolved
+
+
+def _resolution(resolutions, logical):
+    """(action, source, version the user saw) for this address, each None when unset."""
+    return resolutions.get(logical, (None, None, None))
 
 
 def _holds(item, source):
@@ -701,8 +718,9 @@ def _upload_source(item, resolutions):
     """(source path, expected_version) to upload for this item, or None.
 
     A keep-local that names a copy uploads that copy and no other copy of the
-    address: the user chose it."""
-    action, source = resolutions.get(item['logical'], (None, None))
+    address: the user chose it. A keep-local that carries `@<N>` uploads against
+    that version, not against whatever the store holds now."""
+    action, source, seen = _resolution(resolutions, item['logical'])
     if action == 'keep-local' and source is not None and not _holds(item, source):
         return None
     if item['class'] == 'absent':
@@ -710,7 +728,7 @@ def _upload_source(item, resolutions):
     if item['class'] == 'successor':
         return item['source'], item['newest_version']
     if item['class'] == 'conflict' and action == 'keep-local':
-        return item['source'], item['newest_version'] or 0
+        return item['source'], seen if seen is not None else (item['newest_version'] or 0)
     return None
 
 
@@ -728,7 +746,7 @@ def _validate_resolutions(items, resolutions):
       stored copy to keep, and discarding the local ones would lose the document.
     """
     by_logical = _by_logical(items)
-    for logical, (action, source) in sorted(resolutions.items()):
+    for logical, (action, source, _) in sorted(resolutions.items()):
         copies = by_logical.get(logical)
         if not copies:
             continue
@@ -764,7 +782,7 @@ def _settled(item, resolutions, by_logical):
         return True
     if item['class'] == 'skipped':
         return False
-    action, source = resolutions.get(item['logical'], (None, None))
+    action, source, _ = _resolution(resolutions, item['logical'])
     if action == 'keep-stored':
         return item['class'] == 'conflict' and item['newest_version'] is not None
     if action == 'keep-local' and source is not None:
@@ -832,7 +850,10 @@ def cmd_migrate_apply(args, config):
         text = Path(source).read_text(encoding='utf-8')
         status, payload = store.put(ticket_key, stage, name, text, expected, MIGRATION_AUTHOR)
         if status == 409:
+            seen = _resolution(resolutions, item['logical'])[2]
             failed.append({'logical': item['logical'], 'reason': (
+                'kartoteka moved from v{} to v{} since you decided; run migrate-specs '
+                'again').format(seen, payload.get('current_version')) if seen is not None else (
                 'kartoteka moved to v{} during the migration; run it again').format(
                     payload.get('current_version'))})
             continue

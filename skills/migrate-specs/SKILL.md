@@ -55,11 +55,16 @@ Unless `--no-prompt`, ask (`AskUserQuestion`) one question per document — per 
 has a `conflict` item. Show each conflicting copy's `sources`, `reason` and `diff` (already
 capped by the script), then offer:
 
-- **Keep local** → `--resolve <logical>=keep-local`. When the document has two or more
+- **Keep local** → `--resolve <logical>=keep-local@<N>`. When the document has two or more
   conflicting copies (their reason starts `the local copies differ`), offer one option per copy
-  instead, naming its source: `--resolve <logical>=keep-local:<source>` — a plain `keep-local`
-  is refused there. The chosen copy is uploaded; once kartoteka holds it, the document's other
-  local copies are deletable too.
+  instead, naming its source: `--resolve <logical>=keep-local:<source>@<N>` — a plain
+  `keep-local` is refused there. The chosen copy is uploaded; once kartoteka holds it, the
+  document's other local copies are deletable too.
+
+  **Always pass `@<N>`**, the item's `newest_version` (`0` when it is null): the answer belongs
+  to the version the user was shown. If kartoteka has moved on by the time `apply` runs, the
+  upload is refused and reported as `failed` — `kartoteka moved from v<N> to v<M> since you
+  decided; run migrate-specs again` — instead of overwriting a version nobody saw.
 - **Keep stored** → `--resolve <logical>=keep-stored` (the local copies are obsolete). Offer it
   only when the item's `newest_version` is not null: with nothing stored there is no stored copy
   to keep, and the script refuses it (exit `2`, kind `invalid_argument`).

@@ -430,6 +430,43 @@ class TestApply(MigrateCase):
         self.assertIn('kartoteka holds no version of it', json.loads(proc.stderr)['error']['message'])
         self.assertEqual(self.fake.artifacts, {})
 
+    def test_keep_local_at_the_version_the_user_saw_refuses_a_store_that_moved(self):
+        # I2: the answer is tied to the version the conflict was shown against.
+        self.local(SPECS / 'AW-12/prd.md', 'local')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored v1', author_agent='a')
+        seen = self.plan('AW-12')['specs/.current/AW-12/prd.md']['newest_version']
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'teammate v2, never shown',
+                       author_agent='b')
+        out = self.apply('AW-12', '--resolve',
+                         'specs/.current/AW-12/prd.md=keep-local@{}'.format(seen))
+        self.assertEqual(out['uploaded'], [])
+        self.assertEqual(out['failed'], [{'logical': 'specs/.current/AW-12/prd.md', 'reason': (
+            'kartoteka moved from v1 to v2 since you decided; run migrate-specs again')}])
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'],
+                         'teammate v2, never shown')
+
+    def test_keep_local_at_the_current_version_uploads(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored v1', author_agent='a')
+        out = self.apply('AW-12', '--resolve', 'specs/.current/AW-12/prd.md=keep-local@1')
+        self.assertEqual(out['uploaded'], [{'logical': 'specs/.current/AW-12/prd.md', 'version': 2}])
+
+    def test_a_source_path_is_never_read_as_a_version(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored', author_agent='a')
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve',
+                        'specs/.current/AW-12/prd.md=keep-local:specs/x@y/prd.md')
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('specs/x@y/prd.md', json.loads(proc.stderr)['error']['message'])
+
+    def test_a_version_suffix_is_only_for_keep_local(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored', author_agent='a')
+        proc = self.cli('migrate', 'apply', 'AW-12',
+                        '--resolve', 'specs/.current/AW-12/prd.md=keep-stored@1')
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'invalid_argument')
+
     def test_malformed_resolve_value_is_rejected(self):
         self.local(SPECS / 'AW-12/prd.md', 'P')
         proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', 'foo=bogus')

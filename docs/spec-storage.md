@@ -345,20 +345,28 @@ Finding any, ask:
 
 Headless: stop (§5.4).
 
-`/artel:migrate-specs [<TICKET_ID>… | --all]` compares each local file's hash with every stored
-version:
+`/artel:migrate-specs [<TICKET_ID>… | --all]` compares each local copy's hash with every stored
+version. **Each distinct local copy is one item**: where a document's working-tree copy and its
+`.artel/context` copy differ, each is classified, reported and settled on its own.
 
 | Class | Meaning | Action |
 |---|---|---|
-| `absent` | not stored | upload |
-| `current` | equals the newest version | nothing to upload |
-| `stale` | equals an older version | nothing to upload; the store has moved on |
-| `successor` | new content, and the store has not moved since this file's known base (or holds only mirror writes) | upload |
-| `conflict` | anything else | show the diff; keep local / keep stored / skip |
-| `skipped` | too large or unreadable | reported, kept |
+| `absent` | nothing stored at that address | upload |
+| `current` | equals the newest stored version | nothing to upload |
+| `stale` | equals an older stored version — a redacted version never counts as a match | nothing to upload; the store has moved on |
+| `successor` | new content, and the store has not moved since this copy's known base (`pending` → `files_base` → a standing files decision's `versions`); or, with no known base, a **working-tree** copy no older than a mirror-only history, which can only lag | upload |
+| `conflict` | anything else: two local copies of one document that differ, a redacted version with no known base (shown without a diff — the copy may carry the removed text), a redacted newest version, a `.artel/context` copy with no known base, a working-tree copy whose mtime predates the newest version, or versions written in kartoteka that this copy never saw | show the diff; keep local / keep stored / skip |
+| `skipped` | too large, unreadable, or a symbolic link or path outside the ticket's trail | reported, kept, never read |
 
-It then deletes, after one confirmation, only files verifiably stored — `git rm` for tracked
-files. `.active_ticket`, evidence and anything skipped are never deleted.
+Answers are per document (`--resolve <logical>=…`): `keep-local[:<source>][@<N>]`, where
+`<source>` names which copy to keep — required when two copies differ — and `@<N>` is the stored
+version the user was shown, so a store that moved since is refused rather than overwritten;
+`keep-stored`, refused unless kartoteka holds a version; `skip`.
+
+It then deletes, after one confirmation, only files verifiably stored — re-hashed at the moment
+of deletion, `git rm` for tracked files (forced only where the index matches HEAD or the working
+tree, so staged content kartoteka does not hold is kept). `.active_ticket`, evidence and anything
+skipped are never deleted.
 
 ## 8. spec_store.py
 
@@ -374,9 +382,14 @@ files. `.active_ticket`, evidence and anything skipped are never deleted.
 | `decide <ticket-id> --decided-by S [--local \| --files R]` | the decision, `local_trail` | `0`; `5` unavailable, printing `{store: null, reason, versions}` |
 | `decision <ticket-id>` | the decision and `fresh` | `0`; `3` none |
 | `pending add <path> --base-version N` | the pending list | `0` |
-| `migrate plan\|apply\|delete (<ticket-id>… \| --all) [--pending-only] [--resolve P=A]… [--commit]` | classification · uploads and `deletable` · removals and commit (§7) | `0`; `5` unavailable |
+| `migrate plan (<ticket-id>… \| --all) [--pending-only]` | one item per distinct local copy, classified (§7) | `0`; `5` unavailable |
+| `migrate apply <plan's arguments> [--resolve <path>=keep-local[:<source>][@<N>]\|keep-stored\|skip]…` | `uploaded`, `failed`, `deletable`, `kept`, `flipped`, `pending_left` | `0`; `5` unavailable |
+| `migrate delete <apply's arguments> [--commit]` | `removed`, `kept`, `commit`, `pending_left` | `0`; `5` unavailable |
 
 Every verb exits `2` on an error, with a JSON envelope `{"ok": false, "verb": "spec-store",
-"error": {"kind", "message"}}` on stderr. It never prints the token. It uses `knowledge.baseUrl`, and
+"error": {"kind", "message"}}` on stderr. A `migrate` verb exits `5` for a store that is
+unreachable, refuses the token or has its artifact store off — wherever in the run it happens,
+not only at the opening probe; one document kartoteka refuses is a `failed` entry, not the run's
+exit. It never prints the token. It uses `knowledge.baseUrl`, and
 `knowledge.tokenEnv` when the daemon has `[auth]` on — a CLI-minted token is needed even
 where the MCP session signs in with GitHub.

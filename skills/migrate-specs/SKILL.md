@@ -74,13 +74,27 @@ A `keep-local:<source>` naming a path that is not one of that document's own loc
 that was skipped, is refused before anything uploads (exit `2`, kind `invalid_argument`) — offer
 only the conflicting sources the plan listed for that document.
 
+A conflict whose `diff` is `null` touches a **redacted** version: kartoteka removed text from
+this document's history, so no diff is printed — the local copy may still carry it. Say so, give
+the `reason`, and let the user open the file themselves before answering.
+
 ## 4. Apply
 
     SPEC_STORE migrate apply <tickets…|--all> [--pending-only] [--resolve …]…
 
+- Exit `5` → kartoteka went down during the migration: report the printed reason and stop.
+  Whatever had been uploaded is in kartoteka and verified, and no local copy was deleted, so
+  running the skill again when the store is back is safe.
+- Exit `2` → report the error and stop.
+
 Report `uploaded` (document → new version) and every `failed` entry with its reason. A failure is
-never retried silently: a `moved to v<N> during the migration` failure means someone wrote
-meanwhile — say so and suggest running the skill again.
+never retried silently: a `moved to v<N> during the migration` or `moved from v<N> to v<M> since
+you decided` failure means someone wrote meanwhile — say so and suggest running the skill again.
+One document kartoteka refuses (too large for its limit, say) fails on its own; the rest of the
+run still moves.
+
+`pending_left` counts the outage saves still on disk per ticket, after entries whose file is gone
+were dropped. `0` for a ticket means that outage is drained.
 
 `apply` flips a ticket's storage decision to kartoteka only when its **whole** local trail has
 nothing left behind — no unresolved conflict, no item skipped or failed — and reports which
@@ -104,6 +118,13 @@ plus those the user chose to discard.
     `chore: move <tickets> spec trail to kartoteka`, holding only these deletions.
   - **Delete, leave staged** → the same without `--commit`.
   - **Keep local copies** → run nothing. The next run on each ticket reports them again.
+
+  `delete` answers the same exits as `apply`: `5` (report the reason and stop — nothing was
+  deleted) and `2`. With `--commit`, a `commit` of `null` means no commit was made — because no
+  tracked file was removed, or because git refused: the deletions are **staged**, say so rather
+  than reporting a commit. Every `kept` entry names its `logical` document (and the `source`
+  file when one file in particular could not go) with the reason: a copy that changed since it
+  was classified, or a tracked file with staged content kartoteka does not hold, is kept.
 
   Under `--no-prompt` without `--pending-only`, apply has already run — report the `deletable`
   list and stop without deleting.

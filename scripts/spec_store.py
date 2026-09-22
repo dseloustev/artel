@@ -12,7 +12,8 @@ Every document verb takes a logical path, `<specs.dir>/<TICKET_ID>/plan.md` or
 as the mirror hook always has (kartoteka_http.artifact_identity).
 
 Exit codes: 0 ok · 2 error (JSON envelope on stderr) · 3 absent ·
-4 version conflict · 5 kartoteka unavailable (decide only).
+4 version conflict · 5 kartoteka unavailable (`decide`, and the `migrate` verbs --
+wherever in a migration the store goes down).
 Contract: docs/spec-storage.md
 """
 import argparse

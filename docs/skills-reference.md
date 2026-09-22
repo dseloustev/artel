@@ -863,6 +863,6 @@ Entry template:
   `--pending-only` deletes without asking; `--no-prompt` never pauses and never deletes except
   under `--pending-only`.
 - **Notes:** worker. Classification is `absent` / `current` / `stale` / `successor` / `conflict`
-  / `skipped` ([spec-storage.md](spec-storage.md) §7): a stale local copy never overwrites a
-  newer stored version. Orchestrators invoke it when a run finds a local trail and on resume
+  / `skipped`, one item per distinct local copy ([spec-storage.md](spec-storage.md) §7): a stale
+  local copy never overwrites a newer stored version. Orchestrators invoke it when a run finds a local trail and on resume
   after an outage. `.active_ticket`, evidence and release-scope files are never deleted.

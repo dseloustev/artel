@@ -316,10 +316,14 @@ moves them in: `/artel:migrate-specs <TICKET_ID>`.
 
 `hooks/spec_store_guard.py` (`PreToolUse` on `Edit|Write|MultiEdit`) denies writing a spec
 document to disk while kartoteka is the store. It allows the write only when the ticket's
-decision is a fresh files decision, or when the path is in `pending`. Its message starts
+decision is a fresh files decision, or when the path is in `pending` (paths compare normalised,
+so a `./` or `..` segment changes nothing). Its message starts
 `kartoteka is this project's spec store:`. When you see it, you wrote a file where §4.1 says to
-call a tool. It is inert without the adapter, for a project key outside kartoteka's ticket-key
-grammar (§1), and for anything that is not a spec document. It does not see Bash writes.
+call a tool. Under a files decision that has gone stale it says so instead —
+`the storage decision for <TICKET_ID> is stale (older than 3 hours): re-resolve it (docs/spec-storage.md §2) before writing <name>`
+— and the fix is to renew that decision (§2.2). It is inert without the adapter, for a project
+key outside kartoteka's ticket-key grammar (§1), and for anything that is not a spec document.
+It does not see Bash writes.
 
 ## 7. Local trails and migration
 
@@ -355,7 +359,7 @@ files. `.active_ticket`, evidence and anything skipped are never deleted.
 
 | Verb | Prints | Exit |
 |---|---|---|
-| `get <path> [--version N]` | the document, verbatim | `0`; `3` absent |
+| `get <path> [--version N]` | the document, verbatim | `0`; `3` absent; `2` kind `redacted` when that version is redacted |
 | `exists <path>` | nothing | `0` present; `3` absent |
 | `list <ticket-id>` | JSON `[{name, stage, version, created_at, redacted}]` | `0` |
 | `versions <path>` | JSON `[{version, content_hash, author_agent, created_at, redacted}]`, newest first | `0`; `3` none |

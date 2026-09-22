@@ -90,6 +90,24 @@ class TestGet(StoreCase):
         proc.stderr.close()
         self.assertEqual((proc.wait(timeout=30), stderr), (0, b''))
 
+    def test_a_redacted_newest_version_is_an_error_not_the_document(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'secret', redacted=True)
+        proc = self.run_cli('get', 'specs/.current/AW-12/plan.md')
+        self.assertEqual((proc.returncode, proc.stdout), (2, ''))
+        error = self.error_of(proc)
+        self.assertEqual(error['kind'], 'redacted')
+        self.assertIn('v1', error['message'])
+
+    def test_a_redacted_pinned_version_is_an_error_too(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'secret', redacted=True)
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'clean')
+        proc = self.run_cli('get', 'specs/.current/AW-12/plan.md', '--version', '1')
+        self.assertEqual((proc.returncode, proc.stdout, self.error_of(proc)['kind']),
+                         (2, '', 'redacted'))
+        self.assertIn('v1', self.error_of(proc)['message'])
+        proc = self.run_cli('get', 'specs/.current/AW-12/plan.md')
+        self.assertEqual((proc.returncode, proc.stdout), (0, 'clean'))
+
     def test_workspace_off_is_an_error_not_absence(self):
         self.fake.mode = 'workspace_off'
         proc = self.run_cli('get', 'specs/.current/AW-12/plan.md')
@@ -135,6 +153,12 @@ class TestPut(StoreCase):
         stored = self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')
         self.assertEqual((stored['content'], stored['author_agent']),
                          ('# PRD\n', 'artel:migrate-specs'))
+
+    def test_a_document_over_max_bytes_is_refused_and_nothing_is_sent(self):
+        proc = self.run_cli('put', 'specs/.current/AW-12/prd.md',
+                            stdin='x' * (kh.MAX_BYTES + 1))
+        self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'too_large'))
+        self.assertEqual(self.fake.requests, [])
 
     def test_a_stale_expected_version_exits_4_with_the_current_version(self):
         self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'x')
@@ -228,10 +252,14 @@ class TestDecide(StoreCase):
     def test_files_reason_carries_versions_and_pending_forward(self):
         self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'a')
         self.decide()
+        self.run_cli('pending', 'add', 'specs/.current/AW-12/plan.md', '--base-version', '0')
         self.fake.stop()
         code, out = self.decide('--files', 'kartoteka unavailable; working locally at the '
                                            "user's request -- kartoteka is unreachable")
         self.assertEqual((code, out['store'], out['versions']), (0, 'files', {'prd.md': 1}))
+        self.assertEqual(out['pending'], [{'path': 'specs/.current/AW-12/plan.md',
+                                           'base_version': 0}])
+        self.assertEqual(self.stored()['pending'], out['pending'])
 
     def test_a_project_key_outside_kartotekas_grammar_is_files(self):
         # kartoteka's PATCH never checks the key, so the probe alone would call
@@ -390,6 +418,22 @@ class TestDecisionAndPending(StoreCase):
         self.run_cli('decide', 'AW-12', '--decided-by', 'feature-development')
         out = json.loads(self.run_cli('decision', 'AW-12').stdout)
         self.assertEqual(len(out['pending']), 1)
+
+    def test_pending_add_stores_the_path_normalised_and_the_guard_admits_it(self):
+        self.run_cli('decide', 'AW-12', '--decided-by', 'feature-development')
+        proc = self.run_cli('pending', 'add', './specs/.current/AW-12/plan.md',
+                            '--base-version', '2')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.run_cli('pending', 'add', 'specs/.current/AW-12/plan.md', '--base-version', '3')
+        out = json.loads(self.run_cli('decision', 'AW-12').stdout)
+        self.assertEqual(out['pending'], [{'path': 'specs/.current/AW-12/plan.md',
+                                           'base_version': 3}])
+        guard = subprocess.run(
+            [sys.executable, str(SCRIPT.parent.parent / 'hooks' / 'spec_store_guard.py')],
+            cwd=self.repo, capture_output=True, text=True, input=json.dumps({
+                'tool_name': 'Write', 'cwd': str(self.repo),
+                'tool_input': {'file_path': 'specs/.current/AW-12/plan.md'}}))
+        self.assertEqual((guard.returncode, guard.stdout), (0, ''))
 
     def test_pending_without_a_decision_is_an_error(self):
         proc = self.run_cli('pending', 'add', 'specs/.current/AW-12/plan.md', '--base-version', '2')

@@ -48,6 +48,16 @@ class TestFreshness(unittest.TestCase):
         self.assertFalse(sd.is_fresh({'decided_at': 'yesterday'}))
         self.assertFalse(sd.is_fresh(None))
 
+    def test_a_non_string_stamp_is_stale_not_an_error(self):
+        for stamp in (1758535200, ['2026-09-22T10:00:00Z'], {'at': 'now'}):
+            self.assertFalse(sd.is_fresh({'decided_at': stamp}), stamp)
+
+    def test_a_naive_stamp_is_stale_not_an_error(self):
+        # Subtracting a naive datetime from an aware one raises TypeError, and
+        # using_artel.py would then drop the whole injected context.
+        now = datetime(2026, 9, 22, 12, tzinfo=timezone.utc)
+        self.assertFalse(sd.is_fresh({'decided_at': '2026-09-22T11:00:00'}, now))
+
 
 class TestReadWrite(InRepo):
     def test_round_trip_and_location(self):
@@ -81,6 +91,12 @@ class TestAdmitsLocalWrite(InRepo):
         decision['decided_at'] = '2020-01-01T00:00:00Z'
         sd.write('AW-12', decision)
         self.assertFalse(sd.admits_local_write(self.REL, 'AW-12'))
+
+    def test_pending_paths_compare_normalised(self):
+        sd.write('AW-12', sd.new_decision('kartoteka', None, 'dev', pending=[
+            {'path': './specs/.current/AW-12/plan.md', 'base_version': 2}]))
+        self.assertTrue(sd.admits_local_write(self.REL, 'AW-12'))
+        self.assertTrue(sd.admits_local_write('specs/.current/AW-12/../AW-12/plan.md', 'AW-12'))
 
     def test_a_kartoteka_decision_admits_only_pending_paths(self):
         sd.write('AW-12', sd.new_decision(

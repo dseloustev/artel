@@ -46,13 +46,20 @@ def now_iso():
 
 
 def is_fresh(decision, now=None):
-    stamp = (decision or {}).get('decided_at') or ''
+    """Whether `decided_at` is within WALL_CLOCK_HOURS. Anything that is not a
+    timezone-aware ISO stamp is stale, never an exception: the guard and the
+    session hook read this file, and a raise there loses the whole answer."""
+    stamp = (decision or {}).get('decided_at')
+    if not isinstance(stamp, str):
+        return False
     try:
         decided = datetime.fromisoformat(stamp.replace('Z', '+00:00'))
-    except ValueError:
+        if decided.tzinfo is None:
+            return False  # naive: no way to know which clock wrote it
+        now = now or datetime.now(timezone.utc)
+        return now - decided <= timedelta(hours=WALL_CLOCK_HOURS)
+    except (ValueError, TypeError):
         return False
-    now = now or datetime.now(timezone.utc)
-    return now - decided <= timedelta(hours=WALL_CLOCK_HOURS)
 
 
 def new_decision(store, reason, decided_by, versions=None, pending=None):
@@ -80,12 +87,16 @@ def admits_local_write(rel, ticket):
 
     Yes for a path saved locally with permission (`pending`), and for anything
     while a fresh files decision stands. A stale files decision admits nothing:
-    the next skill re-resolves, and kartoteka may be back."""
+    the next skill re-resolves, and kartoteka may be back. Paths compare
+    normalised, so `./specs/…` and `specs/…` are one path."""
     decision = load(ticket)
     if decision is None:
         return False
-    if any(isinstance(p, dict) and p.get('path') == rel for p in decision.get('pending') or []):
-        return True
+    rel = os.path.normpath(rel)
+    for p in decision.get('pending') or []:
+        if isinstance(p, dict) and isinstance(p.get('path'), str) \
+                and os.path.normpath(p['path']) == rel:
+            return True
     return decision.get('store') == 'files' and is_fresh(decision)
 
 

@@ -210,6 +210,18 @@ class TestHostStatusSpecStoreLine(unittest.TestCase):
             {'path': 'specs/.current/AW-12/plan.md', 'base_version': 1}]))
         self.assertIn('— AW-12: kartoteka, 1 pending local save(s)', ua.host_status(self.ON))
 
+    def test_a_naive_decision_stamp_keeps_the_host_status(self):
+        import spec_decision as sd
+        Path('specs/.current').mkdir(parents=True)
+        Path('specs/.current/.active_ticket').write_text('AW-12\n', encoding='utf-8')
+        decision = sd.new_decision('files', 'local-only run requested', 'dev')
+        decision['decided_at'] = '2026-09-22T10:00:00'  # no timezone
+        sd.write('AW-12', decision)
+        status = ua.host_status(self.ON)
+        self.assertIn('- spec store: kartoteka (move local trails in with /artel:migrate-specs)',
+                      status)
+        self.assertNotIn('AW-12: files', status)
+
     def test_malformed_pending_field_is_ignored_gracefully(self):
         # A corrupt pending field (not a list) should not crash host_status.
         # The decision is still shown, but without the pending suffix.

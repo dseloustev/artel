@@ -92,9 +92,10 @@ Five layers:
     and this denies writing a spec document to disk unless the ticket's storage decision
     (`.artel/run/<TICKET_ID>/spec-store.json`) is a fresh files decision, or the path is one the
     user approved saving locally during an outage (`pending`). The deny names the MCP tools to
-    use instead. Inert without the adapter, for a `ticket.projectKey` outside kartoteka's
-    ticket-key grammar (one character, or containing `_` or `-`), and for evidence files and
-    `.active_ticket`. Bash writes are not seen.
+    use instead, or, under a files decision that has gone stale, says to re-resolve it. Inert
+    without the adapter, for a `ticket.projectKey` outside kartoteka's ticket-key grammar (one
+    character, or containing `_` or `-`), and for evidence files and `.active_ticket`. Bash
+    writes are not seen.
 - **Session layer** — turn-one routing, no gate:
   - `using_artel.py` (`SessionStart`, matcher `startup|clear|compact`) — injects the
     `using-artel` router skill (frontmatter stripped) plus the host-status lines as

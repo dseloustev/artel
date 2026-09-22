@@ -154,6 +154,10 @@ def cmd_get(args, config):
     found = Store(config).get(ticket_key, stage, name, args.version)
     if found is None:
         return ABSENT
+    if _redacted(found):
+        # The content is kartoteka's marker; printed, a pipe would read it as the document.
+        raise Failure('redacted', '{} v{} is redacted: kartoteka keeps a marker in place of the '
+                                  'document'.format(args.path, found.get('version')))
     try:
         sys.stdout.write(found['content'])
         sys.stdout.flush()
@@ -345,13 +349,16 @@ def cmd_decision(args, config):
 
 
 def cmd_pending_add(args, config):
-    ticket_key, _, _ = address(args.path, config)
+    path = os.path.normpath(args.path)  # the guard compares normalised paths
+    ticket_key, _, _ = address(path, config)
     decision = sd.load(ticket_key)
     if decision is None:
         raise Failure('no_decision', 'no storage decision for {}; run decide first'.format(
             ticket_key))
-    pending = [p for p in decision.get('pending') or [] if p.get('path') != args.path]
-    pending.append({'path': args.path, 'base_version': args.base_version})
+    pending = [p for p in decision.get('pending') or []
+               if not (isinstance(p, dict) and isinstance(p.get('path'), str)
+                       and os.path.normpath(p['path']) == path)]
+    pending.append({'path': path, 'base_version': args.base_version})
     decision['pending'] = pending
     sd.write(ticket_key, decision)
     print(json.dumps({'ticket': ticket_key, 'pending': pending}))

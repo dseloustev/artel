@@ -96,6 +96,10 @@ class TestArmed(GuardCase):
     def test_absolute_paths_resolve_like_relative_ones(self):
         self.assertDenied(str(self.root / 'specs/.current/AW-12/phase-2/tasks.md'))
 
+    def test_a_dot_dot_segment_does_not_bypass_the_guard(self):
+        self.assertDenied('specs/x/../.current/AW-12/plan.md')
+        self.assertDenied('./specs/.current/AW-12/plan.md')
+
     def test_non_spec_paths_under_specs_dir_are_allowed(self):
         for rel in ('specs/.current/.active_ticket', 'specs/.current/AW-12/runtime/observation.md',
                     'specs/.current/AW-12/review/findings.json', 'specs/.current/AW-12/pr-pending.md',
@@ -106,11 +110,20 @@ class TestArmed(GuardCase):
         sd.write('AW-12', sd.new_decision('files', 'local-only run requested', 'dev'))
         self.assertAllowed('specs/.current/AW-12/plan.md')
 
-    def test_a_stale_files_decision_denies(self):
+    def test_a_stale_files_decision_denies_naming_the_staleness(self):
         decision = sd.new_decision('files', 'x', 'dev')
         decision['decided_at'] = '2020-01-01T00:00:00Z'
         sd.write('AW-12', decision)
-        self.assertDenied('specs/.current/AW-12/plan.md')
+        self.assertEqual(self.assertDenied('specs/.current/AW-12/plan.md'), (
+            'the storage decision for AW-12 is stale (older than 3 hours): re-resolve it '
+            '(docs/spec-storage.md §2) before writing plan.md'))
+
+    def test_a_stale_kartoteka_decision_keeps_the_store_reason(self):
+        decision = sd.new_decision('kartoteka', None, 'dev')
+        decision['decided_at'] = '2020-01-01T00:00:00Z'
+        sd.write('AW-12', decision)
+        self.assertTrue(self.assertDenied('specs/.current/AW-12/plan.md').startswith(
+            "kartoteka is this project's spec store:"))
 
     def test_a_pending_path_is_allowed_and_only_it(self):
         sd.write('AW-12', sd.new_decision('kartoteka', None, 'feature-development', pending=[

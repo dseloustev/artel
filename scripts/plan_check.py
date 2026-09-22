@@ -12,6 +12,8 @@ missing.
 
 Exit codes: 0 clean (or unresolved without --strict), 1 unresolved with --strict, 2 error.
 Contract: docs/superpowers/specs/2026-08-07-phase5-hooks-gates-design.md
+
+Usage: plan-check --plan <path|->
 """
 import json
 import re
@@ -167,15 +169,21 @@ def main(argv):
         i += 1
     if not plan_path:
         print(envelope(False, elapsed(), error={
-            'kind': 'invalid_argument', 'message': 'missing required --plan <path>'}))
-        return 2
-    plan_file = Path(plan_path)
-    if not plan_file.is_file():
-        print(envelope(False, elapsed(), error={
-            'kind': 'plan_not_found', 'message': 'plan file not found: {}'.format(plan_path)}))
+            'kind': 'invalid_argument', 'message': 'missing required --plan <path|->'}))
         return 2
 
-    anchors = extract_anchors(plan_file.read_text(encoding='utf-8'))
+    if plan_path == '-':
+        # A stored plan arrives by pipe from `spec_store.py get` (docs/spec-storage.md §4.2).
+        markdown = sys.stdin.buffer.read().decode('utf-8')
+    else:
+        plan_file = Path(plan_path)
+        if not plan_file.is_file():
+            print(envelope(False, elapsed(), error={
+                'kind': 'plan_not_found', 'message': 'plan file not found: {}'.format(plan_path)}))
+            return 2
+        markdown = plan_file.read_text(encoding='utf-8')
+
+    anchors = extract_anchors(markdown)
     new_declared = [v for k, v in anchors if k == 'new']
     to_resolve = [(k, v) for k, v in anchors if k != 'new']
     have_ast_index = shutil.which('ast-index') is not None

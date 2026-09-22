@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 import unittest
@@ -93,6 +94,26 @@ class TestResolvePassAstIndexFallback(unittest.TestCase):
                 [('ref', 'TotallyMadeUpSymbol')], True)
         self.assertEqual(unresolved, [{'ref': 'TotallyMadeUpSymbol', 'reason': 'symbol not found'}])
         self.assertEqual(ast_index_misses, ['TotallyMadeUpSymbol'])
+
+
+SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'plan_check.py'
+
+
+class TestCliStdin(unittest.TestCase):
+    def test_stdin_plan_is_checked_like_a_file(self):
+        import tempfile
+        plan = 'Creates new:Thing and touches `scripts/plan_check.py`.\n'
+        with tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as handle:
+            handle.write(plan)
+        self.addCleanup(Path(handle.name).unlink)
+        repo = Path(__file__).resolve().parent.parent
+        from_file = subprocess.run([sys.executable, str(SCRIPT), '--plan', handle.name],
+                                   cwd=repo, capture_output=True, text=True)
+        from_stdin = subprocess.run([sys.executable, str(SCRIPT), '--plan', '-'],
+                                    cwd=repo, input=plan, capture_output=True, text=True)
+        self.assertEqual(from_stdin.returncode, from_file.returncode)
+        a, b = json.loads(from_file.stdout), json.loads(from_stdin.stdout)
+        self.assertEqual(a['data'], b['data'])
 
 
 if __name__ == '__main__':

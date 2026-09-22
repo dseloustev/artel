@@ -596,6 +596,27 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(out['error']['kind'], 'invalid_argument')
 
+    def test_stdin_gives_the_same_envelope_as_the_file(self):
+        import subprocess
+        from_file = subprocess.run(
+            [sys.executable, str(SCRIPT), '--tasklist', self._write(TASKLIST),
+             '--ticket-key', 'AW-1234'], capture_output=True, text=True)
+        from_stdin = subprocess.run(
+            [sys.executable, str(SCRIPT), '--tasklist', '-', '--ticket-key', 'AW-1234'],
+            input=TASKLIST, capture_output=True, text=True)
+        self.assertEqual(from_stdin.returncode, 0)
+        a, b = json.loads(from_file.stdout), json.loads(from_stdin.stdout)
+        a.pop('elapsed_ms'), b.pop('elapsed_ms')
+        self.assertEqual(a, b)
+
+    def test_stdin_errors_name_stdin(self):
+        import subprocess
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPT), '--tasklist', '-', '--ticket-key', 'AW-1234'],
+            input='## Iteration 1 - no colon\n- [ ] x\n', capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('<stdin>', json.loads(proc.stdout)['error']['message'])
+
 
 if __name__ == '__main__':
     unittest.main()

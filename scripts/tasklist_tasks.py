@@ -13,6 +13,8 @@ instead of duplicating the work list.
 
 Exit codes: 0 parsed (JSON on stdout), 2 error (error envelope, nothing to mirror).
 Contract: docs/superpowers/specs/2026-08-22-artel-task-queue-design.md
+
+Usage: tasklist-tasks --tasklist <path|-> --ticket-key <KEY>
 """
 import json
 import re
@@ -391,15 +393,20 @@ def main(argv):
             return fail('invalid_argument', 'unknown flag: {}'.format(arg))
         i += 1
     if not tasklist_path:
-        return fail('invalid_argument', 'missing required --tasklist <path>')
+        return fail('invalid_argument', 'missing required --tasklist <path|->')
     if not ticket_key:
         return fail('invalid_argument', 'missing required --ticket-key <KEY>')
 
-    tasklist_file = Path(tasklist_path)
-    if not tasklist_file.is_file():
-        return fail('tasklist_not_found', 'tasklist not found: {}'.format(tasklist_path))
-
-    text = tasklist_file.read_text(encoding='utf-8')
+    if tasklist_path == '-':
+        # A stored tasklist arrives by pipe from `spec_store.py get` (docs/spec-storage.md
+        # §4.2): the document goes script to script, never through a model's context.
+        text = sys.stdin.buffer.read().decode('utf-8')
+        tasklist_path = '<stdin>'
+    else:
+        tasklist_file = Path(tasklist_path)
+        if not tasklist_file.is_file():
+            return fail('tasklist_not_found', 'tasklist not found: {}'.format(tasklist_path))
+        text = tasklist_file.read_text(encoding='utf-8')
     iterations, warnings = parse_tasklist(text)
     sections = parse_sections(text)
     reason = malformed_reason(text, iterations, sections)

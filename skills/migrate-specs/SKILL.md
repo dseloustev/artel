@@ -22,9 +22,13 @@ contents never pass through this conversation except a conflict's diff.
   migrate to." — and point at `/artel:setup`.
 - `--pending-only` limits the run to documents saved locally during an outage (the decision
   file's `pending`). Orchestrators pass it on resume.
-- `--no-prompt` (headless): conflicts are skipped and deletion needs no confirmation for
-  `--pending-only` only. A full migration without prompts stops after step 3 and reports what it
-  would delete.
+- `--no-prompt` (headless): every conflict is left unresolved — no `--resolve` is passed for it,
+  so its local copy is skipped, never uploaded — and the run still proceeds through step 4:
+  `apply` uploads every `absent`/`successor` item regardless, needing no confirmation (an upload
+  is append-only, guarded by `expected_version`, and verified before it counts), and flips any
+  ticket whose whole local trail turns out fully migrated. Only step 5's deletion still needs a
+  person: it runs unconfirmed under `--pending-only` (as always); without `--pending-only`, it
+  reports the `deletable` list and stops without deleting anything.
 
 ## 2. Plan
 
@@ -87,7 +91,8 @@ plus those the user chose to discard.
   - **Delete, leave staged** → the same without `--commit`.
   - **Keep local copies** → run nothing. The next run on each ticket reports them again.
 
-  Under `--no-prompt`, report the list and stop without deleting.
+  Under `--no-prompt` without `--pending-only`, apply has already run — report the `deletable`
+  list and stop without deleting.
 
 **Never deleted, whatever is chosen:** `.active_ticket`; gate evidence (`review/findings.json`,
 `verify/`, `runtime/`, `design/`); `change-report.html`; `pr-pending.md`; release-scope files

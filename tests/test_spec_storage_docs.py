@@ -106,3 +106,10 @@ class TestMigrateSpecsSkill(unittest.TestCase):
     def test_routed_and_referenced(self):
         self.assertIn('/artel:migrate-specs', (ROOT / 'skills/using-artel/SKILL.md').read_text())
         self.assertIn('\n### migrate-specs\n', (ROOT / 'docs/skills-reference.md').read_text())
+
+    def test_no_prompt_runs_apply_headless_and_only_deletes_pending(self):
+        self.assertNotIn('stops after step 3', self.text)
+        start = self.text.index('`--no-prompt` (headless)')
+        end = self.text.index('\n\n', start)
+        bullet = self.text[start:end]
+        self.assertIn('apply', bullet)

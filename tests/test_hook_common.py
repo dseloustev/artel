@@ -184,8 +184,9 @@ READS_NO_INPUT = {'using_artel.py'}
 # Not lifecycle hooks at all, so "has no main()" is not a violation: shared library
 # modules that hooks (and scripts) import, kept in hooks/ because that is what imports
 # them. kartoteka_http.py is kartoteka's HTTP client, shared by knowledge_mirror.py and,
-# from later tasks, scripts/spec_store.py.
-NOT_A_HOOK = {'hook_common.py', 'kartoteka_http.py'}
+# from later tasks, scripts/spec_store.py. spec_decision.py is the per-ticket storage
+# decision module, shared by scripts/spec_store.py and hooks/spec_store_guard.py.
+NOT_A_HOOK = {'hook_common.py', 'kartoteka_http.py', 'spec_decision.py'}
 
 
 class TestHooksReadInputFirst(unittest.TestCase):

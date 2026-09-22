@@ -181,6 +181,11 @@ HOOKS_DIR = Path(__file__).resolve().parent.parent / 'hooks'
 # using_artel never reads its input: SessionStart fires before any worktree move, and its
 # in-process test would block on a terminal's stdin.
 READS_NO_INPUT = {'using_artel.py'}
+# Not lifecycle hooks at all, so "has no main()" is not a violation: shared library
+# modules that hooks (and scripts) import, kept in hooks/ because that is what imports
+# them. kartoteka_http.py is kartoteka's HTTP client, shared by knowledge_mirror.py and,
+# from later tasks, scripts/spec_store.py.
+NOT_A_HOOK = {'hook_common.py', 'kartoteka_http.py'}
 
 
 class TestHooksReadInputFirst(unittest.TestCase):
@@ -198,7 +203,7 @@ class TestHooksReadInputFirst(unittest.TestCase):
 
     def test_every_hook_reads_its_input_first(self):
         hooks = sorted(p for p in HOOKS_DIR.glob('*.py')
-                       if p.name != 'hook_common.py' and p.name not in READS_NO_INPUT)
+                       if p.name not in NOT_A_HOOK and p.name not in READS_NO_INPUT)
         self.assertTrue(hooks)
         for path in hooks:
             self.assertEqual(self.first_h_call(path), 'read_hook_input', path.name)

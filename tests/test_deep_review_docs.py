@@ -14,7 +14,7 @@ CONTRACT = 'docs/review-forecast.md'
 SKILL = 'skills/deep-review/SKILL.md'
 AGENT = 'agents/review-forecaster.md'
 CONFIG = 'docs/config.md'
-HOOK = 'hooks/knowledge_mirror.py'
+HOOK = 'hooks/kartoteka_http.py'  # MIRRORED's home; knowledge_mirror.py imports it
 CONSULTATION = 'docs/knowledge-consultation.md'
 REFERENCE = 'docs/skills-reference.md'
 

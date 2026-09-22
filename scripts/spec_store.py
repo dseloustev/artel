@@ -374,6 +374,22 @@ def cmd_pending_add(args, config):
 
 MIGRATION_AUTHOR = 'artel:migrate-specs'
 DIFF_LINES = 200
+STORE_DOWN = ('unreachable', 'unauthorized', 'store_off')
+
+
+def migrating(run):
+    """Wrap a migrate verb so that a store-level failure anywhere inside it --
+    not only at the opening probe -- exits 5 with its record, exactly as an
+    outage before the run began does. An orchestrator resuming a migration reads
+    one answer for "kartoteka is down", wherever the run got to."""
+    def verb(args, config):
+        try:
+            return run(args, config)
+        except Failure as exc:
+            if exc.kind in STORE_DOWN:
+                raise Failure('unavailable', str(exc), UNAVAILABLE) from None
+            raise
+    return verb
 
 
 def _sha(text):
@@ -660,6 +676,7 @@ def plan_items(store, config, tickets, pending_only):
     return items
 
 
+@migrating
 def cmd_migrate_plan(args, config):
     tickets = migration_tickets(args, config)
     items = plan_items(migration_store(config, tickets), config, tickets, args.pending_only)
@@ -865,6 +882,7 @@ def tidy_decisions(tickets, config):
     return left
 
 
+@migrating
 def cmd_migrate_apply(args, config):
     tickets = migration_tickets(args, config)
     store = migration_store(config, tickets)
@@ -877,23 +895,43 @@ def cmd_migrate_apply(args, config):
         if chosen is None:
             continue
         source, expected = chosen
+
+        def fail(reason):
+            failed.append({'logical': item['logical'], 'reason': reason})
+
         ticket_key, stage, name = address(item['logical'], config)
-        text = Path(source).read_text(encoding='utf-8')
-        status, payload = store.put(ticket_key, stage, name, text, expected, MIGRATION_AUTHOR)
-        if status == 409:
-            seen = _resolution(resolutions, item['logical'])[2]
-            failed.append({'logical': item['logical'], 'reason': (
-                'kartoteka moved from v{} to v{} since you decided; run migrate-specs '
-                'again').format(seen, payload.get('current_version')) if seen is not None else (
-                'kartoteka moved to v{} during the migration; run it again').format(
-                    payload.get('current_version'))})
-            continue
-        versions = store.versions(ticket_key, stage, name)
-        if versions and versions[0]['content_hash'] == _sha(text):
-            uploaded.append({'logical': item['logical'], 'version': versions[0]['version']})
-        else:
-            failed.append({'logical': item['logical'],
-                           'reason': 'the upload could not be verified; the local copy is kept'})
+        try:
+            # read_bytes().decode, never read_text: read_text translates newlines, so a
+            # CRLF document would go up as LF and be verified against the translated
+            # text, while the plan hashed -- and the deletion re-checks -- the raw bytes.
+            text = Path(source).read_bytes().decode('utf-8')
+            if _sha(text) != item['sha256']:
+                fail('it changed since it was classified; run migrate-specs again')
+                continue
+            status, payload = store.put(ticket_key, stage, name, text, expected, MIGRATION_AUTHOR)
+            if status == 409:
+                seen = _resolution(resolutions, item['logical'])[2]
+                fail(('kartoteka moved from v{} to v{} since you decided; run migrate-specs '
+                      'again').format(seen, payload.get('current_version'))
+                     if seen is not None else
+                     'kartoteka moved to v{} during the migration; run it again'.format(
+                         payload.get('current_version')))
+                continue
+            versions = store.versions(ticket_key, stage, name)
+            if versions and not _redacted(versions[0]) \
+                    and versions[0]['content_hash'] == item['sha256']:
+                uploaded.append({'logical': item['logical'], 'version': versions[0]['version']})
+            else:
+                fail('the upload could not be verified; the local copy is kept')
+        except Failure as exc:
+            # One document kartoteka refuses -- too large for its limit, a body it will
+            # not take -- is this item's failure, not the run's: every other document
+            # still moves. A store-level failure is the run's, and exits 5 (migrating).
+            if exc.kind not in ('rejected', 'too_large'):
+                raise
+            fail(str(exc))
+        except (OSError, UnicodeDecodeError) as exc:
+            fail('unreadable: {}'.format(exc))
     flipped = _flip_decisions(store, config, tickets, resolutions)
     pending_left = tidy_decisions(tickets, config)
     deletable, kept = deletion_sets(plan_items(store, config, tickets, args.pending_only),
@@ -984,6 +1022,7 @@ def _ticket_of(path, config):
     return parts[parts.index('spec-trail') - 1] if 'spec-trail' in parts else None
 
 
+@migrating
 def cmd_migrate_delete(args, config):
     tickets = migration_tickets(args, config)
     store = migration_store(config, tickets)

@@ -291,6 +291,22 @@ class TestClassify(MigrateCase):
         self.fake.stop()
         self.assertEqual(self.cli('migrate', 'plan', 'AW-12').returncode, 5)
 
+    def test_an_outage_after_the_probe_exits_5(self):
+        self.local(SPECS / 'AW-12/prd.md', 'a')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'a')
+
+        def go_down(method, path, query, body):
+            if method == 'GET':
+                self.fake.on_request = None
+                self.fake.mode = 'unauthorized'
+        for verb in ('plan', 'delete'):
+            self.fake.mode = 'ok'
+            self.fake.on_request = go_down
+            proc = self.cli('migrate', verb, 'AW-12')
+            self.assertEqual(proc.returncode, 5, (verb, proc.stdout))
+            self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'unavailable')
+        self.assertTrue((self.repo / SPECS / 'AW-12/prd.md').exists())
+
 
 class TestApply(MigrateCase):
     def apply(self, *args):
@@ -439,6 +455,84 @@ class TestApply(MigrateCase):
         self.assertEqual(proc.returncode, 2, proc.stderr)
         self.assertIn('kartoteka holds no version of it', json.loads(proc.stderr)['error']['message'])
         self.assertEqual(self.fake.artifacts, {})
+
+    def test_a_rejected_upload_does_not_abort_the_run(self):
+        # I7: one non-409 rejection used to raise out of apply, exit 2, the rest unreported.
+        self.local(SPECS / 'AW-12/adr.md', 'A')
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+
+        puts = []
+
+        def reject_every_put_after_the_first(method, path, query, body):
+            if method == 'POST':
+                puts.append(path)
+                if len(puts) > 1:
+                    self.fake.forced['POST'] = (400, {'error': 'content is over the '
+                                                               'max_artifact_bytes limit'})
+        self.fake.on_request = reject_every_put_after_the_first
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'logical': 'specs/.current/AW-12/adr.md', 'version': 1}])
+        self.assertEqual(out['failed'][0]['logical'], 'specs/.current/AW-12/prd.md')
+        self.assertIn('kartoteka answered HTTP 400', out['failed'][0]['reason'])
+        self.assertEqual(out['deletable'], ['specs/.current/AW-12/adr.md'])
+
+    def test_an_outage_mid_apply_exits_5(self):
+        self.local(SPECS / 'AW-12/adr.md', 'A')
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+
+        def go_down(method, path, query, body):
+            if method == 'POST':
+                self.fake.on_request = None
+                self.fake.mode = 'unauthorized'
+        self.fake.on_request = go_down
+        proc = self.cli('migrate', 'apply', 'AW-12')
+        self.assertEqual(proc.returncode, 5, proc.stdout)
+        error = json.loads(proc.stderr)['error']
+        self.assertEqual(error['kind'], 'unavailable')
+        self.assertIn('HTTP 401', error['message'])
+
+    def test_an_upload_that_cannot_be_verified_is_reported_and_kept(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+
+        def store_something_else(method, path, query, body):
+            if method == 'POST':
+                self.fake.on_request = None
+                body['content'] = 'not what was sent'
+        self.fake.on_request = store_something_else
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [])
+        self.assertEqual(out['failed'], [{'logical': 'specs/.current/AW-12/prd.md', 'reason': (
+            'the upload could not be verified; the local copy is kept')}])
+        self.assertEqual(out['deletable'], [])
+        self.assertTrue((self.repo / SPECS / 'AW-12/prd.md').exists())
+
+    def test_a_version_written_during_the_run_is_reported_not_overwritten(self):
+        self.local(SPECS / 'AW-12/prd.md', 'newer')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1')  # mirror: a successor upload
+
+        def someone_else_writes(method, path, query, body):
+            if method == 'POST':
+                self.fake.on_request = None
+                self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'teammate v2', author_agent='b')
+        self.fake.on_request = someone_else_writes
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [])
+        self.assertEqual(out['failed'], [{'logical': 'specs/.current/AW-12/prd.md', 'reason': (
+            'kartoteka moved to v2 during the migration; run it again')}])
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'],
+                         'teammate v2')
+
+    def test_a_crlf_document_uploads_byte_exact(self):
+        # I8: apply read with newline translation, so what it verified was not what it sent.
+        path = self.repo / SPECS / 'AW-12/prd.md'
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b'line one\r\nline two\r\n')
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'logical': 'specs/.current/AW-12/prd.md', 'version': 1}])
+        stored = self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')
+        self.assertEqual(stored['content'], 'line one\r\nline two\r\n')
+        self.assertEqual(stored['content_hash'], sha('line one\r\nline two\r\n'))
+        self.assertEqual(self.plan('AW-12')['specs/.current/AW-12/prd.md']['class'], 'current')
 
     def test_keep_local_at_the_version_the_user_saw_refuses_a_store_that_moved(self):
         # I2: the answer is tied to the version the conflict was shown against.

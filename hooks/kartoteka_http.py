@@ -54,6 +54,19 @@ MAX_BYTES = 1048576
 # into a log line that names the key to fix.
 PROJECT_RE = re.compile(r'^[a-z0-9][a-z0-9-]*\Z')
 
+# The project-key prefix of kartoteka's ticket-key grammar (models.TICKET_KEY,
+# ^[A-Z][A-Z0-9]+-\d+), copied for the same reason: a guard, never the
+# authority. A key outside it (`X`, `MY_PROJ`) can never be stored, and the
+# probe cannot tell -- PATCH does not check the key -- so without this a
+# ticket would resolve to kartoteka and then have every put refused.
+STORABLE_PROJECT_KEY = re.compile(r'^[A-Z][A-Z0-9]+\Z')
+
+
+def storable_project_key(project_key):
+    """Whether kartoteka can key tickets `<project_key>-<N>` (compared upper-cased,
+    as artel writes the key)."""
+    return bool(STORABLE_PROJECT_KEY.match(project_key.upper()))
+
 # A large error page (an HTML 500 page from some intermediary, say) must not
 # bloat the log; a few hundred characters is enough of kartoteka's own JSON
 # body ("both guards describe what the caller got wrong...") to act on.

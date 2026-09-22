@@ -2,8 +2,8 @@
 document is never written to disk without the user's permission.
 
 Inert without .artel/config.json, with knowledge.adapter other than "kartoteka",
-for a project key kartoteka cannot store (one character), and for any path that
-is not a mirrored spec document. Otherwise a write is allowed only while the
+for a project key outside kartoteka's ticket-key grammar (one character, or
+containing `_` or `-`), and for any path that is not a mirrored spec document. Otherwise a write is allowed only while the
 ticket's storage decision is a fresh files decision, or for a path the user
 approved saving locally during an outage (`pending`) -- spec_decision.py.
 
@@ -43,7 +43,7 @@ def main():
     config = h.load_config()
     if ((config.get('knowledge') or {}).get('adapter') or 'none') != 'kartoteka':
         return 0
-    if len((config.get('ticket') or {}).get('projectKey') or 'PROJ') < 2:
+    if not kh.storable_project_key((config.get('ticket') or {}).get('projectKey') or 'PROJ'):
         return 0  # kartoteka cannot key this project's tickets: always the files path
     rel = h.relpath_from_tool_input(data)
     if not rel:

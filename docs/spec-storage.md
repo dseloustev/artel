@@ -36,8 +36,8 @@ summary.md       design-analysis.md  pr-description.md post_feedback.md
 - Release-scope documents (`<specs.releases>/…`) stay files. kartoteka's ticket-key grammar
   rejects `R-…` identifiers.
 - So does the standalone reviewer's `<specs.dir>/review-claude.md`, which has no ticket.
-- So does every ticket of a project whose `ticket.projectKey` is one character, for the same
-  grammar reason.
+- So does every ticket of a project with a `ticket.projectKey` outside kartoteka's ticket-key
+  grammar (one character, or containing `_` or `-`), for the same grammar reason.
 
 ## 2. The storage decision
 
@@ -50,7 +50,7 @@ Evaluated in this order:
 | 1 | `--local` passed | **files** | `local-only run requested` |
 | 2 | `knowledge.adapter` `none` or absent | **files**, silently | — |
 | 3 | adapter `kartoteka`, `knowledge.project` empty or outside its grammar, or `knowledge.baseUrl` empty | unavailable (§5) | `kartoteka is configured for this project but knowledge.<key> is not set` |
-| 4 | `ticket.projectKey` is one character | **files** | `kartoteka cannot store tickets keyed <KEY>-…: its ticket-key grammar needs a project key of two or more characters` |
+| 4 | a `ticket.projectKey` outside kartoteka's ticket-key grammar (one character, or containing `_` or `-`) | **files** | `kartoteka cannot store tickets keyed <KEY>-…: its ticket-key grammar needs a project key of two or more letters or digits, starting with a letter` |
 | 5 | kartoteka's artifact tools are absent from this session | unavailable | `kartoteka's artifact tools are not available in this session` |
 | 6 | the tools are present but `artifact_patch` is not | unavailable | `the kartoteka daemon predates artifact_patch (0.43.0); upgrade it` |
 | 7 | the daemon refuses the project | unavailable | `kartoteka refused knowledge.project as unregistered; run kartoteka project add <project>` |
@@ -290,8 +290,8 @@ moves them in: `/artel:migrate-specs <TICKET_ID>`.
 document to disk while kartoteka is the store. It allows the write only when the ticket's
 decision is a fresh files decision, or when the path is in `pending`. Its message starts
 `kartoteka is this project's spec store:`. When you see it, you wrote a file where §4.1 says to
-call a tool. It is inert without the adapter, for a one-character project key, and for anything
-that is not a spec document. It does not see Bash writes.
+call a tool. It is inert without the adapter, for a project key outside kartoteka's ticket-key
+grammar (§1), and for anything that is not a spec document. It does not see Bash writes.
 
 ## 7. Local trails and migration
 

@@ -20,6 +20,16 @@ class TestOneDefinition(unittest.TestCase):
         self.assertIs(km.MIRRORED, kh.MIRRORED)
 
 
+class TestStorableProjectKey(unittest.TestCase):
+    def test_keys_inside_kartotekas_ticket_key_grammar(self):
+        for key in ('AW', 'A1', 'aw', 'PROJ'):
+            self.assertTrue(kh.storable_project_key(key), key)
+
+    def test_keys_outside_it(self):
+        for key in ('X', 'MY_PROJ', 'MY-PROJ', '1A', ''):
+            self.assertFalse(kh.storable_project_key(key), key)
+
+
 class TestCall(unittest.TestCase):
     def setUp(self):
         self.fake = FakeKartoteka().start()

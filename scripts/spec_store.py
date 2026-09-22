@@ -203,8 +203,8 @@ def cmd_put(args, config):
 
 
 PROBE_STAGE, PROBE_NAME = 'artel-probe', 'probe.md'
-SHORT_KEY_REASON = ("kartoteka cannot store tickets keyed {}-…: its ticket-key grammar needs a "
-                    "project key of two or more characters")
+UNSTORABLE_KEY_REASON = ("kartoteka cannot store tickets keyed {}-…: its ticket-key grammar needs "
+                         "a project key of two or more letters or digits, starting with a letter")
 
 
 def answered(status, payload):
@@ -307,8 +307,8 @@ def cmd_decide(args, config):
     if args.local:
         return files('local-only run requested')
     project_key = (config.get('ticket') or {}).get('projectKey') or 'PROJ'
-    if len(project_key) < 2:
-        return files(SHORT_KEY_REASON.format(project_key.upper()))
+    if not kh.storable_project_key(project_key):
+        return files(UNSTORABLE_KEY_REASON.format(project_key.upper()))
     try:
         store = Store(config)
     except Failure as exc:

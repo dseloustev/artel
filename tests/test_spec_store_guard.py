@@ -72,6 +72,20 @@ class TestShortProjectKey(GuardCase):
         self.assertAllowed('specs/.current/X-12/plan.md')
 
 
+class TestProjectKeyWithAnUnderscore(GuardCase):
+    config = dict(ON, ticket={'projectKey': 'MY_PROJ'})
+
+    def test_a_key_outside_the_ticket_key_grammar_is_never_guarded(self):
+        self.assertAllowed('specs/.current/MY_PROJ-12/plan.md')
+
+
+class TestLetterAndDigitProjectKey(GuardCase):
+    config = dict(ON, ticket={'projectKey': 'A1'})
+
+    def test_a_storable_key_is_guarded(self):
+        self.assertDenied('specs/.current/A1-12/plan.md')
+
+
 class TestArmed(GuardCase):
     def test_spec_documents_are_denied_by_default(self):
         reason = self.assertDenied('specs/.current/AW-12/plan.md')

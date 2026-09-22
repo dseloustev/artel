@@ -222,13 +222,25 @@ class TestDecide(StoreCase):
                                            "user's request -- kartoteka is unreachable")
         self.assertEqual((code, out['store'], out['versions']), (0, 'files', {'prd.md': 1}))
 
-    def test_one_character_project_key_is_files(self):
-        self.config['ticket']['projectKey'] = 'X'
+    def test_a_project_key_outside_kartotekas_grammar_is_files(self):
+        # kartoteka's PATCH never checks the key, so the probe alone would call
+        # MY_PROJ ready and every later put would be refused.
+        for key in ('X', 'MY_PROJ'):
+            self.config['ticket']['projectKey'] = key
+            self.write_config()
+            proc = self.run_cli('decide', key + '-12', '--decided-by', 'dev')
+            out = json.loads(proc.stdout)
+            self.assertEqual((proc.returncode, out['store']), (0, 'files'), key)
+            self.assertEqual(out['reason'], (
+                'kartoteka cannot store tickets keyed {}-…: its ticket-key grammar needs a '
+                'project key of two or more letters or digits, starting with a letter').format(key))
+        self.assertEqual(self.fake.requests, [])
+
+    def test_a_letter_and_a_digit_is_a_storable_key(self):
+        self.config['ticket']['projectKey'] = 'A1'
         self.write_config()
-        proc = self.run_cli('decide', 'X-12', '--decided-by', 'dev')
-        out = json.loads(proc.stdout)
-        self.assertEqual((proc.returncode, out['store']), (0, 'files'))
-        self.assertIn('two or more characters', out['reason'])
+        proc = self.run_cli('decide', 'A1-12', '--decided-by', 'dev')
+        self.assertEqual((proc.returncode, json.loads(proc.stdout)['store']), (0, 'kartoteka'))
 
     def assertUnavailable(self, fragment):
         code, out = self.decide()

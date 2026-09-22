@@ -566,6 +566,24 @@ def _upload_source(item, resolutions):
     return None
 
 
+def _validate_resolutions(items, resolutions):
+    """Raise before any upload if a keep-local names a source that is not one of
+    this address's own local copies (docs/spec-storage.md keep-local must never
+    read a file from outside the ticket's spec trail -- an operator typo or a
+    hostile --resolve value could otherwise upload anything readable as the
+    ticket's document)."""
+    for item in items:
+        if item['class'] != 'conflict':
+            continue
+        action, source = resolutions.get(item['logical'], (None, None))
+        if action != 'keep-local' or source is None:
+            continue
+        if os.path.normpath(source) not in {os.path.normpath(s) for s in item['sources']}:
+            raise Failure('invalid_argument', (
+                'keep-local source {} is not a local copy of {}; its copies are: {}').format(
+                    source, item['logical'], ', '.join(item['sources'])))
+
+
 def deletion_sets(store, config, tickets, pending_only, resolutions):
     """(paths safe to delete, items to keep), recomputed from disk and the store.
 
@@ -585,20 +603,46 @@ def deletion_sets(store, config, tickets, pending_only, resolutions):
     return sorted(deletable), kept
 
 
-def _flip_decisions(store, tickets):
+def _fully_migrated(store, config, ticket, resolutions):
+    """Whether ticket's WHOLE local trail -- every document, regardless of this
+    run's --pending-only -- is now safe to hand to kartoteka: current, stale, or
+    a conflict the user resolved keep-stored. Anything else left outstanding (an
+    unresolved or skip-resolved conflict, a skipped file, or a document this run
+    never touched) means the ticket is not fully migrated yet."""
+    for item in plan_items(store, config, [ticket], False):
+        action = resolutions.get(item['logical'], (None, None))[0]
+        if item['class'] in ('current', 'stale'):
+            continue
+        if item['class'] == 'conflict' and action == 'keep-stored':
+            continue
+        return False
+    return True
+
+
+def _flip_decisions(store, config, tickets, resolutions):
+    """Flip to kartoteka only the tickets that are fully migrated; a ticket with
+    anything still outstanding keeps its previous decision untouched. Returns the
+    tickets actually flipped."""
+    flipped = []
     for ticket in tickets:
+        if not _fully_migrated(store, config, ticket, resolutions):
+            continue
         previous = sd.load(ticket) or {}
         versions = {row['name']: row['version'] for row in store.listing(ticket)}
         sd.write(ticket, sd.new_decision('kartoteka', None, 'migrate-specs', versions,
                                          previous.get('pending') or []))
+        flipped.append(ticket)
+    return flipped
 
 
 def cmd_migrate_apply(args, config):
     tickets = migration_tickets(args, config)
     store = migration_store(config, tickets)
     resolutions = parse_resolutions(args.resolve)
+    items = plan_items(store, config, tickets, args.pending_only)
+    _validate_resolutions(items, resolutions)
     uploaded, failed = [], []
-    for item in plan_items(store, config, tickets, args.pending_only):
+    for item in items:
         chosen = _upload_source(item, resolutions)
         if chosen is None:
             continue
@@ -617,10 +661,10 @@ def cmd_migrate_apply(args, config):
         else:
             failed.append({'logical': item['logical'],
                            'reason': 'the upload could not be verified; the local copy is kept'})
-    _flip_decisions(store, tickets)
+    flipped = _flip_decisions(store, config, tickets, resolutions)
     deletable, kept = deletion_sets(store, config, tickets, args.pending_only, resolutions)
     print(json.dumps({'uploaded': uploaded, 'failed': failed, 'deletable': deletable,
-                      'kept': kept}))
+                      'kept': kept, 'flipped': flipped}))
     return OK
 
 

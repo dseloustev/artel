@@ -232,7 +232,8 @@ class TestApply(MigrateCase):
     def test_the_decision_is_flipped_to_kartoteka(self):
         self.local(SPECS / 'AW-12/prd.md', 'P')
         self.decision('AW-12', store='files', reason='worked locally', versions={})
-        self.apply('AW-12')
+        out = self.apply('AW-12')
+        self.assertEqual(out['flipped'], ['AW-12'])
         decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
         self.assertEqual((decision['store'], decision['decided_by'], decision['versions']),
                          ('kartoteka', 'migrate-specs', {'prd.md': 1}))
@@ -241,3 +242,36 @@ class TestApply(MigrateCase):
         self.local(SPECS / 'AW-12/prd.md', 'x' * (1048576 + 1))
         out = self.apply('AW-12')
         self.assertEqual((out['uploaded'], out['kept'][0]['class']), ([], 'skipped'))
+
+    def test_an_unresolved_conflict_keeps_the_previous_decision_and_does_not_flip(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored', author_agent='a')
+        self.decision('AW-12', store='files', reason='worked locally')
+        out = self.apply('AW-12')
+        self.assertEqual(out['flipped'], [])
+        decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
+        self.assertEqual(decision['store'], 'files')
+
+    def test_pending_only_apply_does_not_flip_while_other_docs_remain(self):
+        self.local(SPECS / 'AW-12/prd.md', 'pending doc')
+        self.local(SPECS / 'AW-12/plan.md', 'not pending yet')
+        self.decision('AW-12', pending=[{'path': 'specs/.current/AW-12/prd.md', 'base_version': 0}])
+        out = self.apply('AW-12', '--pending-only')
+        self.assertEqual(out['uploaded'], [{'logical': 'specs/.current/AW-12/prd.md', 'version': 1}])
+        self.assertEqual(out['flipped'], [])
+
+    def test_keep_local_source_outside_the_trail_is_rejected(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored', author_agent='a')
+        outside = self.local('elsewhere/not-a-copy.md', 'not a copy')
+        proc = self.cli('migrate', 'apply', 'AW-12',
+                        '--resolve', 'specs/.current/AW-12/prd.md=keep-local:' + outside)
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'invalid_argument')
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'], 'stored')
+
+    def test_malformed_resolve_value_is_rejected(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', 'foo=bogus')
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'invalid_argument')

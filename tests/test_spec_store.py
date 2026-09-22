@@ -8,8 +8,12 @@ from pathlib import Path
 
 from fake_kartoteka import FakeKartoteka
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
+import kartoteka_http as kh  # noqa: E402
+
 SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'spec_store.py'
 PROJECT = 'adguard-wallet'
+NOT_SET = 'kartoteka is configured for this project but {} is not set'
 
 
 class StoreCase(unittest.TestCase):
@@ -174,6 +178,13 @@ class TestConfigErrors(StoreCase):
         proc = self.run_cli('get', 'specs/.current/AW-12/plan.md')
         self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'unreachable'))
 
+    def test_an_unexpected_status_is_the_one_answered_record(self):
+        self.fake.forced['GET'] = (500, 'Internal Server Error')
+        proc = self.run_cli('get', 'specs/.current/AW-12/plan.md')
+        self.assertEqual((proc.returncode, self.error_of(proc)),
+                         (2, {'kind': 'rejected',
+                              'message': 'kartoteka answered HTTP 500: no error text'}))
+
 
 class TestDecide(StoreCase):
     def decide(self, *extra):
@@ -250,7 +261,11 @@ class TestDecide(StoreCase):
 
     def test_unreachable(self):
         self.fake.stop()
-        self.assertUnavailable('kartoteka is unreachable')
+        code, out = self.decide()
+        self.assertEqual(code, 5)
+        prefix = 'kartoteka is unreachable at {}: '.format(self.fake.base_url)
+        self.assertTrue(out['reason'].startswith(prefix), out['reason'])
+        self.assertNotIn('unreachable', out['reason'][len(prefix):])
 
     def test_old_daemon(self):
         self.fake.mode = 'old'
@@ -294,10 +309,58 @@ class TestDecide(StoreCase):
         self.fake.mode = 'unauthorized'
         self.assertUnavailable('HTTP 401')
 
+    def assertRecord(self, record, env=None):
+        proc = self.run_cli('decide', 'AW-12', '--decided-by', 'dev', env=env)
+        self.assertEqual((proc.returncode, json.loads(proc.stdout)['reason']), (5, record))
+        self.assertIsNone(self.stored())
+
     def test_missing_project_is_unavailable_naming_the_key(self):
         self.config['knowledge']['project'] = ''
         self.write_config()
-        self.assertUnavailable('knowledge.project')
+        self.assertRecord(NOT_SET.format('knowledge.project'))
+
+    def test_a_project_outside_its_grammar_is_named_as_not_set(self):
+        self.config['knowledge']['project'] = 'AdGuard_Wallet'
+        self.write_config()
+        self.assertRecord(NOT_SET.format('knowledge.project'))
+
+    def test_missing_base_url_is_unavailable_naming_the_key(self):
+        self.config['knowledge']['baseUrl'] = ''
+        self.write_config()
+        self.assertRecord(NOT_SET.format('knowledge.baseUrl'))
+
+    def test_plaintext_off_loopback_is_its_own_record_not_an_unset_key(self):
+        # The message names knowledge.baseUrl; it is not "not set".
+        self.config['knowledge'].update(baseUrl='http://kartoteka.example.com',
+                                        tokenEnv='ARTEL_TEST_TOKEN')
+        self.write_config()
+        self.assertRecord(
+            'knowledge.baseUrl http://kartoteka.example.com is plaintext http:// off loopback and '
+            "a bearer token would cross the network in the clear; use the daemon's https:// "
+            'origin', env={'ARTEL_TEST_TOKEN': 'ktk_secret'})
+
+    def test_a_misspelled_adapter_is_its_own_record(self):
+        self.config['knowledge']['adapter'] = 'kartoteca'
+        self.write_config()
+        self.assertRecord('knowledge.adapter must be "none" or "kartoteka", got \'kartoteca\'')
+
+    def test_an_unexpected_probe_answer_is_the_one_answered_record(self):
+        self.fake.forced['PATCH'] = (500, 'Internal Server Error')
+        self.assertRecord('kartoteka answered HTTP 500: no error text')
+
+    def test_the_listing_after_the_probe_fails_with_the_same_record(self):
+        self.fake.forced['GET'] = (500, 'Internal Server Error')
+        self.assertRecord('kartoteka answered HTTP 500: no error text')
+
+    def test_an_echoed_request_body_is_cut_to_the_error_body_limit(self):
+        # FastAPI's 422 echoes the request, which can be a whole document.
+        self.fake.forced['PATCH'] = (422, {'detail': [{'type': 'missing', 'input': 'x' * 5000}]})
+        code, out = self.decide()
+        prefix = 'kartoteka answered HTTP 422: '
+        self.assertEqual(code, 5)
+        self.assertTrue(out['reason'].startswith(prefix), out['reason'][:80])
+        self.assertEqual(len(out['reason']),
+                         len(prefix) + kh.ERROR_BODY_LIMIT + len('...(truncated)'))
 
 
 class TestDecisionAndPending(StoreCase):

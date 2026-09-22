@@ -31,10 +31,14 @@ OK, ERROR, ABSENT, CONFLICT, UNAVAILABLE = 0, 2, 3, 4, 5
 
 
 class Failure(Exception):
-    def __init__(self, kind, message, code=ERROR):
+    """`key` names the config key a misconfiguration is about, when it is one
+    that is unset or malformed (kartoteka_http.knowledge_target_detail)."""
+
+    def __init__(self, kind, message, code=ERROR, key=None):
         super().__init__(message)
         self.kind = kind
         self.code = code
+        self.key = key
 
 
 def load_config():
@@ -74,13 +78,13 @@ class Store:
     """One configured kartoteka: target, project and credential, resolved once."""
 
     def __init__(self, config):
-        base, project, error = kh.knowledge_target(config)
+        base, project, error, key = kh.knowledge_target_detail(config)
         if base is None and error is None:
             raise Failure('adapter_off',
                           'knowledge.adapter is not "kartoteka": this project keeps its spec '
                           'trail as files')
         if error:
-            raise Failure('misconfigured', error)
+            raise Failure('misconfigured', error, key=key)
         token, token_env, token_error = kh.bearer_token(config)
         if token_error:
             raise Failure('misconfigured', token_error)
@@ -96,7 +100,7 @@ class Store:
             status, payload = kh.call(self.base, method, path, token=self._token, query=query,
                                       body=body)
         except kh.Unreachable as exc:
-            raise Failure('unreachable', 'kartoteka at {} is unreachable: {}'.format(self.base, exc))
+            raise Failure('unreachable', 'kartoteka is unreachable at {}: {}'.format(self.base, exc))
         if status == 401:
             raise Failure('unauthorized', unauthorized_message(self._token_env, self._token))
         if status == 404 and not (isinstance(payload, dict) and 'error' in payload):
@@ -106,8 +110,7 @@ class Store:
 
     def _expect_ok(self, status, payload):
         if status >= 400:
-            detail = payload.get('error') if isinstance(payload, dict) else payload
-            raise Failure('rejected', 'kartoteka answered HTTP {}: {}'.format(status, detail))
+            raise Failure('rejected', answered(status, payload))
 
     def get(self, ticket_key, stage, name, version=None):
         query = {'project': self.project}
@@ -203,8 +206,9 @@ def cmd_put(args, config):
 
 
 PROBE_STAGE, PROBE_NAME = 'artel-probe', 'probe.md'
-UNSTORABLE_KEY_REASON = ("kartoteka cannot store tickets keyed {}-…: its ticket-key grammar needs "
-                         "a project key of two or more letters or digits, starting with a letter")
+UNSTORABLE_KEY_REASON = ('kartoteka cannot store tickets keyed {}-…: its ticket-key grammar '
+                         'needs a project key of two or more letters or digits, starting with '
+                         'a letter')
 
 
 def answered(status, payload):
@@ -257,10 +261,8 @@ def probe(store, ticket):
             body={'project': store.project, 'edits': [{'append': 'probe'}],
                   'expected_version': 0})
     except Failure as exc:
-        if exc.kind == 'unreachable':
-            return 'kartoteka is unreachable: {}'.format(exc)
         if exc.kind != 'store_off':
-            return str(exc)  # unauthorized: already the record
+            return str(exc)  # unreachable, unauthorized: already the record
         return _route_missing(store, ticket)  # a 404 without kartoteka's {"error"}
     if status in (404, 409):
         return None
@@ -312,14 +314,13 @@ def cmd_decide(args, config):
     try:
         store = Store(config)
     except Failure as exc:
-        # The record line docs/knowledge-consultation.md and docs/task-queue.md
-        # already spell for an empty or malformed key -- byte for byte, because a
-        # paraphrase of a gate message is how two documents come to disagree.
-        for key in ('knowledge.project', 'knowledge.baseUrl'):
-            if key in str(exc):
-                return unavailable(
-                    'kartoteka is configured for this project but {} is not set'.format(key))
-        return unavailable(str(exc))
+        if exc.key:
+            # The record line docs/knowledge-consultation.md and docs/task-queue.md
+            # already spell for an empty or malformed key -- byte for byte, because
+            # a paraphrase of a gate message is how two documents come to disagree.
+            return unavailable(
+                'kartoteka is configured for this project but {} is not set'.format(exc.key))
+        return unavailable(str(exc))  # any other misconfiguration names itself
     record = probe(store, ticket)
     if record:
         return unavailable(record)

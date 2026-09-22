@@ -93,23 +93,35 @@ def knowledge_target(config):
     misspelled adapter mirror nothing, forever, with no request, no log line
     and no stderr to notice by.
     """
+    base, project, error, _ = knowledge_target_detail(config)
+    return base, project, error
+
+
+def knowledge_target_detail(config):
+    """knowledge_target's (base_url, project, error) plus the config key the
+    error is about: 'knowledge.baseUrl' when it is empty, 'knowledge.project'
+    when it is empty or outside PROJECT_RE, and None for any other error (an
+    adapter typo). A caller that words its own record for an unset key --
+    spec_store.py decide -- branches on the key, never on the message text."""
     knowledge = config.get('knowledge') or {}
     adapter = knowledge.get('adapter', 'none')
     if adapter == 'none':
-        return None, None, None
+        return None, None, None, None
     if adapter != 'kartoteka':
         return None, None, 'knowledge.adapter must be "none" or "kartoteka", got {!r}'.format(
-            adapter)
+            adapter), None
     base = (knowledge.get('baseUrl') or '').strip().rstrip('/')
     if not base:
-        return None, None, 'knowledge.adapter is "kartoteka" but knowledge.baseUrl is empty'
+        return (None, None, 'knowledge.adapter is "kartoteka" but knowledge.baseUrl is empty',
+                'knowledge.baseUrl')
     project = (knowledge.get('project') or '').strip()
     if not project:
-        return None, None, 'knowledge.adapter is "kartoteka" but knowledge.project is empty'
+        return (None, None, 'knowledge.adapter is "kartoteka" but knowledge.project is empty',
+                'knowledge.project')
     if not PROJECT_RE.match(project):
         return None, None, ('knowledge.project must be lowercase kebab-case '
-                            '(^[a-z0-9][a-z0-9-]*$), got {!r}'.format(project))
-    return base, project, None
+                            '(^[a-z0-9][a-z0-9-]*$), got {!r}'.format(project)), 'knowledge.project'
+    return base, project, None, None
 
 
 # What may travel in an HTTP header value: printable ASCII, no whitespace.

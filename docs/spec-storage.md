@@ -49,14 +49,34 @@ Evaluated in this order:
 |---|---|---|---|
 | 1 | `--local` passed | **files** | `local-only run requested` |
 | 2 | `knowledge.adapter` `none` or absent | **files**, silently | — |
-| 3 | adapter `kartoteka`, `knowledge.project` empty or outside its grammar, or `knowledge.baseUrl` empty | unavailable (§5) | `kartoteka is configured for this project but knowledge.<key> is not set` |
-| 4 | a `ticket.projectKey` outside kartoteka's ticket-key grammar (one character, or containing `_` or `-`) | **files** | `kartoteka cannot store tickets keyed <KEY>-…: its ticket-key grammar needs a project key of two or more letters or digits, starting with a letter` |
+| 3 | a `ticket.projectKey` outside kartoteka's ticket-key grammar (one character, or containing `_` or `-`) | **files** | `kartoteka cannot store tickets keyed <KEY>-…: its ticket-key grammar needs a project key of two or more letters or digits, starting with a letter` |
+| 4 | `knowledge` unusable: an adapter other than `none` or `kartoteka`; or, with `kartoteka`, `baseUrl` empty, `project` empty or outside its grammar, a `tokenEnv` value that cannot be sent, or a plaintext `http://` `baseUrl` off loopback while a token is set | unavailable (§5) | one of the row-4 records below |
 | 5 | kartoteka's artifact tools are absent from this session | unavailable | `kartoteka's artifact tools are not available in this session` |
 | 6 | the tools are present but `artifact_patch` is not | unavailable | `the kartoteka daemon predates artifact_patch (0.43.0); upgrade it` |
-| 7 | the daemon refuses the project | unavailable | `kartoteka refused knowledge.project as unregistered; run kartoteka project add <project>` |
-| 8 | the daemon predates the route, or its artifact store is off | unavailable | `the kartoteka daemon predates artifact_patch (0.43.0); upgrade it` / `kartoteka's artifact store is off on that daemon ([workspace] enabled = false)` |
-| 9 | no answer, 401, or any other HTTP status | unavailable | `kartoteka is unreachable: <reason>` / the 401 line naming `knowledge.tokenEnv` / `kartoteka answered the probe with HTTP <status>: <error>` |
+| 7 | the probe answers 400 naming `kartoteka project add` | unavailable | `kartoteka refused knowledge.project as unregistered; run kartoteka project add <project>` |
+| 8 | the probe's route is missing (a plain 404 or a 405), and the follow-up listing is served (an old daemon) or missing too (the artifact store is off) | unavailable | `the kartoteka daemon predates artifact_patch (0.43.0); upgrade it` / `kartoteka's artifact store is off on that daemon ([workspace] enabled = false)` |
+| 9 | the probe or a listing gets no answer, a 401, or any other status it does not expect | unavailable | one of the row-9 records below |
 | 10 | otherwise | **kartoteka** | — |
+
+**Row-4 records.** An unset or malformed key gets the line `docs/knowledge-consultation.md` and
+`docs/task-queue.md` already write, byte for byte; any other misconfiguration is recorded as the
+error itself:
+
+- `kartoteka is configured for this project but knowledge.<key> is not set` — `<key>` is
+  `knowledge.baseUrl` (empty) or `knowledge.project` (empty, or outside `^[a-z0-9][a-z0-9-]*$`);
+- `knowledge.adapter must be "none" or "kartoteka", got '<value>'`;
+- `<VAR> (knowledge.tokenEnv) holds a value with whitespace or control characters; export the token as one line`;
+- `knowledge.baseUrl <baseUrl> is plaintext http:// off loopback and a bearer token would cross the network in the clear; use the daemon's https:// origin`.
+
+**Row-9 records:**
+
+- `kartoteka is unreachable at <baseUrl>: <reason>`;
+- ``kartoteka refused the token in <VAR> (HTTP 401): revoked, expired, or minted for another daemon -- check `kartoteka token list` on the daemon host``;
+- `the daemon requires a bearer token (HTTP 401) but <VAR> (knowledge.tokenEnv) is not set in this environment`;
+- `` the daemon requires a bearer token (HTTP 401) but knowledge.tokenEnv is empty; name the variable that holds a token from `kartoteka token add` ``;
+- `kartoteka answered HTTP <status>: <error text>` — `<error text>` is kartoteka's JSON `error`
+  (or `detail`), cut after 300 characters and marked `...(truncated)`, or `no error text`. The
+  same line reports an unexpected status from every other `spec_store.py` verb.
 
 **How to resolve.** Rows 1, 5 and 6 are yours: only you can see your own tool list. The artifact
 tools are `artifact_get`, `artifact_put`, `artifact_patch`, `artifact_list` and

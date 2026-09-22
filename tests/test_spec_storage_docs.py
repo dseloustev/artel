@@ -6,7 +6,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'hooks'))
+sys.path.insert(0, str(ROOT / 'scripts'))
 import kartoteka_http as kh  # noqa: E402
+import spec_store  # noqa: E402
 
 DOC = ROOT / 'docs' / 'spec-storage.md'
 ROW = re.compile(r'^\| `(<specs\.dir>/[^`]+)` \| `([^`]+)` \| `([^`]+)` \| `([^`]+)` \|$')
@@ -46,6 +48,16 @@ class TestContract(unittest.TestCase):
                         '### 5.5 Completion', '## 6. The guard', '## 7. Local trails and migration',
                         '## 8. spec_store.py'):
             self.assertIn(heading, self.text)
+
+    def test_the_resolution_records_are_the_ones_the_code_writes(self):
+        scope = section(self.text, '### 2.1 Resolution')
+        for record in (
+                spec_store.UNSTORABLE_KEY_REASON.format('<KEY>'),
+                spec_store.answered('<status>', {'error': '<error text>'}),
+                spec_store.unauthorized_message('<VAR>', 'token'),
+                spec_store.unauthorized_message('<VAR>', None),
+                spec_store.unauthorized_message('', None)):
+            self.assertIn(record, scope)
 
     def test_every_exit_code_and_verb_is_documented(self):
         ref = section(self.text, '## 8. spec_store.py')

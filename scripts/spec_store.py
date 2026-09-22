@@ -693,17 +693,18 @@ def classify(store, config, ticket, logical, sources, decision, pending):
         _judge(item, texts[item['sha256']], versions, stored, decision, pending, working)
         return items
     copies = ', '.join(i['source'] for i in unknown + skipped)
+    # A redaction withholds every diff of this address, local against local included:
+    # any of these copies may still carry the text kartoteka removed.
     redaction = any(_redacted(v) for v in versions)
     for item in unknown:
-        text = texts[item['sha256']]
-        diffs = [_diff(texts[other['sha256']], text, other['source'], item['source'])
-                 for other in unknown if other is not item]
-        if newest is not None:
-            diffs.append(_diff(stored().get('content', ''), text,
-                               'kartoteka v{}'.format(newest['version']), item['source']))
+        text, diffs = texts[item['sha256']], []
+        if not redaction:
+            diffs = [_diff(texts[other['sha256']], text, other['source'], item['source'])
+                     for other in unknown if other is not item]
+            if newest is not None:
+                diffs.append(_diff(stored().get('content', ''), text,
+                                   'kartoteka v{}'.format(newest['version']), item['source']))
         item.update({'class': 'conflict', 'reason': 'the local copies differ: {}'.format(copies),
-                     # A redaction withholds every diff of this address, local against local
-                     # included: any of these copies may still carry the removed text.
                      'diff': None if redaction else ''.join(diffs)})
     return items
 

@@ -74,3 +74,35 @@ class TestConfig(unittest.TestCase):
         start = text.index('```json', text.index('## The default config')) + len('```json')
         defaults = json.loads(text[start:text.index('```', start)])
         self.assertEqual(defaults['specs']['onUnavailable'], 'abort')
+
+
+class TestMigrateSpecsSkill(unittest.TestCase):
+    SKILL = ROOT / 'skills' / 'migrate-specs' / 'SKILL.md'
+
+    def setUp(self):
+        self.text = self.SKILL.read_text(encoding='utf-8')
+
+    def test_runs_the_three_verbs_in_order(self):
+        plan, apply_, delete = (self.text.index('migrate ' + v) for v in ('plan', 'apply', 'delete'))
+        self.assertLess(plan, apply_)
+        self.assertLess(apply_, delete)
+
+    def test_confirms_deletion_once_with_three_choices(self):
+        for choice in ('Delete and commit', 'Delete, leave staged', 'Keep local copies'):
+            self.assertIn(choice, self.text)
+
+    def test_conflicts_offer_keep_local_keep_stored_skip(self):
+        for choice in ('keep-local', 'keep-stored', 'skip'):
+            self.assertIn(choice, self.text)
+
+    def test_pending_only_never_asks_to_delete(self):
+        self.assertIn('--pending-only', self.text)
+        self.assertIn('without asking', self.text)
+
+    def test_names_what_is_never_deleted(self):
+        for kept in ('.active_ticket', 'evidence', 'release'):
+            self.assertIn(kept, self.text)
+
+    def test_routed_and_referenced(self):
+        self.assertIn('/artel:migrate-specs', (ROOT / 'skills/using-artel/SKILL.md').read_text())
+        self.assertIn('\n### migrate-specs\n', (ROOT / 'docs/skills-reference.md').read_text())

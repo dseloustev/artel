@@ -104,6 +104,7 @@ will be refused until that variable is exported and the MCP registration carries
 | a task added to the ticket | `/artel:tasks add <ticket> "<title>" --iteration N` |
 | a task marked done or blocked | `/artel:tasks done <id>` · `/artel:tasks block <id>` |
 | a task a dead agent left held released | `/artel:tasks release <id>` |
+| local spec documents moved into kartoteka, or the local copies cleaned up | `/artel:migrate-specs [ticket…\|--all]` |
 
 **Code navigation — the AST index**
 

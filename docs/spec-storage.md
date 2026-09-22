@@ -367,7 +367,7 @@ files. `.active_ticket`, evidence and anything skipped are never deleted.
 | `decide <ticket-id> --decided-by S [--local \| --files R]` | the decision, `local_trail` | `0`; `5` unavailable, printing `{store: null, reason, versions}` |
 | `decision <ticket-id>` | the decision and `fresh` | `0`; `3` none |
 | `pending add <path> --base-version N` | the pending list | `0` |
-| `migrate plan …` / `migrate apply …` | §7 | see `skills/migrate-specs/SKILL.md` |
+| `migrate plan\|apply\|delete (<ticket-id>… \| --all) [--pending-only] [--resolve P=A]… [--commit]` | classification · uploads and `deletable` · removals and commit (§7) | `0`; `5` unavailable |
 
 Every verb exits `2` on an error, with a JSON envelope `{"ok": false, "verb": "spec-store",
 "error": {"kind", "message"}}` on stderr. It never prints the token. It uses `knowledge.baseUrl`, and

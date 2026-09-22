@@ -848,3 +848,21 @@ Entry template:
   and says so. `list` reports drained / promotion pending / blocked / held / fix work open and
   repairs nothing; fix rows never count toward promotion pending or drained, and `release`
   refuses them.
+
+### migrate-specs
+
+- **Purpose:** Move local spec trails into kartoteka, the spec store, and delete the local copies
+  it verifiably holds.
+- **Invocation:** `/artel:migrate-specs [<ticket-id>… | --all] [--pending-only] [--no-prompt]`
+- **Reads:** `.artel/config.json`, `<specs.dir>/<TICKET_ID>/` (and `phase-<N>/`),
+  `.artel/context/tickets/<TICKET_ID>/spec-trail/`, `.artel/run/<TICKET_ID>/spec-store.json`;
+  over HTTP (`scripts/spec_store.py`): every stored version's hash.
+- **Writes:** artifact versions (`author_agent: artel:migrate-specs`); the decision file; with
+  confirmation, deletions — `git rm` for tracked files, one optional commit.
+- **Pauses:** once per conflict (keep local / keep stored / skip) and once before deleting;
+  `--pending-only` deletes without asking; `--no-prompt` never pauses and never deletes except
+  under `--pending-only`.
+- **Notes:** worker. Classification is `absent` / `current` / `stale` / `successor` / `conflict`
+  / `skipped` ([spec-storage.md](spec-storage.md) §7): a stale local copy never overwrites a
+  newer stored version. Orchestrators invoke it when a run finds a local trail and on resume
+  after an outage. `.active_ticket`, evidence and release-scope files are never deleted.

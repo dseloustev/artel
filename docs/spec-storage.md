@@ -109,7 +109,14 @@ it is (row 9). It ends with one scoped listing.
 - `decided_at`
 - `versions` — the newest version of each stored document at the last listing;
 - `pending` — documents saved locally with permission during an outage, each with its
-  `base_version`.
+  `base_version`;
+- `files_base` — optional: the `versions` a files decision froze, carried on by later
+  `decide`s while that run's documents are still on disk. It is the version each local copy
+  was edited from, and `/artel:migrate-specs` reads it (after `pending`, before a standing
+  files decision's own `versions`) to tell a `successor` from a `conflict`. A plain `decide`
+  at resume replaces the files decision, so without it every locally edited document would be
+  judged against a listing taken long after those copies were made. `migrate apply` drops it
+  when nothing on disk rests on it any more, and `migrate delete` with the last local copy.
 
 **Fresh** means `decided_at` is within `WALL_CLOCK_HOURS = 3`. Orchestrators re-run `decide` at
 start, at resume and at each phase boundary — wherever they refresh `run-state.json`'s

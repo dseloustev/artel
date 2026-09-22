@@ -293,6 +293,27 @@ def _emit(decision, ticket, config):
     return OK
 
 
+def _inherited_files_base(previous):
+    """The files-era migration base a new decision inherits from the standing one, or None.
+
+    A files decision froze `versions` when the run went local: the version each
+    document on disk was edited from. Resume re-probes with a plain `decide`,
+    which replaces that decision -- and with it the base -- while the copies are
+    still on disk, so it is carried on as `files_base` (docs/spec-storage.md
+    §2.2) until the ticket's local trail is gone. An existing `files_base` wins
+    over the standing decision's `versions`: a files decision renewed AFTER a
+    re-probe carries a listing taken long after those copies were made, and
+    judging them against it would read another agent's newer version as their
+    own base."""
+    carried = previous.get('files_base')
+    if isinstance(carried, dict) and carried:
+        return carried
+    versions = previous.get('versions')
+    if previous.get('store') == 'files' and isinstance(versions, dict) and versions:
+        return versions
+    return None
+
+
 def cmd_decide(args, config):
     ticket = sd.canonical_ticket(args.ticket, config)
     if ticket is None:
@@ -304,8 +325,13 @@ def cmd_decide(args, config):
         print(json.dumps({'store': 'files', 'reason': None, 'written': False}))
         return OK
 
+    frozen = previous.get('files_base')
+    frozen = frozen if isinstance(frozen, dict) and frozen else None
+
     def files(reason):
         decision = sd.new_decision('files', reason, args.decided_by, **carried)
+        if frozen:  # a files decision keeps the base a previous local episode froze
+            decision['files_base'] = frozen
         sd.write(ticket, decision)
         return _emit(decision, ticket, config)
 
@@ -339,6 +365,9 @@ def cmd_decide(args, config):
         return unavailable(str(exc))
     versions = {row['name']: row['version'] for row in rows}
     decision = sd.new_decision('kartoteka', None, args.decided_by, versions, carried['pending'])
+    base = _inherited_files_base(previous)
+    if base:
+        decision['files_base'] = base
     sd.write(ticket, decision)
     return _emit(decision, ticket, config)
 
@@ -519,16 +548,28 @@ def candidates(ticket, config, pending_only):
 def _known_base(sources, name, decision, pending):
     """The stored version this copy was made from, when the trail says; else None.
 
-    A pending save records it exactly. A files decision froze the ticket's
-    versions when the run went local, so a document it lacks was new then (0).
-    Nothing else records a base: a legacy trail from the mirror era has none.
+    A pending save records it exactly. Otherwise the frozen files-era base --
+    `files_base` where a later `decide` carried it on, else a standing files
+    decision's own `versions` (§2.2) -- and a document it lacks was new then (0).
+    `files_base` is read FIRST for the reason _inherited_files_base gives: where
+    both are there, it is the older, truer base. Nothing else records one: a
+    legacy trail from the mirror era has none. Anything that is not a whole
+    number in a dict is a hand-corrupted decision file, and reads as no base at
+    all -- the conservative answer, since a wrong base can turn another agent's
+    version into this copy's own.
     """
     for source in sources:
         if source in pending:
-            return pending[source]
-    if decision.get('store') == 'files' and decision.get('versions'):
-        return decision['versions'].get(name, 0)
-    return None
+            base = pending[source]
+            if isinstance(base, int) and not isinstance(base, bool):
+                return base
+    frozen = decision.get('files_base')
+    if not (isinstance(frozen, dict) and frozen):
+        frozen = decision.get('versions') if decision.get('store') == 'files' else None
+    if not (isinstance(frozen, dict) and frozen):
+        return None
+    base = frozen.get(name, 0)
+    return base if isinstance(base, int) and not isinstance(base, bool) else None
 
 
 def _judge(item, text, versions, stored, decision, pending, working_copy):
@@ -825,15 +866,17 @@ def deletion_sets(items, resolutions):
     return sorted(deletable, key=lambda e: e['path']), kept
 
 
-def _fully_migrated(store, config, ticket, resolutions):
-    """Whether ticket's WHOLE local trail -- every copy of every document,
+def _fully_migrated(items, resolutions):
+    """Whether a ticket's WHOLE local trail -- every copy of every document,
     regardless of this run's --pending-only -- is now safe to hand to kartoteka:
     every copy settled (_settled). Anything else left outstanding (an unresolved
     or skip-resolved conflict, a skipped file, or a document this run never
-    touched) means the ticket is not fully migrated yet."""
-    items = plan_items(store, config, [ticket], False)
+    touched) means the ticket is not fully migrated yet. A ticket with no local
+    candidates at all is not "fully migrated" either: there was nothing to move,
+    and flipping a files decision on that basis would be a flip about nothing --
+    `--all` walks ticket directories that may hold only evidence."""
     by_logical = _by_logical(items)
-    return all(_settled(item, resolutions, by_logical) for item in items)
+    return bool(items) and all(_settled(item, resolutions, by_logical) for item in items)
 
 
 def _flip_decisions(store, config, tickets, resolutions):
@@ -842,12 +885,22 @@ def _flip_decisions(store, config, tickets, resolutions):
     tickets actually flipped."""
     flipped = []
     for ticket in tickets:
-        if not _fully_migrated(store, config, ticket, resolutions):
+        items = plan_items(store, config, [ticket], False)
+        if not _fully_migrated(items, resolutions):
             continue
         previous = sd.load(ticket) or {}
         versions = {row['name']: row['version'] for row in store.listing(ticket)}
-        sd.write(ticket, sd.new_decision('kartoteka', None, 'migrate-specs', versions,
-                                         previous.get('pending') or []))
+        decision = sd.new_decision('kartoteka', None, 'migrate-specs', versions,
+                                   previous.get('pending') or [])
+        base = _inherited_files_base(previous)
+        # The frozen base outlives the flip while a copy kartoteka does not itself hold is
+        # still on disk -- one the user called obsolete (keep-stored), or passed over for
+        # another copy. Their classification rests on that base; without it the next run
+        # could read such a copy as a successor and upload it over what the user chose.
+        # `delete` drops it with the last local copy (tidy_decisions).
+        if base and any(i['class'] not in ('current', 'stale') for i in items):
+            decision['files_base'] = base
+        sd.write(ticket, decision)
         flipped.append(ticket)
     return flipped
 
@@ -857,17 +910,24 @@ def _valid_pending(entry):
 
 
 def tidy_decisions(tickets, config):
-    """Drop each touched ticket's orphan pending entries; return {ticket: entries left}.
+    """Tidy each touched ticket's decision; return {ticket: pending entries left}.
 
     A pending entry is permission to hold one document on disk until kartoteka
     is back. Once its file is gone -- migrated and deleted, or never written at
     all -- the entry only keeps the guard (docs/spec-storage.md §6) open for
     that path forever. What is left is the count a resuming orchestrator reads
-    to know whether the outage is drained."""
+    to know whether the outage is drained.
+
+    A ticket whose local trail is gone also loses its frozen `files_base`: it is
+    the base of copies on disk, and there are none left to classify."""
     left = {}
     for ticket in tickets:
         decision = sd.load(ticket)
         pending = (decision or {}).get('pending')
+        if decision is not None and decision.get('files_base') is not None \
+                and not sd.local_trail(ticket, config):
+            decision.pop('files_base')
+            sd.write(ticket, decision)
         if decision is not None and isinstance(pending, list):
             # A hand-corrupted decision file may hold a non-list `pending` (e.g. 5), or
             # entries that are not {path: ...}: only entries with a path are prunable, and

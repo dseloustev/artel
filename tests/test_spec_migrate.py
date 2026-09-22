@@ -308,6 +308,84 @@ class TestClassify(MigrateCase):
         self.assertTrue((self.repo / SPECS / 'AW-12/prd.md').exists())
 
 
+class TestFilesBase(MigrateCase):
+    """I9: the base a locally edited document was made from outlives `decide`."""
+
+    def stored_decision(self, ticket='AW-12'):
+        return json.loads((self.repo / '.artel/run' / ticket / 'spec-store.json').read_text())
+
+    def test_the_files_era_base_survives_a_new_decide(self):
+        self.local(SPECS / 'AW-12/prd.md', 'edited while working locally')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1', author_agent='artel:analyst')
+        self.decision('AW-12', store='files', reason='kartoteka unavailable; working locally',
+                      versions={'prd.md': 1})
+        self.assertEqual(self.plan('AW-12')['specs/.current/AW-12/prd.md']['class'], 'successor')
+        proc = self.cli('decide', 'AW-12', '--decided-by', 'feature-development')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)['store'], 'kartoteka')
+        self.assertEqual(self.stored_decision()['files_base'], {'prd.md': 1})
+        self.assertEqual(self.plan('AW-12')['specs/.current/AW-12/prd.md']['class'], 'successor')
+
+    def test_the_frozen_base_beats_a_listing_taken_later(self):
+        self.local(SPECS / 'AW-12/prd.md', 'edited from v1')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1', author_agent='artel:analyst')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'teammate v2', author_agent='b')
+        self.decision('AW-12', store='files', reason='kept working locally',
+                      versions={'prd.md': 2}, files_base={'prd.md': 1})
+        item = self.plan('AW-12')['specs/.current/AW-12/prd.md']
+        self.assertEqual((item['class'], item['base_version']), ('conflict', 1))
+
+    def test_an_existing_files_base_is_carried_on(self):
+        self.local(SPECS / 'AW-12/prd.md', 'edited from v1')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1', author_agent='artel:analyst')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'teammate v2', author_agent='b')
+        self.decision('AW-12', store='files', reason='kept working locally',
+                      versions={'prd.md': 2}, files_base={'prd.md': 1})
+        self.cli('decide', 'AW-12', '--decided-by', 'feature-development')
+        self.assertEqual(self.stored_decision()['files_base'], {'prd.md': 1})
+        self.cli('decide', 'AW-12', '--decided-by', 'dev', '--files', 'kept working locally')
+        self.assertEqual(self.stored_decision()['files_base'], {'prd.md': 1})
+        self.assertEqual(self.plan('AW-12')['specs/.current/AW-12/prd.md']['class'], 'conflict')
+
+    def test_a_corrupt_versions_or_files_base_is_no_base_at_all(self):
+        self.local(SPECS / 'AW-12/prd.md', 'x')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1', author_agent='a')
+        self.decision('AW-12', store='files', reason='r', versions=['prd.md'],
+                      files_base='v1')
+        item = self.plan('AW-12')['specs/.current/AW-12/prd.md']
+        self.assertEqual((item['class'], item['base_version']), ('conflict', None))
+
+    def test_the_flip_drops_the_base_once_no_copy_rests_on_it(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'P')
+        self.decision('AW-12', store='files', reason='worked locally', versions={'prd.md': 1})
+        out = json.loads(self.cli('migrate', 'apply', 'AW-12').stdout)
+        self.assertEqual(out['flipped'], ['AW-12'])
+        self.assertNotIn('files_base', self.stored_decision())
+
+    def test_the_flip_keeps_the_base_a_kept_stored_copy_still_rests_on(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local edit from v1')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1')        # mirror-only history
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v2 from another checkout')
+        self.decision('AW-12', store='files', reason='worked locally', versions={'prd.md': 1})
+        resolve = ('--resolve', 'specs/.current/AW-12/prd.md=keep-stored')
+        out = json.loads(self.cli('migrate', 'apply', 'AW-12', *resolve).stdout)
+        self.assertEqual((out['uploaded'], out['flipped']), ([], ['AW-12']))
+        self.assertEqual(self.stored_decision()['files_base'], {'prd.md': 1})
+        # and the copy the user called obsolete is still a conflict, never a successor
+        self.assertEqual(self.plan('AW-12')['specs/.current/AW-12/prd.md']['class'], 'conflict')
+        self.assertEqual(json.loads(self.cli('migrate', 'apply', 'AW-12').stdout)['uploaded'], [])
+
+    def test_delete_drops_the_base_with_the_last_local_copy(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'P')
+        self.decision('AW-12', store='kartoteka', versions={'prd.md': 1},
+                      files_base={'prd.md': 1})
+        out = json.loads(self.cli('migrate', 'delete', 'AW-12').stdout)
+        self.assertEqual(out['removed'], ['specs/.current/AW-12/prd.md'])
+        self.assertNotIn('files_base', self.stored_decision())
+
+
 class TestApply(MigrateCase):
     def apply(self, *args):
         proc = self.cli('migrate', 'apply', *args)
@@ -395,6 +473,14 @@ class TestApply(MigrateCase):
         self.assertIn(tree, error['message'])
         self.assertIn(context, error['message'])
         self.assertEqual(self.fake.artifacts, {})
+
+    def test_a_ticket_with_nothing_on_disk_is_never_flipped(self):
+        self.local(SPECS / 'AW-12/runtime/observation.md', 'RUNTIME_OK')  # evidence, not a trail
+        self.decision('AW-12', store='files', reason='local-only run requested')
+        out = self.apply('--all')
+        self.assertEqual(out['flipped'], [])
+        decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
+        self.assertEqual(decision['store'], 'files')
 
     def test_the_decision_is_flipped_to_kartoteka(self):
         self.local(SPECS / 'AW-12/prd.md', 'P')

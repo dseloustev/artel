@@ -275,3 +275,87 @@ class TestApply(MigrateCase):
         proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', 'foo=bogus')
         self.assertEqual(proc.returncode, 2)
         self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'invalid_argument')
+
+
+class TestDelete(MigrateCase):
+    def delete(self, *args):
+        proc = self.cli('migrate', 'delete', *args)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def test_tracked_files_are_git_rm_and_committed_alone(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.local(SPECS / 'AW-12/runtime/observation.md', 'RUNTIME_OK')
+        self.local(SPECS / '.active_ticket', 'AW-12\n')
+        self.commit_all()
+        self.local('unrelated.txt', 'staged work')
+        self.git('add', 'unrelated.txt')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'P')
+        out = self.delete('AW-12', '--commit')
+        self.assertEqual(out['removed'], ['specs/.current/AW-12/prd.md'])
+        self.assertFalse((self.repo / SPECS / 'AW-12/prd.md').exists())
+        self.assertTrue((self.repo / SPECS / 'AW-12/runtime/observation.md').exists())
+        self.assertTrue((self.repo / SPECS / '.active_ticket').exists())
+        log = self.git('log', '-1', '--name-status', '--format=%s').stdout
+        self.assertIn('chore: move AW-12 spec trail to kartoteka', log)
+        self.assertIn('D\tspecs/.current/AW-12/prd.md', log)
+        self.assertNotIn('unrelated.txt', log)
+        self.assertIn('A  unrelated.txt', self.git('status', '--porcelain').stdout)
+
+    def test_without_commit_the_removal_is_left_staged(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.commit_all()
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'P')
+        out = self.delete('AW-12')
+        self.assertIsNone(out['commit'])
+        self.assertIn('D  specs/.current/AW-12/prd.md', self.git('status', '--porcelain').stdout)
+
+    def test_untracked_and_context_copies_are_unlinked_and_empty_dirs_pruned(self):
+        self.local(SPECS / 'AW-12/phase-2/tasks.md', 'T')
+        self.local('.artel/context/tickets/AW-12/spec-trail/phase-2/tasks.md', 'T')
+        self.fake.seed(PROJECT, 'AW-12', 'tasklist', 'phase-2.tasks.md', 'T')
+        out = self.delete('AW-12')
+        self.assertEqual(len(out['removed']), 2)
+        self.assertFalse((self.repo / SPECS / 'AW-12').exists())
+        self.assertFalse((self.repo / '.artel/context/tickets/AW-12/spec-trail').exists())
+
+    def test_nothing_unverified_is_deleted(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local')        # conflict
+        self.local(SPECS / 'AW-12/plan.md', 'never stored')  # absent
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored', author_agent='a')
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [])
+        self.assertEqual({k['class'] for k in out['kept']}, {'conflict', 'absent'})
+        self.assertTrue((self.repo / SPECS / 'AW-12/prd.md').exists())
+
+    def test_keep_stored_deletes_the_local_copy(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored', author_agent='a')
+        out = self.delete('AW-12', '--resolve', 'specs/.current/AW-12/prd.md=keep-stored')
+        self.assertEqual(out['removed'], ['specs/.current/AW-12/prd.md'])
+
+    def test_pending_entries_are_pruned(self):
+        self.local(SPECS / 'AW-12/plan.md', 'P')
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'P')
+        self.decision('AW-12', pending=[{'path': 'specs/.current/AW-12/plan.md', 'base_version': 0}])
+        self.delete('AW-12', '--pending-only')
+        decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
+        self.assertEqual(decision['pending'], [])
+
+    def test_many_tickets_get_a_counted_subject(self):
+        for n in (1, 2, 3, 4):
+            self.local(SPECS / 'AW-{}/prd.md'.format(n), 'P')
+            self.fake.seed(PROJECT, 'AW-{}'.format(n), 'prd', 'prd.md', 'P')
+        self.commit_all()
+        self.delete('--all', '--commit')
+        self.assertEqual(self.git('log', '-1', '--format=%s').stdout.strip(),
+                         "chore: move 4 tickets' spec trails to kartoteka")
+
+    def test_a_corrupt_pending_field_survives_deletion_unchanged(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'P')
+        self.decision('AW-12', pending=5)
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], ['specs/.current/AW-12/prd.md'])
+        decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
+        self.assertEqual(decision['pending'], 5)

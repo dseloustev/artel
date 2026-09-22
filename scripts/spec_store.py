@@ -668,6 +668,89 @@ def cmd_migrate_apply(args, config):
     return OK
 
 
+def _git(*args):
+    return subprocess.run(['git', *args], capture_output=True, text=True)
+
+
+def _tracked(path):
+    return _git('ls-files', '--error-unmatch', '--', path).returncode == 0
+
+
+def _prune_empty_parents(path, config):
+    """Remove directories the deletion emptied, up to the ticket's own root --
+    never <specs.dir> itself or .artel/context/tickets."""
+    specs_dir = Path((config.get('specs') or {}).get('dir') or 'specs/.current').resolve()
+    stops = {specs_dir, sd.CONTEXT_TICKETS.resolve()}
+    parent = Path(path).parent.resolve()
+    while parent not in stops and parent != parent.parent:
+        try:
+            parent.rmdir()  # only succeeds when empty
+        except OSError:
+            return
+        parent = parent.parent
+
+
+def _commit_subject(tickets):
+    if len(tickets) <= 3:
+        return 'chore: move {} spec trail to kartoteka'.format(', '.join(tickets))
+    return "chore: move {} tickets' spec trails to kartoteka".format(len(tickets))
+
+
+def _ticket_of(path, config):
+    """The ticket a deleted path belonged to, for the commit subject. A <specs.dir> path
+    resolves through the addressing rule; a context copy -- tracked only on a host that
+    does not gitignore .artel/context/ -- names its ticket just above spec-trail/."""
+    identity = kh.artifact_identity(path, config)
+    if identity:
+        return identity[0]
+    parts = Path(path).parts
+    return parts[parts.index('spec-trail') - 1] if 'spec-trail' in parts else None
+
+
+def cmd_migrate_delete(args, config):
+    tickets = migration_tickets(args, config)
+    store = migration_store(config, tickets)
+    resolutions = parse_resolutions(args.resolve)
+    deletable, kept = deletion_sets(store, config, tickets, args.pending_only, resolutions)
+    removed, committed_paths, committed_tickets = [], [], set()
+    for path in deletable:
+        if _tracked(path):
+            if _git('rm', '-q', '--', path).returncode != 0:
+                kept.append({'logical': path, 'class': 'error', 'reason': 'git rm failed'})
+                continue
+            committed_paths.append(path)
+            ticket = _ticket_of(path, config)
+            if ticket:
+                committed_tickets.add(ticket)
+        else:
+            try:
+                Path(path).unlink()
+            except OSError as exc:
+                kept.append({'logical': path, 'class': 'error', 'reason': str(exc)})
+                continue
+        removed.append(path)
+        _prune_empty_parents(path, config)
+    removed_normalized = {os.path.normpath(r) for r in removed}
+    for ticket in tickets:
+        decision = sd.load(ticket)
+        if decision and isinstance(decision.get('pending'), list):
+            # A hand-corrupted decision file may hold a non-list `pending` (e.g. 5); only
+            # a list is prunable, and only dict entries with a path compare (candidates()'s
+            # own tolerance) -- everything else in `pending` is left exactly as it was.
+            decision['pending'] = [
+                p for p in decision['pending']
+                if not (isinstance(p, dict) and isinstance(p.get('path'), str)
+                        and os.path.normpath(p['path']) in removed_normalized)]
+            sd.write(ticket, decision)
+    commit = None
+    if args.commit and committed_paths:
+        subject = _commit_subject(sorted(committed_tickets))
+        if _git('commit', '-q', '-m', subject, '--', *committed_paths).returncode == 0:
+            commit = _git('rev-parse', '--short', 'HEAD').stdout.strip()
+    print(json.dumps({'removed': removed, 'kept': kept, 'commit': commit}))
+    return OK
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog='spec_store.py', description=__doc__.splitlines()[0])
     verbs = parser.add_subparsers(dest='verb', required=True)
@@ -707,13 +790,16 @@ def build_parser():
     pending_add.set_defaults(run=cmd_pending_add)
     migrate = verbs.add_parser('migrate')
     migrate_verbs = migrate.add_subparsers(dest='migrate_verb', required=True)
-    for name, run in (('plan', cmd_migrate_plan), ('apply', cmd_migrate_apply)):
+    for name, run in (('plan', cmd_migrate_plan), ('apply', cmd_migrate_apply),
+                      ('delete', cmd_migrate_delete)):
         sub = migrate_verbs.add_parser(name)
         sub.add_argument('ticket', nargs='*')
         sub.add_argument('--all', action='store_true')
         sub.add_argument('--pending-only', action='store_true')
         if name != 'plan':
             sub.add_argument('--resolve', action='append', default=[])
+        if name == 'delete':
+            sub.add_argument('--commit', action='store_true')
         sub.set_defaults(run=run)
     return parser
 

@@ -53,7 +53,9 @@ by the script), then ask (`AskUserQuestion`), one question per document:
 - **Keep local** → `--resolve <logical>=keep-local`. When the reason says the two local copies
   differ, offer one option per source instead:
   `--resolve <logical>=keep-local:<source>`.
-- **Keep stored** → `--resolve <logical>=keep-stored` (the local copy is obsolete).
+- **Keep stored** → `--resolve <logical>=keep-stored` (the local copy is obsolete). Offer it
+  only when the item's `newest_version` is not null: with nothing stored there is no stored copy
+  to keep, and the script refuses it (exit `2`, kind `invalid_argument`).
 - **Skip** → `--resolve <logical>=skip`: leave both alone and keep the local copy.
 
 A `keep-local:<source>` naming a path that is not one of that document's own local copies is

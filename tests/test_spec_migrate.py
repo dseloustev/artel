@@ -270,6 +270,15 @@ class TestApply(MigrateCase):
         self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'invalid_argument')
         self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'], 'stored')
 
+    def test_keep_stored_without_a_stored_version_is_refused_before_any_upload(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.local(SPECS / 'AW-12/plan.md', 'never stored either')
+        proc = self.cli('migrate', 'apply', 'AW-12',
+                        '--resolve', 'specs/.current/AW-12/prd.md=keep-stored')
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        self.assertIn('kartoteka holds no version of it', json.loads(proc.stderr)['error']['message'])
+        self.assertEqual(self.fake.artifacts, {})
+
     def test_malformed_resolve_value_is_rejected(self):
         self.local(SPECS / 'AW-12/prd.md', 'P')
         proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', 'foo=bogus')
@@ -350,6 +359,30 @@ class TestDelete(MigrateCase):
         self.delete('--all', '--commit')
         self.assertEqual(self.git('log', '-1', '--format=%s').stdout.strip(),
                          "chore: move 4 tickets' spec trails to kartoteka")
+
+    def test_keep_stored_without_a_stored_version_is_refused_and_deletes_nothing(self):
+        # C1: nothing stored, two differing copies -- keep-stored used to delete both.
+        tree = self.local(SPECS / 'AW-12/prd.md', 'tree copy')
+        context = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', 'context copy')
+        proc = self.cli('migrate', 'delete', 'AW-12',
+                        '--resolve', 'specs/.current/AW-12/prd.md=keep-stored')
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        error = json.loads(proc.stderr)['error']
+        self.assertEqual(error['kind'], 'invalid_argument')
+        self.assertIn('keep-stored for specs/.current/AW-12/prd.md: kartoteka holds no version '
+                      'of it', error['message'])
+        self.assertTrue((self.repo / tree).exists())
+        self.assertTrue((self.repo / context).exists())
+
+    def test_delete_validates_keep_local_sources_too(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored', author_agent='a')
+        outside = self.local('elsewhere/not-a-copy.md', 'not a copy')
+        proc = self.cli('migrate', 'delete', 'AW-12',
+                        '--resolve', 'specs/.current/AW-12/prd.md=keep-local:' + outside)
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'invalid_argument')
+        self.assertTrue((self.repo / SPECS / 'AW-12/prd.md').exists())
 
     def test_a_corrupt_pending_field_survives_deletion_unchanged(self):
         self.local(SPECS / 'AW-12/prd.md', 'P')

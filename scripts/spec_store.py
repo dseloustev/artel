@@ -567,16 +567,22 @@ def _upload_source(item, resolutions):
 
 
 def _validate_resolutions(items, resolutions):
-    """Raise before any upload if a keep-local names a source that is not one of
-    this address's own local copies (docs/spec-storage.md keep-local must never
-    read a file from outside the ticket's spec trail -- an operator typo or a
-    hostile --resolve value could otherwise upload anything readable as the
-    ticket's document)."""
+    """Raise before anything is uploaded or deleted when a resolution cannot be
+    carried out safely against this plan -- apply and delete both run it:
+
+    - keep-local naming a source that is not one of this address's own local
+      copies: it must never read a file from outside the ticket's spec trail (an
+      operator typo or a hostile --resolve value could otherwise upload anything
+      readable as the ticket's document);
+    - keep-stored for an address kartoteka holds no version of: there is no
+      stored copy to keep, and discarding the local ones would lose the document.
+    """
     for item in items:
-        if item['class'] != 'conflict':
-            continue
         action, source = resolutions.get(item['logical'], (None, None))
-        if action != 'keep-local' or source is None:
+        if action == 'keep-stored' and item['newest_version'] is None:
+            raise Failure('invalid_argument', 'keep-stored for {}: kartoteka holds no version '
+                                              'of it'.format(item['logical']))
+        if item['class'] != 'conflict' or action != 'keep-local' or source is None:
             continue
         if os.path.normpath(source) not in {os.path.normpath(s) for s in item['sources']}:
             raise Failure('invalid_argument', (
@@ -584,18 +590,19 @@ def _validate_resolutions(items, resolutions):
                     source, item['logical'], ', '.join(item['sources'])))
 
 
-def deletion_sets(store, config, tickets, pending_only, resolutions):
-    """(paths safe to delete, items to keep), recomputed from disk and the store.
+def deletion_sets(items, resolutions):
+    """(paths safe to delete, items to keep) for a plan fresh from disk and the store.
 
     Safe means kartoteka verifiably holds this content or something newer
-    (current, stale), or the user chose the stored copy (keep-stored). Every
-    local source of such an address goes -- the working tree and the context
-    copy alike."""
+    (current, stale), or the user chose the stored copy (keep-stored) of an
+    address kartoteka holds. Every local source of such an address goes -- the
+    working tree and the context copy alike."""
     deletable, kept = [], []
-    for item in plan_items(store, config, tickets, pending_only):
+    for item in items:
         action = resolutions.get(item['logical'], (None, None))[0]
         if item['class'] in ('current', 'stale') or (
-                item['class'] == 'conflict' and action == 'keep-stored'):
+                item['class'] == 'conflict' and action == 'keep-stored'
+                and item['newest_version'] is not None):
             deletable.extend(item['sources'])
         else:
             kept.append({'logical': item['logical'], 'class': item['class'],
@@ -662,7 +669,8 @@ def cmd_migrate_apply(args, config):
             failed.append({'logical': item['logical'],
                            'reason': 'the upload could not be verified; the local copy is kept'})
     flipped = _flip_decisions(store, config, tickets, resolutions)
-    deletable, kept = deletion_sets(store, config, tickets, args.pending_only, resolutions)
+    deletable, kept = deletion_sets(plan_items(store, config, tickets, args.pending_only),
+                                    resolutions)
     print(json.dumps({'uploaded': uploaded, 'failed': failed, 'deletable': deletable,
                       'kept': kept, 'flipped': flipped}))
     return OK
@@ -711,7 +719,9 @@ def cmd_migrate_delete(args, config):
     tickets = migration_tickets(args, config)
     store = migration_store(config, tickets)
     resolutions = parse_resolutions(args.resolve)
-    deletable, kept = deletion_sets(store, config, tickets, args.pending_only, resolutions)
+    items = plan_items(store, config, tickets, args.pending_only)
+    _validate_resolutions(items, resolutions)
+    deletable, kept = deletion_sets(items, resolutions)
     removed, committed_paths, committed_tickets = [], [], set()
     for path in deletable:
         if _tracked(path):

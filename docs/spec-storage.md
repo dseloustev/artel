@@ -115,6 +115,11 @@ it is (row 9). It ends with one scoped listing.
 start, at resume and at each phase boundary — wherever they refresh `run-state.json`'s
 `started_at`.
 
+**A files decision is renewed with its own `--local` or `--files "<its reason>"`**, never a plain
+`decide`: a plain `decide` re-probes and, with kartoteka back, would switch a run that is working
+locally back to kartoteka while its documents are still on disk. Only resume (§5.3) re-probes a
+files decision, and it asks first.
+
 **Before resolving, read the standing decision:**
 `spec_store.py decision <TICKET_ID>`. A `fresh: true` decision is trusted as it stands; do not
 probe again. This is how a sub-skill inherits its orchestrator's answer, including a
@@ -252,8 +257,8 @@ Before any spec document is read, when §2.1 answers unavailable, ask (`AskUserQ
 - **Retry** — probe again. A failed retry asks again; never loop on your own.
 - **Work locally for this run** — record it with
   `decide <TICKET_ID> --decided-by <you> --files "kartoteka unavailable; working locally at the user's request — <record>"`,
-  and use the files path for the rest of the run. `/artel:migrate-specs` moves the documents in
-  later.
+  and use the files path for the rest of the run, renewing the decision with the same `--files`
+  (§2.2). `/artel:migrate-specs` moves the documents in later.
 - **Abort** — stop; nothing written.
 
 **Documents known to be stored are protected.** When the decision's `versions` names a document
@@ -277,13 +282,16 @@ There is no "continue locally" mid-run: every later gate reads documents that li
 
 ### 5.3 Resume
 
-Re-run `decide`. When the store is back:
+Re-run `decide` — the one place a files decision is re-probed. Read the standing decision
+first (`spec_store.py decision <TICKET_ID>`): a successful re-probe replaces it, reason and all.
+When the store is back:
 
 - `pending` files are moved in by `/artel:migrate-specs <TICKET_ID> --pending-only`: uploaded,
   verified and deleted without asking. Permission to keep them was for the outage only.
-- A run that worked locally (§5.1) is asked once: **Move this run's documents into kartoteka and
-  continue there** (recommended; runs `/artel:migrate-specs <TICKET_ID>`) or **Keep working
-  locally**.
+- A run that worked locally (§5.1) is asked once, before any document is read or written:
+  **Move this run's documents into kartoteka and continue there** (recommended; runs
+  `/artel:migrate-specs <TICKET_ID>`) or **Keep working locally**, which renews the files
+  decision with `decide <TICKET_ID> --decided-by <you> --files "<its reason>"`.
 
 When the store is still down, §5.2 applies again, without the save option.
 

@@ -7,6 +7,8 @@
  *
  *   tool.execute.before (edit|write|apply_patch) -> hooks/sensitive_guard.py
  *       deny               -> throw (OpenCode's way to deny a tool call)
+ *   tool.execute.before (edit|write|apply_patch) -> hooks/spec_store_guard.py (after sensitive_guard.py)
+ *       deny               -> throw (OpenCode's way to deny a tool call)
  *   tool.execute.before (bash | any non-edit tool whose name carries a platform token:
  *                       bitbucket / github / jira)             -> hooks/vcs_guard.py
  *       deny               -> throw (OpenCode's way to deny a tool call)
@@ -165,6 +167,14 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
       if (decision?.permissionDecision === "deny") {
         throw new Error(
           `artel sensitive-path guard: ${decision.permissionDecisionReason ?? "this path is protected"}`,
+        )
+      }
+
+      const store = await runHook("spec_store_guard.py", payload, directory, 10_000)
+      const storeDecision = firstJson(store.stdout)?.hookSpecificOutput
+      if (storeDecision?.permissionDecision === "deny") {
+        throw new Error(
+          `artel spec-store guard: ${storeDecision.permissionDecisionReason ?? "spec documents live in kartoteka"}`,
         )
       }
     },

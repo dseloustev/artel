@@ -1,6 +1,6 @@
 # hooks/
 
-Quality gates: `hooks.json` registers eight Python hooks via `${CLAUDE_PLUGIN_ROOT}` paths.
+Quality gates: `hooks.json` registers nine Python hooks via `${CLAUDE_PLUGIN_ROOT}` paths.
 Requires `python3` on the host. Verify commands come from host config
 (`.artel/config.json` — [config.md](../docs/config.md)), never hardcoded.
 
@@ -87,6 +87,13 @@ Five layers:
     never reaches the log: a value with whitespace or control characters, or a plaintext
     `http://` `baseUrl` off loopback while a token is present, is `misconfigured` by name and
     nothing is sent, and an exception text is redacted before it is logged.
+  - `spec_store_guard.py` (`PreToolUse` on `Edit|Write|MultiEdit`) — with `knowledge.adapter`
+    `"kartoteka"`, kartoteka is the spec store ([spec-storage.md](../docs/spec-storage.md)),
+    and this denies writing a spec document to disk unless the ticket's storage decision
+    (`.artel/run/<TICKET_ID>/spec-store.json`) is a fresh files decision, or the path is one the
+    user approved saving locally during an outage (`pending`). The deny names the MCP tools to
+    use instead. Inert without the adapter, for a one-character `ticket.projectKey`, and for
+    evidence files and `.active_ticket`. Bash writes are not seen.
 - **Session layer** — turn-one routing, no gate:
   - `using_artel.py` (`SessionStart`, matcher `startup|clear|compact`) — injects the
     `using-artel` router skill (frontmatter stripped) plus the host-status lines as
@@ -112,7 +119,9 @@ which reads no input, is the one exception). See [docs/worktrees.md](../docs/wor
 Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines, verify-stop
 counters) — never inside the plugin directory. The verify-layer, session-layer and platform-layer
 hooks return immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured
-plugin leaves zero footprint; `hook_common.py` is the shared helper library, not a registered hook.
+plugin leaves zero footprint; `hook_common.py`, `kartoteka_http.py` (the shared kartoteka HTTP
+client) and `spec_decision.py` (the per-ticket storage decision file) are shared helper
+libraries, not registered hooks.
 
 ## The OpenCode bridge
 

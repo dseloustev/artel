@@ -9,6 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import hook_common as h  # noqa: E402
+import spec_decision as sd  # noqa: E402
 
 SKILL_PATH = h.PLUGIN_ROOT / 'skills' / 'using-artel' / 'SKILL.md'
 
@@ -53,6 +54,24 @@ def ast_index_status():
     return 'on PATH' if shutil.which('ast-index') else 'not on PATH'
 
 
+def spec_store_status(config):
+    """Where this project's spec trail lives, and this ticket's standing decision
+    when one is fresh -- read before the first write, like the token line."""
+    adapter = (config.get('knowledge') or {}).get('adapter') or 'none'
+    if adapter != 'kartoteka':
+        return 'spec store: files (knowledge.adapter is {})'.format(adapter)
+    line = 'spec store: kartoteka (move local trails in with /artel:migrate-specs)'
+    ticket = sd.canonical_ticket(active_ticket_pointer(config) or '', config)
+    decision = sd.load(ticket) if ticket else None
+    if decision and sd.is_fresh(decision):
+        if decision.get('store') == 'files':
+            line += ' — {}: files ({})'.format(ticket, decision.get('reason') or 'no reason given')
+        elif decision.get('pending'):
+            line += ' — {}: kartoteka, {} pending local save(s)'.format(
+                ticket, len(decision['pending']))
+    return line
+
+
 def read_config():
     """(config, parseable). hook_common.load_config() swallows a JSON error and returns {},
     which would let a syntax error masquerade as `knowledge.adapter: none` and send the user
@@ -86,6 +105,7 @@ def host_status(config, parseable=True):
     ]
     if adapter == 'kartoteka':
         lines.append('- ' + token_status(knowledge))
+    lines.append('- ' + spec_store_status(config))
     ticket = active_ticket_pointer(config) or 'none'
     lines += [
         '- active ticket: ' + ticket,

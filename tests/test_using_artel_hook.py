@@ -174,5 +174,42 @@ class TestHostStatusTokenLine(unittest.TestCase):
         self.assertNotIn('tokenEnv', status)
 
 
+class TestHostStatusSpecStoreLine(unittest.TestCase):
+    ON = {'ticket': {'projectKey': 'AW'}, 'specs': {'dir': 'specs/.current'},
+          'knowledge': {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:8734',
+                        'project': 'adguard-wallet'}}
+
+    def setUp(self):
+        self._cwd = os.getcwd()
+        self._tmp = tempfile.TemporaryDirectory()
+        os.chdir(self._tmp.name)
+
+    def tearDown(self):
+        os.chdir(self._cwd)
+        self._tmp.cleanup()
+
+    def test_adapter_off(self):
+        self.assertIn('- spec store: files (knowledge.adapter is none)', ua.host_status({}))
+
+    def test_adapter_on_without_a_decision(self):
+        self.assertIn('- spec store: kartoteka (move local trails in with /artel:migrate-specs)',
+                      ua.host_status(self.ON))
+
+    def test_a_fresh_files_decision_for_the_active_ticket_is_shown(self):
+        import spec_decision as sd
+        Path('specs/.current').mkdir(parents=True)
+        Path('specs/.current/.active_ticket').write_text('AW-12-2\n', encoding='utf-8')
+        sd.write('AW-12', sd.new_decision('files', 'local-only run requested', 'dev'))
+        self.assertIn('— AW-12: files (local-only run requested)', ua.host_status(self.ON))
+
+    def test_pending_saves_are_counted(self):
+        import spec_decision as sd
+        Path('specs/.current').mkdir(parents=True)
+        Path('specs/.current/.active_ticket').write_text('AW-12\n', encoding='utf-8')
+        sd.write('AW-12', sd.new_decision('kartoteka', None, 'dev', pending=[
+            {'path': 'specs/.current/AW-12/plan.md', 'base_version': 1}]))
+        self.assertIn('— AW-12: kartoteka, 1 pending local save(s)', ua.host_status(self.ON))
+
+
 if __name__ == '__main__':
     unittest.main()

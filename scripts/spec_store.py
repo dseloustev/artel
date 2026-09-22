@@ -453,14 +453,21 @@ def _known_base(sources, name, decision, pending):
 
 def _judge(item, text, versions, stored, decision, pending):
     """Classify the one local copy of an address kartoteka does not hold:
-    absent, successor, or conflict (docs/spec-storage.md §7)."""
+    absent, successor, or conflict (docs/spec-storage.md §7).
+
+    A redaction blocks every automatic upload of a copy that has no known base:
+    a redacted version keeps the marker and the marker's hash, so the removed
+    text can never read as current or stale, and a copy that still carries it
+    would otherwise be uploaded as the newest version. Nothing about such an
+    address is diffed -- a diff would print the removed text back out."""
     newest = versions[0] if versions else None
     if newest is None:
         item['class'] = 'absent'
         return
+    redactions = [v for v in versions if _redacted(v)]
 
     def conflict(reason):
-        item.update({'class': 'conflict', 'reason': reason, 'diff': _diff(
+        item.update({'class': 'conflict', 'reason': reason, 'diff': None if redactions else _diff(
             stored().get('content', ''), text, 'kartoteka v{}'.format(newest['version']),
             item['source'])})
 
@@ -468,6 +475,10 @@ def _judge(item, text, versions, stored, decision, pending):
         return conflict('the stored newest version (v{}) is redacted'.format(newest['version']))
     base = _known_base(item['sources'], item['name'], decision, pending)
     item['base_version'] = base
+    if base is None and redactions:
+        return conflict('kartoteka redacted {} of this document; this copy may carry the removed '
+                        'content — review it before choosing'.format(
+                            ', '.join('v{}'.format(v['version']) for v in redactions)))
     if base is not None:
         if newest['version'] == base:
             item.update({'class': 'successor', 'reason': 'made from v{}'.format(base)})
@@ -534,7 +545,7 @@ def classify(store, config, ticket, logical, sources, decision, pending):
     for digest, item in groups.items():
         if newest is not None and not _redacted(newest) and digest == newest['content_hash']:
             item['class'] = 'current'
-        elif digest in [v['content_hash'] for v in versions[1:]]:
+        elif digest in [v['content_hash'] for v in versions[1:] if not _redacted(v)]:
             item.update({'class': 'stale',
                          'reason': 'kartoteka has moved on to v{}'.format(newest['version'])})
         else:
@@ -549,11 +560,13 @@ def classify(store, config, ticket, logical, sources, decision, pending):
         text = texts[item['sha256']]
         diffs = [_diff(texts[other['sha256']], text, other['source'], item['source'])
                  for other in unknown if other is not item]
-        if newest is not None and not redaction:
+        if newest is not None:
             diffs.append(_diff(stored().get('content', ''), text,
                                'kartoteka v{}'.format(newest['version']), item['source']))
         item.update({'class': 'conflict', 'reason': 'the local copies differ: {}'.format(copies),
-                     'diff': ''.join(diffs)})
+                     # A redaction withholds every diff of this address, local against local
+                     # included: any of these copies may still carry the removed text.
+                     'diff': None if redaction else ''.join(diffs)})
     return items
 
 

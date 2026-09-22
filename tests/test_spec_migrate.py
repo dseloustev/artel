@@ -126,10 +126,47 @@ class TestClassify(MigrateCase):
         # plan.md was not stored when the run went local, and is now: someone else made it.
         self.assertEqual(items['specs/.current/AW-12/plan.md']['class'], 'conflict')
 
-    def test_a_redacted_newest_version_is_a_conflict(self):
-        self.local(SPECS / 'AW-12/prd.md', 'secret')
+    def test_a_redacted_newest_version_is_a_conflict_without_a_diff(self):
+        self.local(SPECS / 'AW-12/prd.md', 'SECRET token=abc\n')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'SECRET token=abc\n', redacted=True)
+        item = self.plan('AW-12')['specs/.current/AW-12/prd.md']
+        self.assertEqual(item['class'], 'conflict')
+        self.assertIsNone(item['diff'])  # never print a copy that may hold the removed text
+
+    def test_a_redaction_blocks_an_automatic_upload(self):
+        # C2: a redacted version's hash is the marker's, so the removed text never reads
+        # stale; over mirror-only history it used to be a successor and was re-uploaded.
+        self.local(SPECS / 'AW-12/prd.md', 'SECRET token=abc')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'SECRET token=abc', redacted=True)
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'cleaned')
+        item = self.plan('AW-12')['specs/.current/AW-12/prd.md']
+        self.assertEqual(item['class'], 'conflict')
+        self.assertEqual(item['reason'], 'kartoteka redacted v1 of this document; this copy may '
+                                         'carry the removed content — review it before choosing')
+        self.assertIsNone(item['diff'])
+        proc = self.cli('migrate', 'apply', 'AW-12')
+        self.assertEqual(json.loads(proc.stdout)['uploaded'], [])
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'], 'cleaned')
+
+    def test_stale_matching_ignores_redacted_versions(self):
+        # The marker's own hash must never read as "kartoteka holds this copy".
+        self.local(SPECS / 'AW-12/prd.md', '[redacted]')
+        self.local(SPECS / 'AW-12/plan.md', 'old')
         self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'secret', redacted=True)
-        self.assertEqual(self.plan('AW-12')['specs/.current/AW-12/prd.md']['class'], 'conflict')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'cleaned')
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'old')
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'newer', author_agent='a')
+        items = self.plan('AW-12')
+        self.assertEqual(items['specs/.current/AW-12/prd.md']['class'], 'conflict')
+        # a copy kartoteka does hold, in a live older version, is still stale
+        self.assertEqual(items['specs/.current/AW-12/plan.md']['class'], 'stale')
+
+    def test_a_known_base_still_uploads_over_an_older_redaction(self):
+        self.local(SPECS / 'AW-12/plan.md', 'saved during the outage')
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'secret', redacted=True)
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'cleaned', author_agent='artel:planner')
+        self.decision('AW-12', pending=[{'path': 'specs/.current/AW-12/plan.md', 'base_version': 2}])
+        self.assertEqual(self.plan('AW-12')['specs/.current/AW-12/plan.md']['class'], 'successor')
 
     def test_the_context_copy_is_a_source_of_the_same_address(self):
         self.local(SPECS / 'AW-12/prd.md', 'same')

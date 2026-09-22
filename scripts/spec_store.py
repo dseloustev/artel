@@ -16,8 +16,11 @@ Exit codes: 0 ok · 2 error (JSON envelope on stderr) · 3 absent ·
 Contract: docs/spec-storage.md
 """
 import argparse
+import difflib
+import hashlib
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -365,6 +368,176 @@ def cmd_pending_add(args, config):
     return OK
 
 
+# ---- Migration: docs/spec-storage.md §7, skills/migrate-specs/SKILL.md ----------
+
+MIGRATION_AUTHOR = 'artel:migrate-specs'
+DIFF_LINES = 200
+
+
+def _sha(text):
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+def _diff(old, new, old_label, new_label):
+    lines = list(difflib.unified_diff(old.splitlines(True), new.splitlines(True),
+                                      fromfile=old_label, tofile=new_label))
+    if len(lines) > DIFF_LINES:
+        lines = lines[:DIFF_LINES] + ['... ({} more diff lines)\n'.format(len(lines) - DIFF_LINES)]
+    return ''.join(lines)
+
+
+def migration_tickets(args, config):
+    if args.all:
+        specs_dir = Path((config.get('specs') or {}).get('dir') or 'specs/.current')
+        names = set()
+        for root in (specs_dir, sd.CONTEXT_TICKETS):
+            if root.is_dir():
+                names.update(p.name for p in root.iterdir() if p.is_dir())
+        return sorted(n for n in names if sd.canonical_ticket(n, config) == n)
+    tickets = set()
+    for value in args.ticket:
+        ticket = sd.canonical_ticket(value, config)
+        if ticket is None:
+            raise Failure('invalid_argument', 'not a ticket id: {}'.format(value))
+        tickets.add(ticket)
+    if not tickets:
+        raise Failure('invalid_argument', 'name at least one ticket, or pass --all')
+    return sorted(tickets)
+
+
+def migration_store(config, tickets):
+    """The store, proven able to take these trails, or Failure(unavailable, exit 5)."""
+    store = Store(config)
+    record = probe(store, tickets[0]) if tickets else None
+    if record:
+        raise Failure('unavailable', record, UNAVAILABLE)
+    return store
+
+
+def candidates(ticket, config, pending_only):
+    """({logical path: [source paths]}, decision, {pending source: base_version})."""
+    specs_dir = (config.get('specs') or {}).get('dir') or 'specs/.current'
+    decision = sd.load(ticket) or {}
+    raw_pending = decision.get('pending')
+    # A hand-corrupted decision file (e.g. "pending": 5) must not crash migration
+    # (plan 2 final re-review): only a list of {path, base_version} dicts counts.
+    raw_pending = raw_pending if isinstance(raw_pending, list) else []
+    pending = {os.path.normpath(p['path']): p.get('base_version') for p in raw_pending
+               if isinstance(p, dict) and isinstance(p.get('path'), str) and p.get('path')}
+    context_prefix = str(sd.CONTEXT_TICKETS / ticket / 'spec-trail') + '/'
+    grouped = {}
+    for source in sd.local_trail(ticket, config):
+        logical = source
+        if source.startswith(context_prefix):
+            logical = str(Path(specs_dir) / ticket / source[len(context_prefix):])
+        if pending_only and source not in pending:
+            continue
+        grouped.setdefault(logical, []).append(source)
+    return grouped, decision, pending
+
+
+def _known_base(source, name, decision, pending):
+    """The stored version this copy was made from, when the trail says; else None.
+
+    A pending save records it exactly. A files decision froze the ticket's
+    versions when the run went local, so a document it lacks was new then (0).
+    Nothing else records a base: a legacy trail from the mirror era has none.
+    """
+    if source in pending:
+        return pending[source]
+    if decision.get('store') == 'files' and decision.get('versions'):
+        return decision['versions'].get(name, 0)
+    return None
+
+
+def classify(store, config, ticket, logical, sources, decision, pending):
+    ticket_key, stage, name = address(logical, config)
+    item = {'ticket': ticket, 'logical': logical, 'name': name, 'sources': sources,
+            'source': None, 'sha256': None, 'class': None, 'reason': None,
+            'newest_version': None, 'base_version': None, 'diff': None}
+    texts = []
+    for source in sources:
+        try:
+            raw = Path(source).read_bytes()
+            text = raw.decode('utf-8')
+        except (OSError, UnicodeDecodeError) as exc:
+            item.update({'class': 'skipped', 'reason': 'unreadable: {}'.format(exc)})
+            return item
+        if len(raw) > kh.MAX_BYTES:
+            item.update({'class': 'skipped',
+                         'reason': 'over the {}-byte artifact limit'.format(kh.MAX_BYTES)})
+            return item
+        texts.append((source, text))
+    distinct = {}
+    for source, text in texts:
+        distinct.setdefault(_sha(text), (source, text))
+    versions = store.versions(ticket_key, stage, name)
+    newest = versions[0] if versions else None
+    item['newest_version'] = newest['version'] if newest else None
+    if len(distinct) > 1:
+        (a_source, a_text), (b_source, b_text) = list(distinct.values())[:2]
+        item.update({'class': 'conflict',
+                     'reason': 'the local copies differ: {} and {}'.format(a_source, b_source),
+                     'diff': _diff(a_text, b_text, a_source, b_source)})
+        return item
+    digest, (source, text) = next(iter(distinct.items()))
+    item.update({'sha256': digest, 'source': source})
+    if newest is None:
+        item['class'] = 'absent'
+        return item
+
+    def conflict(reason):
+        stored = store.get(ticket_key, stage, name) or {}
+        item.update({'class': 'conflict', 'reason': reason, 'diff': _diff(
+            stored.get('content', ''), text, 'kartoteka v{}'.format(newest['version']), source)})
+        return item
+
+    if newest.get('redacted_at') is not None:
+        return conflict('the stored newest version (v{}) is redacted'.format(newest['version']))
+    if digest == newest['content_hash']:
+        item['class'] = 'current'
+        return item
+    if digest in [v['content_hash'] for v in versions[1:]]:
+        item.update({'class': 'stale',
+                     'reason': 'kartoteka has moved on to v{}'.format(newest['version'])})
+        return item
+    base = _known_base(source, name, decision, pending)
+    item['base_version'] = base
+    if base is not None:
+        if newest['version'] == base:
+            item.update({'class': 'successor', 'reason': 'made from v{}'.format(base)})
+            return item
+        return conflict('kartoteka moved from v{} to v{} since this copy was made'.format(
+            base, newest['version']))
+    if all(v.get('author_agent') is None for v in versions):
+        item.update({'class': 'successor',
+                     'reason': 'kartoteka holds only mirror copies of this file, which can only lag'})
+        return item
+    authors = sorted({v['author_agent'] for v in versions if v.get('author_agent')})
+    return conflict('kartoteka holds versions written there ({}) that this copy never saw'.format(
+        ', '.join(authors)))
+
+
+def plan_items(store, config, tickets, pending_only):
+    items = []
+    for ticket in tickets:
+        grouped, decision, pending = candidates(ticket, config, pending_only)
+        for logical in sorted(grouped):
+            items.append(classify(store, config, ticket, logical, grouped[logical], decision,
+                                  pending))
+    return items
+
+
+def cmd_migrate_plan(args, config):
+    tickets = migration_tickets(args, config)
+    items = plan_items(migration_store(config, tickets), config, tickets, args.pending_only)
+    summary = {}
+    for item in items:
+        summary[item['class']] = summary.get(item['class'], 0) + 1
+    print(json.dumps({'tickets': tickets, 'summary': summary, 'items': items}))
+    return OK
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog='spec_store.py', description=__doc__.splitlines()[0])
     verbs = parser.add_subparsers(dest='verb', required=True)
@@ -402,6 +575,14 @@ def build_parser():
     pending_add.add_argument('path')
     pending_add.add_argument('--base-version', type=int, required=True)
     pending_add.set_defaults(run=cmd_pending_add)
+    migrate = verbs.add_parser('migrate')
+    migrate_verbs = migrate.add_subparsers(dest='migrate_verb', required=True)
+    for name, run in (('plan', cmd_migrate_plan),):
+        sub = migrate_verbs.add_parser(name)
+        sub.add_argument('ticket', nargs='*')
+        sub.add_argument('--all', action='store_true')
+        sub.add_argument('--pending-only', action='store_true')
+        sub.set_defaults(run=run)
     return parser
 
 

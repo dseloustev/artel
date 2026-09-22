@@ -834,6 +834,36 @@ def _flip_decisions(store, config, tickets, resolutions):
     return flipped
 
 
+def _valid_pending(entry):
+    return isinstance(entry, dict) and isinstance(entry.get('path'), str) and entry['path']
+
+
+def tidy_decisions(tickets, config):
+    """Drop each touched ticket's orphan pending entries; return {ticket: entries left}.
+
+    A pending entry is permission to hold one document on disk until kartoteka
+    is back. Once its file is gone -- migrated and deleted, or never written at
+    all -- the entry only keeps the guard (docs/spec-storage.md §6) open for
+    that path forever. What is left is the count a resuming orchestrator reads
+    to know whether the outage is drained."""
+    left = {}
+    for ticket in tickets:
+        decision = sd.load(ticket)
+        pending = (decision or {}).get('pending')
+        if decision is not None and isinstance(pending, list):
+            # A hand-corrupted decision file may hold a non-list `pending` (e.g. 5), or
+            # entries that are not {path: ...}: only entries with a path are prunable, and
+            # everything else is left exactly as it was (candidates()'s own tolerance).
+            kept = [p for p in pending if not (_valid_pending(p) and not os.path.lexists(p['path']))]
+            if kept != pending:
+                decision['pending'] = kept
+                sd.write(ticket, decision)
+            pending = kept
+        left[ticket] = len([p for p in pending if _valid_pending(p)]) if isinstance(
+            pending, list) else 0
+    return left
+
+
 def cmd_migrate_apply(args, config):
     tickets = migration_tickets(args, config)
     store = migration_store(config, tickets)
@@ -864,10 +894,11 @@ def cmd_migrate_apply(args, config):
             failed.append({'logical': item['logical'],
                            'reason': 'the upload could not be verified; the local copy is kept'})
     flipped = _flip_decisions(store, config, tickets, resolutions)
+    pending_left = tidy_decisions(tickets, config)
     deletable, kept = deletion_sets(plan_items(store, config, tickets, args.pending_only),
                                     resolutions)
     print(json.dumps({'uploaded': uploaded, 'failed': failed, 'deletable': deletable,
-                      'kept': kept, 'flipped': flipped}))
+                      'kept': kept, 'flipped': flipped, 'pending_left': pending_left}))
     return OK
 
 
@@ -943,24 +974,14 @@ def cmd_migrate_delete(args, config):
                 continue
         removed.append(path)
         _prune_empty_parents(path, config, ticket)
-    removed_normalized = {os.path.normpath(r) for r in removed}
-    for ticket in tickets:
-        decision = sd.load(ticket)
-        if decision and isinstance(decision.get('pending'), list):
-            # A hand-corrupted decision file may hold a non-list `pending` (e.g. 5); only
-            # a list is prunable, and only dict entries with a path compare (candidates()'s
-            # own tolerance) -- everything else in `pending` is left exactly as it was.
-            decision['pending'] = [
-                p for p in decision['pending']
-                if not (isinstance(p, dict) and isinstance(p.get('path'), str)
-                        and os.path.normpath(p['path']) in removed_normalized)]
-            sd.write(ticket, decision)
+    pending_left = tidy_decisions(tickets, config)
     commit = None
     if args.commit and committed_paths:
         subject = _commit_subject(sorted(committed_tickets))
         if _git('commit', '-q', '-m', subject, '--', *committed_paths).returncode == 0:
             commit = _git('rev-parse', '--short', 'HEAD').stdout.strip()
-    print(json.dumps({'removed': removed, 'kept': kept, 'commit': commit}))
+    print(json.dumps({'removed': removed, 'kept': kept, 'commit': commit,
+                      'pending_left': pending_left}))
     return OK
 
 

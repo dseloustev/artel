@@ -403,6 +403,16 @@ class TestApply(MigrateCase):
         decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
         self.assertEqual(decision['store'], 'files')
 
+    def test_apply_prunes_orphan_pending_entries_and_counts_what_is_left(self):
+        self.local(SPECS / 'AW-12/prd.md', 'pending doc')
+        self.decision('AW-12', pending=[
+            {'path': 'specs/.current/AW-12/prd.md', 'base_version': 0},
+            {'path': 'specs/.current/AW-12/plan.md', 'base_version': 0}])  # never written
+        out = self.apply('AW-12', '--pending-only')
+        self.assertEqual(out['pending_left'], {'AW-12': 1})
+        decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
+        self.assertEqual([p['path'] for p in decision['pending']], ['specs/.current/AW-12/prd.md'])
+
     def test_pending_only_apply_does_not_flip_while_other_docs_remain(self):
         self.local(SPECS / 'AW-12/prd.md', 'pending doc')
         self.local(SPECS / 'AW-12/plan.md', 'not pending yet')
@@ -551,9 +561,29 @@ class TestDelete(MigrateCase):
         self.local(SPECS / 'AW-12/plan.md', 'P')
         self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', 'P')
         self.decision('AW-12', pending=[{'path': 'specs/.current/AW-12/plan.md', 'base_version': 0}])
-        self.delete('AW-12', '--pending-only')
+        out = self.delete('AW-12', '--pending-only')
         decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
         self.assertEqual(decision['pending'], [])
+        self.assertEqual(out['pending_left'], {'AW-12': 0})
+
+    def test_an_orphan_pending_entry_is_pruned(self):
+        # I4: a pending entry whose file is gone kept the guard open for that path forever.
+        self.decision('AW-12', pending=[{'path': 'specs/.current/AW-12/plan.md', 'base_version': 0}])
+        out = self.delete('AW-12', '--pending-only')
+        self.assertEqual((out['removed'], out['pending_left']), ([], {'AW-12': 0}))
+        decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
+        self.assertEqual(decision['pending'], [])
+
+    def test_pending_left_counts_the_entries_still_on_disk(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored', author_agent='a')
+        self.decision('AW-12', pending=[
+            {'path': 'specs/.current/AW-12/prd.md', 'base_version': 0},
+            {'path': 'specs/.current/AW-12/plan.md', 'base_version': 0}])  # never written
+        out = self.delete('AW-12', '--pending-only')
+        self.assertEqual(out['pending_left'], {'AW-12': 1})
+        decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
+        self.assertEqual([p['path'] for p in decision['pending']], ['specs/.current/AW-12/prd.md'])
 
     def test_many_tickets_get_a_counted_subject(self):
         for n in (1, 2, 3, 4):
@@ -594,5 +624,6 @@ class TestDelete(MigrateCase):
         self.decision('AW-12', pending=5)
         out = self.delete('AW-12')
         self.assertEqual(out['removed'], ['specs/.current/AW-12/prd.md'])
+        self.assertEqual(out['pending_left'], {'AW-12': 0})
         decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
         self.assertEqual(decision['pending'], 5)

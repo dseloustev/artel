@@ -60,10 +60,18 @@ class MigrateCase(unittest.TestCase):
         return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=self.repo,
                               capture_output=True, text=True)
 
-    def plan(self, *args):
+    def items(self, *args):
         proc = self.cli('migrate', 'plan', *args)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        return {i['logical']: i for i in json.loads(proc.stdout)['items']}
+        return json.loads(proc.stdout)['items']
+
+    def plan(self, *args):
+        """{logical: item} -- for addresses with one distinct local copy."""
+        return {i['logical']: i for i in self.items(*args)}
+
+    def by_source(self, *args):
+        """{source: its item} -- every local copy, for addresses whose copies differ."""
+        return {s: i for i in self.items(*args) for s in i['sources']}
 
 
 class TestClassify(MigrateCase):
@@ -130,10 +138,30 @@ class TestClassify(MigrateCase):
         self.assertEqual(len(item['sources']), 2)
         self.assertEqual(item['class'], 'absent')
 
-    def test_differing_local_copies_are_a_conflict(self):
-        self.local(SPECS / 'AW-12/prd.md', 'one')
-        self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', 'two')
-        self.assertEqual(self.plan('AW-12')['specs/.current/AW-12/prd.md']['class'], 'conflict')
+    def test_differing_local_copies_are_each_a_conflict(self):
+        tree = self.local(SPECS / 'AW-12/prd.md', 'line\ntree\n')
+        context = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', 'line\ncontext\n')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'line\nstored\n', author_agent='a')
+        items = self.items('AW-12')
+        self.assertEqual([(i['sources'], i['class']) for i in items],
+                         [([tree], 'conflict'), ([context], 'conflict')])
+        for item in items:
+            self.assertTrue(item['reason'].startswith('the local copies differ'), item['reason'])
+        tree_diff = items[0]['diff']
+        self.assertIn('-context', tree_diff)   # local against local
+        self.assertIn('+tree', tree_diff)
+        self.assertIn('-stored', tree_diff)    # and local against the stored newest
+        self.assertEqual((items[0]['sha256'], items[1]['sha256']),
+                         (sha('line\ntree\n'), sha('line\ncontext\n')))
+
+    def test_each_distinct_copy_is_classified_on_its_own(self):
+        tree = self.local(SPECS / 'AW-12/prd.md', 'stored text')
+        context = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', 'other text')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored text', author_agent='a')
+        items = self.by_source('AW-12')
+        self.assertEqual(items[tree]['class'], 'current')
+        self.assertEqual(items[context]['class'], 'conflict')
+        self.assertIsNot(items[tree], items[context])
 
     def test_oversized_is_skipped(self):
         self.local(SPECS / 'AW-12/prd.md', 'x' * (1048576 + 1))
@@ -228,6 +256,33 @@ class TestApply(MigrateCase):
         self.apply('AW-12', '--resolve', 'specs/.current/AW-12/prd.md=keep-local:'
                    '.artel/context/tickets/AW-12/spec-trail/prd.md')
         self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'], 'context')
+
+    def test_a_named_copy_settles_the_address_and_the_other_copy_goes(self):
+        # I5: the named copy used to upload but leave the address a conflict forever.
+        tree = self.local(SPECS / 'AW-12/prd.md', 'tree')
+        context = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', 'context')
+        self.decision('AW-12', store='files', reason='worked locally')
+        resolve = ('--resolve', 'specs/.current/AW-12/prd.md=keep-local:' + tree)
+        out = self.apply('AW-12', *resolve)
+        self.assertEqual(out['uploaded'], [{'logical': 'specs/.current/AW-12/prd.md', 'version': 1}])
+        self.assertEqual(out['deletable'], sorted([tree, context]))
+        self.assertEqual(out['flipped'], ['AW-12'])
+        again = self.apply('AW-12', *resolve)
+        self.assertEqual(again['uploaded'], [])
+        self.assertEqual(len(self.fake.artifacts[(PROJECT, 'AW-12', 'prd', 'prd.md')]), 1)
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'], 'tree')
+
+    def test_a_plain_keep_local_is_refused_when_the_copies_differ(self):
+        tree = self.local(SPECS / 'AW-12/prd.md', 'tree')
+        context = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', 'context')
+        proc = self.cli('migrate', 'apply', 'AW-12',
+                        '--resolve', 'specs/.current/AW-12/prd.md=keep-local')
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        error = json.loads(proc.stderr)['error']
+        self.assertEqual(error['kind'], 'invalid_argument')
+        self.assertIn(tree, error['message'])
+        self.assertIn(context, error['message'])
+        self.assertEqual(self.fake.artifacts, {})
 
     def test_the_decision_is_flipped_to_kartoteka(self):
         self.local(SPECS / 'AW-12/prd.md', 'P')
@@ -336,6 +391,15 @@ class TestDelete(MigrateCase):
         self.assertEqual(out['removed'], [])
         self.assertEqual({k['class'] for k in out['kept']}, {'conflict', 'absent'})
         self.assertTrue((self.repo / SPECS / 'AW-12/prd.md').exists())
+
+    def test_a_held_copy_is_deleted_while_a_differing_copy_stays(self):
+        tree = self.local(SPECS / 'AW-12/prd.md', 'stored text')
+        context = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', 'other text')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored text', author_agent='a')
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [tree])
+        self.assertEqual([(k['sources'], k['class']) for k in out['kept']], [([context], 'conflict')])
+        self.assertTrue((self.repo / context).exists())
 
     def test_keep_stored_deletes_the_local_copy(self):
         self.local(SPECS / 'AW-12/prd.md', 'local')

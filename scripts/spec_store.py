@@ -436,86 +436,125 @@ def candidates(ticket, config, pending_only):
     return grouped, decision, pending
 
 
-def _known_base(source, name, decision, pending):
+def _known_base(sources, name, decision, pending):
     """The stored version this copy was made from, when the trail says; else None.
 
     A pending save records it exactly. A files decision froze the ticket's
     versions when the run went local, so a document it lacks was new then (0).
     Nothing else records a base: a legacy trail from the mirror era has none.
     """
-    if source in pending:
-        return pending[source]
+    for source in sources:
+        if source in pending:
+            return pending[source]
     if decision.get('store') == 'files' and decision.get('versions'):
         return decision['versions'].get(name, 0)
     return None
 
 
-def classify(store, config, ticket, logical, sources, decision, pending):
-    ticket_key, stage, name = address(logical, config)
-    item = {'ticket': ticket, 'logical': logical, 'name': name, 'sources': sources,
-            'source': None, 'sha256': None, 'class': None, 'reason': None,
-            'newest_version': None, 'base_version': None, 'diff': None}
-    texts = []
-    for source in sources:
-        try:
-            raw = Path(source).read_bytes()
-            text = raw.decode('utf-8')
-        except (OSError, UnicodeDecodeError) as exc:
-            item.update({'class': 'skipped', 'reason': 'unreadable: {}'.format(exc)})
-            return item
-        if len(raw) > kh.MAX_BYTES:
-            item.update({'class': 'skipped',
-                         'reason': 'over the {}-byte artifact limit'.format(kh.MAX_BYTES)})
-            return item
-        texts.append((source, text))
-    distinct = {}
-    for source, text in texts:
-        distinct.setdefault(_sha(text), (source, text))
-    versions = store.versions(ticket_key, stage, name)
+def _judge(item, text, versions, stored, decision, pending):
+    """Classify the one local copy of an address kartoteka does not hold:
+    absent, successor, or conflict (docs/spec-storage.md §7)."""
     newest = versions[0] if versions else None
-    item['newest_version'] = newest['version'] if newest else None
-    if len(distinct) > 1:
-        (a_source, a_text), (b_source, b_text) = list(distinct.values())[:2]
-        item.update({'class': 'conflict',
-                     'reason': 'the local copies differ: {} and {}'.format(a_source, b_source),
-                     'diff': _diff(a_text, b_text, a_source, b_source)})
-        return item
-    digest, (source, text) = next(iter(distinct.items()))
-    item.update({'sha256': digest, 'source': source})
     if newest is None:
         item['class'] = 'absent'
-        return item
+        return
 
     def conflict(reason):
-        stored = store.get(ticket_key, stage, name) or {}
         item.update({'class': 'conflict', 'reason': reason, 'diff': _diff(
-            stored.get('content', ''), text, 'kartoteka v{}'.format(newest['version']), source)})
-        return item
+            stored().get('content', ''), text, 'kartoteka v{}'.format(newest['version']),
+            item['source'])})
 
-    if newest.get('redacted_at') is not None:
+    if _redacted(newest):
         return conflict('the stored newest version (v{}) is redacted'.format(newest['version']))
-    if digest == newest['content_hash']:
-        item['class'] = 'current'
-        return item
-    if digest in [v['content_hash'] for v in versions[1:]]:
-        item.update({'class': 'stale',
-                     'reason': 'kartoteka has moved on to v{}'.format(newest['version'])})
-        return item
-    base = _known_base(source, name, decision, pending)
+    base = _known_base(item['sources'], item['name'], decision, pending)
     item['base_version'] = base
     if base is not None:
         if newest['version'] == base:
             item.update({'class': 'successor', 'reason': 'made from v{}'.format(base)})
-            return item
+            return
         return conflict('kartoteka moved from v{} to v{} since this copy was made'.format(
             base, newest['version']))
     if all(v.get('author_agent') is None for v in versions):
         item.update({'class': 'successor',
                      'reason': 'kartoteka holds only mirror copies of this file, which can only lag'})
-        return item
+        return
     authors = sorted({v['author_agent'] for v in versions if v.get('author_agent')})
     return conflict('kartoteka holds versions written there ({}) that this copy never saw'.format(
         ', '.join(authors)))
+
+
+def classify(store, config, ticket, logical, sources, decision, pending):
+    """This address's items: one per distinct local content (docs/spec-storage.md §7).
+
+    A copy kartoteka holds -- as its newest version (current) or an older one
+    (stale) -- is settled on its own. The copies left are unknown to the store.
+    One unknown copy is judged against the store's history. Two or more, or one
+    beside a copy that could not be read, are each a conflict: nothing says which
+    of them is the newer work, so the user picks one.
+    """
+    ticket_key, stage, name = address(logical, config)
+    items, groups, texts = [], {}, {}
+
+    def new_item(copies, **fields):
+        item = {'ticket': ticket, 'logical': logical, 'name': name, 'sources': copies,
+                'source': copies[0], 'sha256': None, 'class': None, 'reason': None,
+                'newest_version': None, 'base_version': None, 'diff': None}
+        item.update(fields)
+        items.append(item)
+        return item
+
+    for source in sources:
+        try:
+            raw = Path(source).read_bytes()
+            text = raw.decode('utf-8')
+        except (OSError, UnicodeDecodeError) as exc:
+            new_item([source], **{'class': 'skipped', 'reason': 'unreadable: {}'.format(exc)})
+            continue
+        if len(raw) > kh.MAX_BYTES:
+            new_item([source], **{'class': 'skipped',
+                                  'reason': 'over the {}-byte artifact limit'.format(kh.MAX_BYTES)})
+            continue
+        digest = _sha(text)
+        if digest in groups:
+            groups[digest]['sources'].append(source)
+        else:
+            groups[digest], texts[digest] = new_item([source], sha256=digest), text
+    versions = store.versions(ticket_key, stage, name)
+    newest = versions[0] if versions else None
+    for item in items:
+        item['newest_version'] = newest['version'] if newest else None
+    fetched = []
+
+    def stored():
+        if not fetched:
+            fetched.append(store.get(ticket_key, stage, name) or {})
+        return fetched[0]
+
+    unknown = []
+    for digest, item in groups.items():
+        if newest is not None and not _redacted(newest) and digest == newest['content_hash']:
+            item['class'] = 'current'
+        elif digest in [v['content_hash'] for v in versions[1:]]:
+            item.update({'class': 'stale',
+                         'reason': 'kartoteka has moved on to v{}'.format(newest['version'])})
+        else:
+            unknown.append(item)
+    skipped = [i for i in items if i['class'] == 'skipped']
+    if len(unknown) == 1 and not skipped:
+        _judge(unknown[0], texts[unknown[0]['sha256']], versions, stored, decision, pending)
+        return items
+    copies = ', '.join(i['source'] for i in unknown + skipped)
+    redaction = any(_redacted(v) for v in versions)
+    for item in unknown:
+        text = texts[item['sha256']]
+        diffs = [_diff(texts[other['sha256']], text, other['source'], item['source'])
+                 for other in unknown if other is not item]
+        if newest is not None and not redaction:
+            diffs.append(_diff(stored().get('content', ''), text,
+                               'kartoteka v{}'.format(newest['version']), item['source']))
+        item.update({'class': 'conflict', 'reason': 'the local copies differ: {}'.format(copies),
+                     'diff': ''.join(diffs)})
+    return items
 
 
 def plan_items(store, config, tickets, pending_only):
@@ -523,7 +562,7 @@ def plan_items(store, config, tickets, pending_only):
     for ticket in tickets:
         grouped, decision, pending = candidates(ticket, config, pending_only)
         for logical in sorted(grouped):
-            items.append(classify(store, config, ticket, logical, grouped[logical], decision,
+            items.extend(classify(store, config, ticket, logical, grouped[logical], decision,
                                   pending))
     return items
 
@@ -554,15 +593,32 @@ def parse_resolutions(values):
     return resolved
 
 
+def _holds(item, source):
+    """Whether `source` names one of this item's local copies (paths compare normalised)."""
+    return os.path.normpath(source) in {os.path.normpath(s) for s in item['sources']}
+
+
+def _by_logical(items):
+    grouped = {}
+    for item in items:
+        grouped.setdefault(item['logical'], []).append(item)
+    return grouped
+
+
 def _upload_source(item, resolutions):
-    """(source path, expected_version) to upload for this item, or None."""
+    """(source path, expected_version) to upload for this item, or None.
+
+    A keep-local that names a copy uploads that copy and no other copy of the
+    address: the user chose it."""
+    action, source = resolutions.get(item['logical'], (None, None))
+    if action == 'keep-local' and source is not None and not _holds(item, source):
+        return None
     if item['class'] == 'absent':
         return item['source'], 0
     if item['class'] == 'successor':
         return item['source'], item['newest_version']
-    action, source = resolutions.get(item['logical'], (None, None))
     if item['class'] == 'conflict' and action == 'keep-local':
-        return source or item['source'] or item['sources'][0], item['newest_version'] or 0
+        return item['source'], item['newest_version'] or 0
     return None
 
 
@@ -573,57 +629,83 @@ def _validate_resolutions(items, resolutions):
     - keep-local naming a source that is not one of this address's own local
       copies: it must never read a file from outside the ticket's spec trail (an
       operator typo or a hostile --resolve value could otherwise upload anything
-      readable as the ticket's document);
+      readable as the ticket's document); nor one that was skipped;
+    - a plain keep-local for an address whose local copies differ: it must say
+      which copy to keep;
     - keep-stored for an address kartoteka holds no version of: there is no
       stored copy to keep, and discarding the local ones would lose the document.
     """
-    for item in items:
-        action, source = resolutions.get(item['logical'], (None, None))
-        if action == 'keep-stored' and item['newest_version'] is None:
-            raise Failure('invalid_argument', 'keep-stored for {}: kartoteka holds no version '
-                                              'of it'.format(item['logical']))
-        if item['class'] != 'conflict' or action != 'keep-local' or source is None:
+    by_logical = _by_logical(items)
+    for logical, (action, source) in sorted(resolutions.items()):
+        copies = by_logical.get(logical)
+        if not copies:
             continue
-        if os.path.normpath(source) not in {os.path.normpath(s) for s in item['sources']}:
+        if action == 'keep-stored' and any(i['newest_version'] is None for i in copies):
+            raise Failure('invalid_argument', 'keep-stored for {}: kartoteka holds no version '
+                                              'of it'.format(logical))
+        if action != 'keep-local':
+            continue
+        if source is None:
+            differing = [i['source'] for i in copies if i['class'] == 'conflict']
+            if len(differing) > 1:
+                raise Failure('invalid_argument', (
+                    'keep-local for {} must name the copy to keep -- its local copies differ: '
+                    '{}').format(logical, ', '.join(differing)))
+            continue
+        holder = next((i for i in copies if _holds(i, source)), None)
+        if holder is None:
             raise Failure('invalid_argument', (
                 'keep-local source {} is not a local copy of {}; its copies are: {}').format(
-                    source, item['logical'], ', '.join(item['sources'])))
+                    source, logical, ', '.join(s for i in copies for s in i['sources'])))
+        if holder['class'] == 'skipped':
+            raise Failure('invalid_argument', 'keep-local source {} of {} was skipped: {}'.format(
+                source, logical, holder['reason']))
+
+
+def _settled(item, resolutions, by_logical):
+    """Whether this local copy may go: kartoteka verifiably holds this content or
+    something newer (current, stale); or the user chose the stored copy
+    (keep-stored) of an address kartoteka holds; or the user chose another local
+    copy of the address (keep-local:<source>) and kartoteka holds that copy as
+    its newest version. A skipped copy is never settled."""
+    if item['class'] in ('current', 'stale'):
+        return True
+    if item['class'] == 'skipped':
+        return False
+    action, source = resolutions.get(item['logical'], (None, None))
+    if action == 'keep-stored':
+        return item['class'] == 'conflict' and item['newest_version'] is not None
+    if action == 'keep-local' and source is not None:
+        chosen = next((i for i in by_logical[item['logical']] if _holds(i, source)), None)
+        return chosen is not None and chosen is not item and chosen['class'] == 'current'
+    return False
 
 
 def deletion_sets(items, resolutions):
     """(paths safe to delete, items to keep) for a plan fresh from disk and the store.
 
-    Safe means kartoteka verifiably holds this content or something newer
-    (current, stale), or the user chose the stored copy (keep-stored) of an
-    address kartoteka holds. Every local source of such an address goes -- the
-    working tree and the context copy alike."""
+    Every local source of a settled copy goes -- the working tree and the
+    context copy alike, when they hold the same content."""
+    by_logical = _by_logical(items)
     deletable, kept = [], []
     for item in items:
-        action = resolutions.get(item['logical'], (None, None))[0]
-        if item['class'] in ('current', 'stale') or (
-                item['class'] == 'conflict' and action == 'keep-stored'
-                and item['newest_version'] is not None):
+        if _settled(item, resolutions, by_logical):
             deletable.extend(item['sources'])
         else:
-            kept.append({'logical': item['logical'], 'class': item['class'],
-                         'reason': item['reason']})
+            kept.append({'logical': item['logical'], 'sources': item['sources'],
+                         'class': item['class'], 'reason': item['reason']})
     return sorted(deletable), kept
 
 
 def _fully_migrated(store, config, ticket, resolutions):
-    """Whether ticket's WHOLE local trail -- every document, regardless of this
-    run's --pending-only -- is now safe to hand to kartoteka: current, stale, or
-    a conflict the user resolved keep-stored. Anything else left outstanding (an
-    unresolved or skip-resolved conflict, a skipped file, or a document this run
-    never touched) means the ticket is not fully migrated yet."""
-    for item in plan_items(store, config, [ticket], False):
-        action = resolutions.get(item['logical'], (None, None))[0]
-        if item['class'] in ('current', 'stale'):
-            continue
-        if item['class'] == 'conflict' and action == 'keep-stored':
-            continue
-        return False
-    return True
+    """Whether ticket's WHOLE local trail -- every copy of every document,
+    regardless of this run's --pending-only -- is now safe to hand to kartoteka:
+    every copy settled (_settled). Anything else left outstanding (an unresolved
+    or skip-resolved conflict, a skipped file, or a document this run never
+    touched) means the ticket is not fully migrated yet."""
+    items = plan_items(store, config, [ticket], False)
+    by_logical = _by_logical(items)
+    return all(_settled(item, resolutions, by_logical) for item in items)
 
 
 def _flip_decisions(store, config, tickets, resolutions):

@@ -47,20 +47,27 @@ An empty plan: "No spec documents on disk for <scope>." — stop.
 
 ## 3. Conflicts
 
-For each `conflict` item, unless `--no-prompt`: show its `reason` and its `diff` (already capped
-by the script), then ask (`AskUserQuestion`), one question per document:
+Items are per local copy: when a document's working-tree copy and its `.artel/context` copy
+differ, the plan lists each on its own, and a copy kartoteka already holds is `current` or
+`stale` whatever the other copy is.
 
-- **Keep local** → `--resolve <logical>=keep-local`. When the reason says the two local copies
-  differ, offer one option per source instead:
-  `--resolve <logical>=keep-local:<source>`.
-- **Keep stored** → `--resolve <logical>=keep-stored` (the local copy is obsolete). Offer it
+Unless `--no-prompt`, ask (`AskUserQuestion`) one question per document — per `logical` — that
+has a `conflict` item. Show each conflicting copy's `sources`, `reason` and `diff` (already
+capped by the script), then offer:
+
+- **Keep local** → `--resolve <logical>=keep-local`. When the document has two or more
+  conflicting copies (their reason starts `the local copies differ`), offer one option per copy
+  instead, naming its source: `--resolve <logical>=keep-local:<source>` — a plain `keep-local`
+  is refused there. The chosen copy is uploaded; once kartoteka holds it, the document's other
+  local copies are deletable too.
+- **Keep stored** → `--resolve <logical>=keep-stored` (the local copies are obsolete). Offer it
   only when the item's `newest_version` is not null: with nothing stored there is no stored copy
   to keep, and the script refuses it (exit `2`, kind `invalid_argument`).
-- **Skip** → `--resolve <logical>=skip`: leave both alone and keep the local copy.
+- **Skip** → `--resolve <logical>=skip`: leave both alone and keep the local copies.
 
-A `keep-local:<source>` naming a path that is not one of that document's own local copies is
-refused before anything uploads (exit `2`, kind `invalid_argument`) — offer only the sources the
-plan listed for that document.
+A `keep-local:<source>` naming a path that is not one of that document's own local copies, or one
+that was skipped, is refused before anything uploads (exit `2`, kind `invalid_argument`) — offer
+only the conflicting sources the plan listed for that document.
 
 ## 4. Apply
 

@@ -66,9 +66,11 @@ def spec_store_status(config):
     if decision and sd.is_fresh(decision):
         if decision.get('store') == 'files':
             line += ' — {}: files ({})'.format(ticket, decision.get('reason') or 'no reason given')
-        elif decision.get('pending'):
-            line += ' — {}: kartoteka, {} pending local save(s)'.format(
-                ticket, len(decision['pending']))
+        else:
+            pending = decision.get('pending')
+            if isinstance(pending, list) and pending:
+                line += ' — {}: kartoteka, {} pending local save(s)'.format(
+                    ticket, len(pending))
     return line
 
 

@@ -210,6 +210,27 @@ class TestHostStatusSpecStoreLine(unittest.TestCase):
             {'path': 'specs/.current/AW-12/plan.md', 'base_version': 1}]))
         self.assertIn('— AW-12: kartoteka, 1 pending local save(s)', ua.host_status(self.ON))
 
+    def test_malformed_pending_field_is_ignored_gracefully(self):
+        # A corrupt pending field (not a list) should not crash host_status.
+        # The decision is still shown, but without the pending suffix.
+        Path('specs/.current').mkdir(parents=True)
+        Path('specs/.current/.active_ticket').write_text('AW-12\n', encoding='utf-8')
+        import spec_decision as sd
+        # Write directly to create malformed JSON (pending: 5 instead of a list)
+        sd.write('AW-12', {
+            'store': 'kartoteka',
+            'reason': None,
+            'decided_by': 'dev',
+            'decided_at': sd.now_iso(),
+            'versions': {},
+            'pending': 5,  # Malformed: not a list
+        })
+        # Should still return the generic kartoteka line, not crash
+        status = ua.host_status(self.ON)
+        self.assertIn('- spec store: kartoteka (move local trails in with /artel:migrate-specs)', status)
+        # The pending suffix should NOT be present
+        self.assertNotIn('pending local save(s)', status)
+
 
 if __name__ == '__main__':
     unittest.main()

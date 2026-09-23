@@ -137,7 +137,11 @@ class FakeKartoteka:
             'content_type': _sniff(data) or _extension_type(path) or 'application/octet-stream',
             'byte_size': len(data),
             'author_agent': author_agent,
-            'created_at': created_at or '2026-09-23T10:00:{:02d}+00:00'.format(len(versions)),
+            # A clearly past default: today's date would make a version's
+            # created_at race the wall clock -- "in the future" before this
+            # time of day, and a caller comparing it against a file's mtime
+            # would get a different answer depending on when the suite runs.
+            'created_at': created_at or '2026-01-01T00:00:{:02d}+00:00'.format(len(versions)),
             'redacted_at': '2026-09-23T11:00:00+00:00' if redacted else None,
             'bytes': None if redacted else bytes(data),
         })

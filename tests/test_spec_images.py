@@ -159,6 +159,19 @@ class TestImagePut(ImageCase):
                               'message': spec_store.ATTACHMENTS_MISSING}))
 
 
+class TestPutCreatedVersionDefaults(ImageCase):
+    def test_the_default_created_at_is_clearly_in_the_past(self):
+        # fake_kartoteka.py's default for a PUT-created version must not be
+        # today's date: a caller comparing it against a file's mtime would
+        # get a different answer depending on the time of day the suite runs.
+        self.image(TRAIL + '/design/a.png', png('a'))
+        proc = self.run_cli('image', 'put', TRAIL + '/design/a.png')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        stored = self.fake.newest_image(PROJECT, 'AW-12', 'design/a.png')
+        when = datetime.fromisoformat(stored['created_at'])
+        self.assertLess(when, datetime.now(timezone.utc))
+
+
 class TestImageToken(ImageCase):
     knowledge_extra = {'tokenEnv': 'ARTEL_TEST_TOKEN'}
 

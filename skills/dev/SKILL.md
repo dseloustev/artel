@@ -79,9 +79,10 @@ an external action. No verify gate here (`verify.commands`) — docs only, no co
 
 **Re-mirror first.** Per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 rows 2-4
 (this skill carries no local-only flag, so row 1 cannot apply — do not add one here)
-and §2, on the queue path run:
+and §2, on the queue path run. Files path first, kartoteka path (`docs/spec-storage.md` §4.2) second:
 
     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+    set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
 and `task_create` the rows it emits — `data.iterations`, then `data.sections` (§2 steps
 2–4, surfacing every `data.warnings` line). The step is create-only and idempotent, so
@@ -142,7 +143,7 @@ one-line summary of the error with the quoted error nested under it as an indent
 (nested lines go to the row's description; the checkbox line is the row's title, capped
 at 500 characters), and on the queue path (§1 rows 2-4) record it before the implementer
 round: run
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>`
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>` (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <the phase-aware tasklist> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>`)
 — `<TICKET_ID>` the canonical key, without the phase suffix — and `task_create` its
 `data.sections` (§2's fix-writer rule);
 when the RED stems from incomplete cross-phase wiring (this phase's code invokes pieces a later

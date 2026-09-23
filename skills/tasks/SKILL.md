@@ -100,9 +100,11 @@ the argument hint and stop.
    same section there, so `sync-phases` matches the same text on both sides.
    If the tasklist has a Progress Report table with a row for iteration `N`, bump that row's
    total (`X/Y` → `X/Y+1`).
-3. **Mirror** — exactly `docs/task-queue.md` §2:
+3. **Mirror** — exactly `docs/task-queue.md` §2. Files path first, kartoteka path
+   (`docs/spec-storage.md` §4.2) second:
 
        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
    Exit `0` → for each entry of `data.iterations` in order (not `data.sections` — those belong
    to the fix writers, and `--fix` below):
@@ -151,9 +153,11 @@ with any of them → print the argument hint and stop.
      file.
    A day's manual additions share one heading, the one exception to §6's never-reuse rule.
    Fix sections are not in the Progress Report table; leave it alone.
-3. **Mirror** — `docs/task-queue.md` §2's fix-writer rule:
+3. **Mirror** — `docs/task-queue.md` §2's fix-writer rule. Files path first, kartoteka path
+   (`docs/spec-storage.md` §4.2) second:
 
        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <file in scope> --ticket-key <TICKET_ID>
+       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <file in scope> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
    Exit `0` → for each entry of `data.sections` in order:
    `task_create(project=<project>, ticket_key=<TICKET_ID>, title=…, description=…, status=…)`

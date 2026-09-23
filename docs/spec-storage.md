@@ -196,20 +196,27 @@ model's context:
 |---|---|
 | `tasklist_tasks.py --tasklist <path> …` | `set -o pipefail; spec_store.py get <path> \| tasklist_tasks.py --tasklist - …` |
 | `plan_check.py --plan <path> --strict` | `set -o pipefail; spec_store.py get <path> \| plan_check.py --plan - --strict` |
-| `grep -q <pattern> <path>` | `set -o pipefail; spec_store.py get <path> \| grep -q <pattern>` |
+| `grep -q <pattern> <path>` | `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" \| grep -q <pattern>` |
 | `test -f <path>` | `spec_store.py exists <path>` |
-| `gh pr … --body-file <path>` | `set -o pipefail; spec_store.py get <path> \| gh pr … --body-file -` |
+| `gh pr … --body-file <path>` | `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" \| gh pr … --body-file -` |
 
 `spec_store.py` is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py`.
 
-**Every pipe that starts with `spec_store.py get` runs with `set -o pipefail`.** A failed `get`
-prints nothing on stdout, and without `pipefail` the pipe's status is the last command's alone:
-`grep -q` would answer "no match" and `gh` would post an empty body. With it, the pipe fails with
-`get`'s exit status, and `get`'s stderr says why. `tasklist_tasks.py --tasklist -` and
-`plan_check.py --plan -` also refuse empty or whitespace-only input (exit `2`, kind
-`empty_input`), so a failed `get` can never read as an empty document. `get` exits `0` when its
-reader stops early — `grep -q` does, on its first match — so `pipefail` reports the reader's
-answer.
+**A failed `get` must never reach a consumer as an empty document.** It prints nothing on
+stdout, and `pipefail` alone does not stop that: a pipe's status under `pipefail` is its
+*rightmost* failing command's, so when `get` fails, `get … | grep -q` returns grep's `1` ("no
+match"), and `gh` reads the empty body and posts it before the pipe ends. Two forms follow:
+
+- **The parsers are piped**, with `set -o pipefail`. `tasklist_tasks.py --tasklist -` and
+  `plan_check.py --plan -` refuse empty or whitespace-only input (exit `2`, kind `empty_input`),
+  so a failed `get` fails the pipe and never reads as an empty document; `get`'s stderr says why.
+- **Every other consumer is fed only on success** — fetch first,
+  `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" | <consumer>`. The consumer runs only
+  when `get` exited `0`.
+
+Either way the status is the consumer's on success and `get`'s otherwise (`2` error, `3`
+absent). `get` exits `0` when its reader stops early, so an early-stopping reader never turns a
+successful read into a failure.
 
 ### 4.3 The tasklist
 

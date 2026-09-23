@@ -41,9 +41,11 @@ Skipped entirely when `--local` was passed (§1 row 1). Otherwise, per
 `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, decide whether the queue path applies. On the
 fallback path, skip this step silently and continue.
 
-On the queue path, run:
+On the queue path, run. Files path first, kartoteka path (`docs/spec-storage.md` §4.2)
+second:
 
     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+    set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
 Exit `0` → follow `docs/task-queue.md` §2 steps 2–4: `task_create` each iteration
 row, then each of its children with `parent_id` set to the iteration's

@@ -61,9 +61,11 @@ implementer for it (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §2, fix-writer r
 2. Decide the path per task-queue.md §1. `--local` was passed, `knowledge.adapter` is `none` or
    absent, `knowledge.project` is unset, or the kartoteka task tools are absent → skip this
    section: the file carries the tasks, exactly as before fix rows existed.
-3. On the queue path run
+3. On the queue path run. Files path first, kartoteka path (`docs/spec-storage.md` §4.2)
+   second:
 
        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>
+       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <the phase-aware tasklist> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
    Exit `0` → for each entry of `data.sections`, in order:
    `task_create(project=<project>, ticket_key=<TICKET_ID>, title=…, description=…, status=…)`

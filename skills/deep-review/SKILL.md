@@ -299,9 +299,11 @@ Otherwise ask via `AskUserQuestion` which fixes to work. Offer only the options 
    (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §2, fix-writer rule). Decide the path per
    task-queue.md §1: `--local` was passed, `knowledge.adapter` is `none` or absent,
    `knowledge.project` is unset, or the kartoteka task tools are absent → skip this step and
-   display `Task queue: not used (<reason>)`. Otherwise run
+   display `Task queue: not used (<reason>)`. Otherwise run. Files path first, kartoteka path
+   (`docs/spec-storage.md` §4.2) second:
 
        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
    and for each entry of `data.sections`, in order,
    `task_create(project=<project>, ticket_key=<TICKET_ID>, title=…, description=…, status=…)`

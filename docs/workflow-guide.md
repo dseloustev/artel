@@ -62,9 +62,9 @@ config nothing is injected.
 | Run the next phase of a phased ticket | `/artel:feature-development PROJ-XXXX-<N>` (or `/artel:dev PROJ-XXXX-<N>`) |
 | Just the PRD interview | `/artel:analysis PROJ-XXXX` |
 | Just research + plan | `/artel:researcher PROJ-XXXX` then `/artel:planner PROJ-XXXX` |
-| Check a plan for hallucinated references | `python3 <plugin-root>/scripts/plan_check.py --plan specs/.current/PROJ-XXXX/plan.md --strict` |
+| Check a plan for hallucinated references | `python3 <plugin-root>/scripts/plan_check.py --plan specs/.current/PROJ-XXXX/plan.md --strict` (kartoteka path: `set -o pipefail; python3 <plugin-root>/scripts/spec_store.py get specs/.current/PROJ-XXXX/plan.md | python3 <plugin-root>/scripts/plan_check.py --plan - --strict`) |
 | Just the tasklist | `/artel:tasklist PROJ-XXXX` (from plan) or `/artel:generate-tasklist PROJ-XXXX` (from idea+vision) |
-| Parse a tasklist into task-queue rows (JSON; mirrors nothing) | `python3 <plugin-root>/scripts/tasklist_tasks.py --tasklist specs/.current/PROJ-XXXX/tasklist.md --ticket-key PROJ-XXXX` |
+| Parse a tasklist into task-queue rows (JSON; mirrors nothing) | `python3 <plugin-root>/scripts/tasklist_tasks.py --tasklist specs/.current/PROJ-XXXX/tasklist.md --ticket-key PROJ-XXXX` (kartoteka path: `set -o pipefail; python3 <plugin-root>/scripts/spec_store.py get specs/.current/PROJ-XXXX/tasklist.md | python3 <plugin-root>/scripts/tasklist_tasks.py --tasklist - --ticket-key PROJ-XXXX`) |
 | Implement the next open task | `/artel:implementer PROJ-XXXX` |
 | Review / runtime-check / QA / gate-status | `/artel:run-reviewer PROJ-XXXX` · `/artel:run-app --gate` · `/artel:qa PROJ-XXXX` · `/artel:validate PROJ-XXXX` |
 | PR description / open the PR | `/artel:pr-description PROJ-XXXX` · `/artel:pr-create PROJ-XXXX` |
@@ -220,11 +220,11 @@ environment error (bad toolchain/invocation — **never** edit app code in respo
   comma-separated list, and commands may carry a `{files}` token that scoped calls replace with
   the changed paths. This is the engine behind the fast-verify hooks; skills run the config
   commands directly.
-- `plan_check.py --plan <path> [--strict]` — resolves every `ref:`/backticked-path anchor in a
+- `plan_check.py --plan <path|-> [--strict]` (`-` reads stdin — the kartoteka path pipes `spec_store.py get <path>` into it, docs/spec-storage.md §4.2) — resolves every `ref:`/backticked-path anchor in a
   plan against the repo (via `ast-index` when available, else `git grep`) and lists unresolved
   references in `data.unresolved`. The `PLAN_GROUNDED` gate (feature-development gate 3.5) calls
   it with `--strict`.
-- `tasklist_tasks.py --tasklist <path> --ticket-key <KEY>` — parses a tasklist into
+- `tasklist_tasks.py --tasklist <path|-> --ticket-key <KEY>` (`-` reads stdin — the kartoteka path pipes `spec_store.py get <path>` into it, docs/spec-storage.md §4.2) — parses a tasklist into
   the task rows that mirror it, as JSON: `data.iterations`, and `data.sections` for the four
   fix sections the queue records but never offers. Contacts nothing; the caller makes the
   `task_create` MCP calls. Adds `tasklist_not_found`, `tasklist_malformed` and
@@ -266,7 +266,8 @@ and ensures the ticket directory exists.
   in `.artel/run/PROJ-XXXX/open-questions.md` with a default (`autonomous-run.md §3`), not a
   question to you. You get `research.md` and `plan.md`.
 - *Gate 3.5 — `PLAN_GROUNDED`.* The orchestrator runs
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` to catch
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path:
+  `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan - --strict`) to catch
   hallucinated file/symbol references. Exit 0 proceeds; exit 1 bounces the findings back to
   `planner` to fix and regenerate (bounded — a third failure stops and asks); exit 2 is an
   environment error, a stop-and-ask pointing at setup, never a bounce.
@@ -412,7 +413,8 @@ what to run next. Run all of these from the host repo root.
 
 5. **Plan grounding check.** *Pre:* `plan.md` exists. *Run:*
    `python3 <plugin-root>/scripts/plan_check.py --plan specs/.current/PROJ-XXXX/plan.md
-   --strict`. *Produces:* a JSON envelope — exit 0 (all anchors resolve), exit 1
+   --strict` (kartoteka path: `set -o pipefail; python3 <plugin-root>/scripts/spec_store.py get specs/.current/PROJ-XXXX/plan.md |
+   python3 <plugin-root>/scripts/plan_check.py --plan - --strict`). *Produces:* a JSON envelope — exit 0 (all anchors resolve), exit 1
    (`data.unresolved` lists hallucinated refs), exit 2 (environment error). *Next:* on exit 1,
    feed the unresolved list back to `/artel:planner PROJ-XXXX` (declare intended new files as
    `new:`), regenerate, re-check.

@@ -92,6 +92,7 @@ Run by `generate-tasklist` and `tasklist` after `tasklist.md` is written, by
 writer of a fix section right after its append (§6).
 
 1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <path> --ticket-key <TICKET_KEY>`
+   (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_KEY>`)
    Exit `0` → continue. Exit `2` → report `error.kind` and `error.message`, mirror
    nothing, continue the run on the fallback path.
 2. For each entry of `data.iterations`, in order:

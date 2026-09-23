@@ -1074,17 +1074,6 @@ def _unremovable(path):
     return 'has staged changes kartoteka does not hold; commit or unstage them first'
 
 
-def _ticket_of(path, config):
-    """The ticket a deleted path belonged to, for the commit subject. A <specs.dir> path
-    resolves through the addressing rule; a context copy -- tracked only on a host that
-    does not gitignore .artel/context/ -- names its ticket just above spec-trail/."""
-    identity = kh.artifact_identity(path, config)
-    if identity:
-        return identity[0]
-    parts = Path(path).parts
-    return parts[parts.index('spec-trail') - 1] if 'spec-trail' in parts else None
-
-
 def _commit_subject(tickets):
     if len(tickets) <= 3:
         return 'chore: move {} spec trail to kartoteka'.format(', '.join(tickets))

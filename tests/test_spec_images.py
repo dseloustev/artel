@@ -361,6 +361,29 @@ class TestImageFetch(ImageCase):
         self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'not_an_image'))
         self.assertEqual(self.fake.requests, [])
 
+    def test_a_path_that_walks_back_out_of_the_trail_with_dot_dot_is_not_printed(self):
+        # Spec §11: fetch must never read or print outside a ticket's trail.
+        # kh._trail_address matches only the ticket-directory segment, so a
+        # '..' walking back out below it still matches and named the ticket
+        # -- the shortcut must not stop at that alone.
+        (self.repo / TRAIL).mkdir(parents=True)
+        outside = self.image('outside/evil.png', png('secret'))
+        escaping = TRAIL + '/../../../' + str(outside.relative_to(self.repo))
+        proc = self.run_cli('image', 'fetch', escaping)
+        self.assertEqual(proc.stdout, '')
+        self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'not_an_image'))
+        self.assertEqual(self.fake.requests, [])
+
+    def test_a_path_with_a_dot_segment_is_not_printed_for_free(self):
+        # Path() silently drops a '.' component, so kh._trail_address alone
+        # cannot tell this spelling from the canonical one; the shortcut must
+        # refuse it by the raw string instead of taking Path()'s word for it.
+        self.image(self.LOGICAL, png('local'))
+        dotted = TRAIL + '/./design/a.png'
+        proc = self.run_cli('image', 'fetch', dotted)
+        self.assertEqual(proc.stdout, '')
+        self.assertNotEqual(proc.returncode, 0)
+
 
 class TestImageSync(ImageCase):
     AUTHOR = 'artel:feature-development'

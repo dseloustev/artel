@@ -1296,6 +1296,26 @@ def _discard(path):
         pass
 
 
+def _shortcut_inside_trail(path, config):
+    """Whether `path`, exactly as written, may be read by fetch's free local
+    shortcut: under a ticket's trail, no segment spelled '.' or '..', and
+    nothing along the way a symlink (spec §5 rule 1; the §11 rule that fetch
+    never reads or prints outside a ticket's trail).
+
+    kh._trail_address only matches the ticket-directory segment; a '..' below
+    it walks back out and still matches, and Path() silently drops a literal
+    '.' segment before _outside_the_trail ever sees the string, so both are
+    refused here, by the raw path, before that reuse. _outside_the_trail is
+    the one place a real path outside the real trail root, or a symlinked step
+    to get there, is caught -- shared with migration and sync so this holds
+    to the same containment they do.
+    """
+    if '.' in path.split('/') or '..' in path.split('/'):
+        return False
+    trail = kh._trail_address(path, config)
+    return trail is not None and not _outside_the_trail(path, trail[0], config)
+
+
 def cmd_image_fetch(args, config):
     """Print one local path to Read (docs/spec-storage.md §4.6).
 
@@ -1303,19 +1323,18 @@ def cmd_image_fetch(args, config):
     checked before the path is held to kartoteka's attachment grammar (spec
     §5 rule 1), because a name a screenshot tool chose (spaces and all) is
     still the newest copy of itself; the grammar only has to hold once a
-    request is addressed. Otherwise the cache: revalidated on every call, so
-    a fetch never answers with bytes kartoteka no longer holds -- and never
-    at all while kartoteka cannot be asked, because an unreachable store is a
-    failing store call, not a reason to trust a copy of unknown age.
+    request is addressed. That check never extends outside the ticket's own
+    trail, though: _shortcut_inside_trail holds it to the trail the same way
+    migration and sync do, so the free read can never be walked out of it.
+    Otherwise the cache: revalidated on every call, so a fetch never answers
+    with bytes kartoteka no longer holds -- and never at all while kartoteka
+    cannot be asked, because an unreachable store is a failing store call,
+    not a reason to trust a copy of unknown age.
     """
     local = Path(args.path)
     if (args.version is None and local.is_file() and not local.is_symlink()
-            # kh._trail_address is the one place a trail path's ticket
-            # directory is matched and canonicalised; reused here so a name
-            # outside the attachment grammar does not need its own copy of
-            # that logic to still be found locally.
-            and kh._trail_address(args.path, config) is not None
-            and kh.is_image_name(local.name)):
+            and kh.is_image_name(local.name)
+            and _shortcut_inside_trail(args.path, config)):
         print(os.path.abspath(args.path))
         return OK
     ticket_key, path = image_address(args.path, config)

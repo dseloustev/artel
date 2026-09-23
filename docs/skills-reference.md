@@ -108,7 +108,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Writes:** `<specs.dir>/.active_ticket`, `.artel/run/<TICKET_ID>/run-state.json`,
   `run-journal.md`, `runtime-observation.md`, the work-list tasklist written during the input
   ladder, and the description-file sync. Also performs the checkpoint commits & pushes to
-  `origin` (autonomous-run.md §14: work-list + one per completed phase).
+  `origin` (autonomous-run.md §14: work-list + one per completed phase), sweeping spec-trail
+  images into kartoteka first on that path (spec-storage.md §4.6).
 - **Pauses:** one work-list confirmation — it happens even when an existing tasklist is found
   (skipped in `yolo`; genuine ambiguity on the description-only input path still asks even in
   `yolo`); mid-run HITL tasks, deviation escalations, and loop-cap escalations. No PR gate — commits/pushes happen at the §14 checkpoints; only opening the PR
@@ -171,7 +172,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   URL argument wins); the Figma file via the connected Figma MCP; the codebase.
 - **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/design-analysis.md`
   (`Status: DESIGN_ANALYZED`, or `Status: DESIGN_BLOCKED` when findings are parked) and
-  `<specs.dir>/<TICKET_ID>/design/` evidence. Never `.active_ticket`.
+  `<specs.dir>/<TICKET_ID>/design/` screenshots (kartoteka path: swept into kartoteka, viewed
+  with `image fetch`; files path: files, as before). Never `.active_ticket`.
 - **Pauses:** on Major findings (the discrepancy handshake: apply correction / proceed as
   designed / park for designer) and on the manual Overwrite/Abort prompt. Minor findings flow
   into the analysis interview instead.
@@ -458,7 +460,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Reads:** `pr-description.md` (invokes `pr-description` first if missing); adapter identity
   pre-flight (`gh auth status` / Bitbucket+Jira whoami); `git status` / `branch` / `log`; the
   existing-PR check via `gh pr list` or `<vcs.mcpToolPrefix>bitbucket_list_my_prs`.
-- **Writes:** a commit + push (only when the tree is dirty), the PR (title
+- **Writes:** a commit + push (only when the tree is dirty; kartoteka path: sweeps spec-trail
+  images into kartoteka first and never commits one — spec-storage.md §4.6), the PR (title
   `<TICKET_ID>: <tracker summary>`, body from `pr-description.md`), a tracker comment with the
   PR URL — or `<specs.dir>/<TICKET_ID>/pr-pending.md` when an adapter identity check fails
   (report and stop, never fabricate).
@@ -787,7 +790,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Notes:** worker. Copies, never moves — the store stays authoritative; warns loudly
   (non-fatal) when a requested ticket has no artifacts in the store; the only hard failure is a
   missing store entirely. Ticket-scoped, not phase-scoped — a phase suffix is accepted and
-  ignored. Chained by `init-branch`.
+  ignored. Chained by `init-branch`. On the kartoteka path, spec documents and images under the
+  trail are never restored to disk — old spec copies and images stay in the context store until
+  `/artel:migrate-specs` moves them in (spec-storage.md §4.6, §7).
 
 ### agents-md-generator
 

@@ -85,7 +85,7 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 <specs.dir>/<TICKET_ID>/
 ├── idea.md              # ticket-wide seed
 ├── design-analysis.md   # optional, ticket-wide design analysis (never phase-scoped)
-├── design/              # optional, design evidence (e.g. Figma screenshots) for design-analysis.md
+├── design/              # optional, design screenshots for design-analysis.md — kartoteka path: kartoteka, viewed with image fetch; files path: files
 ├── vision.md            # ticket-wide technical vision
 ├── tasklist.md          # ticket-wide master tasklist (all phases)
 ├── implementation-notes.md # optional, ticket-wide deviations log

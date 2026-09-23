@@ -390,3 +390,53 @@ def call(base_url, method, path, token=None, query=None, body=None, timeout=15):
         return exc.code, _json_or_none(raw)
     except Exception as exc:
         raise Unreachable(redacted(str(exc), token)) from None
+
+
+def _header_dict(message):
+    """{lower-cased name: value} for a response's headers: HTTP names are
+    case-insensitive, and a plain dict is what callers compare against."""
+    return {name.lower(): value for name, value in message.items()} if message else {}
+
+
+def call_bytes(base_url, method, path, token=None, query=None, data=None, content_type=None,
+               headers=None, timeout=60):
+    """(status, raw body bytes, {lower-cased header: value}) for one request.
+
+    call()'s twin for kartoteka's attachment routes, where the body is an
+    image: `data` goes up as raw bytes under its own Content-Type, and the
+    answer comes back as bytes plus the headers that carry its metadata
+    (ETag, X-Kartoteka-Version). Nothing is decoded or parsed here -- an
+    image must never be turned into text on its way through.
+
+    The trust boundary is call()'s: the proxy-free opener, TLS verified by the
+    system store, and a token that never reaches a message. Every HTTP status
+    is an answer, 304 included (urllib raises it as an HTTPError, like any
+    status it does not follow); only a request that got no answer raises
+    Unreachable. The timeout is longer than call()'s: a body can be megabytes.
+    """
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    url = base_url + path
+    if query:
+        url += '?' + urllib.parse.urlencode(query)
+    sent = dict(headers or {})
+    if data is not None and content_type:
+        sent['Content-Type'] = content_type
+    if token:
+        sent['Authorization'] = 'Bearer ' + token
+    request = urllib.request.Request(url, data=data, headers=sent, method=method)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            return response.status, response.read(), _header_dict(response.headers)
+    except urllib.error.HTTPError as exc:
+        try:
+            raw = exc.read()
+        except Exception:
+            raw = b''
+        finally:
+            exc.close()  # unclosed -> ResourceWarning; callers never see the object to close it
+        return exc.code, raw, _header_dict(exc.headers)
+    except Exception as exc:
+        raise Unreachable(redacted(str(exc), token)) from None

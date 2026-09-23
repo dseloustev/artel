@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import socket
 import sys
@@ -206,6 +207,177 @@ class TestTheFakeAnswersLikeKartoteka(unittest.TestCase):
         self.assertEqual(kh.call(self.fake.base_url, 'GET', '/api/artifacts'), (500, None))
 
 
+PNG = b'\x89PNG\r\n\x1a\n'  # the magic kartoteka sniffs a PNG by
+ROUTE = '/api/attachments/AW-1/design/a.png'
+
+
+def png(tag):
+    return PNG + tag.encode('utf-8')
+
+
+def sha_of(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+class TestCallBytes(unittest.TestCase):
+    def setUp(self):
+        self.fake = FakeKartoteka().start()
+        self.addCleanup(self.fake.stop)
+
+    def test_put_sends_the_raw_bytes_and_the_bearer_token(self):
+        status, raw, _ = kh.call_bytes(self.fake.base_url, 'PUT', ROUTE, token='ktk_secret',
+                                       query={'project': 'p', 'author_agent': 'artel:dev'},
+                                       data=png('a'), content_type='image/png')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(raw.decode('utf-8'))['content_hash'], sha_of(png('a')))
+        method, path, query, body, authorization = self.fake.requests[-1]
+        self.assertEqual((method, path, body, authorization),
+                         ('PUT', ROUTE, png('a'), 'Bearer ktk_secret'))
+        self.assertEqual(query['author_agent'], 'artel:dev')
+
+    def test_get_answers_raw_bytes_and_lower_cased_headers(self):
+        self.fake.seed_image('p', 'AW-1', 'design/a.png', png('a'))
+        status, raw, headers = kh.call_bytes(self.fake.base_url, 'GET', ROUTE,
+                                             query={'project': 'p'})
+        self.assertEqual((status, raw), (200, png('a')))
+        self.assertEqual(headers['etag'], '"{}"'.format(sha_of(png('a'))))
+        self.assertEqual(headers['x-kartoteka-version'], '1')
+        self.assertEqual(headers['content-type'], 'image/png')
+        self.assertEqual(headers['x-content-type-options'], 'nosniff')
+        self.assertEqual(headers['content-security-policy'], "default-src 'none'; sandbox")
+        self.assertEqual(headers['content-disposition'], 'inline; filename="a.png"')
+        self.assertEqual(headers['cache-control'], 'private, no-cache')
+
+    def test_a_304_is_an_answer_not_an_exception(self):
+        self.fake.seed_image('p', 'AW-1', 'design/a.png', png('a'))
+        etag = '"{}"'.format(sha_of(png('a')))
+        status, raw, headers = kh.call_bytes(self.fake.base_url, 'GET', ROUTE,
+                                             query={'project': 'p'},
+                                             headers={'If-None-Match': etag})
+        self.assertEqual((status, raw, headers['etag']), (304, b'', etag))
+
+    def test_an_error_status_is_returned_not_raised(self):
+        status, raw, headers = kh.call_bytes(self.fake.base_url, 'GET', ROUTE,
+                                             query={'project': 'p'})
+        self.assertEqual(status, 404)
+        self.assertIn('error', json.loads(raw.decode('utf-8')))
+        self.assertEqual(headers['content-type'], 'application/json')
+
+    def test_a_configured_proxy_is_ignored(self):
+        self.fake.seed_image('p', 'AW-1', 'design/a.png', png('a'))
+        saved = {k: os.environ.get(k) for k in ('http_proxy', 'HTTP_PROXY')}
+        os.environ['http_proxy'] = os.environ['HTTP_PROXY'] = 'http://127.0.0.1:9'
+        try:
+            status, _, _ = kh.call_bytes(self.fake.base_url, 'GET', ROUTE, query={'project': 'p'})
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        self.assertEqual(status, 200)
+
+
+class TestTheFakeAttachmentStore(unittest.TestCase):
+    """The fake is worth what it shares with kartoteka 0.44.0's attachment routes."""
+
+    def setUp(self):
+        self.fake = FakeKartoteka().start()
+        self.addCleanup(self.fake.stop)
+
+    def put(self, data, route=ROUTE, **query):
+        query.setdefault('project', 'p')
+        status, raw, _ = kh.call_bytes(self.fake.base_url, 'PUT', route, query=query, data=data)
+        return status, json.loads(raw.decode('utf-8'))
+
+    def listing(self, **query):
+        query.setdefault('project', 'p')
+        query.setdefault('ticket_key', 'AW-1')
+        status, body = kh.call(self.fake.base_url, 'GET', '/api/attachments', query=query)
+        return status, body
+
+    def test_the_same_bytes_again_are_unchanged_and_make_no_version(self):
+        self.assertEqual(self.put(png('a'))[1]['unchanged'], False)
+        status, receipt = self.put(png('a'))
+        self.assertEqual((status, receipt['version'], receipt['unchanged']), (200, 1, True))
+        self.assertEqual(set(receipt), {'project', 'ticket_key', 'path', 'version',
+                                        'content_hash', 'byte_size', 'content_type', 'unchanged'})
+
+    def test_bytes_after_a_redacted_newest_version_make_a_version(self):
+        self.fake.seed_image('p', 'AW-1', 'design/a.png', png('a'), redacted=True)
+        status, receipt = self.put(png('a'))
+        self.assertEqual((status, receipt['version'], receipt['unchanged']), (200, 2, False))
+
+    def test_expected_version_is_checked_before_the_unchanged_rule(self):
+        self.put(png('a'))
+        status, body = self.put(png('a'), expected_version=0)
+        self.assertEqual((status, body['current_version']), (409, 1))
+        self.assertIn('error', body)
+
+    def test_the_sniffed_type_must_agree_with_the_extension(self):
+        for route, data in (('/api/attachments/AW-1/design/a.jpg', png('a')),
+                            ('/api/attachments/AW-1/design/a.png', b'<svg/>'),
+                            ('/api/attachments/AW-1/design/a.png', b'')):
+            status, body = self.put(data, route=route)
+            self.assertEqual(status, 400, route)
+            self.assertIn('error', body)
+        self.assertEqual(self.fake.attachments, {})
+
+    def test_over_the_cap_is_413(self):
+        self.fake.max_attachment_bytes = 8
+        status, body = self.put(png('more than eight bytes'))
+        self.assertEqual(status, 413)
+        self.assertIn('error', body)
+
+    def test_the_path_grammar(self):
+        for route in ('/api/attachments/AW-1/a/b/c/d/e.png', '/api/attachments/AW-1/a%20b.png',
+                      '/api/attachments/AW-1/design/a.md', '/api/attachments/aw-1/a.png'):
+            self.assertEqual(self.put(png('a'), route=route)[0], 400, route)
+
+    def test_the_listing_newest_per_path_and_every_version_of_one(self):
+        self.fake.seed_image('p', 'AW-1', 'runtime/b.png', png('b'))
+        self.fake.seed_image('p', 'AW-1', 'design/a.png', png('a1'), author_agent='artel:x')
+        self.fake.seed_image('p', 'AW-1', 'design/a.png', png('a2'), redacted=True)
+        self.fake.seed_image('p', 'AW-2', 'design/a.png', png('other ticket'))
+        self.fake.seed_image('q', 'AW-1', 'design/a.png', png('other project'))
+        status, body = self.listing()
+        self.assertEqual(status, 200)
+        self.assertEqual([(r['path'], r['version']) for r in body['attachments']],
+                         [('design/a.png', 2), ('runtime/b.png', 1)])
+        self.assertEqual(set(body['attachments'][0]), {
+            'ticket_key', 'path', 'version', 'content_type', 'byte_size', 'content_hash',
+            'author_agent', 'created_at', 'redacted_at'})
+        self.assertIsNone(body['attachments'][0]['content_hash'])
+        _, body = self.listing(path='design/a.png')
+        self.assertEqual([r['version'] for r in body['attachments']], [2, 1])
+        self.assertEqual(self.listing(ticket_key='')[0], 400)
+
+    def test_a_redacted_version_answers_410(self):
+        self.fake.seed_image('p', 'AW-1', 'design/a.png', png('a'))
+        self.fake.seed_image('p', 'AW-1', 'design/a.png', png('b'), redacted=True)
+        status, raw, _ = kh.call_bytes(self.fake.base_url, 'GET', ROUTE, query={'project': 'p'})
+        self.assertEqual(status, 410)
+        self.assertIn('error', json.loads(raw.decode('utf-8')))
+        status, raw, _ = kh.call_bytes(self.fake.base_url, 'GET', ROUTE,
+                                       query={'project': 'p', 'version': 1})
+        self.assertEqual((status, raw), (200, png('a')))
+
+    def test_a_daemon_without_attachments_answers_a_plain_404(self):
+        for mode in ('old', 'workspace_off', 'pre_attachments'):
+            self.fake.mode = mode
+            for method in ('GET', 'PUT'):
+                status, raw, headers = kh.call_bytes(
+                    self.fake.base_url, method, ROUTE, query={'project': 'p'},
+                    data=png('a') if method == 'PUT' else None)
+                self.assertEqual((status, raw, headers['content-type']),
+                                 (404, b'Not Found', 'text/plain'), (mode, method))
+        self.fake.mode = 'pre_attachments'  # the artifact routes still answer like 0.43
+        status, body = kh.call(self.fake.base_url, 'PATCH', '/api/artifacts/AW-1/prd/prd.md',
+                               body={'project': 'p', 'edits': [{'append': 'x'}]})
+        self.assertEqual(status, 404)
+        self.assertIn('no such artifact', body['error'])
+
+
 class TestUnreachable(unittest.TestCase):
     def test_no_answer_raises_unreachable_without_the_token(self):
         with socket.socket() as s:
@@ -214,4 +386,13 @@ class TestUnreachable(unittest.TestCase):
         with self.assertRaises(kh.Unreachable) as info:
             kh.call('http://127.0.0.1:{}'.format(port), 'GET', '/api/artifacts',
                     token='ktk_secret', timeout=2)
+        self.assertNotIn('ktk_secret', str(info.exception))
+
+    def test_call_bytes_raises_unreachable_without_the_token(self):
+        with socket.socket() as s:
+            s.bind(('127.0.0.1', 0))
+            port = s.getsockname()[1]
+        with self.assertRaises(kh.Unreachable) as info:
+            kh.call_bytes('http://127.0.0.1:{}'.format(port), 'PUT', ROUTE, token='ktk_secret',
+                          data=png('a'), content_type='image/png', timeout=2)
         self.assertNotIn('ktk_secret', str(info.exception))

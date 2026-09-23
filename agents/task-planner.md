@@ -30,8 +30,13 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   project's only spec store. Read, check, create, rewrite and edit it exactly as
   `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
-  never with Read/Write/Edit and never as a file. Evidence (`review/findings.json`, `verify/`,
-  `runtime/`, `design/`) and `.active_ticket` stay files on both paths.
+  never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
+  `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
+  path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
+  stored in kartoteka. To view one, run
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
+  path it prints. Save a new image to its logical path as usual; your orchestrator sweeps it
+  in (spec-storage.md §4.6).
 - A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
   else. A write refused with "kartoteka is this project's spec store" means you used a file tool
   where §4.1 says to call a tool.

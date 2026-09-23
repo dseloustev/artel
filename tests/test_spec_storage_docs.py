@@ -47,6 +47,11 @@ def excludes():
             for ext in kh.IMAGE_TYPES]
 
 
+def subcommands(parser):
+    action = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
+    return action.choices
+
+
 class TestContract(unittest.TestCase):
     def setUp(self):
         self.text = DOC.read_text(encoding='utf-8')
@@ -73,7 +78,8 @@ class TestContract(unittest.TestCase):
                         '### 4.5 When kartoteka fails', '### 4.6 Images', '## 5. Unavailability',
                         '### 5.1 At the start',
                         '### 5.2 Mid-run', '### 5.3 Resume', '### 5.4 Headless',
-                        '### 5.5 Completion', '## 6. The guard', '## 7. Local trails and migration',
+                        '### 5.5 Completion', '### 5.6 Images', '## 6. The guard',
+                        '## 7. Local trails and migration',
                         '## 8. spec_store.py'):
             self.assertIn(heading, self.text)
 
@@ -175,6 +181,48 @@ class TestImagesMove(unittest.TestCase):
         text = flat((ROOT / 'docs' / 'ticket-parsing.md').read_text(encoding='utf-8'))
         self.assertIn('is stored in kartoteka by path (spec-storage.md §4.6)', text)
         self.assertNotIn('`runtime/`, `design/`, `change-report.html`', text)
+
+
+class TestImageRules(unittest.TestCase):
+    CLASSES = ('absent', 'current', 'stale', 'successor', 'conflict', 'skipped')
+
+    def setUp(self):
+        self.text = DOC.read_text(encoding='utf-8')
+
+    def test_a_failed_sweep_never_pauses(self):
+        scope = flat(subsection(self.text, '### 5.6 Images'))
+        for phrase in ('image-sync: <n> left local — <first error line>', 'never pauses',
+                       'STORE_UNAVAILABLE', "find '<specs.dir>/<TICKET_ID>' -type f",
+                       'image sync <TICKET_ID> --author artel:<skill>', 'Headless runs journal'):
+            self.assertIn(phrase, scope)
+
+    def test_the_guard_section_quotes_the_read_hint(self):
+        scope = section(self.text, '## 6. The guard')
+        self.assertIn(guard.READ_HINT.format(path='<path>'), scope)
+        self.assertIn('and on `Read`', flat(scope))
+        self.assertIn('Writing an image is always allowed', flat(scope))
+
+    def test_migration_classifies_images_like_documents(self):
+        scope = section(self.text, '## 7. Local trails and migration')
+        for cls in self.CLASSES:
+            self.assertGreaterEqual(scope.count('| `{}` |'.format(cls)), 2, cls)
+        self.assertIn('image fetch --version N', flat(scope))
+        self.assertIn('Untracked images under the trail', flat(scope))
+
+    def test_every_image_verb_and_flag_is_documented(self):
+        ref = section(self.text, '## 8. spec_store.py')
+        image = subcommands(subcommands(spec_store.build_parser())['image'])
+        self.assertEqual(sorted(image), ['fetch', 'list', 'put', 'sync'])
+        for verb, parser in image.items():
+            with self.subTest(verb):
+                row = next((line for line in ref.splitlines()
+                            if line.startswith('| `image {} '.format(verb))), '')
+                self.assertTrue(row, 'no row for image ' + verb)
+                for action in parser._actions:
+                    for flag in action.option_strings:
+                        if flag not in ('-h', '--help'):
+                            self.assertIn(flag, row)
+        self.assertIn('`image sync` and every `migrate` verb exit `5`', flat(ref))
 
 
 class TestConfig(unittest.TestCase):

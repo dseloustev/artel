@@ -154,3 +154,38 @@ class TestDev(unittest.TestCase):
     def test_phase_checkpoints_use_the_shared_procedure(self):
         step = flat(between(self.text, '### 7.5 Phase checkpoint', '### 8. Complete'))
         self.assertIn('`feature-development` `## Checkpoint commits & pushes`', step)
+
+
+class TestFigmaAnalysis(unittest.TestCase):
+    def test_sweeps_once_the_agent_has_returned(self):
+        phase3 = flat(between(skill('figma-analysis'), '### Phase 3: Finalize', '### Completion'))
+        sweep = SWEEP.format('figma-analysis')
+        self.assertIn(sweep, phase3)
+        self.assertIn(JOURNAL, phase3)
+        # before the DESIGN_BLOCKED stop, so a parked design's screenshots are swept too
+        self.assertLess(phase3.index(sweep),
+                        phase3.index('`DESIGN_BLOCKED: <the parked findings>`'))
+
+    def test_the_report_counts_the_sweep(self):
+        completion = flat(between(skill('figma-analysis'), '### Completion', '## Important Rules'))
+        self.assertIn('`uploaded`, `unchanged` and `failed` counts', completion)
+
+
+class TestPrCreate(unittest.TestCase):
+    def setUp(self):
+        self.step = flat(between(skill('pr-create'), '### 3. Commit & push', '### 4. PR'))
+
+    def test_sweeps_then_stages_without_images(self):
+        sweep = SWEEP.format('pr-create')
+        self.assertIn(sweep, self.step)
+        self.assertIn(JOURNAL, self.step)
+        for exclude in excludes():
+            self.assertIn(exclude, self.step)
+        self.assertLess(self.step.index(sweep), self.step.index(excludes()[0]))
+
+    def test_a_commit_of_nothing_is_skipped(self):
+        self.assertIn(NOTHING_STAGED, self.step)
+
+    def test_the_trail_holds_only_evidence_text(self):
+        self.assertIn('holds only evidence text', self.step)
+        self.assertNotIn('holds only evidence)', self.step)

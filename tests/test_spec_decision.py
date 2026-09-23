@@ -120,3 +120,31 @@ class TestLocalTrail(InRepo):
             'specs/.current/AW-12/prd.md',
             '.artel/context/tickets/AW-12/spec-trail/plan.md',
         ])
+
+
+class TestImageFiles(InRepo):
+    def test_every_regular_image_file_at_any_depth_sorted(self):
+        self.touch('specs/.current/AW-12/design/b.PNG')
+        self.touch('specs/.current/AW-12/design/a.png')
+        self.touch('specs/.current/AW-12/phase-2/runtime/x.webp')
+        self.touch('specs/.current/AW-12/shot.jpeg')
+        self.touch('specs/.current/AW-12/design-analysis.md')    # a document
+        self.touch('specs/.current/AW-12/runtime/observation.md')
+        self.touch('specs/.current/AW-12/diagram.svg')           # not an image kartoteka takes
+        self.assertEqual(sd.image_files(Path('specs/.current/AW-12')), [
+            Path('specs/.current/AW-12/design/a.png'),
+            Path('specs/.current/AW-12/design/b.PNG'),
+            Path('specs/.current/AW-12/phase-2/runtime/x.webp'),
+            Path('specs/.current/AW-12/shot.jpeg'),
+        ])
+
+    def test_links_are_never_listed_or_entered(self):
+        self.touch('outside/secret.png')
+        self.touch('specs/.current/AW-12/design/real.png')
+        os.symlink(os.path.abspath('outside/secret.png'), 'specs/.current/AW-12/design/link.png')
+        os.symlink(os.path.abspath('outside'), 'specs/.current/AW-12/linked-dir')
+        self.assertEqual(sd.image_files(Path('specs/.current/AW-12')),
+                         [Path('specs/.current/AW-12/design/real.png')])
+
+    def test_a_missing_root_is_empty(self):
+        self.assertEqual(sd.image_files(Path('specs/.current/AW-99')), [])

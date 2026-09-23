@@ -30,6 +30,78 @@ class TestStorableProjectKey(unittest.TestCase):
             self.assertFalse(kh.storable_project_key(key), key)
 
 
+IMAGE_CONFIG = {'ticket': {'projectKey': 'AW'}, 'specs': {'dir': 'specs/.current'}}
+
+
+class TestImageNames(unittest.TestCase):
+    def test_the_five_extensions_in_any_case(self):
+        for name in ('a.png', 'a.PNG', 'a.jpg', 'a.JPEG', 'a.gif', 'a.webp', 'design/a.Png'):
+            self.assertTrue(kh.is_image_name(name), name)
+
+    def test_everything_else(self):
+        for name in ('a.svg', 'a.md', 'a.png.txt', 'png', '.png', 'a.', 'a.tiff'):
+            self.assertFalse(kh.is_image_name(name), name)
+
+    def test_the_types_kartoteka_sniffs(self):
+        self.assertEqual(kh.IMAGE_TYPES, {
+            '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif', '.webp': 'image/webp'})
+
+
+class TestImagePathGrammar(unittest.TestCase):
+    def test_inside(self):
+        for path in ('a.png', 'design/desktop-pending.png', 'phase-2/runtime/x.png',
+                     'a/b/c/d.jpg', 'v1.2/shot_01.webp', 'a' * 251 + '.png'):
+            self.assertTrue(kh.image_path_ok(path), path)
+
+    def test_outside(self):
+        for path in ('', '/a.png', 'a//b.png', 'a/', './a.png', 'a/../b.png', '..',
+                     'a/b/c/d/e.png', 'Screen Shot.png', 'a+b.png', 'ä.png', 'a.png\n',
+                     'design/a.md', 'a' * 252 + '.png', None):
+            self.assertFalse(kh.image_path_ok(path), path)
+
+    def test_the_limits(self):
+        self.assertEqual((kh.MAX_IMAGE_PATH, kh.MAX_IMAGE_SEGMENTS), (255, 4))
+        self.assertTrue(kh.IMAGE_SEGMENT.match('a-b_c.d'))
+        self.assertFalse(kh.IMAGE_SEGMENT.match('a b'))
+
+
+class TestImageIdentity(unittest.TestCase):
+    def test_the_addressing_table(self):
+        # docs/superpowers/specs/2026-09-23-kartoteka-spec-images-design.md §3
+        for rel, expected in (
+                ('specs/.current/AW-3270/design/desktop-pending.png',
+                 ('AW-3270', 'design/desktop-pending.png')),
+                ('specs/.current/AW-3270/runtime/macos-on-ramp-success.png',
+                 ('AW-3270', 'runtime/macos-on-ramp-success.png')),
+                ('specs/.current/AW-3270/phase-2/runtime/x.png',
+                 ('AW-3270', 'phase-2/runtime/x.png')),
+                ('specs/.current/AW-3270/design/Screen Shot.png', None)):
+            self.assertEqual(kh.image_identity(rel, IMAGE_CONFIG), expected, rel)
+
+    def test_the_ticket_directory_reads_as_artifact_identity_reads_it(self):
+        for ticket_dir in ('AW-12', 'aw-12', 'AW-12-2', '12'):
+            rel = 'specs/.current/{}/'.format(ticket_dir)
+            self.assertEqual(kh.image_identity(rel + 'shot.png', IMAGE_CONFIG),
+                             ('AW-12', 'shot.png'), ticket_dir)
+            self.assertEqual(kh.artifact_identity(rel + 'prd.md', IMAGE_CONFIG)[0], 'AW-12')
+
+    def test_not_an_image_of_a_ticket(self):
+        for rel in ('specs/.current/AW-12/prd.md',             # a document
+                    'specs/.current/shot.png',                 # no ticket directory
+                    'specs/.current/scratch/shot.png',         # not a ticket directory
+                    'design/AW-12/shot.png',                   # not under specs.dir
+                    'specs/.current/AW-12/a/b/c/d/e.png',      # five segments
+                    'specs/.current/AW-12/../AW-13/shot.png'):  # a '..'
+            self.assertIsNone(kh.image_identity(rel, IMAGE_CONFIG), rel)
+
+    def test_a_configured_specs_dir(self):
+        config = dict(IMAGE_CONFIG, specs={'dir': 'docs/trail'})
+        self.assertEqual(kh.image_identity('docs/trail/AW-9/design/a.gif', config),
+                         ('AW-9', 'design/a.gif'))
+        self.assertIsNone(kh.image_identity('specs/.current/AW-9/design/a.gif', config))
+
+
 class TestCall(unittest.TestCase):
     def setUp(self):
         self.fake = FakeKartoteka().start()

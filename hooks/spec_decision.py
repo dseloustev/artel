@@ -114,3 +114,20 @@ def local_trail(ticket, config):
             if kh.artifact_identity(logical, config) is not None:
                 found.append(str(candidate))
     return found
+
+
+def image_files(root):
+    """Every image file under `root`, at any depth, sorted: regular files only.
+
+    A symbolic link is never listed, and a linked directory is never entered
+    (os.walk does not follow links), so nothing a link points at -- a private
+    key, another checkout -- can be read as this trail's image. Used by the
+    sweep (`spec_store.py image sync`) and by migration.
+    """
+    found = []
+    for directory, _, names in os.walk(str(root)):
+        for name in names:
+            path = Path(directory) / name
+            if kh.is_image_name(name) and path.is_file() and not path.is_symlink():
+                found.append(path)
+    return sorted(found)

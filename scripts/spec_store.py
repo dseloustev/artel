@@ -157,18 +157,22 @@ class Store:
         return status, payload
 
     def request_bytes(self, method, path, query=None, data=None, content_type=None,
-                      headers=None):
+                      headers=None, timeout=60):
         """request()'s twin for the attachment routes: (status, raw bytes, headers).
 
         A 404 without kartoteka's JSON {"error"}, or a 405, is a route that is
         not there, and on /api/attachments that is a daemon before 0.44.0: its
         own kind, so that a sweep or a migration can say "upgrade it" rather
-        than "off" (spec-images §7).
+        than "off" (spec-images §7). `timeout` defaults to call_bytes' own 60s
+        -- long enough for an image upload -- but a caller that sends no body
+        (a JSON listing) can ask for call()'s shorter 15s instead, so it does
+        not wait as long as an upload would for the same unreachable daemon.
         """
         try:
             status, raw, answer = kh.call_bytes(self.base, method, path, token=self._token,
                                                 query=query, data=data,
-                                                content_type=content_type, headers=headers)
+                                                content_type=content_type, headers=headers,
+                                                timeout=timeout)
         except kh.Unreachable as exc:
             raise Failure('unreachable', 'kartoteka is unreachable at {}: {}'.format(self.base, exc))
         if status == 401:
@@ -199,7 +203,7 @@ class Store:
         query = {'project': self.project, 'ticket_key': ticket_key}
         if path is not None:
             query['path'] = path
-        status, raw, _ = self.request_bytes('GET', '/api/attachments', query=query)
+        status, raw, _ = self.request_bytes('GET', '/api/attachments', query=query, timeout=15)
         payload = _json_object(raw)
         self._expect_ok(status, payload)
         return (payload or {}).get('attachments') or []

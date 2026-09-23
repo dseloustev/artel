@@ -199,6 +199,35 @@ class TestImageList(ImageCase):
         self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'invalid_argument'))
 
 
+class TestRequestBytesTimeout(ImageCase):
+    """Store.request_bytes' timeout is call_bytes' 60s unless a caller that
+    sends no body -- a JSON listing -- asks for call()'s shorter 15s
+    (spec-images contract, Store.request_bytes)."""
+
+    def timeouts_seen(self, act):
+        seen = []
+        real_call_bytes = spec_store.kh.call_bytes
+
+        def spy(*args, **kwargs):
+            seen.append(kwargs.get('timeout'))
+            return real_call_bytes(*args, **kwargs)
+
+        with mock.patch.object(spec_store.kh, 'call_bytes', side_effect=spy):
+            act()
+        return seen
+
+    def test_request_bytes_defaults_to_sixty_seconds(self):
+        store = spec_store.Store(self.config)
+        seen = self.timeouts_seen(lambda: store.request_bytes(
+            'GET', '/api/attachments', query={'project': PROJECT, 'ticket_key': 'AW-12'}))
+        self.assertEqual(seen, [60])
+
+    def test_image_listing_asks_for_fifteen_seconds(self):
+        store = spec_store.Store(self.config)
+        seen = self.timeouts_seen(lambda: store.image_listing('AW-12'))
+        self.assertEqual(seen, [15])
+
+
 class TestImageCachePath(unittest.TestCase):
     def test_the_cache_path(self):
         self.assertEqual(spec_store.image_cache_path('AW-12', 'design/a.png'),

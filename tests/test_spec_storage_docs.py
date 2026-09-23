@@ -113,3 +113,43 @@ class TestMigrateSpecsSkill(unittest.TestCase):
         end = self.text.index('\n\n', start)
         bullet = self.text[start:end]
         self.assertIn('apply', bullet)
+
+
+class TestMigrateSpecsImages(unittest.TestCase):
+    """spec-images §8 and §10.3: image items in the migrate-specs report and its
+    conflict prompt, spelled as scripts/spec_store.py prints them."""
+    SKILL = ROOT / 'skills' / 'migrate-specs' / 'SKILL.md'
+
+    def setUp(self):
+        self.text = self.SKILL.read_text(encoding='utf-8')
+
+    def test_names_which_images_the_trail_holds(self):
+        for phrase in ('git tracks under `<specs.dir>/<TICKET_ID>/`',
+                       '`.artel/context/tickets/<TICKET_ID>/spec-trail/`',
+                       '`spec_store.py image sync`', '`kind: "image"`'):
+            self.assertIn(phrase, self.text)
+
+    def test_counts_images_apart_and_names_the_old_daemon(self):
+        self.assertIn('`image_summary`', self.text)
+        self.assertIn(spec_store.ATTACHMENTS_MISSING, self.text)
+
+    def test_an_image_conflict_shows_sizes_hashes_and_the_cached_stored_copy(self):
+        start = self.text.index('### Image conflicts')
+        block = self.text[start:self.text.index('\n## ', start)]
+        for phrase in ('never has a diff', '`byte_size`', '`sha256`', '`stored.cache_path`',
+                       '`stored.redacted: true`', 'image fetch --version <N>',
+                       'keep-local@<N>', '`expected_version`', '`keep-stored`', '`skip`'):
+            self.assertIn(phrase, block)
+
+    def test_an_image_kartoteka_cannot_address_is_named_for_renaming(self):
+        self.assertTrue(spec_store.OUTSIDE_THE_GRAMMAR.startswith(
+            "outside kartoteka's image path grammar"))
+        self.assertIn("`outside kartoteka's image path grammar`", self.text)
+        self.assertIn('rename it', self.text)
+
+    def test_images_are_no_longer_listed_as_evidence(self):
+        start = self.text.index('**Never deleted')
+        never = self.text[start:self.text.index('\n\n', start)]
+        self.assertNotIn('`design/`', never)
+        self.assertIn('`runtime/*.md`', never)
+        self.assertIn('untracked working-tree images', never)

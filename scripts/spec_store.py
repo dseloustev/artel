@@ -1753,12 +1753,38 @@ def sync_images(store, config, ticket, author):
                 # exactly where the bytes are before anything else moves.
                 try:
                     shutil.copy2(str(target), source)
-                    os.unlink(str(target))
                 except OSError as exc:
+                    # Neither the move nor the copy landed the unverified
+                    # bytes back in the trail: `target` is their only copy,
+                    # and it doubles as image_cache_path's UNVERSIONED fetch
+                    # cache -- the next `image fetch <logical>` or sweep of
+                    # this path would overwrite it. Rename it aside first, in
+                    # its own directory (a same-device os.replace, so no
+                    # EXDEV), to a name no other verb reads or writes, and
+                    # name THAT path in the failure. If even the rename fails,
+                    # name the cache path as it stands.
+                    stranded = str(target)
+                    try:
+                        aside = target.with_name(target.name + '.unverified')
+                        os.replace(str(target), str(aside))
+                        stranded = str(aside)
+                    except OSError:
+                        pass
                     raise Failure('unrecoverable', (
                         "{}'s upload could not be verified, and the cache copy at {} could not "
                         'be moved or copied back to its trail path at {}: {}; restore it by '
-                        'hand').format(path, target, source, exc.strerror or exc))
+                        'hand').format(path, stranded, source, exc.strerror or exc))
+                else:
+                    # The copy DID land the file back in the trail: only the
+                    # leftover cache copy under it could not be removed. That
+                    # copy is harmless (the next fetch revalidates it against
+                    # kartoteka), so this is an ordinary failed entry -- the
+                    # file stays in the trail and is retried at the next
+                    # sweep, not a raised `unrecoverable`.
+                    try:
+                        os.unlink(str(target))
+                    except OSError:
+                        pass
             fail('it changed while it was being stored; the file is kept for the next sweep')
             continue
         _prune_empty_parents(source, config, ticket, keep_root=True)

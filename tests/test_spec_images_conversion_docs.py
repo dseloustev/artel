@@ -130,6 +130,11 @@ class TestCheckpointProcedure(unittest.TestCase):
         self.assertIn('the image sweep', contract)
         self.assertIn('§4.6', contract)
 
+    def test_the_phase_end_checkpoint_chain_starts_with_the_sweep(self):
+        chain = self.part('| 10.7 | `PHASE_CHECKPOINT` |', '\n\n**Journal')
+        self.assertIn('the image sweep (kartoteka path) → the `verify.commands` gate', chain)
+        self.assertIn('explicit staging (no trail image on the kartoteka path)', chain)
+
 
 class TestDev(unittest.TestCase):
     def setUp(self):
@@ -151,9 +156,19 @@ class TestDev(unittest.TestCase):
         self.assertIn('§5.6', report)
         self.assertIn('images left local', report)
 
+    def test_an_unrecoverable_sweep_is_surfaced_whole_not_summarised(self):
+        step = flat(between(self.text, '### 3. Arm the run', '### 4. Implement (autonomous)'))
+        self.assertIn('unrecoverable', step)
+        self.assertIn('whole message', step)
+        report = flat(between(self.text, '### 9. Report', '\n## Important'))
+        self.assertIn('unrecoverable', report)
+        self.assertIn('whole message', report)
+
     def test_phase_checkpoints_use_the_shared_procedure(self):
         step = flat(between(self.text, '### 7.5 Phase checkpoint', '### 8. Complete'))
         self.assertIn('`feature-development` `## Checkpoint commits & pushes`', step)
+        self.assertIn('the image sweep (kartoteka path) → the `verify.commands` gate', step)
+        self.assertIn('explicit staging (no trail image on the kartoteka path)', step)
 
 
 class TestFigmaAnalysis(unittest.TestCase):
@@ -168,7 +183,13 @@ class TestFigmaAnalysis(unittest.TestCase):
 
     def test_the_report_counts_the_sweep(self):
         completion = flat(between(skill('figma-analysis'), '### Completion', '## Important Rules'))
-        self.assertIn('`uploaded`, `unchanged` and `failed` counts', completion)
+        self.assertIn('`uploaded`, `unchanged`, `failed` and `skipped` counts', completion)
+        self.assertIn('each `skipped` entry with its reason', completion)
+
+    def test_an_unrecoverable_sweep_is_surfaced_whole_not_summarised(self):
+        phase3 = flat(between(skill('figma-analysis'), '### Phase 3: Finalize', '### Completion'))
+        self.assertIn('unrecoverable', phase3)
+        self.assertIn('whole message', phase3)
 
 
 class TestPrCreate(unittest.TestCase):
@@ -189,6 +210,28 @@ class TestPrCreate(unittest.TestCase):
     def test_the_trail_holds_only_evidence_text(self):
         self.assertIn('holds only evidence text', self.step)
         self.assertNotIn('holds only evidence)', self.step)
+
+    def test_an_unrecoverable_sweep_is_surfaced_whole_not_summarised(self):
+        self.assertIn('unrecoverable', self.step)
+        self.assertIn('whole message', self.step)
+
+
+class TestSpecStorageUnrecoverable(unittest.TestCase):
+    """docs/spec-storage.md's own wording for the `unrecoverable` ruling (P-1)."""
+
+    def setUp(self):
+        self.text = read('docs/spec-storage.md')
+
+    def test_the_5_6_bullet_is_pinned(self):
+        bullet = flat(between(self.text, "**An `unrecoverable` sweep is surfaced whole",
+                              '\n- **A failed fetch'))
+        self.assertIn('unrecoverable', bullet)
+        self.assertIn('whole message', bullet)
+
+    def test_the_8_image_sync_row_names_the_exit(self):
+        row = flat(between(self.text, '`image sync <ticket-id> --author A`',
+                           '\n\nEvery verb exits'))
+        self.assertIn('`2` kind `unrecoverable`', row)
 
 
 class TestRestoreContext(unittest.TestCase):

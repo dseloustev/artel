@@ -176,10 +176,11 @@ class TestContracts(unittest.TestCase):
 
 class TestReleaseDocs(unittest.TestCase):
     def test_changelog_announces_store_mode(self):
-        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+        # Everything since 0.15.0: [Unreleased] before the release is cut, [0.16.0] after.
+        since = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [0.15.0]', 1)[0]
         for phrase in ('kartoteka is the spec store', '/artel:migrate-specs', 'artifact_patch',
                        'kartoteka 0.43.0', 'specs.onUnavailable'):
-            self.assertIn(phrase, unreleased)
+            self.assertIn(phrase, since)
 
     def test_design_records_the_decisions(self):
         self.assertIn('2026-09-22 — kartoteka is the spec store', read('docs/design.md'))

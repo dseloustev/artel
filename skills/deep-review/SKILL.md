@@ -61,8 +61,9 @@ Usage: /artel:deep-review <ticket-id> [branch] [pr-link] [--local]
 phase-suffixed identifier is accepted) but discarded — the same convention
 `${CLAUDE_PLUGIN_ROOT}/skills/pr-description/SKILL.md` uses.
 
-Then verify that `<specs.dir>/<TICKET_ID>/` exists on disk. If it does not, display the following
-and terminate:
+Then verify that `<specs.dir>/<TICKET_ID>/` exists on disk. On the kartoteka path the ticket
+exists when `spec_store.py list <TICKET_ID>` prints a non-empty array; the directory need not
+exist. If it does not, display the following and terminate:
 ```
 Error: Ticket directory <specs.dir>/<TICKET_ID>/ does not exist.
 ```
@@ -75,7 +76,8 @@ Ticket directory: <specs.dir>/<TICKET_ID>/
 
 ### 1b: Existing output
 
-If `<specs.dir>/<TICKET_ID>/deep-review.md` exists, ask via `AskUserQuestion`:
+If `<specs.dir>/<TICKET_ID>/deep-review.md` exists (kartoteka path: `spec_store.py exists
+<specs.dir>/<TICKET_ID>/deep-review.md`), ask via `AskUserQuestion`:
 
 > "`deep-review.md` already exists for <TICKET_ID>. Overwrite it with a fresh review?" — Yes / No.
 
@@ -151,6 +153,16 @@ Then read the forecast config (config.md, `review` section):
   and terminate. Store as `REVIEWERS`.
 
 ## Step 3: Dispatch the reviewer (standalone mode)
+
+**Spec store.** Before dispatching, read the ticket's storage decision:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+§2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
+`run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
+dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
+`**Spec store:** files (<reason>)`. An agent's `STORE_UNAVAILABLE` return goes back to your caller
+unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
+§4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
 Use the Agent tool to spawn the `reviewer` agent (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer.md`) in
 standalone mode — no ticket mode; the report goes to run-state evidence at
@@ -233,6 +245,11 @@ Follow ${CLAUDE_PLUGIN_ROOT}/docs/review-forecast.md. Write the output file and 
 Wait for the agent to complete, then verify the file exists:
 ```bash
 test -f <specs.dir>/<TICKET_ID>/deep-review.md && echo "Found deep-review.md" || echo "File not found"
+```
+
+Kartoteka path:
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py exists <specs.dir>/<TICKET_ID>/deep-review.md && echo "Found deep-review.md" || echo "File not found"
 ```
 
 If the file is missing, re-dispatch once with the same prompt. If it is still missing, display

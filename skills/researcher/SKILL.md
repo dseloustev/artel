@@ -29,6 +29,16 @@ This skill uses a **two-phase execution model**:
 
 ### Phase 1: Extract Questions
 
+**Spec store.** Before dispatching, read the ticket's storage decision:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+§2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
+`run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
+dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
+`**Spec store:** files (<reason>)`. An agent's `STORE_UNAVAILABLE` return goes back to your caller
+unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
+§4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
+
 Use the Agent tool with:
 - `subagent_type`: `"researcher"`
 - `description`: `"Extract questions for <TICKET_ID>"`

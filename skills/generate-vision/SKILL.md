@@ -32,7 +32,8 @@ in <specs.dir>/.active_ticket" and terminate.
 
 ### Existing-file handling
 
-**Pipeline invocation** (from an orchestrator): if `vision.md` exists, skip — report `Vision
+**Pipeline invocation** (from an orchestrator): if `vision.md` exists (kartoteka path:
+`spec_store.py exists <specs.dir>/<TICKET_ID>/vision.md` exits 3), skip — report `Vision
 exists — skipped` and terminate (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9).
 **Manual invocation:** if `vision.md` exists, `AskUserQuestion`: **Overwrite from scratch** /
 **Abort**. (Per-section refine no longer exists — the document is regenerated as a whole.)
@@ -42,6 +43,16 @@ exists — skipped` and terminate (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md
 Three-phase model (draft → ask → finalize), plus one checkpoint.
 
 ### Phase 1: Draft the full document
+
+**Spec store.** Before dispatching, read the ticket's storage decision:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+§2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
+`run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
+dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
+`**Spec store:** files (<reason>)`. An agent's `STORE_UNAVAILABLE` return goes back to your caller
+unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
+§4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
 Use the Agent tool with `subagent_type: "vision-writer"`, description `"Draft vision for
 <TICKET_ID>"`, prompt: the ticket values, resolved input paths, plus:

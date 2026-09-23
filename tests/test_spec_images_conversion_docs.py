@@ -189,3 +189,25 @@ class TestPrCreate(unittest.TestCase):
     def test_the_trail_holds_only_evidence_text(self):
         self.assertIn('holds only evidence text', self.step)
         self.assertNotIn('holds only evidence)', self.step)
+
+
+class TestRestoreContext(unittest.TestCase):
+    def setUp(self):
+        self.text = flat(skill('restore-context'))
+
+    def test_the_image_excludes_join_the_document_excludes(self):
+        # the Branch A sentence, and the comment above each of the two rsync commands
+        self.assertEqual(self.text.count('post_feedback}.md ' + RSYNC_IMAGES), 3)
+
+    def test_the_patterns_match_every_image_extension_in_any_case(self):
+        patterns = re.findall(r"--exclude='(\*\.[^']+)'", RSYNC_IMAGES)
+        for ext in kh.IMAGE_TYPES:
+            for name in ('x' + ext, 'x' + ext.upper(), 'x' + ext[:2].upper() + ext[2:]):
+                with self.subTest(name):
+                    self.assertTrue(any(fnmatch.fnmatchcase(name, p) for p in patterns))
+        for name in ('observation.md', 'findings.json', 'plan.md', 'iteration-1.json'):
+            with self.subTest(name):
+                self.assertFalse(any(fnmatch.fnmatchcase(name, p) for p in patterns))
+
+    def test_the_report_names_images_too(self):
+        self.assertIn('old spec copies and images stay in the context store', self.text)

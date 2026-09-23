@@ -29,7 +29,7 @@ OLD_STOCK = 'Evidence (`review/findings.json`, `verify/`, `runtime/`, `design/`)
 FIGMA_STEP_7 = ('On the kartoteka path `design-analysis.md` is stored (spec-storage.md §4.1). '
                 'The `figma-analysis` skill sweeps the `design/` screenshots into kartoteka after '
                 "you return, and the document's links to them are unchanged.")
-SWEEP = ('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> '
+SWEEP = ('python3 ${{CLAUDE_PLUGIN_ROOT}}/scripts/spec_store.py image sync <TICKET_ID> '
          '--author artel:{}')
 JOURNAL = 'image-sync: <n> left local — <first error line>'
 NOTHING_STAGED = '`git diff --cached --quiet`'
@@ -78,3 +78,46 @@ class TestAgents(unittest.TestCase):
                             '### 7. Write the artifact + evidence', '\n## '))
         self.assertIn(flat(FIGMA_STEP_7), step)
         self.assertNotIn('screenshots stay files on both paths', step)
+
+
+class TestCheckpointProcedure(unittest.TestCase):
+    """feature-development's shared procedure -- dev's phase checkpoints run it too."""
+
+    def setUp(self):
+        self.text = skill('feature-development')
+
+    def part(self, start, end):
+        return flat(between(self.text, start, end))
+
+    def test_the_sweep_runs_before_the_idempotence_check(self):
+        step = self.part('2. **Image sweep', '3. **Quality gate (phase-end only).**')
+        sweep = SWEEP.format('<skill>')
+        self.assertIn(sweep, step)
+        self.assertIn('`dev` when `dev` runs this procedure', step)
+        self.assertIn(JOURNAL, step)
+        self.assertIn('§5.6', step)
+        self.assertLess(step.index(sweep), step.index('`git status --porcelain`'))
+
+    def test_staging_excludes_every_image_extension(self):
+        step = self.part('4. **Stage explicitly.**', '5. **Commit.**')
+        for exclude in excludes():
+            self.assertIn(exclude, step)
+
+    def test_a_commit_of_nothing_is_skipped(self):
+        self.assertIn(NOTHING_STAGED, self.part('5. **Commit.**', '6. **Push.**'))
+
+    def test_the_planning_checkpoint_ignores_untracked_images(self):
+        self.assertIn('images aside, only `.active_ticket` changed',
+                      self.part('Then run the **planning checkpoint**', '### 5. Autonomous tail'))
+
+    def test_the_final_report_sweeps_and_lists_what_is_left(self):
+        report = self.part('### 9. Final report', '\n## Important')
+        self.assertIn(SWEEP.format('feature-development'), report)
+        self.assertIn('§5.6', report)
+        self.assertIn('images left local', report)
+
+    def test_the_run_contract_names_the_sweep(self):
+        contract = flat(between(read('docs/autonomous-run.md'),
+                                '## 14. Checkpoint commits & pushes', '## 15.'))
+        self.assertIn('the image sweep', contract)
+        self.assertIn('§4.6', contract)

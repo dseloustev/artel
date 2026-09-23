@@ -63,7 +63,7 @@ Evaluated in this order:
 error itself:
 
 - `kartoteka is configured for this project but knowledge.<key> is not set` — `<key>` is
-  `knowledge.baseUrl` (empty) or `knowledge.project` (empty, or outside `^[a-z0-9][a-z0-9-]*$`);
+  `baseUrl` (empty) or `project` (empty, or outside `^[a-z0-9][a-z0-9-]*$`);
 - `knowledge.adapter must be "none" or "kartoteka", got '<value>'`;
 - `<VAR> (knowledge.tokenEnv) holds a value with whitespace or control characters; export the token as one line`;
 - `knowledge.baseUrl <baseUrl> is plaintext http:// off loopback and a bearer token would cross the network in the clear; use the daemon's https:// origin`.
@@ -130,7 +130,8 @@ files decision, and it asks first.
 **Before resolving, read the standing decision:**
 `spec_store.py decision <TICKET_ID>`. A `fresh: true` decision is trusted as it stands; do not
 probe again. This is how a sub-skill inherits its orchestrator's answer, including a
-user-approved fallback. With no fresh decision, resolve (§2.1).
+user-approved fallback. A stale files decision is renewed as above; with no decision, or a
+stale kartoteka decision, resolve (§2.1).
 
 **Never ask about storage while the ticket's `run-state.json` is active.** Return
 `STORE_UNAVAILABLE: <record>` to your caller instead. The orchestrator owns §5.2.

@@ -36,7 +36,9 @@ resolve by `PHASE_NUM` per that document's §4.
 - Phase-scoped: `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/implementation-notes.md`
 - Ticket-wide: `<specs.dir>/<TICKET_ID>/implementation-notes.md`
 
-Created lazily on the first deviation — **no file means a clean run**. Entries are append-only
+Created lazily on the first deviation — **no file means a clean run**. On the kartoteka path it is
+created with `artifact_put(project=<project>, …, expected_version=0)` and appended to with
+`artifact_patch` ([spec-storage.md](spec-storage.md) §4.1). Entries are append-only
 and numbered sequentially (`D1`, `D2`, …).
 
 Format:

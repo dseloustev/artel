@@ -26,9 +26,12 @@ Orchestrators:
   `verify.commands` gate ([config.md](config.md)) passes. These are the only direct git mutations
   orchestrators perform; everything else external — opening or updating a pull request — goes
   through the `pr-create` skill and the configured `vcs.adapter` ([config.md](config.md)).
-- Ensure the ticket directory `<specs.dir>/<TICKET_ID>/` exists.
+- Ensure the ticket directory `<specs.dir>/<TICKET_ID>/` exists — on the kartoteka path that
+  directory holds only evidence.
 - Check which artifacts already exist under it and skip gates that are already satisfied
-  (skip-if-exists — [autonomous-run.md](autonomous-run.md) §9).
+  (skip-if-exists — [autonomous-run.md](autonomous-run.md) §9). On the kartoteka path one
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py list <TICKET_ID>` answers it
+  ([spec-storage.md](spec-storage.md) §4.1).
 - Invoke stage skills via the `Skill` tool and agents via the `Agent` tool, passing the resolved
   identifier so the phase is preserved.
 - **Index refresh** (optional): if the host project maintains a code-symbol index, refreshing it

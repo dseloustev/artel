@@ -12,7 +12,8 @@ where copies drifting apart is unsafe rather than untidy.
 
 **This file is read-only toward kartoteka.** Nothing here writes. artel's spec
 trail reaches kartoteka through the `PostToolUse` hook
-(`hooks/knowledge_mirror.py`); its task queue is the other write direction and
+(`hooks/knowledge_mirror.py`) on the files path, or is written there directly on the
+kartoteka path (`docs/spec-storage.md`); its task queue is the other write direction and
 is `docs/task-queue.md`. Consultation itself writes nothing.
 
 **`<project>` throughout is `knowledge.project` from `.artel/config.json`** — the
@@ -21,12 +22,13 @@ kartoteka project this repository belongs to (`docs/config.md`). Since kartoteka
 below names it: `related` requires it, and the reads take it as a scope so that
 another project's trail never answers for this one.
 
-**And artel never reads its own in-flight trail from kartoteka.** This ticket's
-`prd.md`, `plan.md` and `research.md` are read from disk, as they always have
-been. kartoteka holds a best-effort mirror of them that can lag — the hook never
-blocks a write and never retries — so a copy fetched from kartoteka can be older
-than the file sitting beside it, with nothing to notice by. What is consulted
-here is *other* work: prior tickets, decisions, discussions.
+**Your own in-flight trail is not consulted here.** On the files path this ticket's
+`prd.md`, `plan.md` and `research.md` are read from disk, and kartoteka holds a best-effort
+mirror of them that can lag — the hook never blocks a write and never retries — so a copy
+fetched from kartoteka can be older than the file beside it. On the kartoteka path
+(`docs/spec-storage.md`) those documents live only in kartoteka and are read with
+`artifact_get` as ordinary inputs, through the spec-store rules rather than this contract.
+Either way, what is consulted here is *other* work: prior tickets, decisions, discussions.
 
 ## 1. Whether to consult at all
 
@@ -94,10 +96,11 @@ Then:
   run of `AW-1234-2` calls `related(<project>, "AW-1234")`. kartoteka joins on
   the bare key its Jira documents carry, so the phase form would silently
   return nothing.
-  When the key is *this run's own* ticket, ignore the `## artifacts` block. That
-  is artel's own spec trail coming back through the hook, which can lag the files
-  sitting beside you, and those files are authoritative — do not follow up with
-  `artifact_get` on any of it. The `## tasks` block is **not** a lagging mirror:
+  When the key is *this run's own* ticket, ignore the `## artifacts` block. On the
+  files path it is artel's own spec trail coming back through the hook, lagging the
+  files beside you; on the kartoteka path it is the trail you already read through
+  `artifact_get` as inputs. Either way it is not consultation material — do not
+  follow up with `artifact_get` on any of it from here. The `## tasks` block is **not** a lagging mirror:
   since `docs/task-queue.md` the queue is authoritative for what to work on. It
   is still of no use during an interview or a scan, so ignore it here too — but
   ignore it as out of scope, not as stale.

@@ -337,17 +337,18 @@ evidence ([spec-storage.md](spec-storage.md)).
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook; the read half below (`analyst`, `researcher`, `deep-review`, `issue-draft`); the task queue |
-| `knowledge.baseUrl` | string | `""` | Required when `adapter` is `"kartoteka"`. Origin only, no trailing path — e.g. `http://127.0.0.1:8734`, or a hosted daemon's `https://` origin. | The `knowledge_mirror` hook's request addressing |
+| `knowledge.baseUrl` | string | `""` | Required when `adapter` is `"kartoteka"`. Origin only, no trailing path — e.g. `http://127.0.0.1:8734`, or a hosted daemon's `https://` origin. | The `knowledge_mirror` hook's request addressing; `scripts/spec_store.py` |
 | `knowledge.project` | string | `""` | Required when `adapter` is `"kartoteka"`. The kartoteka project this repository's trail, queue and consultations belong to: lowercase kebab-case, `^[a-z0-9][a-z0-9-]*$`, e.g. `adguard-wallet`. Must be registered in the daemon's database — `kartoteka project add <name>`, once, on the daemon machine. No default; see below. | Every kartoteka call: the `knowledge_mirror` hook's request body, `related`, the scoped reads, `task_create` / `task_ready`; the `issue-draft` consultation |
-| `knowledge.tokenEnv` | string | `""` | Optional. The **name** of the environment variable holding a kartoteka bearer token — never the token itself; `[A-Za-z_][A-Za-z0-9_]*`, conventionally `KARTOTEKA_TOKEN`. Needed when the daemon has `[auth] enabled = true` (kartoteka 0.32.0; every hosted daemon). Empty, or naming a variable that is unset, sends the request unauthenticated. See below. | The `knowledge_mirror` hook's `Authorization` header; the `using-artel` host status (set or not, never the value) |
+| `knowledge.tokenEnv` | string | `""` | Optional. The **name** of the environment variable holding a kartoteka bearer token — never the token itself; `[A-Za-z_][A-Za-z0-9_]*`, conventionally `KARTOTEKA_TOKEN`. Needed when the daemon has `[auth] enabled = true` (kartoteka 0.32.0; every hosted daemon). Empty, or naming a variable that is unset, sends the request unauthenticated. See below. | The `knowledge_mirror` hook's `Authorization` header; the `using-artel` host status (set or not, never the value); `scripts/spec_store.py` — which needs a CLI-minted token even where the MCP session signs in with GitHub (kartoteka 0.42.0) |
 
 - **`none`** — nothing is mirrored. The spec trail stays on disk, exactly as it always has.
-- **`kartoteka`** — as each deliberation artifact is written under `<specs.dir>`, a
-  `PostToolUse` hook posts it to that kartoteka daemon's artifact store, which versions it by
-  content hash. The mirror is **additive and best-effort**: the files on disk stay primary and
-  authoritative, the hook never blocks a write, and it never retries — the next edit re-posts,
-  and an unchanged re-post writes no row. This is unlike `vcs.adapter`, where an unusable
-  adapter stops the run; a pull request cannot be written to disk, but these files already are.
+- **`kartoteka`** — kartoteka's artifact store is this project's spec store
+  ([spec-storage.md](spec-storage.md)): spec documents are written there and nowhere else,
+  and `<specs.dir>` keeps only `.active_ticket` and gate evidence. When kartoteka cannot be
+  reached, a run asks before saving anything locally (headless: `specs.onUnavailable`), and
+  `/artel:migrate-specs` moves local trails in. The `PostToolUse` mirror hook still posts
+  files written on the files path — `--local`, or a run the user allowed to work locally —
+  best-effort as before: it never blocks and never retries.
 
 Which artifacts are mirrored, and which are deliberately not, is fixed in the hook rather than
 configured: the deliberation documents (`prd.md`, `plan.md`, `adr.md`, `review.md`, …) go, and

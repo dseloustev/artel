@@ -132,6 +132,13 @@ into the ticket directory (`docs/review-forecast.md`).
 
 ---
 
+**These paths are logical addresses.** With kartoteka as the spec store
+([spec-storage.md](spec-storage.md)), a spec-trail path names a document in kartoteka, not a
+file, addressed as spec-storage.md §3 maps it. `.active_ticket` and evidence (`review/`,
+`verify/`, `runtime/`, `design/`, `change-report.html`, `pr-pending.md`) are files on both
+paths. Every rule below — scope, refuse-and-ask, the read fallback — applies to the
+addresses unchanged.
+
 ## 4. Artifact path resolution
 
 ### 4.1 Phase-scoped (`PHASE_NUM` is set)
@@ -153,7 +160,7 @@ into the ticket directory (`docs/review-forecast.md`).
 | Context (read-only) | `<specs.dir>/<TICKET_ID>/idea.md`, `<specs.dir>/<TICKET_ID>/vision.md` (find the Phase/Iteration `<PHASE_NUM>` section) |
 | Inherited context (read-only) | The ticket-wide counterpart at `<specs.dir>/<TICKET_ID>/<artifact>.md` may be **read** for context, but is **never written** from a phase-scoped run. |
 
-Create the `phase-<PHASE_NUM>/` subfolder lazily on first write.
+On the files path, create the `phase-<PHASE_NUM>/` subfolder lazily on first write.
 
 ### 4.2 Ticket-wide (`PHASE_NUM` is null)
 
@@ -191,7 +198,7 @@ research, QA, tasks, summary, ADR) must follow this decision tree:
    Create the `phase-<PHASE_NUM>/` folder if missing.
 
 2. **If `PHASE_NUM` is null:**
-   - Use `Glob` to check whether `<specs.dir>/<TICKET_ID>/phase-*/` exists.
+   - Use `Glob` to check whether `<specs.dir>/<TICKET_ID>/phase-*/` exists. On the kartoteka path: whether any name in `artifact_list(project=<project>, ticket_key=<TICKET_ID>)` starts `phase-`.
    - **If no phase folder exists** → write to the ticket-wide path
      `<specs.dir>/<TICKET_ID>/<artifact>.md` (this is a brand-new ticket, or a project with
      `ticket.phaseSuffix: false`).

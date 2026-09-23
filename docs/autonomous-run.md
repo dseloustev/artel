@@ -12,7 +12,7 @@ below are the ones [config.md](config.md) defines. Operator-facing narrative doc
 ## Host-writable state: `.artel/run/`
 
 Everything this contract writes is orchestration bookkeeping, not the human-readable spec trail
-— that stays at `<specs.dir>/<TICKET_ID>/` per config.md and ticket-parsing.md. Bookkeeping
+— that stays at `<specs.dir>/<TICKET_ID>/` per config.md and ticket-parsing.md (or, with kartoteka as the spec store, in kartoteka — [spec-storage.md](spec-storage.md)). Bookkeeping
 lives under `.artel/run/` in the host repo instead, matching config.md's description of
 `.artel/`'s two directories:
 
@@ -22,6 +22,7 @@ lives under `.artel/run/` in the host repo instead, matching config.md's descrip
 │                            # never collides with a ticket dir; hooks/hook_common.py STATE_DIR)
 └── <TICKET_ID>/
     ├── run-state.json          # orchestrator-owned run state (§2)
+    ├── spec-store.json         # the ticket's storage decision (spec-storage.md §2.2), written by scripts/spec_store.py
     ├── run-journal.md          # append-only run journal (§11)
     ├── open-questions.md       # question collection before the approval pause (§3)
     ├── runtime-observation.md  # runtime-gate retry counter (§5)
@@ -53,7 +54,7 @@ updates it in place, it does not relocate it.
   ([deviation-protocol.md](deviation-protocol.md)).
 - **Mid-run interruptions are exceptional**, limited to: a deviation escalation (per the deviation
   protocol above), a `[HITL: …]` task, a loop-cap escalation, the PR-gate pause, or an environment
-  error. Nothing else may call `AskUserQuestion` after the pause.
+  error (kartoteka becoming unreachable while it is the spec store is one — spec-storage.md §5.2). Nothing else may call `AskUserQuestion` after the pause.
 - **Escalate, never spin.** Every loop is capped; counters persist in the artifacts the loop writes.
 - **Run state lives in artifacts**, never in conversation memory. Re-read the relevant artifacts after
   every sub-agent return — never decide on stale state.
@@ -73,7 +74,7 @@ Path: `.artel/run/<TICKET_ID>/run-state.json` (always ticket-top-level, even for
   "ticket": "PROJ-2052-1",       // full identifier incl. phase suffix
   "run_active": true,
   "completed": false,            // true only after the completion gate passes (§7)
-  "pause_reason": null,          // "deviation-escalation" | "hitl-task" | "cap-escalation" | "user-abort"
+  "pause_reason": null,          // "deviation-escalation" | "hitl-task" | "cap-escalation" | "store-unavailable" | "user-abort"
   "started_at": "2026-08-01T12:00:00Z",   // ISO-8601 UTC, written at run start
   "counters": { "verify": 0, "review_rounds": 0, "escalations": 0, "correction_rounds": 0 },  // reporting aggregate only (exception: correction_rounds — authoritative here, preserved across resume; §5)
   "effective_mode": "plan-gate", // "yolo" | "plan-gate" — resolved per §10 (full-gates never arms a run)
@@ -159,7 +160,7 @@ a cap escalation.
 |---|---|---|
 | implement → verify fixes (per task) | `MAX_VERIFY_ITERATIONS = 4` | `Verify iterations: N` in the implementer completion note |
 | per-task review → fix (per task, `review.perTask` only, §16) | `MAX_TASK_REVIEW_ROUNDS = 1` | the task's `task review` entry in `run-journal.md` (the round also counts toward `correction_rounds`) |
-| review → fix → re-review | `MAX_REVIEW_ROUNDS = 3` | `**Review round:** N` in `review.md` |
+| review → fix → re-review | `MAX_REVIEW_ROUNDS = 3` | `**Review round:** N` in `review.md` (reset by deleting it on the files path, by a round-0 version on the kartoteka path — spec-storage.md §4.4) |
 | runtime gate red → fix | `MAX_RUNTIME_RETRIES = 1` | `.artel/run/<TICKET_ID>/runtime-observation.md` |
 | QA negative verdict → fix | `MAX_QA_ROUNDS = 1` | `qa.md` |
 | checkpoint verify → fix (per checkpoint, §14) | `MAX_CHECKPOINT_VERIFY_ROUNDS = 2` | checkpoint entry in `run-journal.md` (rounds also count toward `correction_rounds`) |
@@ -204,7 +205,7 @@ When an orchestrator invokes `generate-idea` / `generate-vision` / `generate-tas
 output artifact satisfies the gate — the orchestrator skips the invocation entirely. The workers'
 interactive Overwrite/Abort prompts fire only on manual invocation. `sync-phases` is invoked by the
 orchestrators on phase-scoped runs: at run start (extract `phase-N/tasks.md` when missing) and after
-the phase's gates pass (sync status back to `tasklist.md`).
+the phase's gates pass (sync status back to `tasklist.md`). On the kartoteka path an artifact "exists" when the store holds it (`spec_store.py list <TICKET_ID>`, spec-storage.md §4.1).
 
 - **Task-queue mirror** — `generate-tasklist` and `tasklist` mirror `tasklist.md`
   into the kartoteka task queue as they write it, and both entry-point
@@ -292,6 +293,7 @@ claude -p "/artel:feature-development <TICKET_ID> --mode=yolo" --output-format s
   `paused (deviation-escalation) → auto-resolved`; **HITL tags** and **cap escalations** are never
   auto-resolved — journal the entry, set the `pause_reason`, and stop. A stalled headless run on a
   HITL/cap pause is the guardrail working; resume it interactively.
+- Spec store unavailability follows `specs.onUnavailable` (spec-storage.md §5.4): `"abort"` stops (journaled), `"local"` works locally; a local trail found at start always stops and names `/artel:migrate-specs`.
 
 On OpenCode, the same unattended pattern runs through `opencode run` with the host's
 `permission` config as the curated allowlist; the Stop gate fires on the idle event as a
@@ -328,7 +330,7 @@ Bash actions, pre-approved at the approval pause (§4 exception), never pause, a
 external actions (§11). The full procedure (branch guard, idempotence, the verify gate, explicit
 staging, push, journal) and the commit-subject table are defined in the `feature-development`
 skill (`../skills/feature-development/SKILL.md`, `## Checkpoint commits & pushes`; shared with
-`dev`).
+`dev`). On the kartoteka path the planning checkpoint stages the same paths, and when only `.active_ticket` changed it skips the commit and journals `planning checkpoint: skipped — the spec trail is in kartoteka`.
 
 ## 15. Phase traversal & `.active_ticket`
 
@@ -336,8 +338,10 @@ skill (`../skills/feature-development/SKILL.md`, `## Checkpoint commits & pushes
 - A ticket-wide invocation on a multi-phase tasklist loops the remaining incomplete phases in
   order. Each iteration: write `<TICKET_ID>-<N>` to `<specs.dir>/.active_ticket`
   (ticket-parsing.md §6), update the `ticket` field in `run-state.json` and refresh `started_at`
-  (a phase boundary re-arms the wall-clock budget), delete a stale ticket-wide `review.md`
-  (preserved in the prior phase's checkpoint commit; resets the §5 review-round counter), run
+  (a phase boundary re-arms the wall-clock budget), reset the review round — delete a stale ticket-wide `review.md`
+  on the files path (preserved in the prior phase's checkpoint commit), store the round-0 version on
+  the kartoteka path (spec-storage.md §4.4; preserved as an earlier version) — resetting the §5
+  counter, run
   the phase's gates passing `<TICKET_ID>-<N>` to every sub-skill, and close with the phase-end
   checkpoint (§14).
 - After each checkpoint, `.active_ticket` advances to the next incomplete phase; after the final

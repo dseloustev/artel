@@ -126,13 +126,16 @@ class TestWriteDirectionIsNoLongerClaimedAbsent(unittest.TestCase):
         Was an assertNotIn on the old text's exact line wrapping -- which any
         reflow satisfies -- plus two assertIns on tokens the paragraph could not
         lose. The substantive claim is the asymmetry: `## artifacts` is skipped
-        because the files on disk are ahead of it, `## tasks` because the queue
-        is authoritative but out of scope during an interview or a scan.
+        because on the files path the files on disk are ahead of it, and on the
+        kartoteka path it is the trail already read as inputs; `## tasks` because
+        the queue is authoritative but out of scope during an interview or a scan.
         """
-        block = self.text.split('`## artifacts` block')[1].split(
-            '- **`search_knowledge')[0]
-        self.assertIn('which can lag the files', block)
-        self.assertIn('those files are authoritative', block)
+        block = ' '.join(self.text.split('`## artifacts` block')[1].split(
+            '- **`search_knowledge')[0].split())
+        self.assertIn('On the files path it is artel\'s own spec trail coming back through '
+                      'the hook, lagging the files beside you', block)
+        self.assertIn('on the kartoteka path it is the trail you already read through '
+                      '`artifact_get` as inputs', block)
         self.assertIn('The `## tasks` block is **not** a lagging mirror:', block)
         self.assertIn('the queue is authoritative for what to work on', block)
         self.assertIn('ignore it as out of scope, not as stale', block)

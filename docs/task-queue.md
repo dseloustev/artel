@@ -28,6 +28,12 @@ which is worked from the file on both paths. The tasklist in scope stays current
 view besides, because §4's fallback reads it and a fallback pointed at a file
 claiming nothing is done would redo the whole ticket.
 
+**"The file" and "the tasklist" in this contract mean the tasklist document** — a file on
+the files path, a kartoteka artifact on the kartoteka path (`docs/spec-storage.md` §4.3).
+Every scan, flip and append below applies to either through that contract's operation
+mapping: a scan is `artifact_get` plus the same scan, a flip is one `artifact_patch`, and
+§2 step 1's parser reads the stored document by pipe.
+
 ## 1. Whether to use the queue at all
 
 Three inputs, resolved in this order. `--local` short-circuits before capability

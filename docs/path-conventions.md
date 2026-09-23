@@ -35,8 +35,8 @@ Allowed forms:
 
 ## 2. Rationale
 
-Everything under `<specs.dir>` is committed to the git repository and shared with every
-collaborator who pulls it. Absolute paths:
+Spec-trail documents are shared: committed to the repository on the files path, stored in
+kartoteka and read from other machines on the kartoteka path ([spec-storage.md](spec-storage.md)). Absolute paths:
 
 1. **Leak local machine layout** to every collaborator who pulls the repo (e.g., usernames,
    project directory structure).

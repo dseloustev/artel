@@ -112,7 +112,20 @@ Then run the **work-list checkpoint** (procedure: `feature-development` `## Chec
 pushes`): commit `<specs.dir>/<TICKET_ID>/**` + `<specs.dir>/.active_ticket` and push — subject
 `docs: <TICKET_ID> work list` (phase runs: `docs: <TICKET_ID> phase <N> work list`). Journal it as
 an external action. No verify gate here (`verify.commands`) — docs only, no code yet. On the
-kartoteka path, when only `.active_ticket` changed, skip the commit and journal `work-list checkpoint: skipped — the spec trail is in kartoteka`.
+kartoteka path, when, images aside, only `.active_ticket` changed, skip the commit and journal `work-list checkpoint: skipped — the spec trail is in kartoteka`.
+
+On the kartoteka path this checkpoint sweeps images first and never stages one — the procedure's
+steps 2 and 4, spelled out here because this checkpoint names its own paths
+(`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.6). Sweep:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:dev`.
+Exit `5`, or `failed` entries, never pause: journal
+`image-sync: <n> left local — <first error line>` (spec-storage.md §5.6) and go on.
+Exit `2` with kind `unrecoverable` never pauses either, but journal its whole message, not a
+first line, and repeat it in the final report (spec-storage.md §5.6). Then stage
+with one exclude per image extension, leaving `'<specs.dir>/<TICKET_ID>'` out when that folder
+neither exists nor has tracked files:
+
+    git add -- '<specs.dir>/<TICKET_ID>' '<specs.dir>/.active_ticket' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.png' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.jpg' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.jpeg' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.gif' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.webp'
 
 ### 4. Implement (autonomous)
 
@@ -224,11 +237,16 @@ description-file sync per `orchestrator-common.md` (when `$1` has checkbox tasks
 
 ### 9. Report
 
+On the kartoteka path, sweep once more before writing it:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:dev`
+(`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §5.6). A failure never pauses: the report lists what
+it left local instead.
+
 Ticket; phases traversed; tasks completed; aggregated `Deviations:` line (`none` when clean);
 verify-iteration total and review rounds; runtime gate status (green / red / skipped); checkpoint
 commits (hash + subject each, incl. push results); description-sync status; reminder that opening
 the PR remains manual (dev has no PR gate — the work itself is already committed and pushed by the
-checkpoints); effective mode + why (`mode_reasons`); external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); path
+checkpoints); effective mode + why (`mode_reasons`); external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); images left local on the kartoteka path — each `failed` or `skipped` entry of that sweep with its reason, or on exit `5` every image still under the trail; an `unrecoverable` sweep's whole message — with the `image sync` command above to move them in (headless runs journal the same lines); path
 to `run-journal.md`.
 
 ## Important

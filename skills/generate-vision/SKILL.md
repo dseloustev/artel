@@ -35,8 +35,10 @@ in <specs.dir>/.active_ticket" and terminate.
 **Pipeline invocation** (from an orchestrator): if `vision.md` exists (kartoteka path:
 `spec_store.py exists <specs.dir>/<TICKET_ID>/vision.md` exits 3), skip — report `Vision
 exists — skipped` and terminate (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9).
-**Manual invocation:** if `vision.md` exists, `AskUserQuestion`: **Overwrite from scratch** /
-**Abort**. (Per-section refine no longer exists — the document is regenerated as a whole.)
+**Manual invocation:** if `vision.md` exists (kartoteka path:
+`spec_store.py exists <specs.dir>/<TICKET_ID>/vision.md` exits 3), `AskUserQuestion`: **Overwrite
+from scratch** / **Abort**. (Per-section refine no longer exists — the document is regenerated as
+a whole.)
 
 ## Execute
 

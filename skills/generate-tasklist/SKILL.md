@@ -60,9 +60,10 @@ Ensure `<specs.dir>/<TICKET_ID>/` exists before writing.
 The Phase 2 questions+approval round below serves as `dev`'s mini-interview and single work-list
 confirmation.
 
-**Manual invocation:** if `tasklist.md` exists, `AskUserQuestion` with two options —
-**Overwrite** (regenerate from scratch; progress marks are lost) / **Abort**. No "refine in
-place" — a tasklist partway through implementation is better merged by hand.
+**Manual invocation:** if `tasklist.md` exists (kartoteka path:
+`spec_store.py exists <specs.dir>/<TICKET_ID>/tasklist.md` exits 3), `AskUserQuestion` with two
+options — **Overwrite** (regenerate from scratch; progress marks are lost) / **Abort**. No
+"refine in place" — a tasklist partway through implementation is better merged by hand.
 
 ## Execute
 

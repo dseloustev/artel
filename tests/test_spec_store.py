@@ -430,6 +430,18 @@ class TestDecide(StoreCase):
         self.assertEqual(sorted(self.stored()), ['decided_at', 'decided_by', 'pending', 'reason',
                                                  'store', 'versions'])
 
+    def test_the_local_trail_names_tracked_images_not_untracked_ones(self):
+        design = self.repo / 'specs' / '.current' / 'AW-12' / 'design'
+        design.mkdir(parents=True)
+        (design / 'committed.png').write_bytes(PNG)
+        (design / 'Screen Shot.png').write_bytes(PNG)   # tracked, but kartoteka cannot address it
+        for args in (('init', '-q'), ('add', 'specs')):
+            subprocess.run(['git', *args], cwd=self.repo, check=True, capture_output=True)
+        (design / 'fresh.png').write_bytes(PNG)         # untracked: the sweep's
+        code, out = self.decide()
+        self.assertEqual((code, out['local_trail']),
+                         (0, ['specs/.current/AW-12/design/committed.png']))
+
 
 class TestDecisionAndPending(StoreCase):
     def test_decision_reads_back_with_freshness(self):

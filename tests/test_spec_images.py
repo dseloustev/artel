@@ -474,6 +474,31 @@ class TestImageSync(ImageCase):
             'it changed while it was being stored; the file is kept for the next sweep')}])
         self.assertEqual(local.read_bytes(), png('rewritten'))
 
+    def test_a_write_landing_right_before_the_move_into_the_cache_is_still_caught(self):
+        # A write between kartoteka's confirmation and the move into the
+        # cache must not move unverified bytes into the cache: the sweep
+        # hashes the file it actually moved, not the one it read earlier.
+        local = self.image(TRAIL + '/design/a.png', png('a'))
+        raced = []
+        real_replace = spec_store.os.replace
+
+        def replace_then_race(src, dst):
+            if not raced:  # only the first call -- the move into the cache
+                raced.append(True)
+                Path(src).write_bytes(png('raced'))
+            return real_replace(src, dst)
+
+        cwd = os.getcwd()
+        os.chdir(str(self.repo))
+        self.addCleanup(os.chdir, cwd)
+        with mock.patch.object(spec_store.os, 'replace', side_effect=replace_then_race):
+            out = spec_store.sync_images(spec_store.Store(self.config), self.config, 'AW-12',
+                                         self.AUTHOR)
+        self.assertEqual(out['failed'], [{'path': TRAIL + '/design/a.png', 'reason': (
+            'it changed while it was being stored; the file is kept for the next sweep')}])
+        self.assertEqual(local.read_bytes(), png('raced'))  # moved back, not left in the cache
+        self.assertFalse(self.cached('design/a.png').exists())
+
     def test_an_outage_midway_exits_5_and_the_rest_stay(self):
         self.image(TRAIL + '/design/a.png', png('a'))
         self.image(TRAIL + '/design/b.png', png('b'))

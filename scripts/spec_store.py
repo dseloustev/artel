@@ -1422,19 +1422,31 @@ def sync_images(store, config, ticket, author):
         if status != 200 or (receipt or {}).get('content_hash') != sent:
             fail('kartoteka did not confirm the bytes that were sent; the file is kept')
             continue
-        try:
-            still = sha256_bytes(found.read_bytes())
-        except OSError:
-            still = None
-        if still != sent:
-            fail('it changed while it was being stored; the file is kept for the next sweep')
-            continue
+        # Move into the cache first, then hash the file that landed there --
+        # not the one still at `source`. Hashing before the move leaves a
+        # window between that read and os.replace where a write to `source`
+        # would move bytes kartoteka never verified into the cache; hashing
+        # the moved file closes it, because nothing can write to `target`
+        # under a name the sweep only just created.
         target = image_cache_path(ticket_key, path)
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             os.replace(source, str(target))
         except OSError as exc:
             fail('stored, but not moved into the cache: {}'.format(exc.strerror or exc))
+            continue
+        try:
+            still = sha256_bytes(target.read_bytes())
+        except OSError:
+            still = None
+        if still != sent:
+            try:
+                os.replace(str(target), source)
+            except OSError as exc:
+                fail('it changed while it was being stored, and the cached copy could not be '
+                     'moved back: {}'.format(exc.strerror or exc))
+                continue
+            fail('it changed while it was being stored; the file is kept for the next sweep')
             continue
         _prune_empty_parents(source, config, ticket, keep_root=True)
         result['unchanged' if receipt.get('unchanged') else 'uploaded'].append(source)

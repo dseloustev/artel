@@ -144,9 +144,10 @@ continue on a broken design. Re-run after the design is fixed (manual re-run →
 
 Report: sections analyzed; screen counts (exists as-is / needs modification / new); transition
 count; Major count (with resolutions) and Minor count; screenshot count, and on the kartoteka
-path the sweep's `uploaded`, `unchanged` and `failed` counts (plus its `image-sync:` line when it
-left any local); artifact path `<specs.dir>/<TICKET_ID>/design-analysis.md`. Note the ignored
-phase suffix when applicable.
+path the sweep's `uploaded`, `unchanged`, `failed` and `skipped` counts (each `skipped` entry with
+its reason — a screenshot whose name falls outside §4.6's grammar will not render in kartoteka's
+dashboard) plus its `image-sync:` line when it left any local; artifact path
+`<specs.dir>/<TICKET_ID>/design-analysis.md`. Note the ignored phase suffix when applicable.
 
 ## Important Rules
 

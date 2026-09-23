@@ -119,9 +119,12 @@ def local_trail(ticket, config):
 def image_files(root):
     """Every image file under `root`, at any depth, sorted: regular files only.
 
-    A symbolic link is never listed, and a linked directory is never entered
-    (os.walk does not follow links), so nothing a link points at -- a private
-    key, another checkout -- can be read as this trail's image. Used by the
+    A symbolic link is never listed, and a link met while walking below
+    `root` is never entered (os.walk does not follow a link once it is
+    inside the walk). `root` itself can still be a link -- os.walk walks
+    into whatever it is first pointed at -- so a linked ticket directory is
+    not this function's problem to catch: the sweep's own
+    `_outside_the_trail` runs before any path from here is read. Used by the
     sweep (`spec_store.py image sync`) and by migration.
     """
     found = []

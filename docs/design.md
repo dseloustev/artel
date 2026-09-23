@@ -139,8 +139,10 @@ move to the decision log.
   gain the holder those rows lack today. Store mode (0.16.0) did not need them: the tasklist
   stayed a document (2026-09-22 decision log). Moving task state wholly into the queue — option
   A of the 2026-09-22 design — is where they would land.
-- **Store mode's live smoke test** is recorded in the 0.16.0 release notes. Two follow-ups are
-  parked: evidence files (`findings.json`, `observation.md`) moving into the store, and
+- **Store mode's live smoke test is still owed.** 0.16.0 shipped on the unit and doc-contract
+  suites alone; the end-to-end run (migration, a store-mode `dev` run, an outage, the guard,
+  a live `artifact_patch`) is to be done on a live project, with the result recorded here. Two
+  follow-ups are parked: evidence files (`findings.json`, `observation.md`) moving into the store, and
   `.active_ticket` moving to `.artel/run/` (2026-09-22 design, §16).
 - **A generated ticket never reads fully done in kartoteka's rollup.** Fix-section parents
   (`CRF: …`, `RTF: …`, `VF: …`, `FV: …`) stay `backlog` by design, because nothing claims,

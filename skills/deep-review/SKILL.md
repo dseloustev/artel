@@ -281,12 +281,12 @@ Otherwise ask via `AskUserQuestion` which fixes to work. Offer only the options 
 
 1. Copy the checkbox items of the chosen `### Tasks` block(s) from `deep-review.md` — not their
    `### Tasks` heading — under `## Code Review Fixes` in the ticket-wide
-   `<specs.dir>/<TICKET_ID>/tasklist.md`, beneath one new source heading
+   `<specs.dir>/<TICKET_ID>/tasklist.md` — on the kartoteka path one `artifact_patch(project=<project>, …)`: insert before the next `## ` heading, or `append` (spec-storage.md §4.3) — beneath one new source heading
    `### deep-review-<YYYY-MM-DD>`, the date from `date +%F`. The heading keeps this batch's
    rows apart from an earlier round's with the same text
    (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); when it is already in the section, use
    `-2`, then `-3`, ….
-   - The file is missing → create it with `# Tasklist — <TICKET_ID>` and the section, and
+   - The file is missing → create it (kartoteka path: `artifact_put(project=<project>, …, expected_version=0)`) with `# Tasklist — <TICKET_ID>` and the section, and
      display `Created <specs.dir>/<TICKET_ID>/tasklist.md with only a ## Code Review Fixes section.`
    - The section is missing → append `## Code Review Fixes` at the end of the file.
    - The source heading goes at the end of the section, before the next `## ` heading.

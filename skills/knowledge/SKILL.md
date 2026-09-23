@@ -50,6 +50,13 @@ Strip the flags first (`--source`, `--type`, `--status`, `--artifacts`); what re
   query or a ticket and stop.
 - **Anything else** is a free-text query → §3c.
 
+**Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
+first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
+an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
+operation — never with Read/Write/Edit or a shell file command.
+
 ## 3. Call
 
 Open every path with **one `index_status()` call, unscoped** — it is the availability probe,
@@ -73,16 +80,18 @@ phase suffix**: a run scoped to `PROJ-123-2` asks `related(<project>, "PROJ-123"
 kartoteka joins on the bare key its Jira documents carry and the suffixed form silently
 returns nothing.
 
-- When `<TICKET_ID>` is the active ticket (`<specs.dir>/.active_ticket`, suffix stripped), the
-  `## artifacts` block is artel's own spec trail coming back through the mirror hook, and it can
-  lag the files on disk. Say so in one line — "your on-disk trail under
-  `<specs.dir>/<TICKET_ID>/` is authoritative" — and do not `artifact_get` any of it.
+- When `<TICKET_ID>` is the active ticket (`<specs.dir>/.active_ticket`, suffix stripped),
+  the `## artifacts` block is artel's own spec trail. On the files path it comes back
+  through the mirror hook and can lag the files on disk: say so in one line — "your on-disk
+  trail under `<specs.dir>/<TICKET_ID>/` is authoritative" — and do not `artifact_get` any of
+  it. On the kartoteka path (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`) it *is* the trail:
+  say so, and `--artifacts` lists it like any other ticket's.
 - Summarise the `## tasks` block as counts by status and point at
   `/artel:tasks list <TICKET_ID>` for the rows.
 - `--artifacts` on a **non-active** ticket adds
   `artifact_list(project=<project>, ticket_key=<TICKET_ID>)`; a follow-up that names a stage
   may `artifact_get(<project>, <TICKET_ID>, <stage>, <name>)`. On the active ticket the
-  flag lists nothing: say the trail is on disk and stop there.
+  flag lists nothing on the files path — say the trail is on disk and stop there.
 
 ### 3c. Query
 

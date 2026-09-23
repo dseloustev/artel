@@ -120,6 +120,13 @@ If "No", terminate cleanly. (Common cause: stale link.)
    context — the skill must still work, just with reduced grounding. Log a one-line warning so the
    user knows.
 
+**Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
+first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
+an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
+operation — never with Read/Write/Edit or a shell file command.
+
 ## Step 4 — Read ticket context
 
 Per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` path resolution, read whichever exist under
@@ -134,6 +141,8 @@ Per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` path resolution, read whichev
 - `qa.md` (and `phase-<PHASE_NUM>/qa.md`)
 - `summary.md` (and `phase-<PHASE_NUM>/summary.md`)
 - `phase-<PHASE_NUM>/tasks.md` (when `PHASE_NUM` set)
+
+On the kartoteka path read each with `artifact_get(project=<project>, …)` (spec-storage.md §4.1).
 
 Optionally fetch the canonical ticket description via `tracker.adapter`
 (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`): `"jira-mcp"` → `<tracker.mcpToolPrefix>jira_get_issue`

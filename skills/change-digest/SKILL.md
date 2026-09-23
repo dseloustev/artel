@@ -24,9 +24,17 @@ must test what actually matters.
   number (e.g. `feature/<TICKET_ID>-5-...` on a single-phase ticket) that is not a spec phase —
   don't invent a phase folder for a derived artifact.
 
+**Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
+first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
+an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
+operation — never with Read/Write/Edit or a shell file command.
+
 ## 2. Read the ticket documentation
 
-Read from `<specs.dir>/<TICKET_ID>/` — everything that exists, silently skipping what doesn't. One
+Read from `<specs.dir>/<TICKET_ID>/` — everything that exists, silently skipping what doesn't.
+On the kartoteka path list the ticket's documents with `artifact_list(project=<project>, ticket_key=<TICKET_ID>)` and read each with `artifact_get`; `change-report.html` is still written as a file (it is derived output, spec-storage.md §1). One
 exception: `open-questions.md` lives outside the spec trail, at
 `.artel/run/<TICKET_ID>/open-questions.md` (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §3,
 written by `planner`/`researcher`/`tasklist`) — read it from there, silently skipping it too if

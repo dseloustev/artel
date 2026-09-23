@@ -17,6 +17,8 @@ home of these workflow files once saved.
 committed. Skills run with the host repo as their working directory, so every path below is a
 plain repo-relative path — no toplevel lookup needed.
 
+**With kartoteka as the spec store** (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`), `<specs.dir>/<TICKET_ID>/` holds only gate evidence and `.active_ticket` is the only pointer: those are saved exactly as below, and the spec documents — which live in kartoteka — are neither saved nor needed here. Old spec copies already in the store are moved into kartoteka by `/artel:migrate-specs`.
+
 ```
 .artel/context/
 ├── root/                       # latest CLAUDE.md, CHANGELOG.md (newer wins)

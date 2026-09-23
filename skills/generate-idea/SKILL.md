@@ -31,6 +31,13 @@ Parse `$0` into `TICKET_ID` and `TICKET_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orc
 
 Ideas are ticket-level only. If a phase suffix is present in the input, ignore it and note this in the final report.
 
+**Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
+first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
+an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
+operation — never with Read/Write/Edit or a shell file command.
+
 ## File Path Resolution
 
 | Artifact | Path |
@@ -45,7 +52,7 @@ Ensure `<specs.dir>/<TICKET_ID>/` exists before writing.
 
 ### Step 1: Pre-flight — check for an existing idea file
 
-Read `<specs.dir>/<TICKET_ID>/idea.md`.
+Read `<specs.dir>/<TICKET_ID>/idea.md` (kartoteka path: `spec_store.py exists <specs.dir>/<TICKET_ID>/idea.md` — exit 0 exists, 3 does not).
 
 **Pipeline invocation** (from an orchestrator): if it exists, skip — report `Idea exists —
 skipped` and terminate without touching the tracker (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9).
@@ -162,7 +169,7 @@ structure being stable.
 ### Step 5: Write the output
 
 Ensure `<specs.dir>/<TICKET_ID>/` exists. Write the rendered content to
-`<specs.dir>/<TICKET_ID>/idea.md`.
+`<specs.dir>/<TICKET_ID>/idea.md`. On the kartoteka path store it instead: `artifact_put(project=<project>, ticket_key=<TICKET_ID>, stage="idea", name="idea.md", content=…, author_agent="artel:generate-idea", expected_version=0)` — on Overwrite, `expected_version` is the version that exists.
 
 ### Step 6: Update `<specs.dir>/.active_ticket`
 

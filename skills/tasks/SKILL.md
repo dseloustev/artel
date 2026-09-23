@@ -47,6 +47,13 @@ The tools are `task_create`, `task_update`, `task_list`. There is no override fl
 may serve several projects out of one database, `<project>` is what names this one on every
 write, and a queue wired up for another checkout must not be written to from this one.
 
+**Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
+first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
+an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
+operation — never with Read/Write/Edit or a shell file command.
+
 ## 2. Verbs
 
 ### `list [ticket] [--status <status>]`
@@ -84,7 +91,7 @@ write, and a queue wired up for another checkout must not be written to from thi
 `--raw` → skip to **Raw** below — unless `--fix` was given too: `--raw` with `--fix` → print
 the argument hint and stop.
 
-1. **Tasklist in scope**: `<specs.dir>/<TICKET_ID>/tasklist.md`. Missing → stop: "no tasklist
+1. **Tasklist in scope**: `<specs.dir>/<TICKET_ID>/tasklist.md`. Missing → stop (kartoteka path: `spec_store.py exists`): "no tasklist
    for <TICKET_ID>; create one with `/artel:tasklist` or `/artel:generate-tasklist`, or pass
    `--raw` for a bare backlog row". `--iteration` missing (and no `--fix`), or iteration `N`
    absent → stop and list the `## Iteration N:` / `## Phase N:` headings the file has.
@@ -100,6 +107,8 @@ the argument hint and stop.
    same section there, so `sync-phases` matches the same text on both sides.
    If the tasklist has a Progress Report table with a row for iteration `N`, bump that row's
    total (`X/Y` → `X/Y+1`).
+   On the kartoteka path the append, the phase-file append and the Progress Report bump are
+   `artifact_patch(project=<project>, …)` calls (spec-storage.md §4.3).
 3. **Mirror** — exactly `docs/task-queue.md` §2. Files path first, kartoteka path
    (`docs/spec-storage.md` §4.2) second:
 
@@ -139,7 +148,7 @@ with any of them → print the argument hint and stop.
 1. **File in scope**: `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` when the ticket
    carries a phase suffix — the file the implementer scans for that section on a phase-scoped
    run — else `<specs.dir>/<TICKET_ID>/tasklist.md`.
-   Missing → stop. For `tasklist.md`: "no tasklist for <TICKET_ID>; create one with
+   Missing → stop (kartoteka path: `spec_store.py exists`). For `tasklist.md`: "no tasklist for <TICKET_ID>; create one with
    `/artel:tasklist` or `/artel:generate-tasklist`". For a phase file: "no
    `phase-<PHASE_NUM>/tasks.md` for <TICKET_ID>-<PHASE_NUM>; extract it with
    `/artel:sync-phases <TICKET_ID>-<PHASE_NUM>`, or drop the phase suffix to add the fix to
@@ -153,6 +162,8 @@ with any of them → print the argument hint and stop.
      file.
    A day's manual additions share one heading, the one exception to §6's never-reuse rule.
    Fix sections are not in the Progress Report table; leave it alone.
+   On the kartoteka path the append is an `artifact_patch(project=<project>, …)` call
+   (spec-storage.md §4.3).
 3. **Mirror** — `docs/task-queue.md` §2's fix-writer rule. Files path first, kartoteka path
    (`docs/spec-storage.md` §4.2) second:
 
@@ -179,7 +190,7 @@ with any of them → print the argument hint and stop.
    separator. The checkbox text is everything after the title's second ` · ` (the
    `I<N> · <section> · ` prefix, or `<CODE> · <source> · ` for a fix-section row); a `--raw`
    title has no prefix and no checkbox. Flip the
-   matching `- [ ]` to `- [x]` in `<specs.dir>/<TICKET_ID>/tasklist.md` (and in
+   matching `- [ ]` to `- [x]` (kartoteka path: `artifact_patch` on each document that holds the box) in `<specs.dir>/<TICKET_ID>/tasklist.md` (and in
    `phase-<N>/tasks.md` when it exists) — the file is the fallback the implementer reads when
    the daemon is gone, so it must not fall behind the queue. A fix-section row's box may sit in
    any `phase-*/tasks.md` instead: look in `tasklist.md` and every phase file, under that

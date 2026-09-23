@@ -30,6 +30,13 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT
 
 Use the ticket resolution above to determine paths.
 
+**Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
+first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
+an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
+operation — never with Read/Write/Edit or a shell file command.
+
 ### Step 2: Read the tasklist and context files
 
 1. Read `<specs.dir>/<TICKET_ID>/tasklist.md` to understand the current state of all phases.
@@ -39,7 +46,7 @@ Use the ticket resolution above to determine paths.
 
 ### Step 3: Find existing phase tasks files
 
-Use Glob to find all phase tasks files: `<specs.dir>/<TICKET_ID>/phase-*/tasks.md`. The phase number is read from the path segment (`phase-1/tasks.md` → phase `1`).
+Use Glob to find all phase tasks files: `<specs.dir>/<TICKET_ID>/phase-*/tasks.md`. The phase number is read from the path segment (`phase-1/tasks.md` → phase `1`). On the kartoteka path the phase files are the names `phase-<N>.tasks.md` in `artifact_list(project=<project>, ticket_key=<TICKET_ID>)`.
 
 ### Step 4: Sync completed phases FROM phase tasks files TO tasklist
 
@@ -55,6 +62,8 @@ For each existing `phase-N/tasks.md`:
 4. If the phase is NOT complete but has some progress:
    - Sync individual task completion status (checkboxes) to the tasklist iteration body section.
    - Update progress count in the Progress Report table row (e.g., `2/4`) and set status to the "in progress" variant.
+
+On the kartoteka path every checkbox, Progress Report and (Step 7) `**Current Phase:**` change to the tasklist is one `artifact_patch(project=<project>, …)` with an edit per changed line (spec-storage.md §4.3).
 
 ### Step 5: Find the target phase for extraction (Step 6)
 
@@ -121,6 +130,8 @@ If `<specs.dir>/<TICKET_ID>/phase-<N>/tasks.md` does NOT exist for the target ph
 
    [Extract any implementation notes from tasklist for this phase, or leave placeholder]
    ```
+
+   On the kartoteka path it is `artifact_put(project=<project>, …, name="phase-<N>.tasks.md", expected_version=0)`.
 
 ### Step 7: Update Current Phase (MANDATORY)
 

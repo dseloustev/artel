@@ -50,6 +50,25 @@ In particular:
 - Ticket-wide output → `<specs.dir>/<TICKET_ID>/prd.md`.
 - The **refuse-and-ask rule** in §5 of `ticket-parsing.md` applies: if `PHASE_NUM` is null but `phase-*/` folders exist, stop and ask the user to disambiguate instead of overwriting the ticket-wide PRD.
 
+## Spec store
+
+Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
+
+- **`files`** — every spec-trail path in this file is a file under `<specs.dir>`, read and
+  written as always.
+- **`kartoteka`** — every spec-trail path in this file is a document address in kartoteka, the
+  project's only spec store. Read, check, create, rewrite and edit it exactly as
+  `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
+  `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
+  never with Read/Write/Edit and never as a file. Evidence (`review/findings.json`, `verify/`,
+  `runtime/`, `design/`) and `.active_ticket` stay files on both paths.
+- A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
+  else. A write refused with "kartoteka is this project's spec store" means you used a file tool
+  where §4.1 says to call a tool.
+- No **Spec store:** field in your dispatch → run
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
+  when `fresh` is `true`; otherwise `files`.
+
 ## Input Artifacts
 
 Always read for context:

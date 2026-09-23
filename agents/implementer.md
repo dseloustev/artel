@@ -19,6 +19,29 @@ In particular:
 - All ticket artifacts live under `<specs.dir>/<TICKET_ID>/`.
 - When a phase is set (e.g., `PROJ-123-1`), work only within that phase's tasklist and do not cross phase boundaries.
 
+## Spec store
+
+Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
+
+- **`files`** — every spec-trail path in this file is a file under `<specs.dir>`, read and
+  written as always.
+- **`kartoteka`** — every spec-trail path in this file is a document address in kartoteka, the
+  project's only spec store. Read, check, create, rewrite and edit it exactly as
+  `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
+  `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
+  never with Read/Write/Edit and never as a file. Evidence (`review/findings.json`, `verify/`,
+  `runtime/`, `design/`) and `.active_ticket` stay files on both paths.
+- A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
+  else. A write refused with "kartoteka is this project's spec store" means you used a file tool
+  where §4.1 says to call a tool.
+- No **Spec store:** field in your dispatch → run
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
+  when `fresh` is `true`; otherwise `files`.
+
+On the kartoteka path, "the file", "tasklist.md" and "the tasklist in scope" throughout this file
+mean the stored tasklist document (`tasklist.md`, or `phase-<N>.tasks.md` on a phase-scoped run):
+read it with `artifact_get` and scan it exactly as you would the file.
+
 ## Input
 
 - `<specs.dir>/.active_ticket`
@@ -33,6 +56,7 @@ In particular:
 - Updated tasklist — the completed task's checkbox flipped to `- [x]`
 - Updated Progress Report table (when one exists in the tasklist)
 - `implementation-notes.md` — a `## Deviations` entry for every deviation from the approved proposal (see `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §3); created lazily, only when a deviation occurs
+- On the kartoteka path (**Spec store:**): the checkbox and the Progress Report row are one `artifact_patch(project=<project>, …)` carrying both edits (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.3); `implementation-notes.md` is created with `artifact_put(project=<project>, …, expected_version=0)` at the first deviation and appended to with `artifact_patch` after.
 
 ---
 
@@ -130,7 +154,8 @@ Run the quality gates **before** claiming completion:
 ### Step 5 — Close the task
 
 Only when the last unscoped verify is green: flip the checkbox to `- [x]` and
-update the Progress Report table when present. The tasklist in scope
+update the Progress Report table when present. On the kartoteka path both edits go
+in one `artifact_patch` (spec-storage.md §4.3). The tasklist in scope
 (`tasklist.md`, or `phase-<N>/tasks.md` on a phase-scoped run) is kept current on
 both paths — it is what the fallback reads.
 

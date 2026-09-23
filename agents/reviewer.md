@@ -24,6 +24,25 @@ In particular: when a phase is set, scope the review to that phase and write fix
 
 ---
 
+## Spec store
+
+Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
+
+- **`files`** — every spec-trail path in this file is a file under `<specs.dir>`, read and
+  written as always.
+- **`kartoteka`** — every spec-trail path in this file is a document address in kartoteka, the
+  project's only spec store. Read, check, create, rewrite and edit it exactly as
+  `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
+  `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
+  never with Read/Write/Edit and never as a file. Evidence (`review/findings.json`, `verify/`,
+  `runtime/`, `design/`) and `.active_ticket` stay files on both paths.
+- A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
+  else. A write refused with "kartoteka is this project's spec store" means you used a file tool
+  where §4.1 says to call a tool.
+- No **Spec store:** field in your dispatch → run
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
+  when `fresh` is `true`; otherwise `files`.
+
 ## Ticket mode
 
 ### Input
@@ -45,9 +64,12 @@ Path resolution follows `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. In summa
    carries the file-persisted loop counter `**Review round:** N` — read the existing value and write
    N+1 (first run: 1). Never reset it yourself; the counter resets only when the user resumes with
    guidance after a cap escalation (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §5), which the
-   orchestrator signals by deleting `review.md`.
+   orchestrator signals by deleting `review.md`. On the kartoteka path the orchestrator signals it
+   by storing a round-0 reset version instead (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.4),
+   and you write round N+1 as a new version: `artifact_put(project=<project>, …,
+   expected_version=<the version you read>)`.
 2. Findings categorized **Blocking** (must fix before merge), **Important** (recommended), **Nice-to-have** (cosmetic).
-3. For every blocking or important finding, append a task to the tasklist under `## Code Review Fixes` (in the phase-scoped `phase-<PHASE_NUM>/tasks.md` when phase is set, otherwise the ticket-wide `tasklist.md`). Open this round's batch with a source heading — `### review-r<R>`, R the `**Review round:**` you just wrote, or `### review-p<PHASE_NUM>-r<R>` when phase is set; when that heading is already in the section, append `-2` (then `-3`, …) — and put every task of the round under it. No other `###` heading inside the batch: the nearest `###` above a task is its source, so a `### Blocking` or `### Important` grouping would replace the round. Put the priority in the task text (`**Task N (Blocking): …**`) or under a `####` heading, which the parser ignores as a source. The batch goes at the end of the section, before the next `## ` heading; a missing section is appended at the end of the file. The heading is how the task queue tells this round's tasks from an earlier round's with the same text (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); you never write to the queue yourself — `run-reviewer` records the batch after you return:
+3. For every blocking or important finding, append a task to the tasklist under `## Code Review Fixes` (in the phase-scoped `phase-<PHASE_NUM>/tasks.md` when phase is set, otherwise the ticket-wide `tasklist.md`). Open this round's batch with a source heading — `### review-r<R>`, R the `**Review round:**` you just wrote, or `### review-p<PHASE_NUM>-r<R>` when phase is set; when that heading is already in the section, append `-2` (then `-3`, …) — and put every task of the round under it. No other `###` heading inside the batch: the nearest `###` above a task is its source, so a `### Blocking` or `### Important` grouping would replace the round. Put the priority in the task text (`**Task N (Blocking): …**`) or under a `####` heading, which the parser ignores as a source. The batch goes at the end of the section, before the next `## ` heading; a missing section is appended at the end of the file. On the kartoteka path the batch is one `artifact_patch`: a replace edit inserting it before the next `## ` heading, or `append` when the section is last or missing (spec-storage.md §4.3). The heading is how the task queue tells this round's tasks from an earlier round's with the same text (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); you never write to the queue yourself — `run-reviewer` records the batch after you return:
 
 ```markdown
 ## Code Review Fixes
@@ -96,6 +118,7 @@ Review report with priority sections: **Critical Issues (must fix)**, **Warnings
 Save to:
 - `<specs.dir>/<TICKET_ID>/review.md` when a ticket identifier is available (from `<specs.dir>/.active_ticket` or caller).
 - `<specs.dir>/review-claude.md` otherwise (or another path the caller specifies).
+  (always a file, on both paths: it has no ticket to file it under — spec-storage.md §1.)
 
 ### Regression guard (standalone)
 
@@ -151,7 +174,8 @@ index, index-first per `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §3 (`usa
    never `review-r<R>`: task mode does not touch the round. No other `###` heading inside
    the batch, as in ticket mode: the priority goes in the task text
    (`**Task N (Blocking): …**`) or under a `####` heading, which the parser ignores as a source.
-   Nice-to-have findings stay in the review file only.
+   Nice-to-have findings stay in the review file only. On the kartoteka path the batch is
+   appended exactly as in ticket mode's Output 3 (§4.3).
 3. Nothing else: task mode does not write `review.md`, does not touch `**Review round:**`,
    and does not write `review/findings.json` — those are the phase review's, and the lens
    passes below are not run per task. An unchecked `## Code Review Fixes` task is what the

@@ -18,6 +18,25 @@ In particular:
 - Ticket-wide output → `<specs.dir>/<TICKET_ID>/plan.md` (and optional `adr.md`).
 - The **refuse-and-ask rule** in §5 of `ticket-parsing.md` applies: if `PHASE_NUM` is null but `phase-*/` folders exist, stop and ask the user to disambiguate instead of overwriting the ticket-wide plan.
 
+## Spec store
+
+Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
+
+- **`files`** — every spec-trail path in this file is a file under `<specs.dir>`, read and
+  written as always.
+- **`kartoteka`** — every spec-trail path in this file is a document address in kartoteka, the
+  project's only spec store. Read, check, create, rewrite and edit it exactly as
+  `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
+  `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
+  never with Read/Write/Edit and never as a file. Evidence (`review/findings.json`, `verify/`,
+  `runtime/`, `design/`) and `.active_ticket` stay files on both paths.
+- A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
+  else. A write refused with "kartoteka is this project's spec store" means you used a file tool
+  where §4.1 says to call a tool.
+- No **Spec store:** field in your dispatch → run
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
+  when `fresh` is `true`; otherwise `files`.
+
 ## Input
 
 Always read for context:
@@ -47,7 +66,7 @@ For phase-scoped runs, prefix sections with phase context:
 
 Optionally write an ADR alongside the plan if there are significant architectural trade-offs (`adr.md` for ticket-wide, `phase-<PHASE_NUM>/adr.md` for phase-scoped).
 
-- Reference notation: existing code is cited as backticked repo paths (implicit refs) or `ref:Symbol[.member]` anchors; everything the plan will create is declared `new:Symbol` or carries `(new file)` on the same line as its backticked path. Every `ref:`/backticked-path claim must resolve today — this is the **PLAN_GROUNDED** gate: a plan citing a symbol or path that does not exist is not grounded. The deterministic mechanical check for this gate is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict`, run by the `feature-development` orchestrator at gate 3.5; mechanical enforcement never replaces discipline — confirm every reference before writing it, never cite from memory.
+- Reference notation: existing code is cited as backticked repo paths (implicit refs) or `ref:Symbol[.member]` anchors; everything the plan will create is declared `new:Symbol` or carries `(new file)` on the same line as its backticked path. Every `ref:`/backticked-path claim must resolve today — this is the **PLAN_GROUNDED** gate: a plan citing a symbol or path that does not exist is not grounded. The deterministic mechanical check for this gate is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan - --strict`), run by the `feature-development` orchestrator at gate 3.5; mechanical enforcement never replaces discipline — confirm every reference before writing it, never cite from memory.
 
 ## Rules
 

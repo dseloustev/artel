@@ -1400,7 +1400,9 @@ def _still_verified(path, digest):
 
     Re-read right before the deletion, closing the window between the check and
     the delete: the file kartoteka was proven to hold is the one that goes, not
-    whatever has been written there since."""
+    whatever has been written there since. It hashes raw bytes, so one check
+    serves a document (whose plan hash is of its UTF-8 bytes) and an image
+    alike (spec-images §8)."""
     if os.path.islink(path):
         return OUTSIDE_THE_TRAIL
     try:
@@ -1447,8 +1449,8 @@ def cmd_migrate_delete(args, config):
         path, ticket = entry['path'], entry['ticket']
 
         def keep(reason):
-            kept.append({'logical': entry['logical'], 'source': path, 'class': 'error',
-                         'reason': reason})
+            kept.append(dict({'logical': entry['logical'], 'source': path, 'class': 'error',
+                              'reason': reason}, **_kind(entry)))
 
         reason = _still_verified(path, entry['sha256'])
         if reason:

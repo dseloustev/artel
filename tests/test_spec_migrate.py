@@ -1252,3 +1252,95 @@ class TestApplyImages(ImageCase):
                       files_base={'prd.md': 1})
         self.apply('AW-12')
         self.assertNotIn('files_base', self.stored_decision())
+
+
+class TestDeleteImages(ImageCase):
+    def delete(self, *args):
+        proc = self.cli('migrate', 'delete', *args)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def test_a_tracked_image_is_git_rm_and_committed_with_the_trail(self):
+        self.image(IMG, png('a'))
+        self.local(SPECS / 'AW-12/runtime/observation.md', 'RUNTIME_OK')
+        self.local(SPECS / '.active_ticket', 'AW-12\n')
+        self.commit_all()
+        self.stored(png('a'))
+        out = self.delete('AW-12', '--commit')
+        self.assertEqual(out['removed'], [IMG])
+        self.assertFalse((self.repo / 'specs/.current/AW-12/design').exists())
+        self.assertTrue((self.repo / SPECS / 'AW-12/runtime/observation.md').exists())
+        self.assertTrue((self.repo / SPECS / '.active_ticket').exists())
+        log = self.git('log', '-1', '--name-status', '--format=%s').stdout
+        self.assertIn('chore: move AW-12 spec trail to kartoteka', log)
+        self.assertIn('D\t' + IMG, log)
+        self.assertNotIn('observation.md', log)
+
+    def test_a_context_image_is_unlinked_and_its_directories_pruned(self):
+        self.image(CONTEXT_IMG, png('a'), track=False)
+        self.stored(png('a'))
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [CONTEXT_IMG])
+        self.assertFalse((self.repo / '.artel/context/tickets/AW-12/spec-trail').exists())
+        self.assertTrue((self.repo / '.artel/context/tickets/AW-12').is_dir())
+
+    def test_an_image_rewritten_after_classification_is_kept(self):
+        self.image(IMG, png('a'))
+        self.stored(png('a'))
+
+        def rewrite(method, path, query, body):
+            if method == 'GET' and path == '/api/attachments' and 'path' in query:
+                self.fake.on_request = None    # after the plan read it, before it is deleted
+                (self.repo / IMG).write_bytes(png('rewritten'))
+        self.fake.on_request = rewrite
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [])
+        self.assertEqual(out['kept'], [{'kind': 'image', 'logical': IMG, 'source': IMG,
+                                        'class': 'error', 'reason': (
+                                            'it changed since it was classified; run '
+                                            'migrate-specs again')}])
+        self.assertEqual((self.repo / IMG).read_bytes(), png('rewritten'))
+
+    def test_a_tracked_image_with_staged_bytes_kartoteka_lacks_is_kept(self):
+        self.image(IMG, png('committed'))
+        self.commit_all()
+        self.image(IMG, png('staged, stored nowhere'))              # staged by image()
+        (self.repo / IMG).write_bytes(png('working tree, verified'))
+        self.stored(png('working tree, verified'))
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [])
+        self.assertEqual(out['kept'], [{'kind': 'image', 'logical': IMG, 'source': IMG,
+                                        'class': 'error', 'reason': (
+                                            'has staged changes kartoteka does not hold; '
+                                            'commit or unstage them first')}])
+        self.assertTrue((self.repo / IMG).exists())
+
+    def test_a_tracked_image_edited_since_the_last_commit_is_removed(self):
+        self.image(IMG, png('committed'))
+        self.commit_all()
+        (self.repo / IMG).write_bytes(png('edited'))
+        self.stored(png('edited'))
+        out = self.delete('AW-12', '--commit')
+        self.assertEqual((out['removed'], out['kept']), ([IMG], []))
+        self.assertIn('D\t' + IMG, self.git('log', '-1', '--name-status', '--format=%s').stdout)
+
+    def test_keep_stored_deletes_the_local_image(self):
+        self.image(IMG, png('local'))
+        self.older(IMG)
+        self.stored(png('stored v1'), created_at=LONG_AGO)
+        out = self.delete('AW-12', '--resolve', IMG + '=keep-stored')
+        self.assertEqual(out['removed'], [IMG])
+
+    def test_nothing_unverified_skipped_or_untracked_is_deleted(self):
+        absent = self.image('specs/.current/AW-12/design/new.png', png('never stored'))
+        bad = self.image('specs/.current/AW-12/design/Screen Shot.png', png('b'))
+        fresh = self.image('specs/.current/AW-12/runtime/fresh.png', png('c'), track=False)
+        self.image(IMG, png('local'))
+        self.older(IMG)
+        self.stored(png('stored v1'), created_at=LONG_AGO)           # a conflict
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [])
+        self.assertEqual({(k['logical'], k['class']) for k in out['kept']},
+                         {(absent, 'absent'), (bad, 'skipped'), (IMG, 'conflict')})
+        for rel in (absent, bad, fresh, IMG):
+            self.assertTrue((self.repo / rel).exists(), rel)

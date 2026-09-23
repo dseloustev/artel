@@ -310,8 +310,8 @@ this table to it.
 
 **Viewing.** `spec_store.py image fetch <logical path>` prints one local path; Read that path.
 
-- While a file is still at the logical path (not yet swept), it prints that file's absolute path,
-  with no network call.
+- Without `--version`, while a regular file that is not a symlink is still at the logical path
+  (not yet swept), it prints that file's absolute path, with no network call.
 - Otherwise it prints the absolute path of a cache copy, `.artel/run/<TICKET_ID>/images/<path>` — for `--version N`,
   `.artel/run/<TICKET_ID>/images/@v<N>/<path>` — revalidated against kartoteka on every fetch.
 - Exit `3`: kartoteka holds no such image. Exit `2`: kind `redacted` for a redacted version,
@@ -445,10 +445,13 @@ moves them in: `/artel:migrate-specs <TICKET_ID>`.
       image-sync: <n> left local — <first error line>
 
   `<n>` is the number of `failed` entries and `<first error line>` the first one's `reason`. On
-  exit `5`, `<n>` counts the images still under the trail and `<first error line>` is the first
-  line of the error on stderr. Those images stay local and untracked (§4.6's staging exclude),
+  exit `5`, `<n>` counts the images still under the trail and `<first error line>` is the
+  envelope's `error.message`. Those images stay local and untracked (§4.6's staging exclude),
   and the next sweep point retries them. A skill with no run journal — `figma-analysis`,
-  `pr-create` — puts the same line in its report.
+  `pr-create` — puts the same line in its report. Any other non-zero exit from `image sync` —
+  kind `misconfigured`, `invalid_argument`, `internal_error`, or anything besides
+  `unrecoverable` — is handled the same as exit `5`: journaled as one `image-sync:` line, never
+  pausing the run, with the images left local.
 - **An `unrecoverable` sweep is surfaced whole, never summarised.** `image sync` exiting `2`
   with kind `unrecoverable` means one image could be neither verified nor put back in the
   trail; its message names where the unverified bytes now are (a `.unverified` file beside the
@@ -460,9 +463,9 @@ moves them in: `/artel:migrate-specs <TICKET_ID>`.
   handles any failing store call. Kind `redacted` is no outage: that version was removed on
   purpose.
 - **At completion** the orchestrator sweeps once more, then its final report lists every image
-  left local — each `failed` or `skipped` entry with its reason (a name outside §4.6's grammar is
-  renamed first), or on exit `5` every image still under the trail — with the command that moves
-  them in:
+  left local — each `failed` or `skipped` entry with its reason (a name outside §4.6's grammar
+  must be renamed before the command can move it), or on exit `5` or `2` every image still under
+  the trail — with the command that moves them in:
   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:<skill>`.
   Headless runs journal the same lines.
 - **The images still under the trail** are
@@ -573,12 +576,13 @@ skipped are never deleted.
 | `image list <ticket-id>` | JSON `[{path, logical, version, content_type, byte_size, content_hash, created_at}]` | `0` |
 | `image sync <ticket-id> --author A` | JSON `{uploaded, unchanged, skipped, failed, tracked}` | `0`, even with `failed` entries; `5` unavailable; `2` kind `unrecoverable` (§5.6) |
 
-Every verb exits `2` on an error, with a JSON envelope `{"ok": false, "verb": "spec-store",
-"error": {"kind", "message"}}` on stderr. `image sync` and every `migrate` verb exit `5` for a store
-that is unreachable, refuses the token, has its artifact store off or predates attachments —
-wherever in the run it happens, not only at the opening probe; one document or image kartoteka
-refuses is a `failed` entry, not the run's exit. Every other verb reports those as errors (exit
-`2`). `image put --file` defaults to the logical path, and image bytes are read and written in
+Every verb exits `2` on an error, printing a JSON envelope on stderr:
+`{"ok": false, "verb": "spec-store", "error": {"kind", "message"}}`. `image sync` and every
+`migrate` verb exit `5` for a store that is unreachable, refuses the token, has its artifact store
+off or predates attachments — wherever in the run it happens, not only at the opening probe; one
+document or image kartoteka refuses is a `failed` entry, not the run's exit. Every other verb
+reports those as errors (exit `2`). `image put --file` defaults to the logical path, and image
+bytes are read and written in
 binary and never printed. It never prints the token. It uses `knowledge.baseUrl`, and
 `knowledge.tokenEnv` when the daemon has `[auth]` on — a CLI-minted token is needed even
 where the MCP session signs in with GitHub.

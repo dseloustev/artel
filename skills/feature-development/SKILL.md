@@ -48,12 +48,50 @@ is kept phase-accurate for the whole run: on multi-phase traversal (step 5) it i
 `<TICKET_ID>-<N>` at the start of each phase and advanced to the next incomplete phase after each
 phase checkpoint.
 
+### 1.5 Spec store
+
+Resolve where this ticket's spec trail lives (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2)
+before any spec document is read:
+
+1. **Your tool list** (§2.1 rows 5–6): with `knowledge.adapter` `kartoteka`, kartoteka's
+   artifact tools — `artifact_get`, `artifact_put`, `artifact_patch`, `artifact_list`,
+   `artifact_versions` — must be in this session. Missing → unavailable with that row's record:
+   go to 3.
+2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decide <TICKET_ID> --decided-by feature-development` (plus `--local` when this run was invoked with it).
+3. **Exit 5** (unavailable) → §5.1: ask Retry / Work locally for this run / Abort — headless,
+   `specs.onUnavailable` answers (§5.4). Work locally →
+   `spec_store.py decide <TICKET_ID> --decided-by feature-development --files "kartoteka unavailable; working locally at the user's request — <record>"`.
+   While working locally, a gate that would *create* a document the decision's `versions` names
+   stops instead of regenerating it: `<name> exists in kartoteka (v<N>) but kartoteka is
+   unreachable; retry when it is back` (§5.1).
+4. **`pending` non-empty** — a resume after an outage → `Skill: migrate-specs` with
+   `<TICKET_ID> --pending-only` (plus `--no-prompt` headless) before anything else (§5.3).
+   Continue only when its `pending_left` for the ticket is 0; otherwise report what is left (a
+   conflict needs the user) and pause with `pause_reason: "store-unavailable"` — headless: journal and stop.
+   A migrate exit 5 is the same outage as §5.2.
+5. **`local_trail` non-empty** → §7: ask Move them into kartoteka (recommended —
+   `Skill: migrate-specs` with `<TICKET_ID>`, then run step 2 again) / Work locally for this run
+   (`decide … --files "the user kept the local trail for this run"`) / Abort. Headless: stop and
+   name `/artel:migrate-specs <TICKET_ID>`.
+6. Journal the decision in the run-start entry. Pass nothing on: every sub-skill reads the
+   decision file itself (§2.2), and every agent dispatch carries **Spec store:** (§2.3).
+
+Renew the decision wherever `started_at` is refreshed — on resume and at every phase boundary —
+so it stays fresh for sub-skills: a kartoteka decision by running step 2 again; a files decision
+with `decide … --files "<its reason>"` (or `--local`), never a plain `decide`, which would re-probe
+and switch a run working locally to kartoteka mid-run (spec-storage.md §2.2). On resume of a run that worked locally (§5.1) while the
+store is back, ask once (§5.3): Move this run's documents into kartoteka and continue there
+(recommended; `Skill: migrate-specs` with `<TICKET_ID>`) / Keep working locally. Headless keeps
+working locally.
+
 ### 2. Chatty head — collect everything upfront
+
+On the kartoteka path "artifact exists" in every gate below is one `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py list <TICKET_ID>`, re-run after each sub-skill returns, and a gate's `Status:` line is read without the document entering this context: `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" | grep -m1 'Status:'`.
 
 | # | Gate | Action (skip if artifact exists) |
 |---|------|----------------------------------|
 | 0 | `IDEA_READY` — `idea.md` exists | `Skill: generate-idea` with `$0 $1`, under **every** adapter — it branches on `tracker.adapter` itself (config.md): a tracker imports the ticket; `"none"` (local-only) seeds `idea.md` from the `$1` description file, or runs the same input gate `analysis` does when `$1` is absent. Gate 2 hard-requires `idea.md`, so the pipeline seeds it here rather than letting a `"none"` run die at the vision gate. |
-| 0.5 | `DESIGN_ANALYZED` — `design-analysis.md` has `Status: DESIGN_ANALYZED`, or `idea.md` has no `figma.com/design` link | `design.figma` disabled (config.md) → skip silently. Enabled → Grep `idea.md` for `figma.com/design`. Link present → `Skill: figma-analysis` with `$0` (chatty head — its Major-findings handshake may ask; on `DESIGN_BLOCKED` — returned by the skill or already recorded in an existing artifact's `Status:` — stop the pipeline and report the parked findings). No link → skip silently. |
+| 0.5 | `DESIGN_ANALYZED` — `design-analysis.md` has `Status: DESIGN_ANALYZED`, or `idea.md` has no `figma.com/design` link | `design.figma` disabled (config.md) → skip silently. Enabled → Grep `idea.md` for `figma.com/design` (kartoteka path: `doc=$(spec_store.py get <specs.dir>/<TICKET_ID>/idea.md) && printf '%s\n' "$doc" | grep -q figma.com/design`). Link present → `Skill: figma-analysis` with `$0` (chatty head — its Major-findings handshake may ask; on `DESIGN_BLOCKED` — returned by the skill or already recorded in an existing artifact's `Status:` — stop the pipeline and report the parked findings). No link → skip silently. |
 | 1 | `PRD_READY` — PRD `Status: PRD_READY` | `Skill: analysis` with `$0 $1`, plus `--local` when this run was invoked with it — runs the upfront interview (chatty by design). |
 | 2 | `VISION_READY` — `vision.md` `Status: VISION_READY` | `Skill: generate-vision` with `$0` — consumes the PRD; ends with its one wholesale checkpoint. |
 | 3 | plan drafted — `plan.md` exists | `Skill: researcher` then `Skill: planner` (both `$0`; `researcher` also takes `--local` when this run was invoked with it) — **silent**: their questions land in `.artel/run/<TICKET_ID>/open-questions.md` (autonomous-run.md §3). |
@@ -99,7 +137,8 @@ resolution, reasons, HITL tags count.
 Then run the **planning checkpoint** (see `## Checkpoint commits & pushes`): commit
 `<specs.dir>/<TICKET_ID>/**` + `<specs.dir>/.active_ticket` and push — subject `docs: <TICKET_ID>
 planning artifacts` (phase runs: `docs: <TICKET_ID> phase <N> planning artifacts`). Journal it as
-an external action. No verify gate here (`verify.commands`) — docs only, no code yet.
+an external action. No verify gate here (`verify.commands`) — docs only, no code yet. On the
+kartoteka path, when only `.active_ticket` changed, skip the commit and journal `planning checkpoint: skipped — the spec trail is in kartoteka`.
 
 ### 5. Autonomous tail
 
@@ -107,9 +146,10 @@ an external action. No verify gate here (`verify.commands`) — docs only, no co
 this table). Ticket-wide `$0` with a multi-phase `tasklist.md` (Progress Report table / `##
 Iteration N` headers) → loop the remaining incomplete phases in order. Each iteration: write
 `<TICKET_ID>-<N>` to `<specs.dir>/.active_ticket`; update `run-state.json`'s `ticket` field and
-refresh `started_at` (a phase boundary re-arms the wall-clock budget); delete a stale ticket-wide
-`review.md` if present (the previous phase's review survives in that phase's checkpoint commit;
-deletion resets the review-round counter per autonomous-run.md §5); run `Skill: sync-phases` with
+refresh `started_at` (a phase boundary re-arms the wall-clock budget); reset the review round — delete a stale
+ticket-wide `review.md` on the files path (it survives in that phase's checkpoint commit), or store
+the round-0 version on the kartoteka path (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.4; it
+survives as an earlier version) — which resets the counter per autonomous-run.md §5; then renew the decision as step 1.5 says; run `Skill: sync-phases` with
 `<TICKET_ID>-<N>` (gate 4.5 equivalent — extract `phase-<N>/tasks.md` when missing); then gates
 5–10.7 passing `<TICKET_ID>-<N>` to every sub-skill. Single-phase tasklist → one ticket-wide pass
 ending at gate 10.7.
@@ -135,8 +175,8 @@ current when it is read.
 |---|------|--------|
 | 5 | `IMPLEMENT_STEP_OK` — every task `- [x]` | Loop `Skill: implementer` with `$0`, plus `--local` when this run was invoked with it — it becomes the dispatch's **Task queue:** field, which is what carries the opt-out to the agent (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1). Returns: **completion** → aggregate its `Deviations:`/`Verify iterations:` lines and journal its `Report:` path (never open the report — autonomous-run.md §1, "Bulk stays in files"), continue. **Per-task review** (`review.perTask: true`, config.md; off by default) → wrap every iteration-task dispatch in autonomous-run.md §16: `scripts/review_package.py snapshot` before the implementer, `diff` + `Skill: run-reviewer --task …` (plus `--local` when this run was invoked with it) after its completion, at most one `## Code Review Fixes` implementer round (`MAX_TASK_REVIEW_ROUNDS = 1`, counted toward `counters.correction_rounds`), one `task review` journal entry; fix-list dispatches are never gated this way. **`HITL: <reason>`** → set `pause_reason: "hitl-task"`, ask the pre-declared question via `AskUserQuestion`, clear `pause_reason`, `SendMessage` the answer, continue. **`DEVIATION` escalation** → the skill handles the handshake; wrap it: set `pause_reason: "deviation-escalation"` before its `AskUserQuestion`, clear after. **Aborted task** → set `pause_reason: "cap-escalation"`, stop and report that the plan needs revision. |
 | 6 | `INDEX_UPDATED` | Optional host index-refresh hook (`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §1): run it when the host has wired one up; silently absent otherwise. |
-| 7 | `REVIEW_OK` | `Skill: run-reviewer` with `$0`, plus `--local` when this run was invoked with it — `run-reviewer` records the fix tasks it appends in the task queue, and the flag keeps a local-only run from writing rows (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, §6). Blocking/Important findings → `Skill: implementer` (fix tasks from `## Code Review Fixes`, plus `--local` when this run was invoked with it) → re-review. Cap: `review.md` `**Review round:**` reaching `MAX_REVIEW_ROUNDS = 3` → `pause_reason: "cap-escalation"`, consolidated findings via `AskUserQuestion`, stop. On user guidance: delete `review.md` (counter reset) and resume. |
-| 8 | `RUNTIME_OK` | Surface check: with `runtime.surface` set (config.md), collect the run's changed files (diff vs the default branch plus the working tree) and match them against the globs; no match → write `RUNTIME_OK: skipped (no runtime surface)` to the phase-aware `runtime/observation.md` and move on. No `runtime.run` configured → the gate records `skipped (not configured)` (run-app reports this itself). Otherwise `Skill: run-app` with `--gate`. RED caused by a **runtime error in app code** (runtime errors / ERROR logs / a broken UI tree) → append a `- [ ]` task under `## Runtime Fixes` in the phase-aware tasklist (mirroring `## Code Review Fixes`), beneath a new `### runtime-r<n>` source heading (`### runtime-p<N>-r<n>` on a phase-scoped run, n the retry this round is — `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6), its line a one-line summary of the error with the quoted error nested under it as an indented block (nested lines go to the row's description; the checkbox line is the row's title, capped at 500 characters), and on the queue path — never on a `--local` run — record it before the implementer round: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>` (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <the phase-aware tasklist> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>`) (`<TICKET_ID>` the canonical key, without the phase suffix), then `task_create` its `data.sections` (§2's fix-writer rule); when the RED stems from incomplete cross-phase wiring (this phase's code invokes pieces a later phase will build), word the fix task to create the **minimal stubs** that restore launch — no-op implementations / placeholder surfaces with a `TODO: phase <M>` marker — rather than real implementations; stubbing is the expected resolution at a phase boundary and is recorded in the completion's `Deviations:` line. Run `Skill: implementer` once, plus `--local` when this run was invoked with it (`MAX_RUNTIME_RETRIES = 1`; counter in `.artel/run/<TICKET_ID>/runtime-observation.md`, autonomous-run.md §5) — it picks the fix task up as the first incomplete task — then re-run the gate; second RED → cap escalation. RED from an **environment failure** (a launch/setup failure of `runtime.run` itself, not app code — run-app stops-and-asks for these) → cap escalation immediately, no implementer round. Do not trust a stale green — re-run unless the observation postdates the last change to files matching `runtime.surface` (or the last code change, when it is unset). |
+| 7 | `REVIEW_OK` | `Skill: run-reviewer` with `$0`, plus `--local` when this run was invoked with it — `run-reviewer` records the fix tasks it appends in the task queue, and the flag keeps a local-only run from writing rows (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, §6). Blocking/Important findings → `Skill: implementer` (fix tasks from `## Code Review Fixes`, plus `--local` when this run was invoked with it) → re-review. Cap: `review.md` `**Review round:**` reaching `MAX_REVIEW_ROUNDS = 3` → `pause_reason: "cap-escalation"`, consolidated findings via `AskUserQuestion`, stop. On user guidance: reset the review round (delete `review.md`, or on the kartoteka path store the round-0 version — spec-storage.md §4.4) and resume. |
+| 8 | `RUNTIME_OK` | Surface check: with `runtime.surface` set (config.md), collect the run's changed files (diff vs the default branch plus the working tree) and match them against the globs; no match → write `RUNTIME_OK: skipped (no runtime surface)` to the phase-aware `runtime/observation.md` and move on. No `runtime.run` configured → the gate records `skipped (not configured)` (run-app reports this itself). Otherwise `Skill: run-app` with `--gate`. RED caused by a **runtime error in app code** (runtime errors / ERROR logs / a broken UI tree) → append a `- [ ]` task under `## Runtime Fixes` in the phase-aware tasklist (mirroring `## Code Review Fixes`) (kartoteka path: one `artifact_patch(project=<project>, …)` — spec-storage.md §4.3), beneath a new `### runtime-r<n>` source heading (`### runtime-p<N>-r<n>` on a phase-scoped run, n the retry this round is — `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6), its line a one-line summary of the error with the quoted error nested under it as an indented block (nested lines go to the row's description; the checkbox line is the row's title, capped at 500 characters), and on the queue path — never on a `--local` run — record it before the implementer round: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>` (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <the phase-aware tasklist> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>`) (`<TICKET_ID>` the canonical key, without the phase suffix), then `task_create` its `data.sections` (§2's fix-writer rule); when the RED stems from incomplete cross-phase wiring (this phase's code invokes pieces a later phase will build), word the fix task to create the **minimal stubs** that restore launch — no-op implementations / placeholder surfaces with a `TODO: phase <M>` marker — rather than real implementations; stubbing is the expected resolution at a phase boundary and is recorded in the completion's `Deviations:` line. Run `Skill: implementer` once, plus `--local` when this run was invoked with it (`MAX_RUNTIME_RETRIES = 1`; counter in `.artel/run/<TICKET_ID>/runtime-observation.md`, autonomous-run.md §5) — it picks the fix task up as the first incomplete task — then re-run the gate; second RED → cap escalation. RED from an **environment failure** (a launch/setup failure of `runtime.run` itself, not app code — run-app stops-and-asks for these) → cap escalation immediately, no implementer round. Do not trust a stale green — re-run unless the observation postdates the last change to files matching `runtime.surface` (or the last code change, when it is unset). |
 | 9 | `RELEASE_READY` | `Skill: qa` with `$0` — generate, don't pause. Negative verdict → one implementer fix round (`MAX_QA_ROUNDS = 1`) → re-run qa; second negative → cap escalation. |
 | 10 | `DOCS_UPDATED` | `Skill: docs-update` with `$0`. |
 | 10.5 | phase write-back (phase runs only) | `Skill: sync-phases` with `$0` — sync completion into `tasklist.md`. |
@@ -186,7 +226,7 @@ checkpoint commits (hash + subject each, incl. push results); path to `pr-descri
 status (`PR_OPENED`/`PR_EXISTS` URL, `skipped-manual`, or `pending`); description-sync status;
 reminder that opening the PR remains manual (only when the PR gate was skipped — the work itself
 is already committed and pushed by the checkpoints); effective mode + why (`mode_reasons`);
-external actions taken unattended; path to `run-journal.md`.
+external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); path to `run-journal.md`.
 
 ## Important
 
@@ -199,11 +239,21 @@ external actions taken unattended; path to `run-journal.md`.
 - The only files this orchestrator writes directly: `<specs.dir>/.active_ticket`,
   `.artel/run/<TICKET_ID>/run-state.json`, `.artel/run/<TICKET_ID>/run-journal.md`,
   `.artel/run/<TICKET_ID>/runtime-observation.md`, the phase-aware `runtime/observation.md`
-  surface-skip entry, the `open-questions.md` status flips (same directory), and the
-  description file during sync. Everything else is delegated.
+  surface-skip entry, the `open-questions.md` status flips (same directory), the
+  description file during sync, `.artel/run/<TICKET_ID>/spec-store.json` (through
+  `spec_store.py`); on the kartoteka path its spec-document writes — the plan-check bounce line,
+  runtime and verify fix batches, the review reset — are store writes. Everything else is delegated.
 - Checkpoint commits & pushes are the only direct git mutations this orchestrator performs; every
   other external action goes through `pr-create`. The checkpoint branch guard and no-force rules
   are absolute.
+- **`STORE_UNAVAILABLE`** from a sub-skill or agent, or a failing store call of your own, is the
+  environment error of `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §5.2: set
+  `pause_reason: "store-unavailable"` and ask Retry (resume the agent) / Save it locally and pause
+  (only when a produced document is unsaved: first
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py pending add <path> --base-version <N>`,
+  then `SendMessage` the agent to write it to its logical path) / Pause without saving. Clear
+  `pause_reason` only after a Retry succeeds. There is no "continue locally" mid-run. Headless:
+  `specs.onUnavailable` (§5.4).
 
 ## Checkpoint commits & pushes
 
@@ -214,7 +264,7 @@ they never pause, and each one is journaled as an external action (autonomous-ru
 
 | Checkpoint | When | Contents | Subject |
 |---|---|---|---|
-| Planning (step 4; `dev` step 3) | immediately after arming | `<specs.dir>/<TICKET_ID>/**` + `.active_ticket` | `docs: <TICKET_ID> planning artifacts` (phase runs: `… phase <N> planning artifacts`; `dev`: `… work list`) |
+| Planning (step 4; `dev` step 3) | immediately after arming | `<specs.dir>/<TICKET_ID>/**` + `.active_ticket` (kartoteka path: skipped when only `.active_ticket` changed) | `docs: <TICKET_ID> planning artifacts` (phase runs: `… phase <N> planning artifacts`; `dev`: `… work list`) |
 | Phase-end (gate 10.7; `dev` step 7.5) | after the phase's gates pass | the phase's code changes + updated ticket artifacts | `feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>` (no phase → `<ticket summary>`) |
 
 Procedure:
@@ -227,7 +277,7 @@ Procedure:
 3. **Quality gate (phase-end only).** Run `verify.commands` in order (config.md), stopping at the
    first failure; an empty list ⇒ record the verify step as `skipped` in the journal entry and
    continue to staging. Findings → append them as `- [ ]` tasks under `## Verify Fixes` in the
-   phase-aware tasklist, beneath a new `### checkpoint-r<k>` source heading (k the verify
+   phase-aware tasklist (kartoteka path: one `artifact_patch(project=<project>, …)` — spec-storage.md §4.3), beneath a new `### checkpoint-r<k>` source heading (k the verify
    round; `### checkpoint-p<N>-r<k>` on a phase-scoped run —
    `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); on the queue path (§1 — a `--local` run
    skips it) record them —

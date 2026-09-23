@@ -9,6 +9,9 @@ from pathlib import Path
 
 from fake_kartoteka import FakeKartoteka
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
+import spec_store  # noqa: E402
+
 SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'spec_store.py'
 PROJECT = 'adguard-wallet'
 SPECS = Path('specs/.current')
@@ -190,6 +193,52 @@ class TestClassify(MigrateCase):
         self.assertIn('-stored', tree_diff)    # and local against the stored newest
         self.assertEqual((items[0]['sha256'], items[1]['sha256']),
                          (sha('line\ntree\n'), sha('line\ncontext\n')))
+
+    def test_one_unread_copy_is_the_only_one_offered(self):
+        # One readable copy beside one that was never read (unreadable bytes here,
+        # a symlink would do too): nothing established a *difference*, so the
+        # reason must not claim "the local copies differ".
+        tree = self.local(SPECS / 'AW-12/prd.md', 'line\nlocal\n')
+        context = '.artel/context/tickets/AW-12/spec-trail/prd.md'
+        path = self.repo / context
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'\xff\xfe not valid utf-8')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'line\nstored\n', author_agent='a')
+        item = self.by_source('AW-12')[tree]
+        self.assertEqual(item['class'], 'conflict')
+        self.assertEqual(item['reason'],
+                         'another copy of this document was not read: {}'.format(context))
+        self.assertIn('-stored', item['diff'])   # local against the stored newest
+        self.assertIn('+local', item['diff'])
+
+    def test_a_third_unread_copy_is_named_beside_the_differing_ones(self):
+        # candidates() only ever finds two local copies of one address -- the
+        # working tree and the .artel/context snapshot are trail_roots' whole
+        # "two trail roots" -- so classify() never actually sees three sources
+        # for one address from the CLI today. This calls it directly, the way a
+        # future third trail root would reach the same branch.
+        tree = self.local(SPECS / 'AW-12/prd.md', 'line\ntree\n')
+        context = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', 'line\ncontext\n')
+        link = str(SPECS / 'AW-12/extra.md')
+        os.symlink(self.repo / 'nowhere.md', self.repo / link)
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'line\nstored\n', author_agent='a')
+        config = json.loads((self.repo / '.artel' / 'config.json').read_text(encoding='utf-8'))
+        logical = str(SPECS / 'AW-12/prd.md')
+        cwd = os.getcwd()
+        os.chdir(self.repo)
+        try:
+            items = spec_store.classify(spec_store.Store(config), config, 'AW-12', logical,
+                                        [tree, context, link], {}, {})
+        finally:
+            os.chdir(cwd)
+        by_source = {i['source']: i for i in items}
+        for source in (tree, context):
+            reason = by_source[source]['reason']
+            self.assertTrue(reason.startswith('the local copies differ: '), reason)
+            self.assertTrue(reason.endswith('; another copy was not read: {}'.format(link)),
+                            reason)
+            self.assertEqual(by_source[source]['class'], 'conflict')
+        self.assertEqual(by_source[link]['class'], 'skipped')
 
     def test_each_distinct_copy_is_classified_on_its_own(self):
         tree = self.local(SPECS / 'AW-12/prd.md', 'stored text')

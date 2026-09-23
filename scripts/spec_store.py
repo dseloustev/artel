@@ -692,7 +692,14 @@ def classify(store, config, ticket, logical, sources, decision, pending):
                         if not os.path.normpath(s).startswith(context_root)), None)
         _judge(item, texts[item['sha256']], versions, stored, decision, pending, working)
         return items
-    copies = ', '.join(i['source'] for i in unknown + skipped)
+    differing = ', '.join(i['source'] for i in unknown)
+    unread = ', '.join(i['source'] for i in skipped)
+    if len(unknown) > 1:
+        reason = 'the local copies differ: {}'.format(differing)
+        if unread:
+            reason += '; another copy was not read: {}'.format(unread)
+    else:
+        reason = 'another copy of this document was not read: {}'.format(unread)
     # A redaction withholds every diff of this address, local against local included:
     # any of these copies may still carry the text kartoteka removed.
     redaction = any(_redacted(v) for v in versions)
@@ -704,7 +711,7 @@ def classify(store, config, ticket, logical, sources, decision, pending):
             if newest is not None:
                 diffs.append(_diff(stored().get('content', ''), text,
                                    'kartoteka v{}'.format(newest['version']), item['source']))
-        item.update({'class': 'conflict', 'reason': 'the local copies differ: {}'.format(copies),
+        item.update({'class': 'conflict', 'reason': reason,
                      'diff': None if redaction else ''.join(diffs)})
     return items
 
@@ -1067,12 +1074,6 @@ def _unremovable(path):
     return 'has staged changes kartoteka does not hold; commit or unstage them first'
 
 
-def _commit_subject(tickets):
-    if len(tickets) <= 3:
-        return 'chore: move {} spec trail to kartoteka'.format(', '.join(tickets))
-    return "chore: move {} tickets' spec trails to kartoteka".format(len(tickets))
-
-
 def _ticket_of(path, config):
     """The ticket a deleted path belonged to, for the commit subject. A <specs.dir> path
     resolves through the addressing rule; a context copy -- tracked only on a host that
@@ -1082,6 +1083,12 @@ def _ticket_of(path, config):
         return identity[0]
     parts = Path(path).parts
     return parts[parts.index('spec-trail') - 1] if 'spec-trail' in parts else None
+
+
+def _commit_subject(tickets):
+    if len(tickets) <= 3:
+        return 'chore: move {} spec trail to kartoteka'.format(', '.join(tickets))
+    return "chore: move {} tickets' spec trails to kartoteka".format(len(tickets))
 
 
 @migrating

@@ -195,3 +195,106 @@ class TestImageList(ImageCase):
     def test_not_a_ticket_exits_2(self):
         proc = self.run_cli('image', 'list', 'nonsense')
         self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'invalid_argument'))
+
+
+class TestImageCachePath(unittest.TestCase):
+    def test_the_cache_path(self):
+        self.assertEqual(spec_store.image_cache_path('AW-12', 'design/a.png'),
+                         Path('.artel/run/AW-12/images/design/a.png'))
+        self.assertEqual(spec_store.image_cache_path('AW-12', 'design/a.png', 3),
+                         Path('.artel/run/AW-12/images/@v3/design/a.png'))
+
+    def test_the_hash(self):
+        self.assertEqual(spec_store.sha256_bytes(b'x'), hashlib.sha256(b'x').hexdigest())
+
+
+class TestImageFetch(ImageCase):
+    LOGICAL = TRAIL + '/design/a.png'
+    CACHE = '.artel/run/AW-12/images/design/a.png'
+
+    def fetch(self, *extra):
+        proc = self.run_cli('image', 'fetch', self.LOGICAL, *extra)
+        return proc, (Path(proc.stdout.strip()) if proc.stdout.strip() else None)
+
+    def assertPrinted(self, printed, rel):
+        self.assertTrue(printed.is_absolute(), printed)
+        self.assertEqual(printed.resolve(), (self.repo / rel).resolve())
+
+    def test_a_file_not_yet_swept_is_printed_without_a_request(self):
+        self.image(self.LOGICAL, png('local'))
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/a.png', png('stored'))
+        proc, printed = self.fetch()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertPrinted(printed, self.LOGICAL)
+        self.assertEqual(self.fake.requests, [])
+
+    def test_a_stored_image_is_written_to_the_cache_and_printed(self):
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/a.png', png('stored'))
+        proc, printed = self.fetch()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertPrinted(printed, self.CACHE)
+        self.assertEqual(printed.read_bytes(), png('stored'))
+        self.assertNotIn('PNG', proc.stdout + proc.stderr)
+
+    def test_a_cached_copy_kartoteka_still_holds_is_revalidated_not_rewritten(self):
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/a.png', png('stored'))
+        cached = self.image(self.CACHE, png('stored'))
+        os.utime(cached, (1, 1))
+        proc, printed = self.fetch()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertPrinted(printed, self.CACHE)
+        self.assertEqual(os.stat(cached).st_mtime, 1)  # a 304: not written again
+
+    def test_a_cached_copy_kartoteka_moved_past_is_replaced(self):
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/a.png', png('old'))
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/a.png', png('new'))
+        self.image(self.CACHE, png('old'))
+        proc, printed = self.fetch()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(printed.read_bytes(), png('new'))
+        self.assertEqual(sorted(p.name for p in printed.parent.iterdir()), ['a.png'])
+
+    def test_a_named_version_has_its_own_cache_and_ignores_the_local_file(self):
+        self.image(self.LOGICAL, png('local'))
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/a.png', png('v1'))
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/a.png', png('v2'))
+        proc, printed = self.fetch('--version', '1')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertPrinted(printed, '.artel/run/AW-12/images/@v1/design/a.png')
+        self.assertEqual(printed.read_bytes(), png('v1'))
+
+    def test_absent_exits_3_and_removes_a_stale_cached_copy(self):
+        cached = self.image(self.CACHE, png('stale'))
+        proc, printed = self.fetch()
+        self.assertEqual((proc.returncode, printed), (3, None))
+        self.assertFalse(cached.exists())
+
+    def test_redacted_exits_2_and_drops_the_cached_copy(self):
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/a.png', png('secret'))
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/a.png', png('secret'), redacted=True)
+        cached = self.image(self.CACHE, png('secret'))
+        proc, printed = self.fetch()
+        self.assertEqual((proc.returncode, printed, self.error_of(proc)['kind']),
+                         (2, None, 'redacted'))
+        self.assertFalse(cached.exists())
+
+    def test_an_unreachable_store_is_an_error_never_the_cache(self):
+        cached = self.image(self.CACHE, png('cached'))
+        self.fake.stop()
+        proc, printed = self.fetch()
+        self.assertEqual((proc.returncode, printed, self.error_of(proc)['kind']),
+                         (2, None, 'unreachable'))
+        self.assertTrue(cached.exists())
+
+    def test_a_daemon_without_attachments_is_an_error(self):
+        self.fake.mode = 'pre_attachments'
+        proc, printed = self.fetch()
+        self.assertEqual((proc.returncode, printed, self.error_of(proc)['kind']),
+                         (2, None, 'no_attachments'))
+
+    def test_a_linked_file_at_the_logical_path_is_not_printed(self):
+        outside = self.image('elsewhere/secret.png', png('secret'))
+        (self.repo / TRAIL / 'design').mkdir(parents=True)
+        os.symlink(str(outside), str(self.repo / self.LOGICAL))
+        proc, printed = self.fetch()
+        self.assertEqual((proc.returncode, printed), (3, None))

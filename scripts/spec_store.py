@@ -29,6 +29,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -202,6 +203,20 @@ class Store:
         payload = _json_object(raw)
         self._expect_ok(status, payload)
         return (payload or {}).get('attachments') or []
+
+    def image_get(self, ticket_key, path, version=None, etag=None):
+        """(status, bytes, headers) for 200, 304, 404 and 410: each means
+        something different to `image fetch`. `etag` is the sha256 of a copy
+        already held; kartoteka answers 304 when it still holds those bytes."""
+        query = {'project': self.project}
+        if version is not None:
+            query['version'] = version
+        headers = {'If-None-Match': '"{}"'.format(etag)} if etag else None
+        status, raw, answer = self.request_bytes('GET', attachment_route(ticket_key, path),
+                                                 query=query, headers=headers)
+        if status not in (200, 304, 404, 410):
+            self._expect_ok(status, _json_object(raw))
+        return status, raw, answer
 
 
 def _redacted(row):
@@ -1229,6 +1244,85 @@ def cmd_image_put(args, config):
     return OK
 
 
+def image_cache_path(ticket_key, path, version=None):
+    """Where `image fetch` keeps a stored image for an agent to Read.
+
+    Under .artel/run/, which /artel:setup gitignores: the cache is per worktree,
+    disposable, and never read by migration. A named version gets its own
+    `@v<N>/` folder -- `@` is outside the attachment path grammar, so it can
+    never collide with a stored path."""
+    root = h.ticket_run_dir(ticket_key) / 'images'
+    if version is not None:
+        root = root / '@v{}'.format(version)
+    return root / path
+
+
+def sha256_bytes(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def _write_atomically(target, data):
+    """Write `data` to `target` so that a reader sees the old file or the new
+    one, never half of either: a temporary file beside it, then os.replace."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    handle, temporary = tempfile.mkstemp(dir=str(target.parent), prefix='.' + target.name + '.',
+                                         suffix='.tmp')
+    try:
+        with os.fdopen(handle, 'wb') as stream:
+            stream.write(data)
+        os.replace(temporary, str(target))
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
+
+
+def _discard(path):
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def cmd_image_fetch(args, config):
+    """Print one local path to Read (docs/spec-storage.md §4.6).
+
+    A file not yet swept is the newest copy there is, and costs no request.
+    Otherwise the cache: revalidated on every call, so a fetch never answers
+    with bytes kartoteka no longer holds -- and never at all while kartoteka
+    cannot be asked, because an unreachable store is a failing store call,
+    not a reason to trust a copy of unknown age.
+    """
+    ticket_key, path = image_address(args.path, config)
+    local = Path(args.path)
+    if args.version is None and local.is_file() and not local.is_symlink():
+        print(os.path.abspath(args.path))
+        return OK
+    target = image_cache_path(ticket_key, path, args.version)
+    store = Store(config)
+    held = None
+    if target.is_file() and not target.is_symlink():
+        held = sha256_bytes(target.read_bytes())
+    status, data, _ = store.image_get(ticket_key, path, args.version, held)
+    if status == 304 and held is not None:
+        print(os.path.abspath(str(target)))
+        return OK
+    if status == 200:
+        _write_atomically(target, data)
+        print(os.path.abspath(str(target)))
+        return OK
+    if status == 404:
+        _discard(target)
+        return ABSENT
+    if status == 410:
+        _discard(target)  # the bytes were removed for a reason; a cached copy keeps them
+        raise Failure('redacted', '{}{} is redacted: kartoteka no longer holds its bytes'.format(
+            args.path, '' if args.version is None else ' v{}'.format(args.version)))
+    raise Failure('rejected', answered(status, _json_object(data)))
+
+
 def cmd_image_list(args, config):
     ticket = sd.canonical_ticket(args.ticket, config)
     if ticket is None:
@@ -1300,6 +1394,10 @@ def build_parser():
     image_put.add_argument('--author')
     image_put.add_argument('--expected-version', type=int)
     image_put.set_defaults(run=cmd_image_put)
+    image_fetch = image_verbs.add_parser('fetch')
+    image_fetch.add_argument('path')
+    image_fetch.add_argument('--version', type=int)
+    image_fetch.set_defaults(run=cmd_image_fetch)
     image_list = image_verbs.add_parser('list')
     image_list.add_argument('ticket')
     image_list.set_defaults(run=cmd_image_list)

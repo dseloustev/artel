@@ -5,7 +5,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 from fake_kartoteka import FakeKartoteka
 
@@ -298,6 +300,24 @@ class TestImageFetch(ImageCase):
         os.symlink(str(outside), str(self.repo / self.LOGICAL))
         proc, printed = self.fetch()
         self.assertEqual((proc.returncode, printed), (3, None))
+
+    def test_a_name_outside_the_grammar_but_present_locally_is_printed_with_no_request(self):
+        # Spec §5 rule 1: a regular file at the logical path is printed with
+        # no grammar exception -- a screenshot tool's "Screen Shot.png" is
+        # still the newest copy of itself even though its name (the space)
+        # would be refused by kartoteka's attachment path grammar.
+        outside_grammar = TRAIL + '/design/Screen Shot.png'
+        self.image(outside_grammar, png('local'))
+        proc = self.run_cli('image', 'fetch', outside_grammar)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        printed = Path(proc.stdout.strip())
+        self.assertPrinted(printed, outside_grammar)
+        self.assertEqual(self.fake.requests, [])
+
+    def test_a_missing_file_with_a_name_outside_the_grammar_still_exits_2_not_an_image(self):
+        proc = self.run_cli('image', 'fetch', TRAIL + '/design/Screen Shot.png')
+        self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'not_an_image'))
+        self.assertEqual(self.fake.requests, [])
 
 
 class TestImageSync(ImageCase):

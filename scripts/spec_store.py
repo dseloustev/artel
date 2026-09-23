@@ -1292,17 +1292,26 @@ def _discard(path):
 def cmd_image_fetch(args, config):
     """Print one local path to Read (docs/spec-storage.md §4.6).
 
-    A file not yet swept is the newest copy there is, and costs no request.
-    Otherwise the cache: revalidated on every call, so a fetch never answers
-    with bytes kartoteka no longer holds -- and never at all while kartoteka
-    cannot be asked, because an unreachable store is a failing store call,
-    not a reason to trust a copy of unknown age.
+    A file not yet swept is the newest copy there is, and costs no request --
+    checked before the path is held to kartoteka's attachment grammar (spec
+    §5 rule 1), because a name a screenshot tool chose (spaces and all) is
+    still the newest copy of itself; the grammar only has to hold once a
+    request is addressed. Otherwise the cache: revalidated on every call, so
+    a fetch never answers with bytes kartoteka no longer holds -- and never
+    at all while kartoteka cannot be asked, because an unreachable store is a
+    failing store call, not a reason to trust a copy of unknown age.
     """
-    ticket_key, path = image_address(args.path, config)
     local = Path(args.path)
-    if args.version is None and local.is_file() and not local.is_symlink():
+    if (args.version is None and local.is_file() and not local.is_symlink()
+            # kh._trail_address is the one place a trail path's ticket
+            # directory is matched and canonicalised; reused here so a name
+            # outside the attachment grammar does not need its own copy of
+            # that logic to still be found locally.
+            and kh._trail_address(args.path, config) is not None
+            and kh.is_image_name(local.name)):
         print(os.path.abspath(args.path))
         return OK
+    ticket_key, path = image_address(args.path, config)
     target = image_cache_path(ticket_key, path, args.version)
     store = Store(config)
     held = None

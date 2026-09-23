@@ -892,16 +892,29 @@ def cache_stored_image(store, ticket_key, path, row):
     It is the file `image fetch <logical> --version N` prints (image_cache_path),
     written by an atomic replace, so the user can open the stored side of a
     conflict. It is always fetched afresh, because migration never reads the
-    cache (spec-images §5). None when kartoteka will not serve that version, or
-    serves bytes that are not the listed hash."""
-    status, data, _ = store.image_get(ticket_key, path, version=row['version'])
+    cache (spec-images §5). None when kartoteka will not serve that version,
+    serves bytes that are not the listed hash, refuses the GET for a reason of
+    its own (a rejected non-2xx), or the cache write itself fails (OSError) --
+    `migrate plan` still classifies the conflict, just without a local copy to
+    open. A store-level failure (STORE_DOWN: unreachable, unauthorized,
+    store_off, no_attachments) still propagates, so the whole run stays
+    unavailable rather than quietly losing just this one cache_path."""
+    try:
+        status, data, _ = store.image_get(ticket_key, path, version=row['version'])
+    except Failure as exc:
+        if exc.kind in STORE_DOWN:
+            raise
+        return None
     if status != 200 or sha256_bytes(data) != row.get('content_hash'):
         return None
     target = image_cache_path(ticket_key, path, row['version'])
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_name('.{}.migrate-tmp'.format(target.name))
-    tmp.write_bytes(data)
-    os.replace(str(tmp), str(target))
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_name('.{}.migrate-tmp'.format(target.name))
+        tmp.write_bytes(data)
+        os.replace(str(tmp), str(target))
+    except OSError:
+        return None
     return str(target)
 
 

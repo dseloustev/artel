@@ -1091,6 +1091,31 @@ class TestClassifyImages(ImageCase):
             'byte_size': len(png('stored v1')), 'redacted': False, 'cache_path': cache})
         self.assertEqual((self.repo / cache).read_bytes(), png('stored v1'))
 
+    def test_a_rejected_stored_fetch_leaves_the_conflicts_cache_path_null(self):
+        # M-1: a non-STORE_DOWN failure fetching the stored side of a
+        # conflict (a rejected 5xx, here) must not abort the whole plan --
+        # only this one conflict's cache_path stays null. A store-level
+        # failure (STORE_DOWN) is a different thing and still exits 5
+        # (test_losing_the_attachment_routes_midway_exits_5 covers that).
+        self.image(IMG, png('local'))
+        self.older(IMG)
+        self.stored(png('stored v1'), created_at=LONG_AGO)
+
+        def force_500_on_the_byte_route(method, path, query, body):
+            # The listing route (plain '/api/attachments', ticket and path as
+            # query params) must keep working -- only the byte-serving route
+            # ('/api/attachments/<ticket>/<path...>') is forced to fail.
+            if method == 'GET' and path != '/api/attachments':
+                self.fake.forced['GET'] = (500, {'error': 'boom'})
+            else:
+                self.fake.forced.pop('GET', None)
+        self.fake.on_request = force_500_on_the_byte_route
+        proc = self.cli('migrate', 'plan', 'AW-12')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        item = {i['logical']: i for i in json.loads(proc.stdout)['items']}[IMG]
+        self.assertEqual(item['class'], 'conflict')
+        self.assertEqual(item['stored']['cache_path'], None)
+
     def test_a_redacted_newest_version_is_a_conflict_with_nothing_fetched(self):
         self.image(IMG, png('secret screen'))
         self.stored(png('secret screen'), redacted=True, created_at=LONG_AGO)

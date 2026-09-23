@@ -31,6 +31,8 @@ Entry template:
 - **Notes:** <standalone-vs-pipeline behaviour, skip-if-exists interaction (autonomous-run.md §9), config keys, phase awareness>
 ```
 
+Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spec store they are kartoteka documents, addressed per [spec-storage.md](spec-storage.md) §3.
+
 ---
 
 ## Session router

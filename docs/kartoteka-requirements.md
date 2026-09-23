@@ -6,9 +6,9 @@ the kartoteka-primary spec-storage design*
 **Every §1 and §2 item has since shipped, and so has all of §4** — kartoteka 0.28.0, 0.30.0,
 0.31.0 and 0.32.0 between them closed the whole blocking and gating set. Only §3.1
 (`TICKET_KEY`) remains open, and it is conditional. Each subsection carries its own
-**Shipped —** paragraph below; the Summary table records the state at a glance. What has *not*
-happened is artel's side: store mode is designed but unbuilt, and §1.1/§1.2's parameters are
-still unused by `docs/task-queue.md`.
+**Shipped —** paragraph below; the Summary table records the state at a glance. artel's store mode
+shipped in 0.16.0 on kartoteka 0.43.0 (§6 below); §1.1/§1.2's parameters are still unused by
+`docs/task-queue.md`.
 
 artel's spec trail is moving from "files on disk, best-effort mirror into kartoteka" to
 "kartoteka is the store; nothing lands in the repo." This file states what that mode needs
@@ -114,8 +114,9 @@ it** — it still recovers plan order by sorting on `task_id` client-side. Same 
 ## §2 Gating — required before artel may delete local specs
 
 These are the "kartoteka is shared/hosted" prerequisites. artel's store mode can be built and
-tested against a local daemon without them; artel's `specs.allowLocalDeletion` stays `false`
-until they land.
+tested against a local daemon without them; the `specs.allowLocalDeletion` key once planned
+as that gate was dropped — `/artel:migrate-specs` verifies and confirms every deletion instead
+(design.md decision log, 2026-09-22).
 
 ### 2.1 No authentication, loopback-only bind
 
@@ -295,6 +296,15 @@ Checked while writing this, and recorded so it is not investigated twice.
 
 ---
 
+## §6 Store mode as built (2026-09-22)
+
+- **K1 `artifact_patch`** — **Shipped 0.43.0.** Ordered `{old_string, new_string}` /
+  `{append}` edits applied atomically to the newest version under the store's write lock; MCP
+  tool and `PATCH /api/artifacts/{ticket_key}/{stage}/{name}`. Store mode's every in-place edit
+  — a ticked box, an appended fix batch — is one call, not a whole-document round trip.
+- **K2 write receipts** — **Shipped 0.43.0.** `artifact_put` and `artifact_patch` answer with
+  the stored version's header, not the body the caller just sent.
+
 ## Summary
 
 | # | Change | Tier | Size | State |
@@ -306,12 +316,12 @@ Checked while writing this, and recorded so it is not investigated twice.
 | 2.3 | Per-project namespace, or a documented one-project constraint | Gating | Medium or doc-only | **Shipped 0.31.0** — artel side in 0.9.0 |
 | 3.1 | Relax `TICKET_KEY` for release identifiers | Conditional | Small, wide blast radius | **Open** — conditional, binds nothing today |
 | 4.x | `artifact_delete`, `artifact_versions` tool, `parent_id` in list output | Nice to have | Small | **Shipped** — 0.30.0 (as `artifact_redact`), 0.30.0, 0.28.0 |
+| 6 | `artifact_patch`, write receipts | Store mode | Small | **Shipped 0.43.0** |
 
 Only 1.1 and 1.2 stand between artel and a working store mode against a local daemon. Everything
 in §2 stands between that and deleting anyone's files.
 
 **Where that leaves things (2026-09-06).** Both sentences above are now satisfied: §1 and §2
 have shipped in full, so nothing on kartoteka's side blocks store mode, and nothing blocks local
-deletion either. The remaining work is entirely artel's — the design in
-`docs/superpowers/specs/2026-08-31-kartoteka-primary-specs-design.md` has no plan and no
-implementation. See the open follow-up in [design.md](design.md#open-follow-ups).
+deletion either. Store mode shipped in artel 0.16.0 against kartoteka 0.43.0, which added §6's
+two items.

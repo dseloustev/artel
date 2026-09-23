@@ -41,7 +41,10 @@ Core design properties:
 
 - **Spec trail** — every ticket owns a `specs/.current/<TICKET>/` directory with its artifacts
   (`idea.md`, `prd.md`, `vision.md`, `plan.md`, `tasklist.md`, `review.md`, `qa.md`, …); phased
-  tickets get `phase-N/` subfolders.
+  tickets get `phase-N/` subfolders. With `knowledge.adapter: "kartoteka"`, kartoteka is the spec
+  store: the spec trail lives in its artifact store, not in the repository
+  ([docs/spec-storage.md](docs/spec-storage.md)); `/artel:migrate-specs` moves existing local
+  trails in.
 - **One approval pause** — the pipeline interviews you, drafts the plan, and stops exactly once
   for a green light; then runs implement → review → QA → PR unattended.
 - **Gates, not vibes** — hooks enforce verification before "done": analyzer/tests must pass,

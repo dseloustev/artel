@@ -6,6 +6,57 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+**Requires kartoteka 0.43.0** when `knowledge.adapter` is `"kartoteka"`. Read **Upgrading**
+before the first run.
+
+### Added
+
+- **kartoteka is the spec store.** With `knowledge.adapter: "kartoteka"`, every spec document —
+  `idea.md` through `pr-description.md`, ticket-wide and phase-scoped — is read and written in
+  kartoteka's artifact store and nowhere else: nothing under `<specs.dir>`, nothing in a commit
+  or a pull request. Agents use the MCP tools (`artifact_get`, `artifact_put`, and kartoteka
+  0.43.0's `artifact_patch` for in-place edits such as ticking a box). Scripts receive
+  documents by pipe from the new `scripts/spec_store.py`, so a document never passes through an
+  orchestrator's context. `.active_ticket` and gate evidence stay on disk. Contract:
+  `docs/spec-storage.md`.
+- **Nothing is saved locally without asking.** When kartoteka cannot be reached a run asks
+  first — Retry / Work locally for this run / Abort. Mid-run it pauses
+  (`pause_reason: "store-unavailable"`) and offers to keep an unsaved document locally until
+  kartoteka is back; resuming uploads it and removes the copy. Headless runs follow the new
+  `specs.onUnavailable` (`"abort"` by default, or `"local"`).
+- **`/artel:migrate-specs`** moves local trails in — one ticket, several, or `--all`, including
+  `save-context`'s copies. Each file's hash is compared with every stored version: missing and
+  newer documents are uploaded, a stale copy never overwrites a newer stored one, and a real
+  conflict shows its diff and asks keep local / keep stored / skip. Local copies are deleted only
+  after kartoteka verifiably holds them, after one confirmation, with `git rm` and an optional
+  single commit. `.active_ticket`, evidence and release documents are never deleted.
+- **A guard enforces it.** `hooks/spec_store_guard.py` (`PreToolUse` on `Edit|Write|MultiEdit`,
+  and the OpenCode bridge) refuses a spec-document file write while kartoteka is the store, and
+  names the call to use instead.
+- The session's host status gains a `spec store:` line.
+
+### Changed
+
+- **`knowledge.adapter: "kartoteka"` now means kartoteka holds the spec trail.** The mirror hook
+  remains for the files path (`--local`, or an approved local run), best-effort as before.
+- `tasklist_tasks.py --tasklist -` and `plan_check.py --plan -` read stdin.
+- The review-round reset stores a round-0 version instead of deleting `review.md`; earlier
+  rounds are the document's previous versions in kartoteka.
+- The planning checkpoint skips its commit when only `.active_ticket` changed.
+- The kartoteka HTTP client is shared by the mirror hook, the guard and `spec_store.py`
+  (`hooks/kartoteka_http.py`).
+
+### Upgrading
+
+- Upgrade the daemon to **kartoteka 0.43.0** and restart it.
+- Tickets with a trail on disk: run `/artel:migrate-specs --all` (or per ticket) interactively.
+  A run that finds a local trail asks (interactive) or stops (headless).
+- Scripts reach kartoteka over HTTP: with `[auth]` on, `knowledge.tokenEnv` must name a
+  CLI-minted token (`kartoteka token add`), even where the MCP session signs in with GitHub.
+- Headless allowlists need `python3 <plugin-root>/scripts/spec_store.py *`.
+- Recommended on the daemon: leave the `tasklist` stage out of `[workspace] index_stages` —
+  every ticked box is a version, and each indexed version costs a `[contextualize]` call.
+
 ## [0.15.0] - 2026-09-19
 
 ### Added

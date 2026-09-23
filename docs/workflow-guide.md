@@ -33,6 +33,29 @@ is missing. Unconfigured gates degrade to `skipped`, never to fake green: an emp
 `verify.commands` skips the quality gate, an absent `runtime.run` skips the runtime gate,
 `design.figma: false` skips design analysis.
 
+## Where the spec trail lives
+
+With `knowledge.adapter: "kartoteka"`, kartoteka is the spec store: every spec document —
+`idea.md` through `pr-description.md` — is written to and read from kartoteka's artifact store,
+and nothing lands under `<specs.dir>` except `.active_ticket` and gate evidence. Nothing about
+the documents changes: same names, same templates, same statuses. Read them on kartoteka's
+dashboard (`/ticket`, `/artifact`) or with `/artel:knowledge <ticket> --artifacts`. The contract
+is [spec-storage.md](spec-storage.md).
+
+- **kartoteka unreachable at the start of a run** → you are asked: Retry, Work locally for this
+  run, or Abort. Working locally keeps the documents as files; `/artel:migrate-specs` moves them
+  in later.
+- **kartoteka unreachable mid-run** → the run pauses (`store-unavailable`). If a document was
+  just produced, you are asked whether to keep it locally until kartoteka is back; resuming
+  uploads it and removes the local copy.
+- **Headless** → `specs.onUnavailable` answers: `"abort"` (default) or `"local"`.
+- **Existing local trails** → `/artel:migrate-specs --all` (or per ticket). Missing and newer
+  documents are uploaded, stale copies never overwrite newer stored versions, conflicts show a
+  diff and ask, and local copies are deleted only after kartoteka verifiably holds them — with
+  `git rm`, in one optional commit.
+- A **write refused with "kartoteka is this project's spec store"** is `spec_store_guard.py`
+  catching a file write where a store call belongs; see [spec-storage.md](spec-storage.md) §6.
+
 ## Turn one: the router
 
 Once the config exists, every session starts with the

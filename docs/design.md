@@ -128,11 +128,6 @@ move to the decision log.
   pushes there; `set-home` moves it, but nothing enforces that it was run. Both were considered
   and deliberately declined for 0.13.0, so they are decisions rather than omissions — revisit if
   a stale remote ever causes a real push to the wrong host.
-- **Store mode is designed but unbuilt.** `docs/superpowers/specs/2026-08-31-kartoteka-primary-specs-design.md`
-  has no plan file and no implementation, and it is the only spec in that state. As of 2026-09-06
-  nothing on kartoteka's side blocks it: every §1 and §2 item in
-  [kartoteka-requirements.md](kartoteka-requirements.md) has shipped. Either plan it or record it
-  as parked — it should not sit in neither state.
 - **kartoteka 0.28.0's queue parameters are unused.** `task_ready` takes `parent_id` and
   `task_list` takes `order="created"`, both added for artel's stated needs.
   [task-queue.md](task-queue.md) §3 still claims unscoped and releases a wrong-phase row back to
@@ -141,7 +136,12 @@ move to the decision log.
   design pass rather than an in-place edit. Fix-section rows (0.15.0,
   [task-queue.md](task-queue.md) §6) are already shaped for it: one parent row per section, so
   a fix dispatch can claim from its own section by `parent_id` once the protocol adopts it, and
-  gain the holder those rows lack today.
+  gain the holder those rows lack today. Store mode (0.16.0) did not need them: the tasklist
+  stayed a document (2026-09-22 decision log). Moving task state wholly into the queue — option
+  A of the 2026-09-22 design — is where they would land.
+- **Store mode's live smoke test** is recorded in the 0.16.0 release notes. Two follow-ups are
+  parked: evidence files (`findings.json`, `observation.md`) moving into the store, and
+  `.active_ticket` moving to `.artel/run/` (2026-09-22 design, §16).
 - **A generated ticket never reads fully done in kartoteka's rollup.** Fix-section parents
   (`CRF: …`, `RTF: …`, `VF: …`, `FV: …`) stay `backlog` by design, because nothing claims,
   promotes or completes a label row and the next round appending to its section would
@@ -763,3 +763,40 @@ move to the decision log.
   a local-only `feature-development` run still writes no rows. `/artel:tasks` gained
   `add --fix` and refuses to `release` a fix row, since releasing sets `ready`. kartoteka
   needed nothing new. Prompt: `docs/superpowers/prompts/2026-09-19-review-fix-queue.md` (local).
+- **2026-09-22 — kartoteka is the spec store, activated by `knowledge.adapter` alone.** With
+  the adapter on, spec documents live in kartoteka's artifact store and nowhere else; no
+  `specs.store` key, because a project that consults kartoteka and keeps a second copy of its
+  trail on disk is the duplication being removed. Supersedes the unbuilt 2026-08-31 store-mode
+  design. Design: `docs/superpowers/specs/2026-09-22-kartoteka-spec-store-design.md`.
+- **2026-09-22 — Agents speak MCP; edits are server-side patches; the tasklist stays a
+  document.** kartoteka 0.43.0 added `artifact_patch`, so Read/Write/Edit map one-to-one onto
+  `artifact_get`/`artifact_put`/`artifact_patch` and every agent keeps its logic. The
+  queue-owned tasklist was deferred, not rejected; a write-through cache under `.artel/run/` was
+  rejected as a local copy.
+- **2026-09-22 — Scripts reach kartoteka over HTTP (`scripts/spec_store.py`).** Documents go
+  script to script by pipe, never through an orchestrator's context; reverses 2026-08-31's
+  "scripts stay offline", at the cost of a CLI-minted token where MCP signs in with GitHub.
+- **2026-09-22 — The storage decision is a per-ticket file with a freshness window.**
+  `.artel/run/<TICKET_ID>/spec-store.json`: sub-skills inherit it without a flag, the guard reads
+  it, migration flips it.
+- **2026-09-22 — Nothing is saved locally without asking; mid-run never continues locally.**
+  Later gates read documents that exist only in kartoteka, so an outage pauses the run; an
+  unsaved document is kept locally only with permission and moved in on resume.
+- **2026-09-22 — Migration compares hashes against every stored version.** "The mirror can only
+  lag" stopped being true once store-mode writes exist. `specs.allowLocalDeletion` was dropped:
+  deletion is verified and confirmed instead.
+- **2026-09-22 — A PreToolUse guard enforces the store** (`hooks/spec_store_guard.py`), because
+  a stale sentence in any of sixty prompt files would otherwise fail silently into a local copy.
+- **2026-09-22 — Migration switches a ticket to kartoteka only when nothing is left behind.** `migrate
+  apply` flips the storage decision only when the ticket's whole local trail is current, stale, or
+  resolved to the stored copy. A run the user kept local is never redirected while content they chose
+  to keep is still on disk.
+- **2026-09-22 — A headless migration uploads, but never deletes except pending saves.** Uploads are
+  append-only, `expected_version`-guarded and verified, so they need no confirmation. Deleting a user's
+  files does, so `--no-prompt` deletes only under `--pending-only`.
+- **2026-09-22 — Migration classifies each local copy on its own, and never auto-uploads around a
+  redaction.** From plan 3's final review:
+  - a working-tree copy and a stale context snapshot of one document are judged separately;
+  - a copy that may hold redacted text is always a conflict, shown with no diff;
+  - `keep-stored` needs a stored version;
+  - a `keep-local` answer is pinned to the version the user saw.

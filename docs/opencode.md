@@ -49,7 +49,7 @@ Python hooks (`hooks/README.md` documents their stdin/stdout contracts):
 
 | OpenCode | artel hook | Behavior |
 |---|---|---|
-| `tool.execute.before` (edit/write/apply_patch) | `sensitive_guard.py` | deny → the tool call errors |
+| `tool.execute.before` (edit/write/apply_patch) | `sensitive_guard.py`, then `spec_store_guard.py` | deny → the tool call errors (either guard, `hooks.json`'s order) |
 | `tool.execute.after` (edit/write/apply_patch) | `knowledge_mirror.py`, then `fast_verify_post_edit.py` | findings → the tool result carries them. Reverse of `hooks.json`'s order on purpose: findings leave the handler by throwing, which would skip a mirror queued behind them |
 | `session.created` | `session_baseline.py` | findings baseline captured (child sessions skip it) |
 | `experimental.chat.messages.transform` | `using_artel.py` | router + host status prepended to the first user message on every model step (in-memory) |

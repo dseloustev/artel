@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-23
+
 **Requires kartoteka 0.43.0** when `knowledge.adapter` is `"kartoteka"`. Read **Upgrading**
 before the first run.
 

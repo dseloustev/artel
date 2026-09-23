@@ -647,6 +647,45 @@ def _newer_than(source, version):
     return created is not None and written is not None and written > created
 
 
+def _image_working_time(source):
+    """The timestamp spec-images' successor rule trusts for this working-tree
+    image copy (2026-09-23 ruling, I-3).
+
+    git sets a tracked file's mtime at checkout, worktree add, rebase or
+    merge, so an unmodified tracked copy's mtime cannot tell an old commit
+    from a fresh edit -- an image has no editing base, so trusting it alone
+    would auto-upload a stale checkout as the newest version. When the copy
+    is tracked AND unmodified relative to HEAD (`git diff --quiet HEAD`,
+    which covers both the index and the working tree), the AUTHOR time of
+    the last commit that touched it is trustworthy instead. Otherwise -- a
+    local edit since HEAD, or the copy was never committed -- the file's own
+    mtime is, exactly as for any other candidate. No usable git time counts
+    as no signal at all, the same as an unparseable created_at: it can only
+    withhold a successor here, never grant one by falling back to mtime."""
+    if _tracked(source) and _git(
+            '--literal-pathspecs', 'diff', '--quiet', 'HEAD', '--', source).returncode == 0:
+        logged = _git('--literal-pathspecs', 'log', '-1', '--format=%at', '--', source)
+        stamp = logged.stdout.strip() if logged.returncode == 0 else ''
+        if not stamp:
+            return None
+        try:
+            return datetime.fromtimestamp(int(stamp), timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            return None
+    return _mtime(source)
+
+
+def _image_successor(source, version):
+    """Whether this working-tree image copy was written after kartoteka's
+    stored version -- spec-images §8's successor rule, on the timestamp
+    _image_working_time picks rather than the file's raw mtime (I-3). The
+    mirror of _newer_than, and just as cautious: no usable time on either
+    side answers False, so this alone only ever grants a successor, never
+    turns one into a conflict by mistake."""
+    created, written = _created_at(version), _image_working_time(source)
+    return created is not None and written is not None and written > created
+
+
 def candidates(ticket, config, pending_only):
     """({logical path: [source paths]}, decision, {pending source: base_version})."""
     specs_dir = (config.get('specs') or {}).get('dir') or 'specs/.current'
@@ -968,7 +1007,7 @@ def classify_image(store, config, ticket, logical, sources, fetch_stored=False):
         elif working is None:
             conflict(item, 'a saved context copy with new bytes; it may be older than what '
                            'kartoteka holds')
-        elif _newer_than(working, newest):
+        elif _image_successor(working, newest):
             item.update({'class': 'successor',
                          'reason': "written after kartoteka's v{}".format(newest['version'])})
         elif _older_than(working, newest):

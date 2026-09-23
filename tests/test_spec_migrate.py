@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from fake_kartoteka import FakeKartoteka
 
@@ -974,6 +975,66 @@ class TestClassifyImages(ImageCase):
         item = self.plan('AW-12')[IMG]
         self.assertEqual((item['class'], item['reason']),
                          ('successor', "written after kartoteka's v1"))
+
+    def test_i3_an_older_committed_copy_freshly_checked_out_is_a_conflict_not_a_successor(self):
+        # 2026-09-23 ruling (I-3): git sets a tracked file's mtime at
+        # checkout, worktree add, rebase or merge, so a fresh checkout of an
+        # OLDER commit can look newer than the stored version by mtime alone
+        # -- the mtime here is "now", well after the stored version, yet the
+        # commit that wrote these bytes is older. The tracked-and-unmodified
+        # copy's git AUTHOR time must be trusted instead: conflict, never a
+        # successor.
+        self.image(IMG, png('older commit'))
+        self.git('commit', '--date', '2024-06-01T11:00:00+00:00', '-m', 'older commit')
+        self.stored(png('v1'), created_at='2024-06-01T12:00:00+00:00')  # an hour later
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual(item['class'], 'conflict')
+
+    def test_i3_a_commit_authored_after_the_stored_version_unmodified_is_a_successor(self):
+        self.image(IMG, png('newer commit'))
+        self.git('commit', '--date', '2024-06-01T13:00:00+00:00', '-m', 'newer commit')
+        self.stored(png('v1'), created_at='2024-06-01T12:00:00+00:00')  # an hour earlier
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('successor', "written after kartoteka's v1"))
+
+    def test_i3_a_locally_modified_tracked_copy_uses_its_own_recent_mtime(self):
+        # Edited since the commit, so `git diff --quiet HEAD` no longer holds:
+        # the successor rule falls back to this file's own mtime, as for any
+        # other candidate -- here a recent one, over a stored version created
+        # long ago, so it is still a successor.
+        self.image(IMG, png('committed'))
+        self.git('commit', '--date', LONG_AGO, '-m', 'first')
+        (self.repo / IMG).write_bytes(png('locally modified'))
+        self.stored(png('v1'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('successor', "written after kartoteka's v1"))
+
+    def test_i3_no_usable_git_author_time_is_a_conflict_not_a_successor(self):
+        # A tracked-and-unmodified copy whose git history spec_store cannot
+        # read (log unavailable, or the stamp unparseable) is no usable
+        # signal at all -- like an unparseable created_at, it can only
+        # refuse a successor, never grant one.
+        self.image(IMG, png('committed'))
+        self.git('commit', '--date', LONG_AGO, '-m', 'first')
+        self.stored(png('v1'), created_at=LONG_AGO)
+        real_git = spec_store._git
+
+        def log_fails(*args):
+            if 'log' in args:
+                return subprocess.CompletedProcess(args, 1, '', 'git log failed')
+            return real_git(*args)
+
+        cwd = os.getcwd()
+        os.chdir(str(self.repo))
+        self.addCleanup(os.chdir, cwd)
+        with mock.patch.object(spec_store, '_git', side_effect=log_fails):
+            config = spec_store.load_config()
+            store = spec_store.Store(config)
+            items = spec_store.plan_items(store, config, ['AW-12'], False)
+        item = next(i for i in items if i['logical'] == IMG)
+        self.assertEqual(item['class'], 'conflict')
 
     def test_an_older_working_copy_is_a_conflict(self):
         self.image(IMG, png('old local'))

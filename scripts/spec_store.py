@@ -17,8 +17,8 @@ to HTTP and are never printed: an agent Reads the local path `image fetch`
 prints.
 
 Exit codes: 0 ok · 2 error (JSON envelope on stderr) · 3 absent ·
-4 version conflict · 5 kartoteka unavailable (`decide`, and the `migrate` verbs --
-wherever in a migration the store goes down).
+4 version conflict · 5 kartoteka unavailable (`decide`, the `migrate` verbs and
+`image sync` -- wherever in a migration or a sweep the store goes down).
 Contract: docs/spec-storage.md
 """
 import argparse
@@ -472,7 +472,7 @@ def cmd_pending_add(args, config):
 
 MIGRATION_AUTHOR = 'artel:migrate-specs'
 DIFF_LINES = 200
-STORE_DOWN = ('unreachable', 'unauthorized', 'store_off')
+STORE_DOWN = ('unreachable', 'unauthorized', 'store_off', 'no_attachments')
 
 
 def migrating(run):
@@ -1087,17 +1087,20 @@ def _tracked(path):
     return _git('ls-files', '--error-unmatch', '--', path).returncode == 0
 
 
-def _prune_empty_parents(path, config, ticket):
+def _prune_empty_parents(path, config, ticket, keep_root=False):
     """Remove the directories this deletion emptied, up to and including the
     ticket's own trail root -- never above it, and never through a symbolic
     link. It walks the path as written, not as resolved: a worktree's
     .artel/context is a link to the main checkout's store, and resolving would
-    walk out of this checkout entirely."""
+    walk out of this checkout entirely. `keep_root` stops below the root: the
+    sweep empties image folders of a trail that is still in use."""
     root = _trail_root_of(path, ticket, config) if ticket else None
     if root is None:
         return
     parent = os.path.dirname(os.path.normpath(path))
     while True:
+        if keep_root and parent == root:
+            return
         if os.path.islink(parent):
             return
         try:
@@ -1336,6 +1339,105 @@ def cmd_image_list(args, config):
     return OK
 
 
+OUTSIDE_THE_GRAMMAR = ("outside kartoteka's image path grammar: 1 to {} segments of letters, "
+                       "digits, '.', '_' or '-' below the ticket directory; rename it to move "
+                       "it in").format(kh.MAX_IMAGE_SEGMENTS)
+IMAGE_CAP_BYTES = 5242880  # kartoteka's default [workspace] max_attachment_bytes (spec-images §2.2)
+OVER_THE_CAP = ("over kartoteka's default {}-byte attachment limit; not sent, and the file "
+                "is kept").format(IMAGE_CAP_BYTES)
+
+
+def _linked_images(root):
+    """The symbolic links with an image name under root -- sd.image_files leaves
+    them out. The sweep reports each as skipped and never reads one."""
+    found = []
+    for folder, _, names in os.walk(str(root)):
+        found.extend(Path(folder) / name for name in names
+                     if kh.is_image_name(name) and os.path.islink(os.path.join(folder, name)))
+    return found
+
+
+def sync_images(store, config, ticket, author):
+    """Sweep this ticket's untracked images into kartoteka (docs/spec-storage.md §4.6).
+
+    Each image under <specs.dir>/<TICKET_ID>/ is uploaded, verified and moved
+    into the cache, where `image fetch` finds it. A file only leaves the trail
+    once kartoteka verifiably holds the very bytes it had: the receipt's hash
+    must be the hash of what was sent, and the file must still hash the same.
+    Anything else stays where it is -- a failed sweep loses nothing and is
+    retried at the next sweep point. A tracked image belongs to migration
+    (`migrate-specs`), and a link, a path that resolves outside the trail or a
+    file over kartoteka's default cap is reported as skipped and never read or
+    sent. A per-file refusal is that file's `failed` entry; a store-level
+    failure raises, and every file not yet swept stays.
+    """
+    specs_dir = (config.get('specs') or {}).get('dir') or 'specs/.current'
+    trail = Path(specs_dir) / ticket
+    result = {'uploaded': [], 'unchanged': [], 'skipped': [], 'failed': [], 'tracked': []}
+    for found in sorted(sd.image_files(trail) + _linked_images(trail)):
+        source = str(found)
+
+        def fail(reason):
+            result['failed'].append({'path': source, 'reason': reason})
+
+        if _outside_the_trail(source, ticket, config):
+            result['skipped'].append({'path': source, 'reason': OUTSIDE_THE_TRAIL})
+            continue
+        if _tracked(source):
+            result['tracked'].append(source)
+            continue
+        identity = kh.image_identity(source, config)
+        if identity is None:
+            result['skipped'].append({'path': source, 'reason': OUTSIDE_THE_GRAMMAR})
+            continue
+        ticket_key, path = identity
+        try:
+            if found.stat().st_size > IMAGE_CAP_BYTES:
+                result['skipped'].append({'path': source, 'reason': OVER_THE_CAP})
+                continue
+            data = found.read_bytes()
+        except OSError as exc:
+            fail('unreadable: {}'.format(exc.strerror or exc))
+            continue
+        sent = sha256_bytes(data)
+        try:
+            status, receipt = store.image_put(ticket_key, path, data, author=author)
+        except Failure as exc:
+            if exc.kind != 'rejected':
+                raise  # the store itself is down: stop, and leave the rest
+            fail(str(exc))
+            continue
+        if status != 200 or (receipt or {}).get('content_hash') != sent:
+            fail('kartoteka did not confirm the bytes that were sent; the file is kept')
+            continue
+        try:
+            still = sha256_bytes(found.read_bytes())
+        except OSError:
+            still = None
+        if still != sent:
+            fail('it changed while it was being stored; the file is kept for the next sweep')
+            continue
+        target = image_cache_path(ticket_key, path)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(source, str(target))
+        except OSError as exc:
+            fail('stored, but not moved into the cache: {}'.format(exc.strerror or exc))
+            continue
+        _prune_empty_parents(source, config, ticket, keep_root=True)
+        result['unchanged' if receipt.get('unchanged') else 'uploaded'].append(source)
+    return result
+
+
+@migrating  # a store-level failure exits 5, as it does for the migrate verbs
+def cmd_image_sync(args, config):
+    ticket = sd.canonical_ticket(args.ticket, config)
+    if ticket is None:
+        raise Failure('invalid_argument', 'not a ticket id: {}'.format(args.ticket))
+    print(json.dumps(sync_images(Store(config), config, ticket, args.author)))
+    return OK
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog='spec_store.py', description=__doc__.splitlines()[0])
     verbs = parser.add_subparsers(dest='verb', required=True)
@@ -1401,6 +1503,10 @@ def build_parser():
     image_list = image_verbs.add_parser('list')
     image_list.add_argument('ticket')
     image_list.set_defaults(run=cmd_image_list)
+    image_sync = image_verbs.add_parser('sync')
+    image_sync.add_argument('ticket')
+    image_sync.add_argument('--author', required=True)
+    image_sync.set_defaults(run=cmd_image_sync)
     return parser
 
 

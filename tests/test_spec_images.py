@@ -298,3 +298,193 @@ class TestImageFetch(ImageCase):
         os.symlink(str(outside), str(self.repo / self.LOGICAL))
         proc, printed = self.fetch()
         self.assertEqual((proc.returncode, printed), (3, None))
+
+
+class TestImageSync(ImageCase):
+    AUTHOR = 'artel:feature-development'
+
+    def sync(self):
+        proc = self.run_cli('image', 'sync', 'AW-12', '--author', self.AUTHOR)
+        return proc, (json.loads(proc.stdout) if proc.returncode == 0 else None)
+
+    def cached(self, path):
+        return self.repo / '.artel/run/AW-12/images' / path
+
+    def test_uploads_verifies_moves_and_prunes(self):
+        self.image(TRAIL + '/design/a.png', png('a'))
+        self.image(TRAIL + '/phase-2/runtime/x.png', png('x'))
+        (self.repo / TRAIL / 'runtime').mkdir()
+        (self.repo / TRAIL / 'runtime' / 'observation.md').write_text('RUNTIME_OK',
+                                                                     encoding='utf-8')
+        proc, out = self.sync()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(out, {'uploaded': [TRAIL + '/design/a.png',
+                                            TRAIL + '/phase-2/runtime/x.png'],
+                               'unchanged': [], 'skipped': [], 'failed': [], 'tracked': []})
+        stored = self.fake.newest_image(PROJECT, 'AW-12', 'phase-2/runtime/x.png')
+        self.assertEqual((stored['bytes'], stored['author_agent']), (png('x'), self.AUTHOR))
+        self.assertEqual(self.cached('design/a.png').read_bytes(), png('a'))
+        self.assertEqual(self.cached('phase-2/runtime/x.png').read_bytes(), png('x'))
+        # Emptied folders go; the ticket directory and anything still holding files stay.
+        self.assertFalse((self.repo / TRAIL / 'design').exists())
+        self.assertFalse((self.repo / TRAIL / 'phase-2').exists())
+        self.assertTrue((self.repo / TRAIL / 'runtime' / 'observation.md').exists())
+        self.assertNotIn('PNG', proc.stdout + proc.stderr)
+
+    def test_the_ticket_directory_itself_is_never_pruned(self):
+        self.image(TRAIL + '/shot.png', png('s'))
+        proc, out = self.sync()
+        self.assertEqual(out['uploaded'], [TRAIL + '/shot.png'])
+        self.assertTrue((self.repo / TRAIL).is_dir())
+
+    def test_bytes_kartoteka_already_holds_are_unchanged_and_still_moved(self):
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/a.png', png('a'))
+        self.image(TRAIL + '/design/a.png', png('a'))
+        proc, out = self.sync()
+        self.assertEqual((out['uploaded'], out['unchanged']), ([], [TRAIL + '/design/a.png']))
+        self.assertFalse((self.repo / TRAIL / 'design/a.png').exists())
+        self.assertEqual(len(self.fake.attachments[(PROJECT, 'AW-12', 'design/a.png')]), 1)
+
+    def test_tracked_images_are_left_to_migration(self):
+        self.image(TRAIL + '/design/a.png', png('a'))
+        self.git('add', '-A')
+        self.git('commit', '-q', '-m', 'seed')
+        proc, out = self.sync()
+        self.assertEqual(out['tracked'], [TRAIL + '/design/a.png'])
+        self.assertTrue((self.repo / TRAIL / 'design/a.png').exists())
+        self.assertEqual([r for r in self.fake.requests if r[0] == 'PUT'], [])
+
+    def test_a_name_outside_the_grammar_is_skipped_and_kept(self):
+        self.image(TRAIL + '/design/Screen Shot.png', png('s'))
+        proc, out = self.sync()
+        self.assertEqual([e['path'] for e in out['skipped']], [TRAIL + '/design/Screen Shot.png'])
+        self.assertEqual(out['skipped'][0]['reason'], spec_store.OUTSIDE_THE_GRAMMAR)
+        self.assertTrue(spec_store.OUTSIDE_THE_GRAMMAR.startswith(
+            "outside kartoteka's image path grammar"))  # plan 2's migrate-specs prose names it
+        self.assertTrue((self.repo / TRAIL / 'design/Screen Shot.png').exists())
+        self.assertEqual(self.fake.requests, [])
+
+    def test_a_link_is_reported_skipped_and_never_read_or_moved(self):
+        outside = self.image('elsewhere/secret.png', png('secret'))
+        (self.repo / TRAIL / 'design').mkdir(parents=True)
+        os.symlink(str(outside), str(self.repo / TRAIL / 'design/link.png'))
+        os.symlink('nowhere.png', str(self.repo / TRAIL / 'design/dangling.png'))
+        proc, out = self.sync()
+        self.assertEqual(out, {'uploaded': [], 'unchanged': [], 'failed': [], 'tracked': [],
+                               'skipped': [
+                                   {'path': TRAIL + '/design/dangling.png',
+                                    'reason': spec_store.OUTSIDE_THE_TRAIL},
+                                   {'path': TRAIL + '/design/link.png',
+                                    'reason': spec_store.OUTSIDE_THE_TRAIL}]})
+        self.assertTrue((self.repo / TRAIL / 'design/link.png').is_symlink())
+        self.assertEqual(outside.read_bytes(), png('secret'))
+        self.assertEqual(self.fake.attachments, {})
+
+    def test_an_image_over_the_default_cap_is_skipped_unsent_and_kept(self):
+        big = self.image(TRAIL + '/design/big.png',
+                         png('big') + b'\0' * spec_store.IMAGE_CAP_BYTES)
+        proc, out = self.sync()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(out['skipped'], [{'path': TRAIL + '/design/big.png',
+                                           'reason': spec_store.OVER_THE_CAP}])
+        self.assertTrue(big.exists())
+        self.assertEqual(self.fake.requests, [])
+
+    def test_a_linked_ticket_directory_is_skipped(self):
+        elsewhere = tempfile.TemporaryDirectory()
+        self.addCleanup(elsewhere.cleanup)
+        outside = Path(elsewhere.name)
+        (outside / 'a.png').write_bytes(png('not this trail'))
+        (self.repo / 'specs/.current').mkdir(parents=True)
+        os.symlink(str(outside), str(self.repo / TRAIL))
+        proc, out = self.sync()
+        self.assertEqual(out['skipped'], [{'path': TRAIL + '/a.png', 'reason': (
+            'a symbolic link or a path outside the trail; not read')}])
+        self.assertTrue((outside / 'a.png').exists())
+        self.assertEqual(self.fake.attachments, {})
+
+    def test_a_refused_upload_is_failed_and_the_rest_still_move(self):
+        self.fake.max_attachment_bytes = 16
+        self.image(TRAIL + '/design/big.png', png('more than sixteen bytes'))
+        self.image(TRAIL + '/design/small.png', png('s'))
+        proc, out = self.sync()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(out['uploaded'], [TRAIL + '/design/small.png'])
+        self.assertEqual([e['path'] for e in out['failed']], [TRAIL + '/design/big.png'])
+        self.assertTrue(out['failed'][0]['reason'].startswith('kartoteka answered HTTP 413: '))
+        self.assertTrue((self.repo / TRAIL / 'design/big.png').exists())
+
+    def test_a_receipt_for_other_bytes_is_failed_and_the_file_stays(self):
+        self.fake.forced['PUT'] = (200, {'project': PROJECT, 'ticket_key': 'AW-12',
+                                         'path': 'design/a.png', 'version': 1,
+                                         'content_hash': '0' * 64, 'byte_size': 1,
+                                         'content_type': 'image/png', 'unchanged': False})
+        self.image(TRAIL + '/design/a.png', png('a'))
+        proc, out = self.sync()
+        self.assertEqual(out['failed'], [{'path': TRAIL + '/design/a.png', 'reason': (
+            'kartoteka did not confirm the bytes that were sent; the file is kept')}])
+        self.assertTrue((self.repo / TRAIL / 'design/a.png').exists())
+        self.assertFalse(self.cached('design/a.png').exists())
+
+    def test_a_file_changed_during_the_upload_is_failed_and_kept(self):
+        local = self.image(TRAIL + '/design/a.png', png('a'))
+
+        def rewrite(method, path, query, body):
+            if method == 'PUT':
+                local.write_bytes(png('rewritten'))
+        self.fake.on_request = rewrite
+        proc, out = self.sync()
+        self.assertEqual(out['failed'], [{'path': TRAIL + '/design/a.png', 'reason': (
+            'it changed while it was being stored; the file is kept for the next sweep')}])
+        self.assertEqual(local.read_bytes(), png('rewritten'))
+
+    def test_an_outage_midway_exits_5_and_the_rest_stay(self):
+        self.image(TRAIL + '/design/a.png', png('a'))
+        self.image(TRAIL + '/design/b.png', png('b'))
+        puts = []
+
+        def go_down_on_the_second_put(method, path, query, body):
+            if method == 'PUT':
+                puts.append(path)
+                if len(puts) == 2:
+                    self.fake.mode = 'unauthorized'
+        self.fake.on_request = go_down_on_the_second_put
+        proc, out = self.sync()
+        self.assertEqual((proc.returncode, proc.stdout), (5, ''))
+        error = self.error_of(proc)
+        self.assertEqual(error['kind'], 'unavailable')
+        self.assertIn('HTTP 401', error['message'])
+        self.assertFalse((self.repo / TRAIL / 'design/a.png').exists())
+        self.assertTrue((self.repo / TRAIL / 'design/b.png').exists())
+
+    def test_unreachable_exits_5(self):
+        self.image(TRAIL + '/design/a.png', png('a'))
+        self.fake.stop()
+        proc, _ = self.sync()
+        self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (5, 'unavailable'))
+        self.assertTrue((self.repo / TRAIL / 'design/a.png').exists())
+
+    def test_a_daemon_without_attachments_exits_5_naming_the_upgrade(self):
+        self.fake.mode = 'pre_attachments'
+        self.image(TRAIL + '/design/a.png', png('a'))
+        proc, _ = self.sync()
+        self.assertEqual((proc.returncode, self.error_of(proc)),
+                         (5, {'kind': 'unavailable', 'message': spec_store.ATTACHMENTS_MISSING}))
+        self.assertTrue((self.repo / TRAIL / 'design/a.png').exists())
+
+    def test_nothing_to_sweep_is_empty_and_sends_nothing(self):
+        proc, out = self.sync()
+        self.assertEqual((proc.returncode, out),
+                         (0, {'uploaded': [], 'unchanged': [], 'skipped': [], 'failed': [],
+                              'tracked': []}))
+        self.assertEqual(self.fake.requests, [])
+
+    def test_sync_images_is_callable_in_process(self):
+        # The migration and conversion plans call it by this signature.
+        self.image(TRAIL + '/design/a.png', png('a'))
+        cwd = os.getcwd()
+        os.chdir(str(self.repo))
+        self.addCleanup(os.chdir, cwd)
+        result = spec_store.sync_images(spec_store.Store(self.config), self.config, 'AW-12',
+                                        self.AUTHOR)
+        self.assertEqual(result['uploaded'], [TRAIL + '/design/a.png'])

@@ -116,6 +116,14 @@ class TestCheckpointProcedure(unittest.TestCase):
         self.assertIn('§5.6', report)
         self.assertIn('images left local', report)
 
+    def test_an_unrecoverable_sweep_is_surfaced_whole_not_summarised(self):
+        step = self.part('2. **Image sweep', '3. **Quality gate (phase-end only).**')
+        self.assertIn('unrecoverable', step)
+        self.assertIn('whole message', step)
+        report = self.part('### 9. Final report', '\n## Important')
+        self.assertIn('unrecoverable', report)
+        self.assertIn('whole message', report)
+
     def test_the_run_contract_names_the_sweep(self):
         contract = flat(between(read('docs/autonomous-run.md'),
                                 '## 14. Checkpoint commits & pushes', '## 15.'))

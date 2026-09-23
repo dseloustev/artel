@@ -232,7 +232,7 @@ checkpoint commits (hash + subject each, incl. push results); path to `pr-descri
 status (`PR_OPENED`/`PR_EXISTS` URL, `skipped-manual`, or `pending`); description-sync status;
 reminder that opening the PR remains manual (only when the PR gate was skipped — the work itself
 is already committed and pushed by the checkpoints); effective mode + why (`mode_reasons`);
-external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); images left local on the kartoteka path — each `failed` or `skipped` entry of that sweep with its reason, or on exit `5` every image still under the trail — with the `image sync` command above to move them in (headless runs journal the same lines); path to `run-journal.md`.
+external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); images left local on the kartoteka path — each `failed` or `skipped` entry of that sweep with its reason, or on exit `5` every image still under the trail; an `unrecoverable` sweep's whole message — with the `image sync` command above to move them in (headless runs journal the same lines); path to `run-journal.md`.
 
 ## Important
 
@@ -282,9 +282,11 @@ Procedure:
    `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:<skill>`
    — `<skill>` is `feature-development`, or `dev` when `dev` runs this procedure
    (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.6). It moves every untracked image under the
-   trail into kartoteka. Exit `5` or `2`, or `failed` entries, never pause: journal
+   trail into kartoteka. Exit `5`, or `failed` entries, never pause: journal
    `image-sync: <n> left local — <first error line>` (spec-storage.md §5.6) and go on; those
-   images stay untracked, and the next sweep point retries them. Then: `git status --porcelain`
+   images stay untracked, and the next sweep point retries them. Exit `2` with kind
+   `unrecoverable` never pauses either, but journal its whole message, not a first line, and
+   repeat it in the final report (spec-storage.md §5.6). Then: `git status --porcelain`
    clean → skip the commit (resume-safe); still push when the local branch is ahead of `origin`.
 3. **Quality gate (phase-end only).** Run `verify.commands` in order (config.md), stopping at the
    first failure; an empty list ⇒ record the verify step as `skipped` in the journal entry and

@@ -385,6 +385,19 @@ class TestImageFetch(ImageCase):
         self.assertEqual(proc.stdout, '')
         self.assertNotEqual(proc.returncode, 0)
 
+    def test_a_leading_dot_slash_still_takes_the_free_shortcut(self):
+        # M-2: unlike a '.' segment INSIDE the path (the test above), a
+        # leading './' is just a spelling of the same path -- './specs/…'.
+        # split('/') used to trip the very same '.'-segment guard and fall
+        # through to the network, answering absent for an unswept file that
+        # exists.
+        self.image(self.LOGICAL, png('local'))
+        proc = self.run_cli('image', 'fetch', './' + self.LOGICAL)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        printed = Path(proc.stdout.strip())
+        self.assertPrinted(printed, self.LOGICAL)
+        self.assertEqual(self.fake.requests, [])
+
 
 class TestImageSync(ImageCase):
     AUTHOR = 'artel:feature-development'

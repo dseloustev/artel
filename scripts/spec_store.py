@@ -1660,14 +1660,23 @@ def cmd_image_fetch(args, config):
     with bytes kartoteka no longer holds -- and never at all while kartoteka
     cannot be asked, because an unreachable store is a failing store call,
     not a reason to trust a copy of unknown age.
+
+    A leading './' (one or more) is normalised off first: `.` in
+    `'./specs/…'.split('/')` would otherwise trip the very guard that refuses
+    a genuine '.' segment elsewhere in the path (_shortcut_inside_trail), and
+    the free shortcut would fall through to the network for a file that is
+    right there.
     """
-    local = Path(args.path)
+    arg = args.path
+    while arg.startswith('./'):
+        arg = arg[2:]
+    local = Path(arg)
     if (args.version is None and local.is_file() and not local.is_symlink()
             and kh.is_image_name(local.name)
-            and _shortcut_inside_trail(args.path, config)):
-        print(os.path.abspath(args.path))
+            and _shortcut_inside_trail(arg, config)):
+        print(os.path.abspath(arg))
         return OK
-    ticket_key, path = image_address(args.path, config)
+    ticket_key, path = image_address(arg, config)
     target = image_cache_path(ticket_key, path, args.version)
     store = Store(config)
     held = None

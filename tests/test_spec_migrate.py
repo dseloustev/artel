@@ -1144,9 +1144,12 @@ class TestClassifyImages(ImageCase):
         self.assertEqual(self.fake.attachments, {})
 
     def test_a_symbolic_link_is_skipped_and_never_read(self):
-        outside = Path(self._tmp.name).parent / 'outside-the-repo.png'
+        # A directory of its own, not a fixed name in the shared system temp
+        # dir: two parallel runs of this test must not collide there.
+        outside_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(outside_dir.cleanup)
+        outside = Path(outside_dir.name) / 'outside-the-repo.png'
         outside.write_bytes(png('not this trail'))
-        self.addCleanup(outside.unlink)
         link = self.repo / IMG
         link.parent.mkdir(parents=True)
         os.symlink(outside, link)
@@ -1210,6 +1213,18 @@ class TestApplyImages(ImageCase):
         self.image(IMG, png('local'))
         self.older(IMG)
         self.stored(png('stored v1'), created_at=LONG_AGO)
+
+    def test_pending_only_never_uploads_an_image(self):
+        # M-3: --pending-only is a documents-only concept -- spec_decision's
+        # pending list never names an image, so an image is simply never a
+        # candidate under it, not uploaded even though it is otherwise absent.
+        self.local(SPECS / 'AW-12/prd.md', 'a')
+        self.image(IMG, png('new'))
+        self.decision('AW-12', pending=[{'path': 'specs/.current/AW-12/prd.md', 'base_version': 0}])
+        out = self.apply('AW-12', '--pending-only')
+        self.assertEqual(out['uploaded'], [{'logical': 'specs/.current/AW-12/prd.md', 'version': 1}])
+        self.assertEqual(self.puts(), [])
+        self.assertTrue((self.repo / IMG).exists())
 
     def test_absent_is_uploaded_as_new_verified_and_becomes_deletable(self):
         self.image(IMG, png('a'))
@@ -1345,6 +1360,19 @@ class TestDeleteImages(ImageCase):
         proc = self.cli('migrate', 'delete', *args)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         return json.loads(proc.stdout)
+
+    def test_pending_only_never_deletes_an_image(self):
+        # M-3: the mirror of the apply-side test -- an image kartoteka
+        # verifiably holds (otherwise deletable on its own) must stay
+        # untouched under --pending-only, because it is never a candidate.
+        self.local(SPECS / 'AW-12/prd.md', 'a')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'a')
+        self.image(IMG, png('stored'))
+        self.stored(png('stored'))
+        self.decision('AW-12', pending=[{'path': 'specs/.current/AW-12/prd.md', 'base_version': 1}])
+        out = self.delete('AW-12', '--pending-only')
+        self.assertEqual(out['removed'], ['specs/.current/AW-12/prd.md'])
+        self.assertTrue((self.repo / IMG).exists())
 
     def test_a_tracked_image_is_git_rm_and_committed_with_the_trail(self):
         self.image(IMG, png('a'))

@@ -71,6 +71,16 @@
         ]
       },
       {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/spec_store_guard.py\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Bash|mcp__.*",
         "hooks": [
           {

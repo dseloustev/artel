@@ -606,22 +606,45 @@ def _outside_the_trail(source, ticket, config):
     return not real.startswith(real_root + os.sep)
 
 
+def _created_at(version):
+    """A stored version's created_at as an aware datetime, or None when it is not
+    a timezone-aware ISO stamp."""
+    stamp = version.get('created_at')
+    if not isinstance(stamp, str):
+        return None
+    try:
+        created = datetime.fromisoformat(stamp.replace('Z', '+00:00'))
+    except (ValueError, TypeError):
+        return None
+    return created if created.tzinfo is not None else None
+
+
+def _mtime(source):
+    """This file's last write as an aware UTC datetime, or None when unreadable."""
+    try:
+        return datetime.fromtimestamp(os.stat(source).st_mtime, timezone.utc)
+    except (OSError, ValueError, OverflowError):
+        return None
+
+
 def _older_than(source, version):
     """Whether this file was last written before kartoteka stored that version.
 
     An unreadable file time, or a created_at that is not a timezone-aware ISO
     stamp, answers False: the check only ever adds conflicts, and a stamp this
     cannot read says nothing."""
-    stamp = version.get('created_at')
-    if not isinstance(stamp, str):
-        return False
-    try:
-        created = datetime.fromisoformat(stamp.replace('Z', '+00:00'))
-        if created.tzinfo is None:
-            return False
-        return datetime.fromtimestamp(os.stat(source).st_mtime, timezone.utc) < created
-    except (ValueError, TypeError, OSError):
-        return False
+    created, written = _created_at(version), _mtime(source)
+    return created is not None and written is not None and written < created
+
+
+def _newer_than(source, version):
+    """Whether this file was last written after kartoteka stored that version.
+
+    The mirror of _older_than, and cautious in the other direction: an
+    unreadable time answers False, because this check alone lets an image
+    upload on its own (spec-images §8's successor)."""
+    created, written = _created_at(version), _mtime(source)
+    return created is not None and written is not None and written > created
 
 
 def candidates(ticket, config, pending_only):
@@ -636,7 +659,7 @@ def candidates(ticket, config, pending_only):
                if isinstance(p, dict) and isinstance(p.get('path'), str) and p.get('path')}
     context_prefix = str(sd.CONTEXT_TICKETS / ticket / 'spec-trail') + '/'
     grouped = {}
-    for source in sd.local_trail(ticket, config):
+    for source in sd.local_trail(ticket, config, unmovable=True):
         logical = source
         if source.startswith(context_prefix):
             logical = str(Path(specs_dir) / ticket / source[len(context_prefix):])
@@ -725,7 +748,7 @@ def _judge(item, text, versions, stored, decision, pending, working_copy):
         ', '.join(authors)))
 
 
-def classify(store, config, ticket, logical, sources, decision, pending):
+def classify(store, config, ticket, logical, sources, decision, pending, fetch_stored=False):
     """This address's items: one per distinct local content (docs/spec-storage.md §7).
 
     A copy kartoteka holds -- as its newest version (current) or an older one
@@ -733,7 +756,11 @@ def classify(store, config, ticket, logical, sources, decision, pending):
     One unknown copy is judged against the store's history. Two or more, or one
     beside a copy that could not be read, are each a conflict: nothing says which
     of them is the newer work, so the user picks one.
+
+    An image address goes to classify_image; fetch_stored is its alone.
     """
+    if kh.is_image_name(Path(logical).name):
+        return classify_image(store, config, ticket, logical, sources, fetch_stored)
     ticket_key, stage, name = address(logical, config)
     context_root = os.path.normpath(trail_roots(ticket, config)[1]) + os.sep
     items, groups, texts = [], {}, {}
@@ -816,24 +843,178 @@ def classify(store, config, ticket, logical, sources, decision, pending):
     return items
 
 
-def plan_items(store, config, tickets, pending_only):
+# ---- Images: spec-images §8 ------------------------------------------------------
+# IMAGE_CAP_BYTES, OUTSIDE_THE_GRAMMAR and OVER_THE_CAP are plan 1's (the sweep's).
+
+
+def cache_stored_image(store, ticket_key, path, row):
+    """The local path now holding this stored version's bytes, or None.
+
+    It is the file `image fetch <logical> --version N` prints (image_cache_path),
+    written by an atomic replace, so the user can open the stored side of a
+    conflict. It is always fetched afresh, because migration never reads the
+    cache (spec-images §5). None when kartoteka will not serve that version, or
+    serves bytes that are not the listed hash."""
+    status, data, _ = store.image_get(ticket_key, path, version=row['version'])
+    if status != 200 or sha256_bytes(data) != row.get('content_hash'):
+        return None
+    target = image_cache_path(ticket_key, path, row['version'])
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name('.{}.migrate-tmp'.format(target.name))
+    tmp.write_bytes(data)
+    os.replace(str(tmp), str(target))
+    return str(target)
+
+
+def classify_image(store, config, ticket, logical, sources, fetch_stored=False):
+    """This image address's items: one per distinct local content (spec-images §8).
+
+    classify's judgement, on raw bytes. A copy whose sha256 kartoteka holds, as
+    its newest version (current) or an older live one (stale), is settled on
+    its own. An image has no editing base, so a copy kartoteka does not hold
+    uploads on its own only as a successor. That needs the one unknown copy,
+    from the working tree, written after the newest stored version, over a
+    history with no redaction: the 2026-09-22 §9.2 invariant, because a
+    redacted version's bytes are gone and nothing shows this copy is not them.
+    Anything else unknown is a conflict. A conflict carries no diff: it carries
+    its sizes and hashes, and the stored newest version, which `migrate plan`
+    (fetch_stored) also fetches into image fetch's cache so the user can look at
+    both. An image kartoteka cannot address, a symbolic link, a path outside
+    the trail, an oversized or unreadable file is skipped, never read."""
+    identity = kh.image_identity(logical, config)
+    ticket_key, path = identity if identity else (None, None)
+    context_root = os.path.normpath(trail_roots(ticket, config)[1]) + os.sep
+    items, groups = [], {}
+
+    def new_item(copies, **fields):
+        item = {'kind': 'image', 'ticket': ticket, 'logical': logical, 'name': path,
+                'sources': copies, 'source': copies[0], 'sha256': None, 'byte_size': None,
+                'class': None, 'reason': None, 'newest_version': None, 'base_version': None,
+                'diff': None, 'stored': None}
+        item.update(fields)
+        items.append(item)
+        return item
+
+    for source in sources:
+        if identity is None:
+            new_item([source], **{'class': 'skipped', 'reason': OUTSIDE_THE_GRAMMAR})
+            continue
+        if _outside_the_trail(source, ticket, config):
+            new_item([source], **{'class': 'skipped', 'reason': OUTSIDE_THE_TRAIL})
+            continue
+        try:
+            size = os.stat(source).st_size
+            if size > IMAGE_CAP_BYTES:
+                new_item([source], **{'class': 'skipped', 'byte_size': size,
+                                      'reason': OVER_THE_CAP})
+                continue
+            data = Path(source).read_bytes()
+        except OSError as exc:
+            new_item([source], **{'class': 'skipped', 'reason': 'unreadable: {}'.format(exc)})
+            continue
+        digest = sha256_bytes(data)
+        if digest in groups:
+            groups[digest]['sources'].append(source)
+        else:
+            groups[digest] = new_item([source], sha256=digest, byte_size=len(data))
+    if identity is None:
+        return items
+    versions = store.image_listing(ticket_key, path)
+    newest = versions[0] if versions else None
+    for item in items:
+        item['newest_version'] = newest['version'] if newest else None
+    shown = []
+
+    def stored():
+        """The stored newest version as a conflict shows it, computed once per address."""
+        if not shown:
+            side = None
+            if newest is not None:
+                side = {'version': newest['version'], 'sha256': newest.get('content_hash'),
+                        'byte_size': newest.get('byte_size'), 'redacted': _redacted(newest),
+                        'cache_path': None}
+                if fetch_stored and not side['redacted']:
+                    side['cache_path'] = cache_stored_image(store, ticket_key, path, newest)
+            shown.append(side)
+        return shown[0]
+
+    def conflict(item, reason):
+        item.update({'class': 'conflict', 'reason': reason, 'stored': stored()})
+
+    live = [v['content_hash'] for v in versions[1:] if not _redacted(v)]
+    unknown = []
+    for digest, item in groups.items():
+        if newest is not None and not _redacted(newest) and digest == newest['content_hash']:
+            item['class'] = 'current'
+        elif digest in live:
+            item.update({'class': 'stale',
+                         'reason': 'kartoteka has moved on to v{}'.format(newest['version'])})
+        else:
+            unknown.append(item)
+    skipped = [i for i in items if i['class'] == 'skipped']
+    redactions = [v for v in versions if _redacted(v)]
+    if len(unknown) == 1 and not skipped:
+        item = unknown[0]
+        working = next((s for s in item['sources']
+                        if not os.path.normpath(s).startswith(context_root)), None)
+        if newest is None:
+            item['class'] = 'absent'
+        elif _redacted(newest):
+            conflict(item, 'the stored newest version (v{}) is redacted'.format(newest['version']))
+        elif redactions:
+            conflict(item, 'kartoteka redacted {} of this image; this copy may show the removed '
+                           'content — view it before choosing'.format(
+                               ', '.join('v{}'.format(v['version']) for v in redactions)))
+        elif working is None:
+            conflict(item, 'a saved context copy with new bytes; it may be older than what '
+                           'kartoteka holds')
+        elif _newer_than(working, newest):
+            item.update({'class': 'successor',
+                         'reason': "written after kartoteka's v{}".format(newest['version'])})
+        elif _older_than(working, newest):
+            conflict(item, "this copy is older than kartoteka's v{}".format(newest['version']))
+        else:
+            conflict(item, "nothing shows this copy is newer than kartoteka's v{}".format(
+                newest['version']))
+        return items
+    if not unknown:
+        return items
+    differing = ', '.join(i['source'] for i in unknown)
+    unread = ', '.join(i['source'] for i in skipped)
+    if len(unknown) > 1:
+        reason = 'the local copies differ: {}'.format(differing)
+        if unread:
+            reason += '; another copy was not read: {}'.format(unread)
+    else:
+        reason = 'another copy of this image was not read: {}'.format(unread)
+    for item in unknown:
+        conflict(item, reason)
+    return items
+
+
+def plan_items(store, config, tickets, pending_only, fetch_stored=False):
     items = []
     for ticket in tickets:
         grouped, decision, pending = candidates(ticket, config, pending_only)
         for logical in sorted(grouped):
             items.extend(classify(store, config, ticket, logical, grouped[logical], decision,
-                                  pending))
+                                  pending, fetch_stored))
     return items
 
 
 @migrating
 def cmd_migrate_plan(args, config):
+    """Only the plan fetches a conflict's stored image (fetch_stored): the user
+    looks at it before answering. apply and delete never download bytes."""
     tickets = migration_tickets(args, config)
-    items = plan_items(migration_store(config, tickets), config, tickets, args.pending_only)
-    summary = {}
+    items = plan_items(migration_store(config, tickets), config, tickets, args.pending_only,
+                       fetch_stored=True)
+    summary, image_summary = {}, {}
     for item in items:
-        summary[item['class']] = summary.get(item['class'], 0) + 1
-    print(json.dumps({'tickets': tickets, 'summary': summary, 'items': items}))
+        counts = image_summary if item.get('kind') == 'image' else summary
+        counts[item['class']] = counts.get(item['class'], 0) + 1
+    print(json.dumps({'tickets': tickets, 'summary': summary, 'image_summary': image_summary,
+                      'items': items}))
     return OK
 
 

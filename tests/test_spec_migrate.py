@@ -22,6 +22,21 @@ def sha(text):
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
 
+PNG = b'\x89PNG\r\n\x1a\n'
+LONG_AGO = '2020-01-01T00:00:00+00:00'   # a stored version's created_at, before any test file
+BEFORE_THAT = 1546300800                  # 2019-01-01, as an mtime: older than LONG_AGO
+IMG = 'specs/.current/AW-12/design/x.png'
+CONTEXT_IMG = '.artel/context/tickets/AW-12/spec-trail/design/x.png'
+
+
+def png(tag):
+    return PNG + tag.encode('utf-8')
+
+
+def sha_bytes(data):
+    return hashlib.sha256(data).hexdigest()
+
+
 class MigrateCase(unittest.TestCase):
     def setUp(self):
         self.fake = FakeKartoteka().start()
@@ -912,3 +927,181 @@ class TestAttachmentProbe(MigrateCase):
                              {'kind': 'unavailable', 'message': ATTACHMENTS_MISSING})
         self.assertEqual(self.fake.artifacts, {})
         self.assertTrue((self.repo / SPECS / 'AW-12/prd.md').exists())
+
+
+class ImageCase(MigrateCase):
+    """AW-12's design/x.png. A working-tree copy is `git add`-ed unless
+    track=False: migration owns only tracked working-tree images (Task 2)."""
+
+    def image(self, rel, data, track=True):
+        path = self.repo / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        if track:
+            self.git('add', '--', str(rel))
+        return str(rel)
+
+    def older(self, rel):
+        os.utime(self.repo / rel, (BEFORE_THAT, BEFORE_THAT))
+
+    def stored(self, data, path='design/x.png', **fields):
+        return self.fake.seed_image(PROJECT, 'AW-12', path, data, **fields)
+
+
+class TestClassifyImages(ImageCase):
+    def test_absent(self):
+        self.image(IMG, png('a'))
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['kind'], item['class'], item['name'], item['sources']),
+                         ('image', 'absent', 'design/x.png', [IMG]))
+        self.assertEqual((item['sha256'], item['byte_size'], item['diff']),
+                         (sha_bytes(png('a')), len(png('a')), None))
+
+    def test_current_and_stale(self):
+        self.image(IMG, png('old'))
+        self.image('specs/.current/AW-12/design/y.png', png('same'))
+        self.stored(png('old'), created_at=LONG_AGO)
+        self.stored(png('new'), created_at=LONG_AGO)
+        self.stored(png('same'), path='design/y.png', created_at=LONG_AGO)
+        items = self.plan('AW-12')
+        self.assertEqual((items[IMG]['class'], items[IMG]['newest_version'], items[IMG]['reason']),
+                         ('stale', 2, 'kartoteka has moved on to v2'))
+        self.assertEqual(items['specs/.current/AW-12/design/y.png']['class'], 'current')
+
+    def test_a_working_copy_written_after_the_newest_version_is_a_successor(self):
+        self.image(IMG, png('new'))
+        self.stored(png('v1'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('successor', "written after kartoteka's v1"))
+
+    def test_an_older_working_copy_is_a_conflict(self):
+        self.image(IMG, png('old local'))
+        self.older(IMG)
+        self.stored(png('v1'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('conflict', "this copy is older than kartoteka's v1"))
+
+    def test_an_unreadable_created_at_never_makes_a_successor(self):
+        self.image(IMG, png('new'))
+        self.stored(png('v1'), created_at='whenever')
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('conflict', "nothing shows this copy is newer than kartoteka's v1"))
+
+    def test_a_context_copy_with_new_bytes_is_a_conflict(self):
+        self.image(CONTEXT_IMG, png('snapshot'), track=False)
+        self.stored(png('v1'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['sources'], item['reason']), (
+            'conflict', [CONTEXT_IMG],
+            'a saved context copy with new bytes; it may be older than what kartoteka holds'))
+
+    def test_each_distinct_copy_is_classified_on_its_own(self):
+        self.image(IMG, png('stored'))
+        self.image(CONTEXT_IMG, png('other'), track=False)
+        self.stored(png('stored'), created_at=LONG_AGO)
+        items = self.by_source('AW-12')
+        self.assertEqual((items[IMG]['class'], items[CONTEXT_IMG]['class']),
+                         ('current', 'conflict'))
+
+    def test_differing_local_copies_are_each_a_conflict_shown_by_size_and_hash(self):
+        self.image(IMG, png('tree'))
+        self.image(CONTEXT_IMG, png('context!'), track=False)
+        items = self.items('AW-12')
+        self.assertEqual([(i['sources'], i['class']) for i in items],
+                         [([IMG], 'conflict'), ([CONTEXT_IMG], 'conflict')])
+        self.assertEqual(items[0]['reason'],
+                         'the local copies differ: {}, {}'.format(IMG, CONTEXT_IMG))
+        self.assertEqual([(i['sha256'], i['byte_size'], i['diff'], i['stored']) for i in items], [
+            (sha_bytes(png('tree')), len(png('tree')), None, None),
+            (sha_bytes(png('context!')), len(png('context!')), None, None)])
+
+    def test_a_conflict_shows_the_stored_side_and_fetches_it_into_the_cache(self):
+        self.image(IMG, png('local'))
+        self.older(IMG)
+        self.stored(png('stored v1'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        cache = '.artel/run/AW-12/images/@v1/design/x.png'
+        self.assertEqual((item['class'], item['diff']), ('conflict', None))
+        self.assertEqual(item['stored'], {
+            'version': 1, 'sha256': sha_bytes(png('stored v1')),
+            'byte_size': len(png('stored v1')), 'redacted': False, 'cache_path': cache})
+        self.assertEqual((self.repo / cache).read_bytes(), png('stored v1'))
+
+    def test_a_redacted_newest_version_is_a_conflict_with_nothing_fetched(self):
+        self.image(IMG, png('secret screen'))
+        self.stored(png('secret screen'), redacted=True, created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('conflict', 'the stored newest version (v1) is redacted'))
+        self.assertEqual((item['stored']['redacted'], item['stored']['cache_path']), (True, None))
+        self.assertFalse((self.repo / '.artel/run/AW-12/images').exists())
+
+    def test_a_redaction_anywhere_blocks_the_successor_rule(self):
+        # The 2026-09-22 §9.2 invariant: a redacted version's bytes are gone, so
+        # nothing shows this copy is not the image kartoteka removed.
+        self.image(IMG, png('secret screen'))
+        self.stored(png('secret screen'), redacted=True, created_at=LONG_AGO)
+        self.stored(png('cleaned'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']), (
+            'conflict', 'kartoteka redacted v1 of this image; this copy may show the removed '
+                        'content — view it before choosing'))
+
+    def test_an_image_kartoteka_cannot_address_is_skipped_and_never_read(self):
+        bad = self.image('specs/.current/AW-12/design/Screen Shot.png', png('a'))
+        item = self.plan('AW-12')[bad]
+        self.assertEqual((item['kind'], item['class'], item['reason'], item['name']),
+                         ('image', 'skipped', spec_store.OUTSIDE_THE_GRAMMAR, None))
+        self.assertEqual(self.fake.attachments, {})
+
+    def test_a_symbolic_link_is_skipped_and_never_read(self):
+        outside = Path(self._tmp.name).parent / 'outside-the-repo.png'
+        outside.write_bytes(png('not this trail'))
+        self.addCleanup(outside.unlink)
+        link = self.repo / IMG
+        link.parent.mkdir(parents=True)
+        os.symlink(outside, link)
+        self.git('add', '--', IMG)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']), ('skipped', spec_store.OUTSIDE_THE_TRAIL))
+
+    def test_an_image_over_the_cap_is_skipped_unread(self):
+        self.image(IMG, PNG + b'\0' * spec_store.IMAGE_CAP_BYTES)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['sha256']), ('skipped', None))
+        self.assertIn('5242880-byte attachment limit', item['reason'])
+
+    def test_an_untracked_working_tree_image_is_the_sweeps(self):
+        self.image(IMG, png('fresh'), track=False)
+        self.assertEqual(self.plan('AW-12'), {})
+
+    def test_the_plan_counts_images_apart_and_leaves_document_items_as_they_were(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.image(IMG, png('a'))
+        proc = self.cli('migrate', 'plan', 'AW-12')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual((out['summary'], out['image_summary']), ({'absent': 1}, {'absent': 1}))
+        by_logical = {i['logical']: i for i in out['items']}
+        self.assertEqual(sorted(by_logical['specs/.current/AW-12/prd.md']), [
+            'base_version', 'class', 'diff', 'logical', 'name', 'newest_version', 'reason',
+            'sha256', 'source', 'sources', 'ticket'])
+        self.assertEqual(sorted(by_logical[IMG]), [
+            'base_version', 'byte_size', 'class', 'diff', 'kind', 'logical', 'name',
+            'newest_version', 'reason', 'sha256', 'source', 'sources', 'stored', 'ticket'])
+
+    def test_losing_the_attachment_routes_midway_exits_5(self):
+        self.image(IMG, png('a'))
+
+        def lose_attachments(method, path, query, body):
+            if path == '/api/attachments' and 'path' in query:
+                self.fake.on_request = None
+                self.fake.mode = 'pre_attachments'
+        self.fake.on_request = lose_attachments
+        proc = self.cli('migrate', 'plan', 'AW-12')
+        self.assertEqual(proc.returncode, 5, proc.stdout)
+        self.assertEqual(json.loads(proc.stderr)['error'],
+                         {'kind': 'unavailable', 'message': ATTACHMENTS_MISSING})

@@ -27,6 +27,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -1465,10 +1466,22 @@ def sync_images(store, config, ticket, author):
         if still != sent:
             try:
                 os.replace(str(target), source)
-            except OSError as exc:
-                fail('it changed while it was being stored, and the cached copy could not be '
-                     'moved back: {}'.format(exc.strerror or exc))
-                continue
+            except OSError:
+                # The move back failed (cross-device, permissions, a directory
+                # in the way) -- a copy leaves the trail file in place even
+                # when the cache entry cannot be removed from under it. Losing
+                # the file here would break the documented guarantee that a
+                # failed sweep loses nothing: raise instead of recording this
+                # as merely `failed`, so the sweep stops and an operator sees
+                # exactly where the bytes are before anything else moves.
+                try:
+                    shutil.copy2(str(target), source)
+                    os.unlink(str(target))
+                except OSError as exc:
+                    raise Failure('unrecoverable', (
+                        "{}'s upload could not be verified, and the cache copy at {} could not "
+                        'be moved or copied back to its trail path at {}: {}; restore it by '
+                        'hand').format(path, target, source, exc.strerror or exc))
             fail('it changed while it was being stored; the file is kept for the next sweep')
             continue
         _prune_empty_parents(source, config, ticket, keep_root=True)

@@ -1,3 +1,4 @@
+import errno
 import hashlib
 import json
 import os
@@ -563,6 +564,64 @@ class TestImageSync(ImageCase):
             'it changed while it was being stored; the file is kept for the next sweep')}])
         self.assertEqual(local.read_bytes(), png('raced'))  # moved back, not left in the cache
         self.assertFalse(self.cached('design/a.png').exists())
+
+    def test_a_move_back_failure_falls_back_to_copying_the_file_back(self):
+        # A cross-device os.replace (or a permissions error) can fail the
+        # move-back even though a plain copy would succeed; the sweep must
+        # not lose the file just because the cheaper move failed.
+        local = self.image(TRAIL + '/design/a.png', png('a'))
+        raced = []
+        real_replace = spec_store.os.replace
+
+        def race_then_fail_the_move_back(src, dst):
+            if not raced:  # the move into the cache: let it happen, then race it
+                raced.append(True)
+                Path(src).write_bytes(png('raced'))
+                return real_replace(src, dst)
+            raise OSError(errno.EXDEV, 'Invalid cross-device link')  # the move back
+
+        cwd = os.getcwd()
+        os.chdir(str(self.repo))
+        self.addCleanup(os.chdir, cwd)
+        with mock.patch.object(spec_store.os, 'replace', side_effect=race_then_fail_the_move_back):
+            out = spec_store.sync_images(spec_store.Store(self.config), self.config, 'AW-12',
+                                         self.AUTHOR)
+        self.assertEqual(out['failed'], [{'path': TRAIL + '/design/a.png', 'reason': (
+            'it changed while it was being stored; the file is kept for the next sweep')}])
+        self.assertEqual(local.read_bytes(), png('raced'))  # copied back, not lost
+        self.assertFalse(self.cached('design/a.png').exists())  # the cache copy is cleaned up
+
+    def test_a_move_back_and_copy_back_failure_stops_the_sweep_naming_both_paths(self):
+        # When even the copy-back cannot put the bytes at the logical path,
+        # silently recording `failed` and moving on would strand kartoteka's
+        # unverified bytes in the cache with nothing left in the trail -- the
+        # sweep must stop loudly instead, exit 2 (never 5: kartoteka itself
+        # is not the problem here), and name both paths so an operator can
+        # restore the file by hand.
+        self.image(TRAIL + '/design/a.png', png('a'))
+        raced = []
+        real_replace = spec_store.os.replace
+
+        def race_then_fail_the_move_back(src, dst):
+            if not raced:
+                raced.append(True)
+                Path(src).write_bytes(png('raced'))
+                return real_replace(src, dst)
+            raise OSError(errno.EXDEV, 'Invalid cross-device link')
+
+        cwd = os.getcwd()
+        os.chdir(str(self.repo))
+        self.addCleanup(os.chdir, cwd)
+        with mock.patch.object(spec_store.os, 'replace', side_effect=race_then_fail_the_move_back), \
+             mock.patch.object(spec_store.shutil, 'copy2',
+                               side_effect=OSError(errno.EACCES, 'Permission denied')):
+            with self.assertRaises(spec_store.Failure) as ctx:
+                spec_store.sync_images(spec_store.Store(self.config), self.config, 'AW-12',
+                                       self.AUTHOR)
+        self.assertEqual(ctx.exception.code, spec_store.ERROR)  # exit 2, never 5
+        message = str(ctx.exception)
+        self.assertIn(str(spec_store.image_cache_path('AW-12', 'design/a.png')), message)
+        self.assertIn(TRAIL + '/design/a.png', message)
 
     def test_an_outage_midway_exits_5_and_the_rest_stay(self):
         self.image(TRAIL + '/design/a.png', png('a'))

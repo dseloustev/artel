@@ -1105,3 +1105,150 @@ class TestClassifyImages(ImageCase):
         self.assertEqual(proc.returncode, 5, proc.stdout)
         self.assertEqual(json.loads(proc.stderr)['error'],
                          {'kind': 'unavailable', 'message': ATTACHMENTS_MISSING})
+
+
+class TestApplyImages(ImageCase):
+    def apply(self, *args):
+        proc = self.cli('migrate', 'apply', *args)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def puts(self):
+        return [r for r in self.fake.requests if r[0] == 'PUT']
+
+    def stored_decision(self):
+        return json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
+
+    def conflict(self):
+        """design/x.png: a tracked local copy older than kartoteka's v1."""
+        self.image(IMG, png('local'))
+        self.older(IMG)
+        self.stored(png('stored v1'), created_at=LONG_AGO)
+
+    def test_absent_is_uploaded_as_new_verified_and_becomes_deletable(self):
+        self.image(IMG, png('a'))
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'kind': 'image', 'logical': IMG, 'version': 1}])
+        newest = self.fake.newest_image(PROJECT, 'AW-12', 'design/x.png')
+        self.assertEqual((newest['bytes'], newest['author_agent']),
+                         (png('a'), 'artel:migrate-specs'))
+        put = self.puts()[-1]
+        self.assertEqual((put[1], put[2]['expected_version'], put[3]),
+                         ('/api/attachments/AW-12/design/x.png', '0', png('a')))
+        self.assertEqual(out['deletable'], [IMG])
+
+    def test_a_successor_is_uploaded_against_the_newest_version(self):
+        self.image(IMG, png('new'))
+        self.stored(png('v1'), created_at=LONG_AGO)
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'kind': 'image', 'logical': IMG, 'version': 2}])
+        self.assertEqual(self.puts()[-1][2]['expected_version'], '1')
+
+    def test_an_unresolved_conflict_uploads_nothing_and_is_kept(self):
+        self.conflict()
+        out = self.apply('AW-12')
+        self.assertEqual((out['uploaded'], out['deletable'], self.puts()), ([], [], []))
+        self.assertEqual(out['kept'], [{'logical': IMG, 'sources': [IMG], 'class': 'conflict',
+                                        'reason': "this copy is older than kartoteka's v1",
+                                        'kind': 'image'}])
+
+    def test_keep_local_at_the_version_the_user_saw_uploads(self):
+        self.conflict()
+        out = self.apply('AW-12', '--resolve', IMG + '=keep-local@1')
+        self.assertEqual(out['uploaded'], [{'kind': 'image', 'logical': IMG, 'version': 2}])
+        self.assertEqual(self.puts()[-1][2]['expected_version'], '1')
+        self.assertEqual(out['deletable'], [IMG])
+
+    def test_keep_local_refuses_a_store_that_moved_since_the_user_saw_it(self):
+        # spec-images §8: @<N> becomes expected_version=N, so a moved store answers 409.
+        self.conflict()
+        self.stored(png('teammate v2, never shown'), created_at=LONG_AGO)
+        out = self.apply('AW-12', '--resolve', IMG + '=keep-local@1')
+        self.assertEqual(out['uploaded'], [])
+        self.assertEqual(out['failed'], [{'logical': IMG, 'kind': 'image', 'reason': (
+            'kartoteka moved from v1 to v2 since you decided; run migrate-specs again')}])
+        self.assertEqual(self.fake.newest_image(PROJECT, 'AW-12', 'design/x.png')['bytes'],
+                         png('teammate v2, never shown'))
+
+    def test_keep_stored_uploads_nothing_and_the_copy_becomes_deletable(self):
+        self.conflict()
+        out = self.apply('AW-12', '--resolve', IMG + '=keep-stored')
+        self.assertEqual((out['uploaded'], out['deletable']), ([], [IMG]))
+
+    def test_a_refused_image_fails_on_its_own_and_the_rest_moves(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.image(IMG, png('a'))
+        self.fake.forced['PUT'] = (413, {'error': 'attachment is over max_attachment_bytes'})
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'logical': 'specs/.current/AW-12/prd.md', 'version': 1}])
+        self.assertEqual([(f['kind'], f['logical']) for f in out['failed']], [('image', IMG)])
+        self.assertIn('413', out['failed'][0]['reason'])
+        self.assertEqual(out['deletable'], ['specs/.current/AW-12/prd.md'])
+
+    def test_a_store_that_moves_before_verification_is_reported(self):
+        self.image(IMG, png('a'))
+
+        def someone_writes_after_the_put(method, path, query, body):
+            if method == 'GET' and path == '/api/attachments' and self.puts():
+                self.fake.on_request = None
+                self.fake.seed_image(PROJECT, 'AW-12', 'design/x.png', png('someone else'))
+        self.fake.on_request = someone_writes_after_the_put
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [])
+        self.assertEqual(out['failed'], [{'logical': IMG, 'kind': 'image', 'reason': (
+            'the upload could not be verified; the local copy is kept')}])
+        # v1 still holds these bytes, so the copy is stale -- verifiably held, and deletable.
+        self.assertEqual(out['deletable'], [IMG])
+
+    def test_an_outage_mid_upload_exits_5(self):
+        self.image(IMG, png('a'))
+
+        def go_down(method, path, query, body):
+            if method == 'PUT':
+                self.fake.on_request = None
+                self.fake.mode = 'unauthorized'
+        self.fake.on_request = go_down
+        proc = self.cli('migrate', 'apply', 'AW-12')
+        self.assertEqual(proc.returncode, 5, proc.stdout)
+        self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'unavailable')
+
+    def test_apply_never_downloads_image_bytes(self):
+        self.conflict()
+        self.apply('AW-12')
+        self.assertEqual([r for r in self.fake.requests
+                          if r[0] == 'GET' and r[1].startswith('/api/attachments/')], [])
+
+    def test_an_outstanding_image_keeps_a_files_decision(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.conflict()
+        self.decision('AW-12', store='files', reason='worked locally', versions={})
+        out = self.apply('AW-12')
+        self.assertEqual(out['flipped'], [])
+        self.assertEqual(self.stored_decision()['store'], 'files')
+
+    def test_an_image_kartoteka_cannot_address_never_holds_the_flip(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        bad = self.image('specs/.current/AW-12/design/Screen Shot.png', png('a'))
+        self.decision('AW-12', store='files', reason='worked locally', versions={})
+        out = self.apply('AW-12')
+        self.assertEqual(out['flipped'], ['AW-12'])
+        self.assertEqual(out['kept'], [{'logical': bad, 'sources': [bad], 'class': 'skipped',
+                                        'reason': spec_store.OUTSIDE_THE_GRAMMAR,
+                                        'kind': 'image'}])
+
+    def test_the_flip_keeps_no_files_base_for_an_image(self):
+        # files_base is a document base: an image copy never rests on it.
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'P')
+        self.conflict()
+        self.decision('AW-12', store='files', reason='worked locally', versions={'prd.md': 1})
+        out = self.apply('AW-12', '--resolve', IMG + '=keep-stored')
+        self.assertEqual(out['flipped'], ['AW-12'])
+        self.assertNotIn('files_base', self.stored_decision())
+
+    def test_files_base_goes_once_only_images_are_left(self):
+        self.conflict()
+        self.decision('AW-12', store='kartoteka', versions={'prd.md': 1},
+                      files_base={'prd.md': 1})
+        self.apply('AW-12')
+        self.assertNotIn('files_base', self.stored_decision())

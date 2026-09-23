@@ -1062,6 +1062,11 @@ def _by_logical(items):
     return grouped
 
 
+def _kind(entry):
+    """An image entry's `kind` tag; a document entry keeps its v0.16.0 shape."""
+    return {'kind': 'image'} if entry.get('kind') == 'image' else {}
+
+
 def _upload_source(item, resolutions):
     """(source path, expected_version) to upload for this item, or None.
 
@@ -1139,34 +1144,75 @@ def _settled(item, resolutions, by_logical):
     return False
 
 
+def _moved_reason(resolutions, item, payload):
+    """Why an upload refused with 409 failed: after a keep-local@<N>, the version
+    the user saw; otherwise a write that landed during the run."""
+    seen = _resolution(resolutions, item['logical'])[2]
+    if seen is not None:
+        return ('kartoteka moved from v{} to v{} since you decided; run migrate-specs '
+                'again').format(seen, payload.get('current_version'))
+    return 'kartoteka moved to v{} during the migration; run it again'.format(
+        payload.get('current_version'))
+
+
+def _put_image(store, config, item, source, expected, resolutions):
+    """(uploaded entry, None) or (None, the reason it failed) for one image.
+
+    The bytes are re-read and must still hash as classified. The upload
+    carries expected_version: 0 for absent, the newest for a successor, the
+    version the user saw for keep-local@<N>. It counts only once a fresh
+    per-path listing shows those bytes as the newest live version."""
+    ticket_key, path = image_address(item['logical'], config)
+    data = Path(source).read_bytes()
+    if sha256_bytes(data) != item['sha256']:
+        return None, 'it changed since it was classified; run migrate-specs again'
+    status, payload = store.image_put(ticket_key, path, data, expected_version=expected,
+                                      author=MIGRATION_AUTHOR)
+    if status == 409:
+        return None, _moved_reason(resolutions, item, payload)
+    if status != 200:
+        return None, answered(status, payload)
+    versions = store.image_listing(ticket_key, path)
+    if versions and not _redacted(versions[0]) and versions[0]['content_hash'] == item['sha256']:
+        return {'kind': 'image', 'logical': item['logical'],
+                'version': versions[0]['version']}, None
+    return None, 'the upload could not be verified; the local copy is kept'
+
+
 def deletion_sets(items, resolutions):
     """(paths safe to delete, items to keep) for a plan fresh from disk and the store.
 
     Every local source of a settled copy goes -- the working tree and the
-    context copy alike, when they hold the same content."""
+    context copy alike, when they hold the same content. Image entries carry
+    `kind`; document entries keep their shape."""
     by_logical = _by_logical(items)
     deletable, kept = [], []
     for item in items:
         if _settled(item, resolutions, by_logical):
-            deletable.extend({'path': source, 'logical': item['logical'], 'ticket': item['ticket'],
-                              'sha256': item['sha256']} for source in item['sources'])
+            deletable.extend(dict({'path': source, 'logical': item['logical'],
+                                   'ticket': item['ticket'], 'sha256': item['sha256']},
+                                  **_kind(item)) for source in item['sources'])
         else:
-            kept.append({'logical': item['logical'], 'sources': item['sources'],
-                         'class': item['class'], 'reason': item['reason']})
+            kept.append(dict({'logical': item['logical'], 'sources': item['sources'],
+                              'class': item['class'], 'reason': item['reason']}, **_kind(item)))
     return sorted(deletable, key=lambda e: e['path']), kept
 
 
 def _fully_migrated(items, resolutions):
-    """Whether a ticket's WHOLE local trail -- every copy of every document,
-    regardless of this run's --pending-only -- is now safe to hand to kartoteka:
-    every copy settled (_settled). Anything else left outstanding (an unresolved
-    or skip-resolved conflict, a skipped file, or a document this run never
-    touched) means the ticket is not fully migrated yet. A ticket with no local
-    candidates at all is not "fully migrated" either: there was nothing to move,
-    and flipping a files decision on that basis would be a flip about nothing --
-    `--all` walks ticket directories that may hold only evidence."""
+    """Whether a ticket's WHOLE local trail -- every copy of every document and
+    image, regardless of this run's --pending-only -- is now safe to hand to
+    kartoteka: every copy settled (_settled). Anything else left outstanding (an
+    unresolved or skip-resolved conflict, a skipped file, or a copy this run
+    never touched) means the ticket is not fully migrated yet. A ticket with no
+    local candidates at all is not "fully migrated" either: there was nothing to
+    move, and flipping a files decision on that basis would be a flip about
+    nothing -- `--all` walks ticket directories that may hold only evidence.
+
+    An image kartoteka cannot address is no part of the trail here: it can never
+    move, so it neither holds the flip back nor counts as something moved."""
     by_logical = _by_logical(items)
-    return bool(items) and all(_settled(item, resolutions, by_logical) for item in items)
+    trail = [i for i in items if i['reason'] != OUTSIDE_THE_GRAMMAR]
+    return bool(trail) and all(_settled(item, resolutions, by_logical) for item in trail)
 
 
 def _flip_decisions(store, config, tickets, resolutions):
@@ -1187,8 +1233,10 @@ def _flip_decisions(store, config, tickets, resolutions):
         # still on disk -- one the user called obsolete (keep-stored), or passed over for
         # another copy. Their classification rests on that base; without it the next run
         # could read such a copy as a successor and upload it over what the user chose.
-        # `delete` drops it with the last local copy (tidy_decisions).
-        if base and any(i['class'] not in ('current', 'stale') for i in items):
+        # `delete` drops it with the last local document copy (tidy_decisions). It is a
+        # document base: an image has none, so an image copy never keeps it.
+        if base and any(i['class'] not in ('current', 'stale') for i in items
+                        if i.get('kind') != 'image'):
             decision['files_base'] = base
         sd.write(ticket, decision)
         flipped.append(ticket)
@@ -1197,6 +1245,12 @@ def _flip_decisions(store, config, tickets, resolutions):
 
 def _valid_pending(entry):
     return isinstance(entry, dict) and isinstance(entry.get('path'), str) and entry['path']
+
+
+def _document_copies(ticket, config):
+    """This ticket's local document copies: its trail without the images, which
+    never rest on a files-era base."""
+    return [p for p in sd.local_trail(ticket, config) if not kh.is_image_name(Path(p).name)]
 
 
 def tidy_decisions(tickets, config):
@@ -1208,14 +1262,15 @@ def tidy_decisions(tickets, config):
     that path forever. What is left is the count a resuming orchestrator reads
     to know whether the outage is drained.
 
-    A ticket whose local trail is gone also loses its frozen `files_base`: it is
-    the base of copies on disk, and there are none left to classify."""
+    A ticket whose local document copies are gone also loses its frozen
+    `files_base`: it is the base of document copies on disk, and there are none
+    left to classify."""
     left = {}
     for ticket in tickets:
         decision = sd.load(ticket)
         pending = (decision or {}).get('pending')
         if decision is not None and decision.get('files_base') is not None \
-                and not sd.local_trail(ticket, config):
+                and not _document_copies(ticket, config):
             decision.pop('files_base')
             sd.write(ticket, decision)
         if decision is not None and isinstance(pending, list):
@@ -1247,8 +1302,25 @@ def cmd_migrate_apply(args, config):
         source, expected = chosen
 
         def fail(reason):
-            failed.append({'logical': item['logical'], 'reason': reason})
+            failed.append(dict({'logical': item['logical'], 'reason': reason}, **_kind(item)))
 
+        if item.get('kind') == 'image':
+            try:
+                entry, reason = _put_image(store, config, item, source, expected, resolutions)
+            except Failure as exc:
+                # One image kartoteka refuses -- over its size cap, a type it will not
+                # take -- is this item's failure, whatever kind the client names it. A
+                # store-level failure is the run's, and exits 5 (migrating).
+                if exc.kind in STORE_DOWN:
+                    raise
+                entry, reason = None, str(exc)
+            except OSError as exc:
+                entry, reason = None, 'unreadable: {}'.format(exc)
+            if entry:
+                uploaded.append(entry)
+            else:
+                fail(reason)
+            continue
         ticket_key, stage, name = address(item['logical'], config)
         try:
             # read_bytes().decode, never read_text: read_text translates newlines, so a
@@ -1260,12 +1332,7 @@ def cmd_migrate_apply(args, config):
                 continue
             status, payload = store.put(ticket_key, stage, name, text, expected, MIGRATION_AUTHOR)
             if status == 409:
-                seen = _resolution(resolutions, item['logical'])[2]
-                fail(('kartoteka moved from v{} to v{} since you decided; run migrate-specs '
-                      'again').format(seen, payload.get('current_version'))
-                     if seen is not None else
-                     'kartoteka moved to v{} during the migration; run it again'.format(
-                         payload.get('current_version')))
+                fail(_moved_reason(resolutions, item, payload))
                 continue
             versions = store.versions(ticket_key, stage, name)
             if versions and not _redacted(versions[0]) \

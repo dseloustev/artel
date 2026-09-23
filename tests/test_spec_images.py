@@ -374,6 +374,22 @@ class TestImageSync(ImageCase):
         self.assertTrue((self.repo / TRAIL / 'design/a.png').exists())
         self.assertEqual([r for r in self.fake.requests if r[0] == 'PUT'], [])
 
+    def test_an_untracked_glob_lookalike_of_a_tracked_name_is_not_reported_tracked(self):
+        # git ls-files reads a bare pathspec as a glob: 'design/a*.png' would
+        # otherwise match the tracked 'design/abc.png' and be reported
+        # tracked itself, though the file at that exact name is untracked.
+        self.image(TRAIL + '/design/abc.png', png('tracked'))
+        self.git('add', '-A')
+        self.git('commit', '-q', '-m', 'seed')
+        self.image(TRAIL + '/design/a*.png', png('untracked'))
+        proc, out = self.sync()
+        self.assertEqual(out['tracked'], [TRAIL + '/design/abc.png'])
+        self.assertEqual([e['path'] for e in out['skipped']], [TRAIL + '/design/a*.png'])
+        self.assertEqual(out['skipped'][0]['reason'], spec_store.OUTSIDE_THE_GRAMMAR)
+        self.assertTrue((self.repo / TRAIL / 'design/abc.png').exists())
+        self.assertTrue((self.repo / TRAIL / 'design/a*.png').exists())
+        self.assertEqual(self.fake.requests, [])
+
     def test_a_name_outside_the_grammar_is_skipped_and_kept(self):
         self.image(TRAIL + '/design/Screen Shot.png', png('s'))
         proc, out = self.sync()

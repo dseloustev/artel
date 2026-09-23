@@ -1084,7 +1084,10 @@ def _git(*args):
 
 
 def _tracked(path):
-    return _git('ls-files', '--error-unmatch', '--', path).returncode == 0
+    # ':(literal)' stops git reading `path` as a glob -- otherwise an
+    # untracked name with a glob character (`design/a*.png`) can match a
+    # tracked sibling (`design/abc.png`) and be reported tracked itself.
+    return _git('ls-files', '--error-unmatch', '--', ':(literal)' + path).returncode == 0
 
 
 def _prune_empty_parents(path, config, ticket, keep_root=False):

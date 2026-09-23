@@ -185,7 +185,12 @@ document, is re-hashed at the moment of deletion.
   Under `--no-prompt` without `--pending-only`, apply has already run: report the `deletable`
   list and stop without deleting.
 
-**Never deleted, whatever is chosen:** `.active_ticket`; gate evidence text (`review/findings.json`, `verify/`, `runtime/*.md`); `change-report.html`; `pr-pending.md`; release-scope files under `<specs.releases>`; untracked working-tree images, which are the sweep's; and anything skipped, unresolved or unverified. Say so in the report rather than leaving it to be inferred.
+**Never deleted, whatever is chosen:** `.active_ticket`; gate evidence text (for example
+`review/findings.json`, `verify/` reports, `runtime/*.md`); `change-report.html`;
+`pr-pending.md`; release-scope files under `<specs.releases>`; untracked working-tree images,
+which are the sweep's; and anything skipped, unresolved or unverified. An image is never
+evidence: one under `verify/` is migrated like any other image, not kept in place. Say so in
+the report rather than leaving it to be inferred.
 
 ## 6. Report
 

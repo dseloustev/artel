@@ -61,6 +61,10 @@ capped by the script), then offer:
   `keep-local` is refused there. The chosen copy is uploaded; once kartoteka holds it, the
   document's other local copies are deletable too.
 
+  A conflict whose reason says a copy **was not read** has only one copy to offer — plain
+  `keep-local@<N>` for it, same as any other single-copy conflict. Say so when asking: the unread
+  copy is never uploaded and never deleted, whichever way this one resolves.
+
   **Always pass `@<N>`**, the item's `newest_version` (`0` when it is null): the answer belongs
   to the version the user was shown. If kartoteka has moved on by the time `apply` runs, the
   upload is refused and reported as `failed` — `kartoteka moved from v<N> to v<M> since you

@@ -358,6 +358,25 @@ def probe(store, ticket):
     return answered(status, payload)
 
 
+def attachment_probe(store, ticket):
+    """None when this daemon holds attachments (kartoteka 0.44.0), else the record.
+
+    One scoped listing, GET /api/attachments?project=&ticket_key=<T>, asked only
+    after the artifact probe and listing passed (spec-images §7). The artifact
+    store is therefore on, and a plain 404 here can only mean the route is
+    missing: a daemon before 0.44.0, a row-8 variant of docs/spec-storage.md
+    §2.1. Store.image_listing names that 'no_attachments'; 'store_off' is the
+    same plain 404 seen through the JSON client, and means the same. Any other
+    failure is already its own record, as row 9's are."""
+    try:
+        store.image_listing(ticket)
+    except Failure as exc:
+        if exc.kind in ('no_attachments', 'store_off'):
+            return ATTACHMENTS_MISSING
+        return str(exc)
+    return None
+
+
 def _emit(decision, ticket, config):
     out = dict(decision, ticket=ticket, written=True, local_trail=[])
     if decision['store'] == 'kartoteka':
@@ -437,6 +456,9 @@ def cmd_decide(args, config):
         rows = store.listing(ticket)
     except Failure as exc:
         return unavailable(str(exc))
+    record = attachment_probe(store, ticket)
+    if record:
+        return unavailable(record)
     versions = {row['name']: row['version'] for row in rows}
     decision = sd.new_decision('kartoteka', None, args.decided_by, versions, carried['pending'])
     base = _inherited_files_base(previous)
@@ -527,9 +549,14 @@ def migration_tickets(args, config):
 
 
 def migration_store(config, tickets):
-    """The store, proven able to take these trails, or Failure(unavailable, exit 5)."""
+    """The store, proven able to take these trails -- documents and images -- or
+    Failure(unavailable, exit 5). The attachment probe runs for a trail of
+    documents too: kartoteka 0.44.0 is a hard floor (spec-images, decision 8),
+    and failing here beats failing midway through classification."""
     store = Store(config)
-    record = probe(store, tickets[0]) if tickets else None
+    record = None
+    if tickets:
+        record = probe(store, tickets[0]) or attachment_probe(store, tickets[0])
     if record:
         raise Failure('unavailable', record, UNAVAILABLE)
     return store

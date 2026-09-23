@@ -15,6 +15,7 @@ import spec_store  # noqa: E402
 SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'spec_store.py'
 PROJECT = 'adguard-wallet'
 SPECS = Path('specs/.current')
+ATTACHMENTS_MISSING = 'the kartoteka daemon predates attachments (0.44.0); upgrade it'
 
 
 def sha(text):
@@ -898,3 +899,16 @@ class TestDelete(MigrateCase):
         self.assertEqual(out['pending_left'], {'AW-12': 0})
         decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
         self.assertEqual(decision['pending'], 5)
+
+
+class TestAttachmentProbe(MigrateCase):
+    def test_a_daemon_before_attachments_stops_every_migrate_verb(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.fake.mode = 'pre_attachments'
+        for verb in ('plan', 'apply', 'delete'):
+            proc = self.cli('migrate', verb, 'AW-12')
+            self.assertEqual(proc.returncode, 5, (verb, proc.stdout, proc.stderr))
+            self.assertEqual(json.loads(proc.stderr)['error'],
+                             {'kind': 'unavailable', 'message': ATTACHMENTS_MISSING})
+        self.assertEqual(self.fake.artifacts, {})
+        self.assertTrue((self.repo / SPECS / 'AW-12/prd.md').exists())

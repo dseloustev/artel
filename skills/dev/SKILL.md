@@ -121,7 +121,8 @@ steps 2 and 4, spelled out here because this checkpoint names its own paths
 Exit `5`, or `failed` entries, never pause: journal
 `image-sync: <n> left local — <first error line>` (spec-storage.md §5.6) and go on.
 Exit `2` with kind `unrecoverable` never pauses either, but journal its whole message, not a
-first line, and repeat it in the final report (spec-storage.md §5.6). Then stage
+first line, and repeat it in the final report (spec-storage.md §5.6). Any other non-zero exit:
+as exit `5` — never a `STORE_UNAVAILABLE` pause. Then stage
 with one exclude per image extension, leaving `'<specs.dir>/<TICKET_ID>'` out when that folder
 neither exists nor has tracked files:
 
@@ -221,9 +222,10 @@ breach, `pause_reason: "cap-escalation"`, consolidated report via `AskUserQuesti
 
 On phase-scoped work (explicit phase or a traversal iteration) invoke `Skill: sync-phases` with
 `<TICKET_ID>-<N>` first (sync completion back to `tasklist.md`), then run the phase-end checkpoint
-per `feature-development` `## Checkpoint commits & pushes`: the `verify.commands` gate → capped
-`## Verify Fixes` implementer rounds (`MAX_CHECKPOINT_VERIFY_ROUNDS = 2`, counted toward
-`counters.correction_rounds`) → explicit staging → commit (`feat|fix|refactor: <TICKET_ID> phase
+per `feature-development` `## Checkpoint commits & pushes`: the image sweep (kartoteka path) → the
+`verify.commands` gate → capped `## Verify Fixes` implementer rounds
+(`MAX_CHECKPOINT_VERIFY_ROUNDS = 2`, counted toward `counters.correction_rounds`) → explicit
+staging (no trail image on the kartoteka path) → commit (`feat|fix|refactor: <TICKET_ID> phase
 <N> - <phase title>`; no phase → `<work summary>`) → `git push -u origin <branch>` → journal. Then
 advance `.active_ticket` to the next incomplete phase and loop back to step 4 while incomplete
 phases remain.
@@ -246,7 +248,7 @@ Ticket; phases traversed; tasks completed; aggregated `Deviations:` line (`none`
 verify-iteration total and review rounds; runtime gate status (green / red / skipped); checkpoint
 commits (hash + subject each, incl. push results); description-sync status; reminder that opening
 the PR remains manual (dev has no PR gate — the work itself is already committed and pushed by the
-checkpoints); effective mode + why (`mode_reasons`); external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); images left local on the kartoteka path — each `failed` or `skipped` entry of that sweep with its reason, or on exit `5` every image still under the trail; an `unrecoverable` sweep's whole message — with the `image sync` command above to move them in (headless runs journal the same lines); path
+checkpoints); effective mode + why (`mode_reasons`); external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); images left local on the kartoteka path — each `failed` or `skipped` entry of that sweep with its reason, or on exit `5` or `2` every image still under the trail; an `unrecoverable` sweep's whole message — with the `image sync` command above to move them in (headless runs journal the same lines); path
 to `run-journal.md`.
 
 ## Important

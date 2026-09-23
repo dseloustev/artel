@@ -181,7 +181,7 @@ current when it is read.
 | 9 | `RELEASE_READY` | `Skill: qa` with `$0` — generate, don't pause. Negative verdict → one implementer fix round (`MAX_QA_ROUNDS = 1`) → re-run qa; second negative → cap escalation. |
 | 10 | `DOCS_UPDATED` | `Skill: docs-update` with `$0`. |
 | 10.5 | phase write-back (phase runs only) | `Skill: sync-phases` with `$0` — sync completion into `tasklist.md`. |
-| 10.7 | `PHASE_CHECKPOINT` | Run the phase-end checkpoint (see `## Checkpoint commits & pushes`): the `verify.commands` gate → capped `## Verify Fixes` implementer rounds → explicit staging → commit (`feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>`; no phase → `<ticket summary>`) → push → journal. Then advance `.active_ticket` to the next incomplete phase; on a multi-phase run loop back to the traversal (next phase), else proceed to step 6. |
+| 10.7 | `PHASE_CHECKPOINT` | Run the phase-end checkpoint (see `## Checkpoint commits & pushes`): the image sweep (kartoteka path) → the `verify.commands` gate → capped `## Verify Fixes` implementer rounds → explicit staging (no trail image on the kartoteka path) → commit (`feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>`; no phase → `<ticket summary>`) → push → journal. Then advance `.active_ticket` to the next incomplete phase; on a multi-phase run loop back to the traversal (next phase), else proceed to step 6. |
 
 **Journal (§11):** append an entry to `run-journal.md` at every gate completion, pause/resume,
 and external action.
@@ -232,7 +232,7 @@ checkpoint commits (hash + subject each, incl. push results); path to `pr-descri
 status (`PR_OPENED`/`PR_EXISTS` URL, `skipped-manual`, or `pending`); description-sync status;
 reminder that opening the PR remains manual (only when the PR gate was skipped — the work itself
 is already committed and pushed by the checkpoints); effective mode + why (`mode_reasons`);
-external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); images left local on the kartoteka path — each `failed` or `skipped` entry of that sweep with its reason, or on exit `5` every image still under the trail; an `unrecoverable` sweep's whole message — with the `image sync` command above to move them in (headless runs journal the same lines); path to `run-journal.md`.
+external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); images left local on the kartoteka path — each `failed` or `skipped` entry of that sweep with its reason, or on exit `5` or `2` every image still under the trail; an `unrecoverable` sweep's whole message — with the `image sync` command above to move them in (headless runs journal the same lines); path to `run-journal.md`.
 
 ## Important
 
@@ -270,7 +270,7 @@ they never pause, and each one is journaled as an external action (autonomous-ru
 
 | Checkpoint | When | Contents | Subject |
 |---|---|---|---|
-| Planning (step 4; `dev` step 3) | immediately after arming | `<specs.dir>/<TICKET_ID>/**` + `.active_ticket` (kartoteka path: skipped when only `.active_ticket` changed) | `docs: <TICKET_ID> planning artifacts` (phase runs: `… phase <N> planning artifacts`; `dev`: `… work list`) |
+| Planning (step 4; `dev` step 3) | immediately after arming | `<specs.dir>/<TICKET_ID>/**` + `.active_ticket` (kartoteka path: skipped when, images aside, only `.active_ticket` changed) | `docs: <TICKET_ID> planning artifacts` (phase runs: `… phase <N> planning artifacts`; `dev`: `… work list`) |
 | Phase-end (gate 10.7; `dev` step 7.5) | after the phase's gates pass | the phase's code changes + updated ticket artifacts | `feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>` (no phase → `<ticket summary>`) |
 
 Procedure:
@@ -286,7 +286,8 @@ Procedure:
    `image-sync: <n> left local — <first error line>` (spec-storage.md §5.6) and go on; those
    images stay untracked, and the next sweep point retries them. Exit `2` with kind
    `unrecoverable` never pauses either, but journal its whole message, not a first line, and
-   repeat it in the final report (spec-storage.md §5.6). Then: `git status --porcelain`
+   repeat it in the final report (spec-storage.md §5.6). Any other non-zero exit: as exit `5` —
+   never a `STORE_UNAVAILABLE` pause. Then: `git status --porcelain`
    clean → skip the commit (resume-safe); still push when the local branch is ahead of `origin`.
 3. **Quality gate (phase-end only).** Run `verify.commands` in order (config.md), stopping at the
    first failure; an empty list ⇒ record the verify step as `skipped` in the journal entry and

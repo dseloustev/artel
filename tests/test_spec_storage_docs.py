@@ -1,6 +1,11 @@
+import argparse
 import json
+import os
 import re
+import shlex
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,6 +14,7 @@ sys.path.insert(0, str(ROOT / 'hooks'))
 sys.path.insert(0, str(ROOT / 'scripts'))
 import kartoteka_http as kh  # noqa: E402
 import spec_store  # noqa: E402
+import spec_store_guard as guard  # noqa: E402
 
 DOC = ROOT / 'docs' / 'spec-storage.md'
 ROW = re.compile(r'^\| `(<specs\.dir>/[^`]+)` \| `([^`]+)` \| `([^`]+)` \| `([^`]+)` \|$')
@@ -18,6 +24,27 @@ def section(text, heading):
     start = text.index(heading)
     nxt = text.find('\n## ', start + len(heading))
     return text[start:nxt if nxt != -1 else None]
+
+
+IMAGE_ROW = re.compile(r'^\| `(<specs\.dir>/[^`]+)` \| (?:`([^`]+)`|—) \| (?:`([^`]+)`|—) \|$')
+CONFIG = {'ticket': {'projectKey': 'PROJ'}, 'specs': {'dir': 'specs/.current'}}
+
+
+def subsection(text, heading):
+    """`heading` up to the next `### ` or `## ` heading."""
+    start = text.index(heading)
+    ends = [i for i in (text.find('\n### ', start + len(heading)),
+                        text.find('\n## ', start + len(heading))) if i != -1]
+    return text[start:min(ends) if ends else None]
+
+
+def flat(text):
+    return ' '.join(text.split())
+
+
+def excludes():
+    return ["':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*{}'".format(ext)
+            for ext in kh.IMAGE_TYPES]
 
 
 class TestContract(unittest.TestCase):
@@ -43,7 +70,8 @@ class TestContract(unittest.TestCase):
                         '### 2.2 The decision file', '### 2.3 The dispatch field',
                         '## 3. Addressing', '## 4. Operations', '### 4.1 Agents',
                         '### 4.2 Scripts', '### 4.3 The tasklist', '### 4.4 The review-round reset',
-                        '### 4.5 When kartoteka fails', '## 5. Unavailability', '### 5.1 At the start',
+                        '### 4.5 When kartoteka fails', '### 4.6 Images', '## 5. Unavailability',
+                        '### 5.1 At the start',
                         '### 5.2 Mid-run', '### 5.3 Resume', '### 5.4 Headless',
                         '### 5.5 Completion', '## 6. The guard', '## 7. Local trails and migration',
                         '## 8. spec_store.py'):
@@ -65,6 +93,88 @@ class TestContract(unittest.TestCase):
             self.assertIn('`{}'.format(verb), ref)
         for code in ('`0`', '`2`', '`3`', '`4`', '`5`'):
             self.assertIn(code, ref)
+
+
+class TestImagesMove(unittest.TestCase):
+    def setUp(self):
+        self.text = DOC.read_text(encoding='utf-8')
+        self.images = subsection(self.text, '### 4.6 Images')
+
+    def test_images_move_and_evidence_text_stays(self):
+        scope = section(self.text, '## 1. What moves')
+        self.assertNotIn('design/*.png', scope)
+        for ext in kh.IMAGE_TYPES:
+            self.assertIn('`{}`'.format(ext), scope)
+        for kept in ('.active_ticket', 'review/findings.json', 'runtime/observation.md',
+                     'runtime/drive-observation.md', 'change-report.html', 'pr-pending.md'):
+            self.assertIn(kept, scope)
+        self.assertIn('§4.6', scope)
+        self.assertIn('Images follow the documents', scope)
+
+    def test_a_daemon_without_attachments_is_a_row_8_variant(self):
+        scope = subsection(self.text, '### 2.1 Resolution')
+        row = next(line for line in scope.splitlines() if line.startswith('| 8 |'))
+        self.assertIn(spec_store.ATTACHMENTS_MISSING, row)
+        self.assertIn('GET /api/attachments?project=<project>&ticket_key=<TICKET_ID>', flat(scope))
+
+    def test_the_image_addressing_table_matches_the_code(self):
+        rows = [IMAGE_ROW.match(line) for line in self.images.splitlines()]
+        rows = [r for r in rows if r]
+        self.assertGreaterEqual(len(rows), 4)
+        self.assertTrue(any(r.group(2) is None for r in rows), 'a row with no address')
+        for match in rows:
+            logical = match.group(1).replace('<specs.dir>', 'specs/.current')
+            expected = None if match.group(2) is None else (match.group(2), match.group(3))
+            self.assertEqual(kh.image_identity(logical, CONFIG), expected, logical)
+        self.assertIn("`hooks/kartoteka_http.py`'s `image_identity`", flat(self.images))
+
+    def test_the_section_names_the_fetch_the_cache_the_sweep_and_its_points(self):
+        text = flat(self.images)
+        for phrase in ('spec_store.py image fetch <logical path>',
+                       '.artel/run/<TICKET_ID>/images/<path>',
+                       '.artel/run/<TICKET_ID>/images/@v<N>/<path>',
+                       'spec_store.py image sync <TICKET_ID> --author artel:<skill>',
+                       '`figma-analysis`', '`feature-development`', '`dev`', '`pr-create`',
+                       '`restore-context`', 'redact'):
+            self.assertIn(phrase, text)
+
+    def test_the_documented_exclude_keeps_every_image_out_of_git(self):
+        line = next(l.strip() for l in self.images.splitlines()
+                    if l.strip().startswith('git add -- <paths> '))
+        for exclude in excludes():
+            self.assertIn(exclude, line)
+        command = (line.replace('<paths>', "assets/icon.png '<specs.dir>/<TICKET_ID>' "
+                                           "'<specs.dir>/.active_ticket'")
+                   .replace('<specs.dir>', 'specs/.current').replace('<TICKET_ID>', 'PROJ-12'))
+        images = ('design/a.png', 'design/B.PNG', 'design/c.Jpg', 'design/d.jpeg',
+                  'design/e.GIF', 'design/f.webp', 'runtime/g.png', 'phase-2/runtime/h.WebP',
+                  'top.png')
+        text = ('runtime/observation.md', 'verify/iteration-1.json',
+                'phase-2/runtime/observation.md')
+        env = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(['git', 'init', '-q', str(root)], check=True, env=env)
+            for rel in images + text:
+                path = root / 'specs/.current/PROJ-12' / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'x')
+            (root / 'specs/.current/.active_ticket').write_text('PROJ-12\n', encoding='utf-8')
+            (root / 'assets').mkdir()
+            (root / 'assets/icon.png').write_bytes(b'x')
+            proc = subprocess.run(shlex.split(command), cwd=str(root), env=env,
+                                  capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            staged = subprocess.run(['git', 'ls-files'], cwd=str(root), env=env, check=True,
+                                    capture_output=True, text=True).stdout.split()
+        self.assertEqual(sorted(staged), sorted(
+            ['assets/icon.png', 'specs/.current/.active_ticket'] +
+            ['specs/.current/PROJ-12/' + rel for rel in text]))
+
+    def test_ticket_parsing_stores_images_by_path(self):
+        text = flat((ROOT / 'docs' / 'ticket-parsing.md').read_text(encoding='utf-8'))
+        self.assertIn('is stored in kartoteka by path (spec-storage.md §4.6)', text)
+        self.assertNotIn('`runtime/`, `design/`, `change-report.html`', text)
 
 
 class TestConfig(unittest.TestCase):

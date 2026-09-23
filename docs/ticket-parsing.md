@@ -134,10 +134,11 @@ into the ticket directory (`docs/review-forecast.md`).
 
 **These paths are logical addresses.** With kartoteka as the spec store
 ([spec-storage.md](spec-storage.md)), a spec-trail path names a document in kartoteka, not a
-file, addressed as spec-storage.md §3 maps it. `.active_ticket` and evidence (`review/`,
-`verify/`, `runtime/`, `design/`, `change-report.html`, `pr-pending.md`) are files on both
-paths. Every rule below — scope, refuse-and-ask, the read fallback — applies to the
-addresses unchanged.
+file, addressed as spec-storage.md §3 maps it, and an image under the trail (`design/` and
+`runtime/` screenshots) is stored in kartoteka by path (spec-storage.md §4.6). `.active_ticket`
+and evidence text (`review/`, `verify/`, `runtime/*.md`, `change-report.html`, `pr-pending.md`)
+are files on both paths. Every rule below — scope, refuse-and-ask, the read fallback — applies
+to the addresses unchanged.
 
 ## 4. Artifact path resolution
 

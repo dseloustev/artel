@@ -50,6 +50,10 @@ RELATED_WITHOUT_PROJECT = re.compile(r'related\((?!\)|<project>|project=)')
 # A write with arguments must name its project somewhere before the call closes.
 WRITE_CALL = re.compile(r'\b(task_ready|task_create|artifact_put)\(([^)]*)\)')
 
+# An attachment route written with a query names its project, the way every write
+# call does: kartoteka 0.44.0's attachment store is namespaced by project too.
+ATTACHMENT_QUERY = re.compile(r'/api/attachments[^\s`?]*\?([^\s`]*)')
+
 
 def read(rel):
     return (ROOT / rel).read_text(encoding='utf-8')
@@ -96,6 +100,19 @@ class TestEveryCallNamesTheProject(unittest.TestCase):
         for rel in LIVE_FILES:
             with self.subTest(rel):
                 self.assertNotIn('single-project', read(rel))
+
+
+class TestAttachmentRoutes(unittest.TestCase):
+
+    def test_every_attachment_query_names_the_project(self):
+        seen = 0
+        for rel in LIVE_FILES:
+            for match in ATTACHMENT_QUERY.finditer(read(rel)):
+                seen += 1
+                with self.subTest(rel=rel, route=match.group(0)):
+                    self.assertIn('project=', match.group(1),
+                                  '{}: {} names no project'.format(rel, match.group(0)))
+        self.assertGreater(seen, 0, 'docs/spec-storage.md spells the attachment routes')
 
 
 class TestGateMessages(unittest.TestCase):

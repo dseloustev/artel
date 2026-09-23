@@ -11,6 +11,11 @@ Every document verb takes a logical path, `<specs.dir>/<TICKET_ID>/plan.md` or
 `<specs.dir>/<TICKET_ID>/phase-2/tasks.md`, and addresses the artifact exactly
 as the mirror hook always has (kartoteka_http.artifact_identity).
 
+The `image` verbs do the same for the trail's images, which kartoteka keeps in
+its attachment store (kartoteka_http.image_identity). Their bytes move script
+to HTTP and are never printed: an agent Reads the local path `image fetch`
+prints.
+
 Exit codes: 0 ok · 2 error (JSON envelope on stderr) · 3 absent ·
 4 version conflict · 5 kartoteka unavailable (`decide`, and the `migrate` verbs --
 wherever in a migration the store goes down).
@@ -149,6 +154,54 @@ class Store:
         if status != 409:
             self._expect_ok(status, payload)
         return status, payload
+
+    def request_bytes(self, method, path, query=None, data=None, content_type=None,
+                      headers=None):
+        """request()'s twin for the attachment routes: (status, raw bytes, headers).
+
+        A 404 without kartoteka's JSON {"error"}, or a 405, is a route that is
+        not there, and on /api/attachments that is a daemon before 0.44.0: its
+        own kind, so that a sweep or a migration can say "upgrade it" rather
+        than "off" (spec-images §7).
+        """
+        try:
+            status, raw, answer = kh.call_bytes(self.base, method, path, token=self._token,
+                                                query=query, data=data,
+                                                content_type=content_type, headers=headers)
+        except kh.Unreachable as exc:
+            raise Failure('unreachable', 'kartoteka is unreachable at {}: {}'.format(self.base, exc))
+        if status == 401:
+            raise Failure('unauthorized', unauthorized_message(self._token_env, self._token))
+        if status == 405 or (status == 404 and 'error' not in (_json_object(raw) or {})):
+            raise Failure('no_attachments', ATTACHMENTS_MISSING)
+        return status, raw, answer
+
+    def image_put(self, ticket_key, path, data, expected_version=None, author=None):
+        """(status, receipt) -- or (409, {error, current_version}), returned for
+        the caller to word. Any other refusal (400, 413) is Failure('rejected')."""
+        query = {'project': self.project}
+        if author:
+            query['author_agent'] = author
+        if expected_version is not None:
+            query['expected_version'] = expected_version
+        status, raw, _ = self.request_bytes(
+            'PUT', attachment_route(ticket_key, path), query=query, data=data,
+            content_type=kh.IMAGE_TYPES.get(os.path.splitext(path)[1].lower()))
+        payload = _json_object(raw)
+        if status != 409:
+            self._expect_ok(status, payload)
+        return status, payload
+
+    def image_listing(self, ticket_key, path=None):
+        """The newest version of each stored image of this ticket, by path; or,
+        with `path`, every version of that one, newest first, redacted included."""
+        query = {'project': self.project, 'ticket_key': ticket_key}
+        if path is not None:
+            query['path'] = path
+        status, raw, _ = self.request_bytes('GET', '/api/attachments', query=query)
+        payload = _json_object(raw)
+        self._expect_ok(status, payload)
+        return (payload or {}).get('attachments') or []
 
 
 def _redacted(row):
@@ -1129,6 +1182,66 @@ def cmd_migrate_delete(args, config):
     return OK
 
 
+# ---- Images: docs/spec-storage.md §4.6 ---------------------------------------
+
+ATTACHMENTS_MISSING = 'the kartoteka daemon predates attachments (0.44.0); upgrade it'
+
+
+def _json_object(raw):
+    """The JSON object in an attachment route's non-byte answer, else None."""
+    try:
+        payload = json.loads(raw.decode('utf-8')) if raw else None
+    except ValueError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def image_address(path, config):
+    identity = kh.image_identity(path, config)
+    if identity is None:
+        raise Failure('not_an_image', (
+            '{} is not a spec-trail image: a .png, .jpg, .jpeg, .gif or .webp file under '
+            '<specs.dir>/<TICKET_ID>/, at most {} path segments of letters, digits, ".", "_" '
+            'and "-" (docs/spec-storage.md §4.6)').format(path, kh.MAX_IMAGE_SEGMENTS))
+    return identity
+
+
+def attachment_route(ticket_key, path):
+    return '/api/attachments/{}/{}'.format(
+        kh.quote(ticket_key), '/'.join(kh.quote(segment) for segment in path.split('/')))
+
+
+def cmd_image_put(args, config):
+    ticket_key, path = image_address(args.path, config)
+    source = args.file or args.path
+    try:
+        data = Path(source).read_bytes()
+    except OSError as exc:
+        raise Failure('unreadable', 'cannot read {}: {}'.format(source, exc.strerror or exc))
+    status, payload = Store(config).image_put(ticket_key, path, data, args.expected_version,
+                                              args.author)
+    if status == 409:
+        current = (payload or {}).get('current_version')
+        print(json.dumps({'current_version': current}))
+        raise Failure('conflict', 'kartoteka holds {} at version {}, not {}'.format(
+            args.path, current, args.expected_version), CONFLICT)
+    print(json.dumps(payload))
+    return OK
+
+
+def cmd_image_list(args, config):
+    ticket = sd.canonical_ticket(args.ticket, config)
+    if ticket is None:
+        raise Failure('invalid_argument', 'not a ticket id: {}'.format(args.ticket))
+    specs_dir = (config.get('specs') or {}).get('dir') or 'specs/.current'
+    rows = Store(config).image_listing(ticket)
+    print(json.dumps([{'path': r['path'], 'logical': str(Path(specs_dir) / ticket / r['path']),
+                       'version': r['version'], 'content_type': r['content_type'],
+                       'byte_size': r['byte_size'], 'content_hash': r['content_hash'],
+                       'created_at': r['created_at']} for r in rows]))
+    return OK
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog='spec_store.py', description=__doc__.splitlines()[0])
     verbs = parser.add_subparsers(dest='verb', required=True)
@@ -1179,6 +1292,17 @@ def build_parser():
         if name == 'delete':
             sub.add_argument('--commit', action='store_true')
         sub.set_defaults(run=run)
+    image = verbs.add_parser('image')
+    image_verbs = image.add_subparsers(dest='image_verb', required=True)
+    image_put = image_verbs.add_parser('put')
+    image_put.add_argument('path')
+    image_put.add_argument('--file')
+    image_put.add_argument('--author')
+    image_put.add_argument('--expected-version', type=int)
+    image_put.set_defaults(run=cmd_image_put)
+    image_list = image_verbs.add_parser('list')
+    image_list.add_argument('ticket')
+    image_list.set_defaults(run=cmd_image_list)
     return parser
 
 

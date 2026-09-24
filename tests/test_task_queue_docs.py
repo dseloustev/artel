@@ -718,6 +718,13 @@ class TestSectionParentsClose(unittest.TestCase):
         self.assertIn('task_update(parent_id, status="done")', done)
         self.assertIn('Do **not** promote the iteration', done)
 
+    def test_fix_writers_reopen_a_done_parent_before_creating_children(self):
+        # The reopen half of the rule lives where the writers are sent: §2 step 3.
+        contract = (ROOT / 'docs/task-queue.md').read_text(encoding='utf-8')
+        step_three = contract.split('3. Then each entry of `data.sections`')[1].split('4. Surface every')[0]
+        self.assertIn('task_update(parent_id, status="backlog")', step_three)
+        self.assertIn('before its children are created', step_three)
+
     def test_the_fv_row_is_marked_legacy_and_the_writers_no_longer_promise_it(self):
         contract = (ROOT / 'docs/task-queue.md').read_text(encoding='utf-8')
         self.assertIn('before 0.18.0', contract.split('| `## Final Verification` |')[1].split('\n')[0])

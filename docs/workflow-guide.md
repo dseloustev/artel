@@ -353,7 +353,8 @@ start, and each phase closes with the `verify.commands` gate + a checkpoint comm
   `skipped (no runtime surface)`. A runtime error in app code gets a capped fix round
   (`autonomous-run.md §5`); an environment failure escalates immediately.
 - *Gate 10 — docs.* [`docs-update`](skills-reference.md#docs-update) updates docs and the
-  CHANGELOG **once per ticket**, after the last phase's checkpoint. (Gates 10.5/10.7 — phase
+  CHANGELOG **once per ticket**, on the last phase before its checkpoint commit, which carries
+  them. (Gates 10.5/10.7 — phase
   write-back and the phase-end checkpoint, which runs the checkpoint gate against the run's
   baseline — close each phase.)
 

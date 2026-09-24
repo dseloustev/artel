@@ -437,8 +437,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   variant) plus a `CHANGELOG.md` entry.
 - **Pauses:** never.
 - **Notes:** thin orchestrator — the agent owns its own input/output paths. Runs as
-  `feature-development` gate 10 (`DOCS_UPDATED`) once per ticket, after the last phase; `dev`
-  has no docs gate.
+  `feature-development` gate 10 (`DOCS_UPDATED`) once per ticket, on the last phase before its checkpoint
+  commit; `dev` has no docs gate.
 
 ### pr-description
 

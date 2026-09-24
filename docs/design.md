@@ -862,4 +862,4 @@ move to the decision log.
   - **No `## Final Verification` section**, no gate-running tasks; older tasklists still parse.
   - **Fix-section parents close with their last child** and reopen on append — the follow-up
     "a generated ticket never reads fully done" is resolved on artel's side.
-  - **Docs once per ticket**, after the last phase.
+  - **Docs once per ticket**, on the last phase before its checkpoint commit.

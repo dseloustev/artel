@@ -4,9 +4,10 @@ Which quality check runs when, who runs it, and what its result means. Every ski
 agent that runs a check cites this file and never restates a command list; the commands
 themselves come from `.artel/config.json` (`docs/config.md`, `verify.*`).
 
-Written for the gate diet of 0.18.0 (design: the 2026-09-24 gate-diet spec). Until the
-conversion release, the named gates below exist in the runner and nothing in the pipeline
-calls them yet.
+Written for the gate diet of 0.18.0 (design: the 2026-09-24 gate-diet spec).
+Since 0.18.0 the pipeline calls these gates by name: the inner loop runs the task gate, and the
+orchestrators record the baseline at arm time and run the checkpoint gate at every phase
+checkpoint.
 
 ## 1. The schedule
 

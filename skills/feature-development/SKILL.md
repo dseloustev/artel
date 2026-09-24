@@ -188,9 +188,9 @@ current when it is read.
 | 6 | `INDEX_UPDATED` | Optional host index-refresh hook (`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §1): run it when the host has wired one up; silently absent otherwise. |
 | 7 | `REVIEW_OK` | `Skill: run-reviewer` with `$0`, plus `--local` when this run was invoked with it — `run-reviewer` records the fix tasks it appends in the task queue, and the flag keeps a local-only run from writing rows (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, §6). Blocking/Important findings → `Skill: implementer` (fix tasks from `## Code Review Fixes`, plus `--local` when this run was invoked with it) → re-review. Cap: `review.md` `**Review round:**` reaching `MAX_REVIEW_ROUNDS = 3` → `pause_reason: "cap-escalation"`, consolidated findings via `AskUserQuestion`, stop. On user guidance: reset the review round (delete `review.md`, or on the kartoteka path store the round-0 version — spec-storage.md §4.4) and resume. |
 | 8 | `RUNTIME_OK` | Surface check: with `runtime.surface` set (config.md), collect the run's changed files (diff vs the default branch plus the working tree) and match them against the globs; no match → write `RUNTIME_OK: skipped (no runtime surface)` to the phase-aware `runtime/observation.md` and move on. No `runtime.run` configured → the gate records `skipped (not configured)` (run-app reports this itself). Otherwise `Skill: run-app` with `--gate`. RED caused by a **runtime error in app code** (runtime errors / ERROR logs / a broken UI tree) → append a `- [ ]` task under `## Runtime Fixes` in the phase-aware tasklist (mirroring `## Code Review Fixes`) (kartoteka path: one `artifact_patch(project=<project>, …)` — spec-storage.md §4.3), beneath a new `### runtime-r<n>` source heading (`### runtime-p<N>-r<n>` on a phase-scoped run, n the retry this round is — `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6), its line a one-line summary of the error with the quoted error nested under it as an indented block (nested lines go to the row's description; the checkbox line is the row's title, capped at 500 characters), and on the queue path — never on a `--local` run — record it before the implementer round: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>` (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <the phase-aware tasklist> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>`) (`<TICKET_ID>` the canonical key, without the phase suffix), then `task_create` its `data.sections` (§2's fix-writer rule); when the RED stems from incomplete cross-phase wiring (this phase's code invokes pieces a later phase will build), word the fix task to create the **minimal stubs** that restore launch — no-op implementations / placeholder surfaces with a `TODO: phase <M>` marker — rather than real implementations; stubbing is the expected resolution at a phase boundary and is recorded in the completion's `Deviations:` line. Run `Skill: implementer` once, plus `--local` when this run was invoked with it (`MAX_RUNTIME_RETRIES = 1`; counter in `.artel/run/<TICKET_ID>/runtime-observation.md`, autonomous-run.md §5) — it picks the fix task up as the first incomplete task — then re-run the gate; second RED → cap escalation. RED from an **environment failure** (a launch/setup failure of `runtime.run` itself, not app code — run-app stops-and-asks for these) → cap escalation immediately, no implementer round. Do not trust a stale green — re-run unless the observation postdates the last change to files matching `runtime.surface` (or the last code change, when it is unset). |
-| 10 | `DOCS_UPDATED` | `Skill: docs-update` with `<TICKET_ID>` (ticket-wide) — **once per ticket, after the last phase's checkpoint (10.7)**, never per phase. On a multi-phase traversal it is skipped for every phase but the last; an explicit `<TICKET_ID>-<N>` run of a phase that is not the last journals `DOCS_UPDATED: deferred to the final phase`. |
+| 10 | `DOCS_UPDATED` | `Skill: docs-update` with `<TICKET_ID>` (ticket-wide) — **once per ticket, on the last phase only, before its 10.7 checkpoint** — so that checkpoint commit carries the docs and the CHANGELOG — never per phase. On a multi-phase traversal it is skipped for every phase but the last; an explicit `<TICKET_ID>-<N>` run of a phase that is not the last journals `DOCS_UPDATED: deferred to the final phase`. |
 | 10.5 | phase write-back (phase runs only) | `Skill: sync-phases` with `$0` — sync completion into `tasklist.md`. |
-| 10.7 | `PHASE_CHECKPOINT` | Run the phase-end checkpoint (see `## Checkpoint commits & pushes`): the image sweep (kartoteka path) → the `verify.commands` gate → capped `## Verify Fixes` implementer rounds → explicit staging (no trail image on the kartoteka path) → commit (`feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>`; no phase → `<ticket summary>`) → push → journal. Then advance `.active_ticket` to the next incomplete phase; on a multi-phase run loop back to the traversal (next phase), else proceed to step 6. |
+| 10.7 | `PHASE_CHECKPOINT` | Run the phase-end checkpoint (see `## Checkpoint commits & pushes`): the image sweep (kartoteka path) → the `verify.commands` gate → capped `## Verify Fixes` implementer rounds → explicit staging (no trail image on the kartoteka path) → commit (`feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>`; no phase → `<ticket summary>`) → push → journal (on the last phase this commit also carries gate 10's docs). Then advance `.active_ticket` to the next incomplete phase; on a multi-phase run loop back to the traversal (next phase), else proceed to step 6. |
 
 **Journal (§11):** append an entry to `run-journal.md` at every gate completion, pause/resume,
 and external action.
@@ -217,7 +217,8 @@ dispatched here: `/artel:validate` stays à la carte.
 
 A red fact routes back to its owning step once — the implementer for boxes, `run-reviewer` for
 the review, `run-app --gate` for runtime, the checkpoint procedure for the gate, `docs-update` for
-docs — then cap-escalates. Never set `completed` while a fact is red. All green → step 7.
+docs (followed by one more checkpoint commit, so they are not left uncommitted) — then
+cap-escalates. Never set `completed` while a fact is red. All green → step 7.
 
 ### 7. PR description + close the run
 
@@ -251,7 +252,7 @@ On the kartoteka path, sweep once more before writing it:
 it left local instead.
 
 Ticket; phases traversed; gates passed; aggregated `Deviations:` line (`none` when clean); loop
-counters (verify iterations total, review rounds, escalation count); baseline (`recorded` / `skipped`); final gate (the last checkpoint's commit stands, or `re-run`); runtime status;
+counters (verify iterations total, review rounds, escalation count); baseline (`recorded` / `skipped` / `absent` — armed before 0.18.0); final gate (the last checkpoint's commit stands, or `re-run`); runtime status;
 checkpoint commits (hash + subject each, incl. push results); path to `pr-description.md`; PR
 status (`PR_OPENED`/`PR_EXISTS` URL, `skipped-manual`, or `pending`); description-sync status;
 reminder that opening the PR remains manual (only when the PR gate was skipped — the work itself
@@ -317,8 +318,9 @@ Procedure:
    §1): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify.py checkpoint --ticket <TICKET_ID>`. Exit `0`
    → green: journal any `baseline_red` stage by name; an empty `verify.commands` ⇒ the envelope
    says `skipped` — record the verify step as `skipped` in the journal entry and continue to
-   staging. Exit `1` → the findings are the `new_keys` of the red stage: append them as `- [ ]`
-   tasks under `## Verify Fixes` in the
+   staging. Exit `1` → the findings are the `new_keys` of the red stage
+   (its `keys` when `data.baseline` is `absent` or `disabled` — a run armed before 0.18.0, or
+   `verify.baseline: false`): append them as `- [ ]` tasks under `## Verify Fixes` in the
    phase-aware tasklist (kartoteka path: one `artifact_patch(project=<project>, …)` — spec-storage.md §4.3), beneath a new `### checkpoint-r<k>` source heading (k the verify
    round; `### checkpoint-p<N>-r<k>` on a phase-scoped run —
    `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); on the queue path (§1 — a `--local` run

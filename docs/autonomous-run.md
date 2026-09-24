@@ -194,7 +194,8 @@ unchecked box in any iteration or fix section), `REVIEW_OK` (`review.md` with a 
 open `## Code Review Fixes` box), `RUNTIME_OK` (green or skipped, newer than the last
 `runtime.surface` change), `CHECKPOINT_OK` (the final gate — the last checkpoint green and no
 `verify.surface` change since its commit, else one more checkpoint gate; gates.md §1),
-`DOCS_UPDATED` (`summary.md` exists) and `AUTOMATION_REMOVED`; the table is in
+`DOCS_UPDATED` (`summary.md` exists — written on the last phase before its checkpoint, so that
+checkpoint commit carries the docs) and `AUTOMATION_REMOVED`; the table is in
 `feature-development` §6. For `dev`, all work items are `- [x]`, review has no unresolved
 Blocking/Important findings, the runtime gate is green or skipped, and the final gate stands. No
 agent is dispatched: `/artel:validate` is à la carte. The final report always includes the

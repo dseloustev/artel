@@ -31,7 +31,8 @@ All notable changes to this project are documented here. The format follows
 - **The completion gate is the orchestrator's own checklist** of eight facts it already holds;
   `validate` is no longer dispatched. The final gate is the last checkpoint unless a
   `verify.surface` file changed since.
-- **Docs run once per ticket**, after the last phase, instead of once per phase.
+- **Docs run once per ticket**, on the last phase before its checkpoint commit, instead of once
+  per phase.
 - **The reviewer writes `## PRD acceptance criteria` and `## Manual checks outstanding`**, and
   `pr-description` copies the latter into the PR's QA notes.
 - **Fix-section parents close with their last child** in the kartoteka queue (and reopen on

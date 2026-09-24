@@ -249,12 +249,52 @@ class TestSurroundingDocsConversion(unittest.TestCase):
                 self.assertNotIn('MAX_QA_ROUNDS', text)
                 self.assertNotIn('RELEASE_READY', text)
                 self.assertNotIn('Skill: qa', text)
+                self.assertNotIn('iteration-<i>-full', text)
 
     def test_changelog_records_the_conversion(self):
         unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
         for phrase in ('### Removed', 'QA gate', 'Final Verification', 'validator', 'once per ticket',
                        'close with their last child'):
             self.assertIn(phrase, unreleased)
+
+
+class TestFinalReviewFixes(unittest.TestCase):
+    """The whole-branch review's Important findings, pinned before they were fixed."""
+
+    def test_checkpoint_findings_fall_back_to_keys_without_a_baseline(self):
+        # Review Focus 1: armed under 0.17 there is no baseline, and the runner then emits
+        # `keys` only — `new_keys` exists only when a baseline was loaded.
+        fd = read('skills/feature-development/SKILL.md')
+        step = fd.split('3. **Quality gate (phase-end only).**')[1].split('4. **Stage explicitly.**')[0]
+        self.assertIn('its `keys` when `data.baseline` is `absent` or `disabled`', step)
+        self.assertIn('baseline (`recorded` / `skipped` / `absent`', fd)
+
+    def test_docs_run_on_the_last_phase_before_its_checkpoint(self):
+        # The gate-10 row sits before 10.7 in the table; "after the last phase's checkpoint"
+        # left the docs uncommitted when the PR gate was skipped.
+        fd = read('skills/feature-development/SKILL.md')
+        row = fd.split('| 10 | `DOCS_UPDATED` |')[1].split('\n')[0]
+        self.assertIn('before its 10.7 checkpoint', row)
+        for rel in ('skills/feature-development/SKILL.md', 'skills/docs-update/SKILL.md',
+                    'docs/workflow-guide.md'):
+            with self.subTest(rel):
+                self.assertNotIn("after the last phase's checkpoint", read(rel))
+        for rel in ('skills/docs-update/SKILL.md', 'docs/workflow-guide.md',
+                    'docs/skills-reference.md', 'docs/design.md', 'CHANGELOG.md'):
+            with self.subTest(rel):
+                self.assertIn('before its checkpoint', read(rel))
+        completion = read('docs/autonomous-run.md').split('## 7. Completion gate')[1].split('## 8.')[0]
+        self.assertIn('checkpoint commit carries', completion)
+
+    def test_the_contract_no_longer_calls_itself_uncalled(self):
+        doc = read('docs/gates.md')
+        self.assertNotIn('nothing in the pipeline', doc)
+        self.assertIn('Since 0.18.0 the pipeline calls these gates by name', doc)
+
+    def test_ticket_parsing_describes_the_task_gate_envelope(self):
+        text = read('docs/ticket-parsing.md')
+        self.assertNotIn('iteration-<i>-full', text)
+        self.assertIn("the task gate's envelope", text)
 
 
 if __name__ == '__main__':

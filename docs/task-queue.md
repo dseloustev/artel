@@ -110,7 +110,10 @@ writer of a fix section right after its append (§6).
 3. Then each entry of `data.sections`, in order — present only when the file has
    a fix section with a task in it — exactly as in step 2: the section row
    (`CRF: Code Review Fixes`, …), then its `children` with `parent_id` set to
-   that row's `task_id`. A child the script emitted `backlog` that comes back
+   that row's `task_id`. A section row that comes back `done` — an earlier round
+   closed it (§6, "Section rows close with their last child") — is reopened first,
+   `task_update(parent_id, status="backlog")`, before its children are created.
+   A child the script emitted `backlog` that comes back
    `done` is an earlier round's row under the same title (§6, "Titles are
    identity"): the open checkbox has no row of its own. Say so loudly —
    `fix task #<id> is done in the queue but open in the file: <title>` — and

@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Named quality gates in the runner.** `scripts/verify.py task --files …` runs `verify.fast`
+  on the changed paths and a new scoped test command, `verify.test`, on the test files among
+  them (`verify.testSurface` selects them). `scripts/verify.py checkpoint --ticket …` runs
+  `verify.commands` and, against the baseline the orchestrator records once per run
+  (`--record-baseline`, `.artel/run/<TICKET_ID>/verify-baseline.json`), reports only findings
+  that are new — so a host whose default branch is already red stops turning every
+  checkpoint red, and a red-on-baseline stage no longer hides the test stage behind it.
+  `verify.baseline: false` turns the compare off. The contract is `docs/gates.md`. The inner
+  loop and the orchestrators switch to these gates in the conversion that follows; nothing in
+  the pipeline calls them yet.
+
 ## [0.17.0] - 2026-09-24
 
 **Requires kartoteka 0.44.0** when `knowledge.adapter` is `"kartoteka"`. Read **Upgrading**

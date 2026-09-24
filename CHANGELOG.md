@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-24
+
 ### Added
 
 - **`issue-draft` gathers context through a new `issue-scout` agent.** Before the question

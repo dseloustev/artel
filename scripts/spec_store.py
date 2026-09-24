@@ -637,16 +637,6 @@ def _older_than(source, version):
     return created is not None and written is not None and written < created
 
 
-def _newer_than(source, version):
-    """Whether this file was last written after kartoteka stored that version.
-
-    The mirror of _older_than, and cautious in the other direction: an
-    unreadable time answers False, because this check alone lets an image
-    upload on its own (spec-images §8's successor)."""
-    created, written = _created_at(version), _mtime(source)
-    return created is not None and written is not None and written > created
-
-
 def _image_working_time(source):
     """The timestamp spec-images' successor rule trusts for this working-tree
     image copy (2026-09-23 ruling, I-3).
@@ -678,10 +668,10 @@ def _image_working_time(source):
 def _image_successor(source, version):
     """Whether this working-tree image copy was written after kartoteka's
     stored version -- spec-images §8's successor rule, on the timestamp
-    _image_working_time picks rather than the file's raw mtime (I-3). The
-    mirror of _newer_than, and just as cautious: no usable time on either
-    side answers False, so this alone only ever grants a successor, never
-    turns one into a conflict by mistake."""
+    _image_working_time picks rather than the file's raw mtime (I-3). As
+    cautious as `_older_than`: no usable time on either side answers False,
+    so this alone only ever grants a successor, never turns one into a
+    conflict by mistake."""
     created, written = _created_at(version), _image_working_time(source)
     return created is not None and written is not None and written > created
 

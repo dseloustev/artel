@@ -142,13 +142,15 @@ class TestDocs(unittest.TestCase):
         self.assertIn('tracker reads have never run live', design)
         self.assertNotIn('ran retrieval live (kartoteka, tracker, Figma, code)', design)
         self.assertIn('noise at 3.5', design)
-        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+        # Everything since 0.19.0: [Unreleased] before the release is cut, [0.20.0] after.
+        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [0.19.0]', 1)[0]
         for phrase in ('$RELATED', 'research', '`\\~`'):
             with self.subTest(phrase):
                 self.assertIn(phrase, unreleased)
 
     def test_changelog_announces_it(self):
-        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+        # Everything since 0.19.0: [Unreleased] before the release is cut, [0.20.0] after.
+        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [0.19.0]', 1)[0]
         self.assertIn('issue-scout', unreleased)
 
 

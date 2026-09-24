@@ -179,9 +179,12 @@ move to the decision log.
   once artifacts cite `sources`, kartoteka could flag one whose cited decision has since become
   `rejected` or `superseded_by` (§8.3 of
   `../kartoteka/docs/superpowers/specs/2026-09-15-artifact-frontmatter-design.md`).
-- **`issue-draft` calibration and operator smoke test** (from the 0.10.0 redesign, 2026-09-04).
-  The template and its kartoteka consultation have never been exercised against real tickets;
-  which kartoteka project and which tickets to sample is itself unresolved.
+- **`issue-draft` operator smoke test** (from the 0.10.0 redesign, 2026-09-04). The templates
+  were calibrated on 2026-09-24 against ten real adguard-wallet tickets pulled from kartoteka
+  (decision log, same date), but those runs were `--local` and non-interactive: the kartoteka
+  consultation and the question round have still never run live. Also unverified: whether
+  Jira renders the epic template's bracketed label hints (`As [user role]`) as text or as
+  broken links.
 - **Worktrees: the live smoke test has not been run** (from the 2026-09-17 worktree design,
   released in 0.14.0). The suite drives `scripts/worktree.py` against throwaway repositories, but
   three things need a real Claude Code session: that `$CLAUDE_PROJECT_DIR` really stays on the
@@ -863,3 +866,37 @@ move to the decision log.
   - **Fix-section parents close with their last child** and reopen on append — the follow-up
     "a generated ticket never reads fully done" is resolved on artel's side.
   - **Docs once per ticket**, on the last phase before its checkpoint commit.
+- **2026-09-24 — `issue-draft` renders the team's per-type templates.** The corporate
+  `jira-task-formatting` / `jira-bug-formatting` / `jira-epic-formatting` skills (and their
+  shared Confluence-markup reference) were compared with `issue-draft` on ten real
+  adguard-wallet tickets drawn from kartoteka, each drafted by the old skill and by the
+  candidates in isolated runs and scored mechanically and by a blind judge given the team's
+  conventions. The candidate won ten of ten in both rounds, on format alone — both sides
+  invented and dropped next to nothing. Decisions:
+  - **Three templates, one skill.** `task`, `bug` and `epic` templates replace the universal
+    one; the type comes from `--type`, else the words of the request, else a defect as the
+    source's main subject (bug), else task. An epic is never inferred. This reverses 0.10.0's
+    rejection of per-type templates: that rejection assumed the type had to be inferred as a
+    tracker field; here it only picks a template, and the user names it whenever it is not
+    obvious.
+  - **A `keep` rule beside `required` and `optional`.** The team's templates show fixed
+    headings and table rows even when empty, for the reader to fill; `keep` renders them
+    empty rather than padding or dropping them.
+  - **The description holds only the issue.** Open questions move from a Missing Details
+    section to the report — the team's templates have no such section and a judge scored it
+    as noise.
+  - **The team's markup rules live in a reference file** (`references/jira-wiki-markup.md`):
+    bare links, `-` bullets, no blank lines inside lists, `| |` cells, escaped braces — with
+    one deliberate correction, `----` for the horizontal rule, because the team template's
+    `---` renders as an em dash (real tickets show it).
+  - **Pasted tracker exports are filtered**: bot comments dropped, mentions kept only on
+    contact or reviewer lines, unfilled template text treated as no data.
+  - **Two long-standing input bugs fixed**: text with whitespace is never a path candidate
+    (any pasted URL used to trigger the path question), and in free text only
+    `<projectKey>-<digits>` is a ticket key (bare numbers used to match).
+  - **The skill stays English; the drafts stay in `language.pr`.** Russian trigger phrases
+    and headings from the source skills were not carried over; headings are rendered in the
+    output language.
+  - **Rejected:** three separate skills (they would triple the kartoteka and question-round
+    machinery for a difference that is only the template), and Russian-literal templates in
+    the plugin (a host that wants exact wording overrides the template).

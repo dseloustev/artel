@@ -21,13 +21,16 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   [autonomous-run.md](autonomous-run.md) §10). When present it replaces the plugin's shipped
   default policy (`hooks/sensitive-paths.json`) wholesale. Committed, like the config; the
   `setup` skill offers to scaffold it from the shipped defaults.
-- `.artel/templates/issue-draft.md` — optional host override of the description template the
-  `issue-draft` skill renders (`skills/issue-draft/assets/templates/description.template.md`
-  in the plugin). When present it replaces the shipped template wholesale; presence is the
-  switch, as with the sensitive-paths policy, and there is no config key. It must keep the
-  template's convention: each `## ` section is followed by an HTML comment whose first word is
-  `required` or `optional`, then one `$NAME` placeholder; a trailing placeholder outside any
-  section (the shipped `$SOURCE`) carries its comment after it. Committed, like the config.
+- `.artel/templates/issue-draft-<type>.md` (`<type>` is `task`, `bug` or `epic`) and
+  `.artel/templates/issue-draft.md` — optional host overrides of the description templates the
+  `issue-draft` skill renders (`skills/issue-draft/assets/templates/<type>.template.md` in the
+  plugin). A per-type file replaces that type's shipped template wholesale; the single
+  `issue-draft.md` replaces all three where no per-type file exists. Presence is the switch,
+  as with the sensitive-paths policy, and there is no config key. An override keeps the
+  template's convention: every `$NAME` slot sits under an HTML comment whose first word is its
+  rule — `required` (always rendered, never empty), `keep` (always rendered, left empty for
+  the reader when there is nothing to say) or `optional` (omitted when empty). Committed, like
+  the config.
 - `.artel/run/` — host-writable run state, journals and the per-task worker reports (contract
   defined separately, alongside the autonomous-run rules). Not committed; add it to the host
   `.gitignore`.

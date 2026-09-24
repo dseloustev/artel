@@ -12,8 +12,8 @@ $DESCRIPTION
 
 ## Technical details:
 <!-- keep. Implementation approach, affected components, constraints, dependencies — only
-     what the source, kartoteka or the author's answers state. kartoteka facts quoted and
-     attributed: per PROJ-123 (date): "...". A suspected cause is marked unconfirmed. -->
+     what the source, the retrieved facts or the author's answers state. Retrieved facts in the
+     team's citation style (the skill's §6). A suspected cause is marked unconfirmed. -->
 $TECHNICAL
 
 <!-- keep, table. All four rows, always, in this order; labels bold. A row with no data keeps
@@ -35,12 +35,6 @@ $ACCEPTANCE
 <!-- keep. Bullets: testing instructions the AC do not cover; who to ask, who reviews, a
      deadline — each only when the source states it; other notes from the source. -->
 $ADDITIONAL
-
-## Related:
-<!-- optional. One bullet per kartoteka hit that bears on the task: identifier, title,
-     source, date, status. Copy the ⚠ NON-CURRENT marker exactly. Never a bullet without an
-     identifier. -->
-$RELATED
 
 <!-- optional. "Source: <repo-relative path>" only when the input was a file. -->
 $SOURCE

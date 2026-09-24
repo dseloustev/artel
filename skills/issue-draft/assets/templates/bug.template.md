@@ -27,17 +27,11 @@ $EXPECTED
 $ACTUAL
 
 ## Technical details:
-<!-- optional. Only when the source, kartoteka or the author's answers give technical
-     content: suspected cause (always marked unconfirmed), logs, affected code, links as
-     "<what it is>: <url>", one per line. kartoteka facts quoted and attributed:
-     per PROJ-123 (date): "...". -->
+<!-- optional. Only when the source, the retrieved facts or the author's answers give
+     technical content: suspected cause (always marked unconfirmed), logs, affected code, links
+     as "<what it is>: <url>", one per line. Retrieved facts in the team's citation style (the
+     skill's §6). -->
 $TECHNICAL
-
-## Related:
-<!-- optional. One bullet per kartoteka hit that bears on the defect: identifier, title,
-     source, date, status. Copy the ⚠ NON-CURRENT marker exactly. Never a bullet without an
-     identifier. -->
-$RELATED
 
 <!-- optional. "Source: <repo-relative path>" only when the input was a file. -->
 $SOURCE

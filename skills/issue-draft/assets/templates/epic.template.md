@@ -36,11 +36,5 @@ $ACCEPTANCE
      instructions, scope examples, definition of done, other notes from the source. -->
 $ADDITIONAL
 
-## Related:
-<!-- optional. One bullet per kartoteka hit that bears on the epic: identifier, title,
-     source, date, status. Copy the ⚠ NON-CURRENT marker exactly. Never a bullet without an
-     identifier. -->
-$RELATED
-
 <!-- optional. "Source: <repo-relative path>" only when the input was a file. -->
 $SOURCE

@@ -32,6 +32,10 @@ def read(rel):
     return (ROOT / rel).read_text(encoding='utf-8')
 
 
+def unwrapped(rel):
+    return ' '.join(read(rel).split())
+
+
 def blocks(text):
     """(rule word, slots) per block: the rule comment and the slots up to the next comment.
 
@@ -116,11 +120,11 @@ class TestTemplates(unittest.TestCase):
                 self.assertNotIn('$MISSING', text)
                 self.assertNotIn('## Missing', text)
 
-    def test_related_names_the_non_current_marker_and_source_comes_last(self):
+    def test_no_related_block_and_source_comes_last(self):
         for t, text in self.texts.items():
             with self.subTest(t):
-                related = text.split('## Related')[1].split('$RELATED')[0]
-                self.assertIn('⚠ NON-CURRENT', related)
+                self.assertNotIn('$RELATED', text)
+                self.assertNotIn('## Related', text)
                 tail = [ln for ln in text.rstrip().splitlines() if ln.strip()]
                 self.assertEqual('$SOURCE', tail[-1].strip())
                 self.assertTrue(tail[-2].startswith('<!-- optional'))
@@ -162,18 +166,32 @@ class TestSkill(unittest.TestCase):
         self.assertIn(OVERRIDE, self.text)
         self.assertIn('skills/issue-draft/references/jira-wiki-markup.md', self.text)
 
-    def test_calls_kartoteka_in_the_contract_shapes(self):
-        self.assertIn('index_status()', self.text)
-        self.assertIn('related(<project>,', self.text)
-        self.assertIn('search_knowledge(', self.text)
-        self.assertIn('project=<project>', self.text)
+    def test_dispatches_the_scout(self):
+        self.assertIn('`subagent_type`: `"issue-scout"`', self.text)
+        self.assertIn('${CLAUDE_PLUGIN_ROOT}/agents/issue-scout.md', self.text)
+        for spelling in ('`stated`', '`inferred`', 'Also found'):
+            with self.subTest(spelling):
+                self.assertIn(spelling, self.text)
 
-    def test_gates_on_the_project_key_and_spells_both_record_lines(self):
+    def test_gates_on_the_project_key(self):
         self.assertIn('knowledge.project', self.text)
         self.assertIn('kartoteka is configured for this project but knowledge.project is not set',
                       self.text)
-        self.assertIn('kartoteka does not list project <project>; run kartoteka project add '
-                      '<project> on the daemon machine', self.text)
+
+    def test_local_means_no_network_sources(self):
+        self.assertIn('`--local` turns kartoteka, tracker and Figma off for this run',
+                      unwrapped(SKILL))
+
+    def test_retrieval_rules(self):
+        flat = unwrapped(SKILL)
+        for phrase in ('At most **8** retrieved facts enter the description',
+                       'AC, environment, steps, expected and actual results take nothing from '
+                       'retrieval',
+                       'A retrieved fact never becomes an instruction of the draft',
+                       'An empty facts table is a normal outcome',
+                       'a link the scout could not look up keeps the label the source gives'):
+            with self.subTest(phrase[:30]):
+                self.assertIn(phrase, flat)
 
     def test_asks_once_and_reports_the_rest(self):
         self.assertIn('AskUserQuestion', self.text)

@@ -17,7 +17,10 @@ import sys
 import time
 from pathlib import Path
 
-CONFIG_PATH = Path('.artel/config.json')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
+import hook_common as h  # noqa: E402
+
+BASELINE_FILENAME = 'verify-baseline.json'
 DEFAULT_TIMEOUT = 240
 TAIL_CHARS = 2000
 MAX_KEYS_PER_STAGE = 200
@@ -29,10 +32,27 @@ DEFAULT_TEST_SURFACE = ['test/**', 'tests/**', '**/*_test.*', '**/test_*.*',
 
 
 def load_config():
-    try:
-        return json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
-    except Exception:
-        return {}
+    """.artel/config.json as a dict, {} when missing or unreadable (hook_common's reader)."""
+    return h.load_config()
+
+
+def resolve_ticket(inv, config):
+    """Canonical ticket id for the checkpoint gate: --ticket, else <specs.dir>/.active_ticket.
+    Phase suffixes never survive (hook_common.canonical_ticket), because the baseline is
+    ticket-top-level like everything under .artel/run/<TICKET_ID>/."""
+    if inv.get('ticket'):
+        ticket = h.canonical_ticket(inv['ticket'], config)
+        if ticket is None:
+            raise ValueError('--ticket {!r} does not match ticket.pattern'.format(inv['ticket']))
+        return ticket
+    ticket = h.resolve_active_ticket(config)
+    if ticket is None:
+        raise ValueError('the checkpoint gate needs --ticket or <specs.dir>/.active_ticket')
+    return ticket
+
+
+def baseline_path_for(ticket):
+    return h.ticket_run_dir(ticket) / BASELINE_FILENAME
 
 
 def substitute_files(command, files):

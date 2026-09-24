@@ -288,5 +288,32 @@ class TestTaskGate(GateCase):
         self.assertIn('stage test', env['error']['message'])
 
 
+class TestTicketResolution(GateCase):
+    def test_explicit_ticket_is_canonicalised(self):
+        self.write_config({}, ticket={'projectKey': 'AW'})
+        ticket = verify.resolve_ticket({'ticket': 'aw-12-3'}, verify.load_config())
+        self.assertEqual(ticket, 'AW-12')
+        self.assertEqual(str(verify.baseline_path_for(ticket)),
+                         os.path.join('.artel', 'run', 'AW-12', 'verify-baseline.json'))
+
+    def test_ticket_outside_the_pattern_is_rejected(self):
+        self.write_config({}, ticket={'projectKey': 'AW'})
+        with self.assertRaises(ValueError) as ctx:
+            verify.resolve_ticket({'ticket': 'not a ticket'}, verify.load_config())
+        self.assertIn('ticket.pattern', str(ctx.exception))
+
+    def test_active_ticket_pointer_is_the_fallback(self):
+        self.write_config({}, ticket={'projectKey': 'AW'}, specs={'dir': 'specs/.current'})
+        os.makedirs('specs/.current')
+        Path('specs/.current/.active_ticket').write_text('AW-7-2\n', encoding='utf-8')
+        self.assertEqual(verify.resolve_ticket({'ticket': None}, verify.load_config()), 'AW-7')
+
+    def test_no_ticket_anywhere_is_rejected(self):
+        self.write_config({})
+        with self.assertRaises(ValueError) as ctx:
+            verify.resolve_ticket({'ticket': None}, verify.load_config())
+        self.assertIn('.active_ticket', str(ctx.exception))
+
+
 if __name__ == '__main__':
     unittest.main()

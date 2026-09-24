@@ -668,10 +668,10 @@ def _image_working_time(source):
 def _image_successor(source, version):
     """Whether this working-tree image copy was written after kartoteka's
     stored version -- spec-images §8's successor rule, on the timestamp
-    _image_working_time picks rather than the file's raw mtime (I-3). As
-    cautious as `_older_than`: no usable time on either side answers False,
-    so this alone only ever grants a successor, never turns one into a
-    conflict by mistake."""
+    _image_working_time picks rather than the file's raw mtime (I-3). It is
+    cautious in the opposite direction from `_older_than`: with no usable
+    time it answers False, so it never grants a successor by mistake, and
+    the image becomes a conflict."""
     created, written = _created_at(version), _image_working_time(source)
     return created is not None and written is not None and written > created
 

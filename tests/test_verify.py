@@ -1,4 +1,9 @@
+import contextlib
+import io
+import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -115,6 +120,80 @@ class TestParseArgs(unittest.TestCase):
             verify.parse_args(['checkpoint', '--ticket', '   '])
         with self.assertRaises(ValueError):
             verify.parse_args(['checkpoint', '--ticket'])
+
+
+class GateCase(unittest.TestCase):
+    """A temp checkout as cwd, with .artel/config.json written per test."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        previous = os.getcwd()
+        os.chdir(self.tmp.name)
+        self.addCleanup(os.chdir, previous)
+        os.makedirs('.artel', exist_ok=True)
+
+    def write_config(self, verify_cfg=None, **extra):
+        cfg = {'verify': verify_cfg or {}}
+        cfg.update(extra)
+        Path('.artel/config.json').write_text(json.dumps(cfg), encoding='utf-8')
+
+    def run_main(self, argv):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = verify.main(argv)
+        lines = out.getvalue().strip().splitlines()
+        self.assertEqual(len(lines), 1, 'exactly one envelope line')
+        return code, json.loads(lines[0])
+
+
+GREEN = "sh -c 'echo ok {files}; exit 0'"
+RED = "sh -c 'echo lib/a.py:3:1 error boom; exit 1'"
+RED_OTHER = "sh -c 'echo test/a_test.py:9 FAILED; exit 1'"
+MISSING = 'no-such-command-artel-gate-test'
+
+
+class TestLegacyForm(GateCase):
+    def test_no_commands_is_skipped_exit_0(self):
+        self.write_config({})
+        code, env = self.run_main([])
+        self.assertEqual(code, 0)
+        self.assertTrue(env['ok'])
+        self.assertEqual(env['verb'], 'verify')
+        self.assertEqual(env['data'], {'skipped': True, 'stages': []})
+
+    def test_green_commands_keep_the_old_fields_and_gain_a_name(self):
+        self.write_config({'commands': [GREEN, GREEN]})
+        code, env = self.run_main([])
+        self.assertEqual(code, 0)
+        self.assertFalse(env['data']['skipped'])
+        self.assertEqual([s['name'] for s in env['data']['stages']], ['s0', 's1'])
+        for stage in env['data']['stages']:
+            for field in ('command', 'exit_code', 'ok', 'keys', 'tail'):
+                self.assertIn(field, stage)
+            self.assertTrue(stage['ok'])
+            self.assertEqual(stage['keys'], [])
+
+    def test_red_stage_stops_the_chain_and_exits_1(self):
+        self.write_config({'commands': [RED, GREEN]})
+        code, env = self.run_main([])
+        self.assertEqual(code, 1)
+        self.assertFalse(env['ok'])
+        self.assertEqual(len(env['data']['stages']), 1)
+        self.assertEqual(env['data']['stages'][0]['keys'], ['s0:lib/a.py:: error boom'])
+
+    def test_missing_command_is_an_environment_error(self):
+        self.write_config({'commands': [MISSING]})
+        code, env = self.run_main([])
+        self.assertEqual(code, 2)
+        self.assertEqual(env['error']['kind'], 'command_not_found')
+
+    def test_fast_form_substitutes_files(self):
+        self.write_config({'fast': GREEN})
+        code, env = self.run_main(['--fast', '--files', 'a.py,b.py'])
+        self.assertEqual(code, 0)
+        self.assertIn('a.py b.py', env['data']['stages'][0]['command'])
+        self.assertEqual(env['data']['stages'][0]['name'], 's0')
 
 
 if __name__ == '__main__':

@@ -136,27 +136,73 @@ def envelope(ok, elapsed_ms, data=None, error=None):
     return json.dumps(out)
 
 
-def run_stage(command, files, timeout, index):
-    """Run one configured command. Returns (stage_dict, error_kind_or_None)."""
+def run_stage(command, files, timeout, index, name=None):
+    """Run one configured command. Returns (stage_dict, error_kind_or_None).
+    `name` is the stage's label in the envelope ('s<index>' for the legacy form and the
+    checkpoint gate; 'fast' / 'test' for the task gate)."""
     cmd = substitute_files(command, files)
+    label = name or 's{}'.format(index)
     try:
         proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        return {'command': cmd, 'ok': False}, 'timeout'
+        return {'name': label, 'command': cmd, 'ok': False}, 'timeout'
     except OSError:
-        return {'command': cmd, 'ok': False}, 'spawn_failed'
+        return {'name': label, 'command': cmd, 'ok': False}, 'spawn_failed'
     output = (proc.stdout or '') + (proc.stderr or '')
     verdict = classify_exit(proc.returncode)
     if verdict == 'env_error':
-        return {'command': cmd, 'ok': False, 'exit_code': proc.returncode,
+        return {'name': label, 'command': cmd, 'ok': False, 'exit_code': proc.returncode,
                 'tail': output[-TAIL_CHARS:]}, 'command_not_found'
     return {
+        'name': label,
         'command': cmd,
         'exit_code': proc.returncode,
         'ok': verdict == 'ok',
         'keys': normalize_keys(output, index) if verdict != 'ok' else [],
         'tail': output[-TAIL_CHARS:],
     }, None
+
+
+def stage_error(stage, error_kind, stages):
+    """The error payload for a stage that could not run (exit 2)."""
+    return {'error': {
+        'kind': error_kind,
+        'message': 'stage {} ({}) failed: {}'.format(stage['name'], stage['command'], error_kind),
+        'details': {'stages': stages},
+    }}
+
+
+def run_legacy(config, inv):
+    """The pre-0.18 form: verify.fast (--fast) or verify.commands, stop at the first red.
+    Returns (exit_code, payload) with payload {'data': ...} or {'error': ...}."""
+    verify_cfg = config.get('verify') or {}
+    if inv['fast']:
+        fast_cmd = verify_cfg.get('fast') or ''
+        commands = [fast_cmd] if isinstance(fast_cmd, str) and fast_cmd.strip() else []
+    else:
+        commands = [c for c in (verify_cfg.get('commands') or [])
+                    if isinstance(c, str) and c.strip()]
+    if not commands:
+        # No gate configured: exit 0, but the caller journals "skipped", never "green".
+        return 0, {'data': {'skipped': True, 'stages': []}}
+    stages = []
+    for index, command in enumerate(commands):
+        stage, error_kind = run_stage(command, inv['files'] or [], inv['timeout'], index)
+        stages.append(stage)
+        if error_kind is not None:
+            return 2, stage_error(stage, error_kind, stages)
+        if not stage['ok']:
+            break  # the gate stops at the first red stage (config.md rule)
+    code = 0 if all(s['ok'] for s in stages) else 1
+    return code, {'data': {'skipped': False, 'stages': stages}}
+
+
+def run_task_gate(config, inv):
+    return 2, {'error': {'kind': 'invalid_argument', 'message': 'task gate not implemented yet'}}
+
+
+def run_checkpoint_gate(config, inv):
+    return 2, {'error': {'kind': 'invalid_argument', 'message': 'checkpoint gate not implemented yet'}}
 
 
 def main(argv):
@@ -173,39 +219,14 @@ def main(argv):
         return 2
 
     config = load_config()
-    verify_cfg = config.get('verify') or {}
-    if inv['fast']:
-        fast_cmd = verify_cfg.get('fast') or ''
-        commands = [fast_cmd] if isinstance(fast_cmd, str) and fast_cmd.strip() else []
+    if inv['gate'] == 'task':
+        code, payload = run_task_gate(config, inv)
+    elif inv['gate'] == 'checkpoint':
+        code, payload = run_checkpoint_gate(config, inv)
     else:
-        commands = [c for c in (verify_cfg.get('commands') or [])
-                    if isinstance(c, str) and c.strip()]
-
-    if not commands:
-        # No gate configured: exit 0, but the caller journals "skipped", never "green".
-        print(envelope(True, elapsed(), data={'skipped': True, 'stages': []}))
-        return 0
-
-    stages = []
-    for index, command in enumerate(commands):
-        stage, error_kind = run_stage(command, inv['files'] or [], inv['timeout'], index)
-        stages.append(stage)
-        if error_kind is not None:
-            print(envelope(False, elapsed(), error={
-                'kind': error_kind,
-                'message': 'stage {} ({}) failed: {}'.format(
-                    index, stage['command'], error_kind),
-                'details': {'stages': stages},
-            }))
-            return 2
-        if not stage['ok']:
-            break  # the gate stops at the first red stage (config.md rule)
-
-    if all(s['ok'] for s in stages):
-        print(envelope(True, elapsed(), data={'skipped': False, 'stages': stages}))
-        return 0
-    print(envelope(False, elapsed(), data={'skipped': False, 'stages': stages}))
-    return 1
+        code, payload = run_legacy(config, inv)
+    print(envelope(code == 0, elapsed(), data=payload.get('data'), error=payload.get('error')))
+    return code
 
 
 if __name__ == '__main__':

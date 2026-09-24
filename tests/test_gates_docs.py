@@ -176,5 +176,34 @@ class TestOrchestrators(unittest.TestCase):
         self.assertNotIn('`validate` reports every gate green', completion)
 
 
+class TestReviewAndDocsSeats(unittest.TestCase):
+    """Task 4 of the conversion."""
+
+    def test_the_reviewer_writes_the_two_tables_qa_used_to(self):
+        text = read('agents/reviewer.md')
+        output = section(text, '### Output', '### Deviation check')
+        self.assertIn('## PRD acceptance criteria', output)
+        self.assertIn('## Manual checks outstanding', output)
+        self.assertIn('or reads `none`', output)  # Review Focus 4
+
+    def test_pr_description_copies_the_manual_checks(self):
+        text = read('skills/pr-description/SKILL.md')
+        self.assertIn('review.md', section(text, '### 2. Local docs', '### 3.'))
+        self.assertIn('Manual checks outstanding', text)
+
+    def test_the_tech_writer_no_longer_reads_qa(self):
+        self.assertNotIn('qa.md', read('agents/tech-writer.md'))
+        self.assertIn('once per ticket', read('skills/docs-update/SKILL.md'))
+
+    def test_validator_and_validate_are_a_la_carte_with_the_final_gate(self):
+        for rel in ('agents/validator.md', 'skills/validate/SKILL.md'):
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertNotIn('RELEASE_READY', text)
+                self.assertIn('CHECKPOINT_OK', text)
+        self.assertIn('Not a pipeline stage since 0.18.0', read('agents/validator.md'))
+        self.assertIn('Not a pipeline stage since 0.18.0', read('skills/qa/SKILL.md'))
+
+
 if __name__ == '__main__':
     unittest.main()

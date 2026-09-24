@@ -73,6 +73,10 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 
 A brief report on which quality gates have been passed and what is preventing the others from being passed.
 
+Not a pipeline stage since 0.18.0: `feature-development`'s completion gate confirms these facts
+itself from the artifacts it already reads (autonomous-run.md §7); this agent is the à-la-carte
+report for a ticket someone else ran.
+
 ### Gates to Validate
 
 | Gate | Description |
@@ -80,10 +84,10 @@ A brief report on which quality gates have been passed and what is preventing th
 | PRD_READY | PRD exists and has `Status: PRD_READY` |
 | PLAN_APPROVED | Plan exists and has `Status: PLAN_APPROVED` |
 | TASKLIST_READY | Tasklist exists and has `Status: TASKLIST_READY` |
-| IMPLEMENT_STEP_OK | All tasks are marked `[x]`, including the tasklist's Final Verification section: every command in `verify.commands` (config.md), in order, must exit clean; an empty list records that step `skipped`, never `green`. |
+| IMPLEMENT_STEP_OK | All tasks are marked `[x]` — every iteration box and every fix-section box; a `## Final Verification` section, when an older tasklist carries one, counts too. The whole-tree gate itself is `CHECKPOINT_OK`. |
 | REVIEW_OK | No blocking review issues |
 | RUNTIME_OK | The host's runtime-gate evidence (produced by the `run-app` skill), phase-scoped when validating a phase with the ticket-wide file as read-only fallback. Green requires gate-mode evidence, not merely an interactive run, or a recorded skip. `runtime.run` (config.md) absent or empty ⇒ recorded `skipped`; missing runtime configuration never blocks a run. |
-| RELEASE_READY | QA report exists with positive verdict |
+| CHECKPOINT_OK | The final gate (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1): the last checkpoint entry in `.artel/run/<TICKET_ID>/run-journal.md` is green and no file matching `verify.surface` changed since its commit. |
 | DOCS_UPDATED | Summary document exists |
 | AUTOMATION_REMOVED | The transient scaffold artifacts introduced by the host's `runtime.scaffold.add` command (config.md) are gone — i.e. `runtime.scaffold.remove` was run (`/artel:remove-automation`) before merge. Red = the scaffold is still present. Ticket-wide, phase-independent; skip (green with note) for release scope. When `runtime.scaffold` is unconfigured there is nothing to check: recorded `skipped`. |
 

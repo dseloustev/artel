@@ -47,7 +47,6 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 - `<specs.dir>/<TICKET_ID>/prd.md`
 - `<specs.dir>/<TICKET_ID>/plan.md`
 - `<specs.dir>/<TICKET_ID>/tasklist.md`
-- `<specs.dir>/<TICKET_ID>/qa.md` (if any)
 - key code changes — the host's optional code-symbol index first (`changed --base
   <default-branch>` names the symbols this work touched, `outline` summarises a file without
   reading it whole), per `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; Read/Glob/Grep are the
@@ -58,7 +57,6 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 - `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/prd.md` (with ticket-wide `prd.md` as read-only fallback)
 - `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/plan.md` (with ticket-wide `plan.md` as read-only fallback)
 - `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md`
-- `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/qa.md` (if any)
 - `<specs.dir>/<TICKET_ID>/idea.md` — for context
 - `<specs.dir>/<TICKET_ID>/vision.md` — for context
 - key code changes — the host's optional code-symbol index first (`changed --base

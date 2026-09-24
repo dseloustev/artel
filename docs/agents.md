@@ -2,7 +2,7 @@
 
 The crew — one `.md` per agent (frontmatter + system prompt): analyst, figma-analyst, researcher,
 planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, review-forecaster, qa, validator,
-tech-writer.
+tech-writer, issue-scout (context for `issue-draft`, outside the pipeline).
 
 Agent bodies must stay project-agnostic — host specifics come from `.artel/config.json`
 (see [design.md](design.md#genericization-strategy)). Code navigation is the one

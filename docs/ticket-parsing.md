@@ -177,7 +177,7 @@ On the files path, create the `phase-<PHASE_NUM>/` subfolder lazily on first wri
 | Review | `<specs.dir>/<TICKET_ID>/review.md` |
 | Review findings | `<specs.dir>/<TICKET_ID>/review/findings.json` — machine-readable lens findings from the `reviewer` agent (phase-scoped variant: 4.1) |
 | Deep review | `<specs.dir>/<TICKET_ID>/deep-review.md` — the `deep-review` skill's single deliverable: the reviewer's comments verbatim, the definite-issues and forecast tables, proposed fixes, and the consultation record (`docs/review-forecast.md` §7); ticket-wide only (`deep-review` discards any phase suffix). The reviewer's own report for that run is run-state evidence at `.artel/run/<TICKET_ID>/reports/deep-review-findings.md`, outside `<specs.dir>` |
-| Verify evidence | `<specs.dir>/<TICKET_ID>/verify/` — quality-gate evidence from `inner-loop` runs: `iteration-<i>.json` (fast check), `iteration-<i>-full.json` (full gate), `residual.json` (on stop-and-ask) (phase-scoped variant: 4.1) |
+| Verify evidence | `<specs.dir>/<TICKET_ID>/verify/` — quality-gate evidence from `inner-loop` runs: `iteration-<i>.json` (the task gate's envelope, both stages — `docs/gates.md` §1), `residual.json` (on stop-and-ask) (phase-scoped variant: 4.1) |
 | Runtime evidence | `<specs.dir>/<TICKET_ID>/runtime/observation.md` — `RUNTIME_OK` evidence from `run-app`; `<specs.dir>/<TICKET_ID>/runtime/drive-observation.md` — UI-driving evidence from `drive-app` (phase-scoped variant: 4.1) |
 | Change report | `<specs.dir>/<TICKET_ID>/change-report.html` — derived HTML change-comprehension report from the `change-digest` skill; regenerable, never committed (phase-scoped variant: 4.1) |
 | ADR | `<specs.dir>/<TICKET_ID>/adr.md` |

@@ -57,5 +57,245 @@ class TestSurroundingDocs(unittest.TestCase):
             self.assertIn(phrase, unreleased)
 
 
+def section(text, start, end=None):
+    """The text between two anchors (to the end when `end` is None)."""
+    body = text.split(start, 1)[1]
+    return body.split(end, 1)[0] if end else body
+
+
+PROMPT_FILES = sorted(
+    [str(p.relative_to(ROOT)) for p in (ROOT / 'agents').glob('*.md')]
+    + [str(p.relative_to(ROOT)) for p in (ROOT / 'skills').glob('*/SKILL.md')]
+)
+
+
+class TestTaskLoop(unittest.TestCase):
+    """Task 1 of the conversion: the task loop runs the task gate and nothing else."""
+
+    def test_inner_loop_runs_the_task_gate_only(self):
+        text = read('skills/inner-loop/SKILL.md')
+        self.assertIn('verify.py task --files', text)
+        self.assertIn('docs/gates.md', text)
+        self.assertNotIn('iteration-<i>-full', text)
+        self.assertNotIn('run the full gate', text)
+
+    def test_implementer_closes_on_the_task_gate(self):
+        text = read('agents/implementer.md')
+        step_four = section(text, '### Step 4', '### Step 5')
+        self.assertIn('docs/gates.md', step_four)
+        self.assertIn('never yours', step_four)
+        step_five = section(text, '### Step 5', '### Step 6')
+        self.assertIn('last task gate is green or skipped', step_five)
+        self.assertNotIn('unscoped verify', text)
+        rule = section(text, '- **Gate before done**', '\n- ')
+        self.assertIn('task gate', rule)
+
+    def test_implementer_step_one_still_works_a_legacy_final_verification_section(self):
+        # Review Focus 2: older tasklists carry the section; the file scan keeps it.
+        step_one = section(read('agents/implementer.md'), '### Step 1', '### Step 2')
+        self.assertIn('Final Verification', step_one)
+
+    def test_implementer_skill_dispatch_names_the_task_gate(self):
+        text = read('skills/implementer/SKILL.md')
+        self.assertIn('task gate', text)
+        self.assertIn('docs/gates.md', text)
+        self.assertNotIn('unscoped verify green', text)
+
+    def test_tasklist_writer_stops_emitting_final_verification(self):
+        text = read('agents/tasklist-writer.md')
+        self.assertNotIn('Required `## Final Verification` section', text)
+        self.assertNotIn('Run every command in `verify.commands`', text)
+        self.assertIn('### No `## Final Verification` section', text)
+        self.assertIn('docs/gates.md', text)
+        after = section(text, '### After changes', '**Test:**')
+        self.assertIn('task gate', after)
+
+    def test_task_planner_forbids_gate_tasks(self):
+        text = read('agents/task-planner.md')
+        self.assertIn('**No gate tasks.**', text)
+        self.assertIn('no `## Final Verification` section', text)
+
+    def test_no_prompt_file_runs_the_full_gate_per_task(self):
+        for rel in PROMPT_FILES:
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertNotIn('Run every command in `verify.commands`', text)
+                self.assertNotIn('iteration-<i>-full', text)
+
+
+class TestOrchestrators(unittest.TestCase):
+    """Task 3 of the conversion."""
+
+    def setUp(self):
+        self.fd = read('skills/feature-development/SKILL.md')
+        self.dev = read('skills/dev/SKILL.md')
+        self.run = read('docs/autonomous-run.md')
+
+    def test_both_orchestrators_record_the_baseline_at_a_fresh_arm_only(self):
+        for name, text in (('feature-development', self.fd), ('dev', self.dev)):
+            with self.subTest(name):
+                self.assertIn('verify.py checkpoint --record-baseline --ticket <TICKET_ID>', text)
+                self.assertIn('Fresh arm only', text)
+                self.assertIn('a missing one stays missing', text)
+
+    def test_gate_nine_is_gone_and_gate_ten_runs_once(self):
+        self.assertNotIn('| 9 |', self.fd)
+        self.assertNotIn('Skill: qa', self.fd)
+        self.assertNotIn('Skill: qa', self.dev)
+        row = self.fd.split('| 10 | `DOCS_UPDATED` |')[1].split('\n')[0]
+        self.assertIn('once per ticket', row)
+        self.assertIn('DOCS_UPDATED: deferred to the final phase', row)
+        self.assertNotIn('QA gate 9', self.fd)
+
+    def test_the_checkpoint_runs_the_checkpoint_gate(self):
+        step = self.fd.split('3. **Quality gate (phase-end only).**')[1].split('4. **Stage explicitly.**')[0]
+        self.assertIn('verify.py checkpoint --ticket <TICKET_ID>', step)
+        self.assertIn('new_keys', step)
+        self.assertIn('baseline_red', step)
+        # the chain phrase test_spec_images_conversion_docs pins is untouched (dev wraps it)
+        for text in (self.fd, ' '.join(self.dev.split())):
+            self.assertIn('the image sweep (kartoteka path) → the `verify.commands` gate', text)
+
+    def test_the_completion_gate_is_a_checklist_not_a_dispatch(self):
+        gate = self.fd.split('### 6. Completion gate')[1].split('### 7.')[0]
+        self.assertNotIn('Skill: validate', gate)
+        for fact in ('PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK',
+                     'RUNTIME_OK', 'CHECKPOINT_OK', 'DOCS_UPDATED', 'AUTOMATION_REMOVED'):
+            self.assertIn(fact, gate)
+        self.assertNotIn('RELEASE_READY', self.fd)
+        self.assertIn('the final gate stands', self.dev.split('### 8. Complete')[1].split('### 9.')[0])
+
+    def test_autonomous_run_drops_the_qa_loop_and_gains_the_baseline(self):
+        self.assertNotIn('MAX_QA_ROUNDS', self.run)
+        self.assertIn('verify-baseline.json', self.run)
+        caps = self.run.split('## 5. Capped loops')[1].split('## 6.')[0]
+        self.assertIn('task gate', caps)
+        self.assertIn('baseline capture', caps)
+        completion = self.run.split('## 7. Completion gate')[1].split('## 8.')[0]
+        self.assertIn('CHECKPOINT_OK', completion)
+        self.assertNotIn('`validate` reports every gate green', completion)
+
+
+class TestReviewAndDocsSeats(unittest.TestCase):
+    """Task 4 of the conversion."""
+
+    def test_the_reviewer_writes_the_two_tables_qa_used_to(self):
+        text = read('agents/reviewer.md')
+        output = section(text, '### Output', '### Deviation check')
+        self.assertIn('## PRD acceptance criteria', output)
+        self.assertIn('## Manual checks outstanding', output)
+        self.assertIn('or reads `none`', output)  # Review Focus 4
+
+    def test_pr_description_copies_the_manual_checks(self):
+        text = read('skills/pr-description/SKILL.md')
+        self.assertIn('review.md', section(text, '### 2. Local docs', '### 3.'))
+        self.assertIn('Manual checks outstanding', text)
+
+    def test_the_tech_writer_no_longer_reads_qa(self):
+        self.assertNotIn('qa.md', read('agents/tech-writer.md'))
+        self.assertIn('once per ticket', read('skills/docs-update/SKILL.md'))
+
+    def test_validator_and_validate_are_a_la_carte_with_the_final_gate(self):
+        for rel in ('agents/validator.md', 'skills/validate/SKILL.md'):
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertNotIn('RELEASE_READY', text)
+                self.assertIn('CHECKPOINT_OK', text)
+        self.assertIn('Not a pipeline stage since 0.18.0', read('agents/validator.md'))
+        self.assertIn('Not a pipeline stage since 0.18.0', read('skills/qa/SKILL.md'))
+
+
+class TestSurroundingDocsConversion(unittest.TestCase):
+    """Task 5 of the conversion."""
+
+    def test_the_guide_and_reference_drop_the_qa_gate(self):
+        guide = read('docs/workflow-guide.md')
+        self.assertNotIn('*Gate 9 — QA.*', guide)
+        self.assertNotIn('→ QA →', guide)
+        self.assertIn('once per ticket', guide)
+        self.assertIn('verify.py task', guide)
+        self.assertIn('new_keys', guide)
+        reference = read('docs/skills-reference.md')
+        self.assertNotIn('MAX_QA_ROUNDS', reference)
+        self.assertNotIn('RELEASE_READY', reference)
+        self.assertIn('Not a pipeline stage since 0.18.0', section(reference, '### qa', '### validate'))
+        self.assertIn('CHECKPOINT_OK', section(reference, '### validate', '### docs-update'))
+
+    def test_the_router_and_readme_describe_the_new_pipeline(self):
+        router = read('skills/using-artel/SKILL.md')
+        self.assertNotIn('no PRD/QA/docs', router)
+        self.assertIn('à la carte', router)
+        readme = read('README.md')
+        self.assertNotIn('→ QA →', readme)
+
+    def test_config_setup_and_design_record_the_change(self):
+        config = read('docs/config.md')
+        row = config.split('| `verify.commands` |')[1].split('\n')[0]
+        self.assertIn('verify.py checkpoint', row)
+        self.assertNotIn('inner loop', row)
+        self.assertIn('`verify.test`', section(read('skills/setup/SKILL.md'), 'Round 3', 'Round 4'))
+        design = read('docs/design.md')
+        self.assertNotIn('A generated ticket never reads fully done', design)
+        self.assertIn('2026-09-24 — The gate diet.', design)
+
+    def test_no_live_file_keeps_a_retired_name(self):
+        live = PROMPT_FILES + [
+            str(p.relative_to(ROOT)) for p in (ROOT / 'docs').glob('*.md')
+            if p.name != 'design.md'
+        ] + ['README.md']
+        for rel in live:
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertNotIn('MAX_QA_ROUNDS', text)
+                self.assertNotIn('RELEASE_READY', text)
+                self.assertNotIn('Skill: qa', text)
+                self.assertNotIn('iteration-<i>-full', text)
+
+    def test_changelog_records_the_conversion(self):
+        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+        for phrase in ('### Removed', 'QA gate', 'Final Verification', 'validator', 'once per ticket',
+                       'close with their last child'):
+            self.assertIn(phrase, unreleased)
+
+
+class TestFinalReviewFixes(unittest.TestCase):
+    """The whole-branch review's Important findings, pinned before they were fixed."""
+
+    def test_checkpoint_findings_fall_back_to_keys_without_a_baseline(self):
+        # Review Focus 1: armed under 0.17 there is no baseline, and the runner then emits
+        # `keys` only — `new_keys` exists only when a baseline was loaded.
+        fd = read('skills/feature-development/SKILL.md')
+        step = fd.split('3. **Quality gate (phase-end only).**')[1].split('4. **Stage explicitly.**')[0]
+        self.assertIn('its `keys` when `data.baseline` is `absent` or `disabled`', step)
+        self.assertIn('baseline (`recorded` / `skipped` / `absent`', fd)
+
+    def test_docs_run_on_the_last_phase_before_its_checkpoint(self):
+        # The gate-10 row sits before 10.7 in the table; "after the last phase's checkpoint"
+        # left the docs uncommitted when the PR gate was skipped.
+        fd = read('skills/feature-development/SKILL.md')
+        row = fd.split('| 10 | `DOCS_UPDATED` |')[1].split('\n')[0]
+        self.assertIn('before its 10.7 checkpoint', row)
+        for rel in ('skills/feature-development/SKILL.md', 'skills/docs-update/SKILL.md',
+                    'docs/workflow-guide.md'):
+            with self.subTest(rel):
+                self.assertNotIn("after the last phase's checkpoint", read(rel))
+        for rel in ('skills/docs-update/SKILL.md', 'docs/workflow-guide.md',
+                    'docs/skills-reference.md', 'docs/design.md', 'CHANGELOG.md'):
+            with self.subTest(rel):
+                self.assertIn('before its checkpoint', read(rel))
+        completion = read('docs/autonomous-run.md').split('## 7. Completion gate')[1].split('## 8.')[0]
+        self.assertIn('checkpoint commit carries', completion)
+
+    def test_the_contract_no_longer_calls_itself_uncalled(self):
+        doc = read('docs/gates.md')
+        self.assertNotIn('nothing in the pipeline', doc)
+        self.assertIn('Since 0.18.0 the pipeline calls these gates by name', doc)
+
+    def test_ticket_parsing_describes_the_task_gate_envelope(self):
+        text = read('docs/ticket-parsing.md')
+        self.assertNotIn('iteration-<i>-full', text)
+        self.assertIn("the task gate's envelope", text)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -90,6 +90,16 @@ Path resolution follows `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. In summa
    `## Code Review Fixes` tasks until fixed, which is what the `REVIEW_OK` gate (validator agent)
    checks.
 
+5. `## PRD acceptance criteria` — one row per criterion of the PRD's acceptance section (the
+   phase section when a phase is set; on a `dev` run, the work list's acceptance criteria):
+   criterion, result (✅ / ⚠️ / ❌), evidence path. Always present: when there are no criteria to
+   judge it says so, or reads `none`. This table is the pipeline's record of criteria against
+   evidence — nothing else writes one since 0.18.0.
+6. `## Manual checks outstanding` — every check a person still has to run before or after merge
+   that no artifact evidences, each with why the run could not (no harness reach, a real
+   account, a provider deep link, …); `none` when there is nothing. `pr-description` copies this
+   list into the PR's QA notes.
+
 Phase scope: only add review fixes to the active phase's tasklist.
 
 ### Deviation check

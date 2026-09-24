@@ -165,14 +165,6 @@ move to the decision log.
 
   Evidence files (`findings.json`, `observation.md`) moving into the store, and `.active_ticket`
   moving to `.artel/run/`, stay parked (2026-09-22 design, §16).
-- **A generated ticket never reads fully done in kartoteka's rollup.** Fix-section parents
-  (`CRF: …`, `RTF: …`, `VF: …`, `FV: …`) stay `backlog` by design, because nothing claims,
-  promotes or completes a label row and the next round appending to its section would
-  reopen it ([task-queue.md](task-queue.md) §6, "Section rows are labels"). Every generated
-  tasklist has a Final Verification section, so its `FV` parent remains `backlog` after the
-  last box is ticked, and kartoteka's per-ticket rollup never shows the ticket done. Two
-  ways out: mark a section parent `done` when its last child completes and back to
-  `backlog` when a writer appends to the section, or have kartoteka's rollup skip label rows.
 - **Spec-trail frontmatter is unblocked on kartoteka's side, not adopted** (from the 2026-09-15
   OKF review, decision log below). kartoteka 0.35.0 indexes a workspace artifact without its
   leading YAML frontmatter block, while the store and `artifact_get` keep it verbatim. That opens
@@ -851,3 +843,23 @@ move to the decision log.
   `unrecoverable` when a file can be neither verified nor put back. The bytes are renamed to
   `<cache file>.unverified`, the message names that path and where the file belongs, and
   orchestrators copy the whole message into the journal and the report without pausing.
+- **2026-09-24 — The gate diet.** Three real runs (AW-3270, AW-3187, AW-3342) showed the per-task
+  whole-tree gate never found a task-owned defect and forced a hand-made baseline policy every
+  time, the QA gate returned twelve positive verdicts in twelve, and the final check existed
+  four times. Design: `docs/superpowers/specs/2026-09-24-gate-diet-design.md`; evaluation:
+  `2026-09-24-workflow-evaluation.md`. Decisions:
+  - **One contract, one runner.** `docs/gates.md` is the schedule; `scripts/verify.py task |
+    checkpoint` are the gates; skills call them by name and never restate a command list.
+  - **The task gate is `verify.fast` plus the tests a task touched** (`verify.test`, scoped by
+    `verify.testSurface` — file globs only, never `test/**`, which selects helpers and mocks).
+  - **The full gate runs at every phase checkpoint and nowhere else**; the final gate is the
+    last checkpoint unless a `verify.surface` file changed since.
+  - **Baseline by finding key, recorded once at a fresh arm**, never on resume; keys uncapped on
+    the checkpoint gate; a stage green at arm time that fails silently later is red.
+  - **QA and the validator leave the pipeline**, no switch: the reviewer carries the criteria
+    table and the manual-checks list; the orchestrator's completion gate is an eight-fact
+    checklist. Both skills stay à la carte.
+  - **No `## Final Verification` section**, no gate-running tasks; older tasklists still parse.
+  - **Fix-section parents close with their last child** and reopen on append — the follow-up
+    "a generated ticket never reads fully done" is resolved on artel's side.
+  - **Docs once per ticket**, on the last phase before its checkpoint commit.

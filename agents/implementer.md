@@ -108,9 +108,12 @@ whitespace runs collapsed to one space, so a longer checkbox matches on its star
 `task_update(task_id, status="done")` when you flip the checkbox, and
 `task_update(task_id, status="blocked")` on every exit **Rules** lists for a held
 task — a red gate, any `DEVIATION` halt, a `HITL:` return, an aborted task — and
-never `ready`. No row by that title — an older ticket, a mirror that failed — is
-not an error: work on from the file and put `row not found; file only` in the
-report. Nothing is claimed, so there is no promotion to run.
+never `ready`. When your `done` was the section's last open child — `task_list` shows
+no sibling under the same parent left `backlog`, `ready`, `in_progress` or `blocked` —
+close the parent too: `task_update(parent_id, status="done")` (§3, `close`: a section
+closes with its last child). No row by that title — an older ticket, a mirror that
+failed — is not an error: work on from the file and put `row not found; file only` in
+the report. Nothing is claimed, so there is no iteration promotion to run.
 
 **Fallback path.** Find the first incomplete `- [ ]` task within scope (phase or
 ticket), exactly as before the queue existed. A dispatch carrying **Task queue:**
@@ -146,19 +149,19 @@ Apply the changes via Write/Edit. Follow every convention in the host project's 
 
 Run the quality gates **before** claiming completion:
 
-1. **Inner loop** — run the bounded verify→fix→re-verify algorithm per
-   `${CLAUDE_PLUGIN_ROOT}/skills/inner-loop/SKILL.md` on the changed
-   paths: `verify.fast` (config.md) on the changed scope during iteration, then the full
-   `verify.commands` gate (config.md) as the task-close (unscoped) pass; `MAX_VERIFY_ITERATIONS=4`; evidence to the
-   ticket's `verify/` dir; exit 2 → stop-and-ask, never edit code to fix the gate. An empty
-   `verify.fast` or `verify.commands` degrades the corresponding check to `skipped`, never `green`
-   (config.md).
+1. **Task gate** — run the bounded verify→fix→re-verify algorithm per
+   `${CLAUDE_PLUGIN_ROOT}/skills/inner-loop/SKILL.md` on the changed paths: the task gate of
+   `${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1 — `verify.fast` on the paths, then `verify.test` on
+   the test files among them (config.md); `MAX_VERIFY_ITERATIONS=4`; evidence to the ticket's
+   `verify/` dir; exit 2 → stop-and-ask, never edit code to fix the gate. An empty command
+   degrades that half to `skipped`, never `green` (config.md). The whole-tree gate
+   (`verify.commands`) is never yours: it is the orchestrator's checkpoint gate (gates.md §1).
 2. **Codegen** — when generated files are stale or a generated part is missing: run the host's
-   codegen step, when it has one, then re-run the inner-loop final pass.
+   codegen step, when it has one, then one more task-gate pass.
 
 ### Step 5 — Close the task
 
-Only when the last unscoped verify is green: flip the checkbox to `- [x]` and
+Only when the last task gate is green or skipped (gates.md §1, rule 1): flip the checkbox to `- [x]` and
 update the Progress Report table when present. On the kartoteka path both edits go
 in one `artifact_patch` (spec-storage.md §4.3). The tasklist in scope
 (`tasklist.md`, or `phase-<N>/tasks.md` on a phase-scoped run) is kept current on
@@ -167,7 +170,7 @@ both paths — it is what the fallback reads.
 On the queue path, then `task_update(task_id, status="done")` and run the
 promotion step in `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3: `task_list` the
 ticket scoped to `<project>`, and if no `I<N> · ` sibling is left undone, mark the `I<N>: …` parent
-`done` and promote every `I<N+1> · ` child from `backlog` to `ready`. A fix-section row gets `done` and nothing else — no sibling scan, no promotion.
+`done` and promote every `I<N+1> · ` child from `backlog` to `ready`. A fix-section row gets `done`, and its parent gets `done` when it was the section's last open child (task-queue.md §3, `close`) — no iteration promotion.
 
 A red gate is never "done" — if the loop stopped-and-asked (verify budget
 exhausted, no-progress, exit-2 environment error, or out-of-scope baseline
@@ -230,4 +233,4 @@ the work — all of that is in the report.
 - **Code optimization** — apply the host project's conventions docs' code-quality guidance (duplicates, oversized functions, magic numbers, dead code, SRP). Decompose proactively when a proposal would violate these rules.
 - **Generated code is read-only** — never hand-edit files the host marks as generated (analyzer/linter exclusion lists, generated-file headers). Fix the generating source and re-run the host's codegen step (Step 4.2); never pass generated paths to verify/format.
 - **Paths in output: repo-relative only** — when writing to `<specs.dir>` artifacts (e.g., status updates, notes), use repo-relative paths. See `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
-- **Gate before done** — completion requires the inner-loop's unscoped verify green (evidence in the ticket's `verify/` dir). Environment errors (exit 2: toolchain version mismatches, missing tools, subprocess failures, …) are toolchain problems: stop-and-ask, never "fix" them by editing app code.
+- **Gate before done** — completion requires the task gate green or skipped (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1; evidence in the ticket's `verify/` dir); the whole-tree gate is the orchestrator's checkpoint, never yours. Environment errors (exit 2: toolchain version mismatches, missing tools, subprocess failures, …) are toolchain problems: stop-and-ask, never "fix" them by editing app code.

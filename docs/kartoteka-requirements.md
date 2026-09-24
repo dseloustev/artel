@@ -41,7 +41,8 @@ specs*, and artel must not ship that step before they land.
 
 **What artel needs.** Under store mode there is no `tasklist.md` on disk, so the four
 gate-remediation sections — `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes`,
-`## Final Verification` — can no longer be worked by file scan, which is how
+`## Final Verification` — can no longer be worked by file scan (since 0.18.0 no writer emits
+`## Final Verification`; older tasklists still carry it), which is how
 `docs/task-queue.md` §6 handles them on both paths today. The design turns them into queue
 rows created at gate time. A gate dispatch must then claim **only** from its own section.
 

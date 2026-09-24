@@ -16,8 +16,39 @@ All notable changes to this project are documented here. The format follows
   that are new — so a host whose default branch is already red stops turning every
   checkpoint red, and a red-on-baseline stage no longer hides the test stage behind it.
   `verify.baseline: false` turns the compare off. The contract is `docs/gates.md`. The inner
-  loop and the orchestrators switch to these gates in the conversion that follows; nothing in
-  the pipeline calls them yet.
+  loop and the orchestrators call them by name (see *Changed* below).
+
+### Changed
+
+- **The task loop runs the task gate, not the whole-tree gate.** The implementer's inner loop
+  runs `verify.fast` on the changed paths and `verify.test` on the tests it touched; the full
+  `verify.commands` gate runs at every phase checkpoint, compared against the baseline the run
+  records once at arm time, and nowhere else. The three evaluated runs had run the suite per
+  task for nothing: it never found a task-owned defect. Contract: `docs/gates.md`.
+- **The checkpoint gate is baseline-aware.** Only findings the branch introduced turn it red;
+  a stage red on pre-existing findings is journaled as `baseline_red` and no longer hides the
+  test stage behind it.
+- **The completion gate is the orchestrator's own checklist** of eight facts it already holds;
+  `validate` is no longer dispatched. The final gate is the last checkpoint unless a
+  `verify.surface` file changed since.
+- **Docs run once per ticket**, on the last phase before its checkpoint commit, instead of once
+  per phase.
+- **The reviewer writes `## PRD acceptance criteria` and `## Manual checks outstanding`**, and
+  `pr-description` copies the latter into the PR's QA notes.
+- **Fix-section parents close with their last child** in the kartoteka queue (and reopen on
+  append), so a finished ticket reads fully done — the section rows used to be permanent
+  labels.
+
+### Removed
+
+- **The QA gate** (gate 9, `RELEASE_READY`, `MAX_QA_ROUNDS`): twelve verdicts in twelve were
+  positive and no run ever took its fix round. `/artel:qa` stays à la carte.
+- **The `## Final Verification` section** of generated tasklists and any planner-written
+  "run the gates" task: the gate is the orchestrator's, and the copies drifted. Older tasklists
+  still parse and mirror.
+- **The `validate` dispatch** at completion — the `validator` agent no longer runs inside the
+  pipeline. `/artel:validate` stays à la carte and now reports `CHECKPOINT_OK` instead of
+  `RELEASE_READY`.
 
 ## [0.17.0] - 2026-09-24
 

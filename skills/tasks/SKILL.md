@@ -200,8 +200,10 @@ with any of them → print the argument hint and stop.
    starts with the title's third segment. Not found → warn: "queue
    updated; no matching checkbox in tasklist.md — the file is now behind the queue".
 3. Do **not** promote the iteration; report whether its siblings are all done and leave the
-   promotion to the implementer's loop. A fix-section row has no promotion and no siblings to
-   report.
+   promotion to the implementer's loop. A fix-section row has no promotion; when it was its
+   section's last open child (`task_list`: no sibling under the same parent left `backlog`,
+   `ready`, `in_progress` or `blocked`), close the parent —
+   `task_update(parent_id, status="done")`, `docs/task-queue.md` §3 `close` — and report it.
 
 ### `block <task-id> [--note <text>]`
 

@@ -40,6 +40,8 @@ Read each of the following with `Read` if the file exists; skip silently otherwi
 - `<specs.dir>/<TICKET_ID>/idea.md`
 - `<specs.dir>/<TICKET_ID>/vision.md`
 - `<specs.dir>/<TICKET_ID>/tasklist.md`
+- `<specs.dir>/<TICKET_ID>/review.md` — only its `## Manual checks outstanding` section (the
+  reviewer's list of checks nobody has run yet)
 
 ### 3. Git data
 
@@ -133,7 +135,7 @@ You are writing a short, plain-language PR description for ticket <TICKET_ID>. A
    - **Summary** — 1–3 sentences: what was broken or missing, and how the app behaves now. If the PR targets a non-default base branch, one extra line names it.
    - **Major changes** — 0–2 one-line bullets: only changes a reviewer must know about before reading the diff (behavior change, schema bump, new dependency). State "None." when there are none.
    - **Minor changes** — 1–4 one-sentence bullets. State "None." when there are none.
-   - **QA notes** — 1–6 numbered scenarios: where in the app + what to do + what should be visible; platform-specific caveats live here. A deliberate behavior change that QA might file as a bug gets one line starting "Not a bug: …".
+   - **QA notes** — 1–6 numbered scenarios: where in the app + what to do + what should be visible; platform-specific caveats live here. A deliberate behavior change that QA might file as a bug gets one line starting "Not a bug: …". Every entry of `review.md`'s `## Manual checks outstanding` becomes one more numbered scenario, marked as not yet run.
    - **Platforms tested** — the checklist, or a single "any platform" line for platform-independent changes.
 
 7. **Accuracy.** Every factual claim must be verifiable from the inlined diff or the inlined docs. Do not invent rationale or behavior. If something cannot be verified, omit it.
@@ -157,7 +159,7 @@ The headings below are illustrative — render them, like the rest of the body, 
 
 **QA notes**
 
-1–6 numbered scenarios: where in the app + what to do + what should be visible. Platform-specific caveats go here too. A deliberate behavior change QA might mistake for a bug gets its own line: "Not a bug: …".
+1–6 numbered scenarios: where in the app + what to do + what should be visible. Platform-specific caveats go here too. A deliberate behavior change QA might mistake for a bug gets its own line: "Not a bug: …". The reviewer's `## Manual checks outstanding` entries follow, marked as not yet run.
 
 **Platforms tested**
 - [Platform 1]: done / not done

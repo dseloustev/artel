@@ -9,6 +9,8 @@ model: sonnet
 
 Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. Release identifiers start with `R-` and are passed through as-is. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
+Not a pipeline stage since 0.18.0 — à la carte, and the release scope (`R-…`). The reviewer's `## PRD acceptance criteria` table is the pipeline's record of criteria against evidence.
+
 ## Execute
 
 **Spec store.** Before dispatching, read the ticket's storage decision:

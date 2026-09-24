@@ -108,6 +108,7 @@ def host_status(config, parseable=True):
     if adapter == 'kartoteka':
         lines.append('- ' + token_status(knowledge))
     lines.append('- ' + spec_store_status(config))
+    lines.append('- ' + verify_test_status(config))
     ticket = active_ticket_pointer(config) or 'none'
     lines += [
         '- active ticket: ' + ticket,
@@ -133,6 +134,20 @@ def token_status(knowledge):
         return 'knowledge.tokenEnv: {} (set)'.format(token_env)
     return ('knowledge.tokenEnv: {} (NOT SET in this session\'s environment — a daemon '
             'with [auth] on will refuse every write)'.format(token_env))
+
+
+def verify_test_status(config):
+    """Whether the task gate's test half is configured and scoped. An unscoped
+    `verify.test` runs the whole suite on every task -- the thing the key exists
+    to avoid -- and nothing else in the session would say so before the first
+    task pays for it (docs/gates.md §4 rule 5)."""
+    command = ((config.get('verify') or {}).get('test') or '')
+    command = command.strip() if isinstance(command, str) else ''
+    if not command:
+        return 'verify.test: unset (the task gate runs verify.fast only)'
+    if '{files}' in command:
+        return 'verify.test: scoped ({})'.format(command)
+    return 'verify.test: unscoped (no {files} token — the whole suite runs on every task)'
 
 
 def build_context(config, skill_text, parseable=True):

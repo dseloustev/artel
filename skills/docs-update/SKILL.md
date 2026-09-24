@@ -24,3 +24,7 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 Use the Agent tool with `subagent_type: "tech-writer"`, description `"Update docs for <TICKET_ID>"`, and a prompt that passes `TICKET_ID`, `TICKET_NUM`, and `PHASE_NUM` (or "all phases"). The `tech-writer` agent already knows the artifact inputs and output paths (`<specs.dir>/<TICKET_ID>/summary.md` or its phase-scoped variant, plus `CHANGELOG.md`) — no need to restate them here.
 
 Wait for the agent to finish and show the documentation diff.
+
+In the pipeline this skill runs **once per ticket**, ticket-wide, on the last phase before its checkpoint
+commit (`feature-development` gate 10), so that commit carries the docs; the phase-scoped output
+exists for manual runs.

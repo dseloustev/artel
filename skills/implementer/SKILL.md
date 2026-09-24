@@ -57,10 +57,11 @@ Implement the next incomplete task now, per your agent definition's workflow:
    `blocked` on any other exit, never `ready`; a missing row is `row not found; file only`,
    not an error. If the task carries a `[HITL: …]` tag, STOP and
    return `HITL: <reason>` instead of implementing — the orchestrator owns that pause.
-2. Implement directly (no proposal step). Apply the verify loop (max MAX_VERIFY_ITERATIONS = 4) via
-   the `/artel:inner-loop` skill: run the gate sequence from your agent configuration (inner loop on
-   changed paths → codegen if needed → unscoped verify green).
-3. Only when the last unscoped verify is green: flip the checkbox, update the Progress
+2. Implement directly (no proposal step). Apply the task gate (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md`
+   §1) through the verify loop (max MAX_VERIFY_ITERATIONS = 4) of the `/artel:inner-loop` skill:
+   `verify.fast` on the changed paths, then `verify.test` on the test files you touched; codegen
+   when needed, then one more pass. The whole-tree gate is the orchestrator's checkpoint, not yours.
+3. Only when the last task gate is green or skipped: flip the checkbox, update the Progress
    Report, and report per your completion contract. A red gate is never "done" — leave
    the checkbox as it is and return a `DEVIATION` report instead of a completion.
 4. On the queue path a completion is `task_update(task_id, status="done")` followed by

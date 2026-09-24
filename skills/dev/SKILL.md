@@ -114,6 +114,16 @@ pushes`): commit `<specs.dir>/<TICKET_ID>/**` + `<specs.dir>/.active_ticket` and
 an external action. No verify gate here (`verify.commands`) — docs only, no code yet. On the
 kartoteka path, when, images aside, only `.active_ticket` changed, skip the commit and journal `work-list checkpoint: skipped — the spec trail is in kartoteka`.
 
+**Record the baseline** (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1):
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify.py checkpoint --record-baseline --ticket <TICKET_ID>`.
+Exit 2 → environment error, stop-and-ask. Journal `baseline: recorded (<n> keys across <m>
+stages)` or `baseline: skipped (verify.commands empty)`. **Fresh arm only** — the moment
+`run-state.json` is first written: on resume an existing `.artel/run/<TICKET_ID>/verify-baseline.json`
+is kept and a missing one stays missing (the tree already carries the branch's changes, so a
+snapshot now would hide them; the checkpoint gate then reports `baseline: absent` and treats any
+red as red). A phase boundary never re-records. `--step` runs record it too — it is evidence, not
+run state.
+
 On the kartoteka path this checkpoint sweeps images first and never stages one — the procedure's
 steps 2 and 4, spelled out here because this checkpoint names its own paths
 (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.6). Sweep:
@@ -233,7 +243,10 @@ phases remain.
 ### 8. Complete
 
 All tasks `- [x]` across all traversed phases, review clean (no unresolved Blocking/Important),
-runtime green or skipped, final phase checkpoint pushed → update `run-state.json`:
+runtime green or skipped, final phase checkpoint pushed, the final gate stands
+(`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1: no file matching `verify.surface` changed since that
+checkpoint's commit — else one more checkpoint gate and checkpoint commit first), and every
+fix-section parent closed (task-queue.md §6) → update `run-state.json`:
 `completed: true`, `run_active: false`. Append the completion entry to the journal. Then
 description-file sync per `orchestrator-common.md` (when `$1` has checkbox tasks).
 
@@ -253,7 +266,7 @@ to `run-journal.md`.
 
 ## Important
 
-- No PRD / plan / QA / docs artifacts are created or required. Commits happen only at the
+- No PRD / plan / docs artifacts are created or required. Commits happen only at the
   checkpoints (work-list at arm time, phase-end after the runtime gate) per `feature-development`
   `## Checkpoint commits & pushes`; opening the PR remains the user's manual step — dev never
   invokes `pr-create`. Checkpoint commits & pushes are the only direct git mutations this

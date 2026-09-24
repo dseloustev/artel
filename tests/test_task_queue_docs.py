@@ -250,8 +250,11 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
         self.assertNotIn('never\nmirrored', paragraph)
 
     def test_step_five_completes_a_fix_row_without_promotion(self):
+        # Since 0.18.0 the row's parent closes with its last child; there is still no
+        # iteration promotion on a fix row.
         step_five = self.agent.split('### Step 5')[1].split('### Step 6')[0]
-        self.assertIn('A fix-section row gets `done` and nothing else', step_five)
+        self.assertIn('A fix-section row gets `done`, and its parent gets `done`', step_five)
+        self.assertIn('no iteration promotion', step_five)
 
     def test_the_empty_claim_reads_iteration_children_only(self):
         step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
@@ -451,9 +454,15 @@ class TestFixWritersRecordTheirAppend(unittest.TestCase):
                 with self.subTest(rel=rel, step=start, phrase=phrase):
                     self.assertIn(phrase, step)
 
-    def test_final_verification_is_written_without_a_source_heading(self):
-        text = (ROOT / 'agents/tasklist-writer.md').read_text(encoding='utf-8')
-        self.assertIn('`FV · tasklist · <checkbox text>`', text)
+    def test_final_verification_is_no_longer_written_and_stays_a_legacy_row(self):
+        # Since 0.18.0 no writer emits `## Final Verification` (the gate is the
+        # orchestrator's, docs/gates.md §1); the parser keeps the section so an older
+        # tasklist still mirrors, and §6's table still names its row shape.
+        writer = (ROOT / 'agents/tasklist-writer.md').read_text(encoding='utf-8')
+        self.assertNotIn('`FV · tasklist · <checkbox text>`', writer)
+        self.assertIn('### No `## Final Verification` section', writer)
+        contract = (ROOT / 'docs/task-queue.md').read_text(encoding='utf-8')
+        self.assertIn('`FV · <source> · <checkbox text>`', contract)
 
 
 class TestLongFixTitlesStayFindable(unittest.TestCase):
@@ -681,6 +690,49 @@ class TestNoLiveDocHidesTheFixSections(unittest.TestCase):
             for phrase in self.RETIRED:
                 with self.subTest(path=str(path.relative_to(ROOT)), phrase=phrase):
                     self.assertNotIn(phrase, text)
+
+
+class TestSectionParentsClose(unittest.TestCase):
+    """Fix-section parents were permanent labels; they now close with their last child."""
+
+    def test_the_contract_states_the_close_rule(self):
+        text = (ROOT / 'docs/task-queue.md').read_text(encoding='utf-8')
+        self.assertNotIn('Section rows are labels', text)
+        self.assertIn('**Section rows close with their last child.**', text)
+        protocol = text.split('**Fix-section rows are recorded, not claimed.**')[1].split(
+            '**Never `ready`.**')[0]
+        self.assertIn('close', protocol)
+        self.assertIn('task_update(parent_id, status="done")', protocol)
+
+    def test_the_implementer_closes_the_parent_on_the_last_child(self):
+        agent = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        step_one = agent.split('### Step 1')[1].split('### Step 2')[0]
+        self.assertIn('task_update(parent_id, status="done")', step_one)
+        step_five = agent.split('### Step 5')[1].split('### Step 6')[0]
+        self.assertIn('its parent gets `done`', step_five)
+
+    def test_tasks_done_closes_the_parent_but_never_promotes(self):
+        # Review Focus 5: a fix row's parent closes; an iteration row's promotion stays the loop's.
+        skill = (ROOT / 'skills/tasks/SKILL.md').read_text(encoding='utf-8')
+        done = skill.split('### `done <task-id>`')[1].split('### `block')[0]
+        self.assertIn('task_update(parent_id, status="done")', done)
+        self.assertIn('Do **not** promote the iteration', done)
+
+    def test_fix_writers_reopen_a_done_parent_before_creating_children(self):
+        # The reopen half of the rule lives where the writers are sent: §2 step 3.
+        contract = (ROOT / 'docs/task-queue.md').read_text(encoding='utf-8')
+        step_three = contract.split('3. Then each entry of `data.sections`')[1].split('4. Surface every')[0]
+        self.assertIn('task_update(parent_id, status="backlog")', step_three)
+        self.assertIn('before its children are created', step_three)
+
+    def test_the_fv_row_is_marked_legacy_and_the_writers_no_longer_promise_it(self):
+        contract = (ROOT / 'docs/task-queue.md').read_text(encoding='utf-8')
+        self.assertIn('before 0.18.0', contract.split('| `## Final Verification` |')[1].split('\n')[0])
+        for rel in ('skills/tasklist/SKILL.md', 'skills/generate-tasklist/SKILL.md'):
+            with self.subTest(rel):
+                text = (ROOT / rel).read_text(encoding='utf-8')
+                self.assertNotIn('at generation time that is the `## Final Verification` section', text)
+                self.assertIn('data.sections', text)
 
 
 if __name__ == '__main__':

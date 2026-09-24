@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-24
+
 ### Added
 
 - **`issue-draft` drafts tasks, bug reports and epics, each to its own template.** Three

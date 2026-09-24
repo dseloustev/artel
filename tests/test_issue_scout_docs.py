@@ -73,6 +73,18 @@ class TestAgent(unittest.TestCase):
         self.assertIn('Never write a `[~login]` mention.', self.flat)
         self.assertIn('including its own pull requests, commits and comments', self.flat)
 
+    def test_review_fixes(self):
+        for phrase in ('the key the dispatch names as the source ticket',
+                       'copy its reason exactly',
+                       'kartoteka is configured for this project but its MCP tools are not '
+                       'available in this session',
+                       'proposed, asked, decided, rejected',
+                       'git top level',
+                       '## 6. Declared deviations',
+                       '`heads-up`'):
+            with self.subTest(phrase[:30]):
+                self.assertIn(phrase, self.flat)
+
     def test_a_lookup_is_one_call(self):
         self.assertIn('A lookup is one tool call.', self.flat)
 
@@ -119,6 +131,21 @@ class TestDocs(unittest.TestCase):
         entry = read('docs/skills-reference.md').split('### issue-draft')[1].split('\n### ')[0]
         self.assertIn('issue-scout', entry)
         self.assertNotIn('Related holds', entry)
+
+    def test_docs_match_the_shipped_behaviour(self):
+        entry = unwrapped('docs/skills-reference.md').split('### issue-draft')[1].split(' ### ')[0]
+        self.assertIn('tracker.mcpToolPrefix', entry)
+        self.assertIn('design.figma', entry)
+        self.assertNotIn('neither the source nor kartoteka closed', entry)
+        self.assertNotIn('no Related section, every gap asked', unwrapped('docs/config.md'))
+        design = unwrapped('docs/design.md')
+        self.assertIn('tracker reads have never run live', design)
+        self.assertNotIn('ran retrieval live (kartoteka, tracker, Figma, code)', design)
+        self.assertIn('noise at 3.5', design)
+        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+        for phrase in ('$RELATED', 'research', '`\\~`'):
+            with self.subTest(phrase):
+                self.assertIn(phrase, unreleased)
 
     def test_changelog_announces_it(self):
         unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]

@@ -590,12 +590,12 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Turn free text, a pasted ticket or a local `.txt`/`.md` file into a Jira-ready
   task, bug report or epic — summary (≤255 chars) + a description following that type's
-  template — consulting the institutional-knowledge index and asking about remaining gaps
-  before writing; never posts anywhere.
+  template — gathering context from kartoteka, the tracker, Figma and the host code through `issue-scout`
+  and asking about remaining gaps before writing; never posts anywhere.
 - **Invocation:** `/artel:issue-draft <text | file-path> [--type task|bug|epic] [--local]`
 - **Reads:** the argument (text, or the file it names); `language.pr`, `tracker.adapter`,
-  `knowledge.adapter`, `knowledge.project`, `ticket.pattern`, `ticket.projectKey`
-  (config.md); the type's template — `.artel/templates/issue-draft-<type>.md`, else
+  `tracker.mcpToolPrefix`, `design.figma`, `knowledge.adapter`, `knowledge.project`,
+  `ticket.pattern`, `ticket.projectKey` (config.md); the type's template — `.artel/templates/issue-draft-<type>.md`, else
   `.artel/templates/issue-draft.md`, when the host provides one, else the skill's
   `assets/templates/<type>.template.md`; under `"jira-mcp"`, the skill's
   `references/jira-wiki-markup.md`; context through the `issue-scout` agent: kartoteka (consultation contract, budget 1 · ≤ 5 ·
@@ -606,10 +606,10 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   whose body pastes into the description field as-is and holds nothing but the issue.
 - **Pauses:** asks for the text or file when none is provided (never invents an issue from
   nothing) and when a referenced file is unreadable; then **once** more, via `AskUserQuestion`
-  with up to four questions, about gaps neither the source nor kartoteka closed — unanswered
+  with up to four questions, about gaps no source or retrieved fact closed — unanswered
   gaps are listed under Missing Details in the report rather than guessed. Non-interactive
   runs skip the round and report every gap.
-- **Notes:** worker, not orchestrator. The type comes from `--type`, else the type the request
+- **Notes:** worker that delegates retrieval to `issue-scout`. The type comes from `--type`, else the type the request
   names, else a defect in the source (bug), else task — an epic only when named. Templates
   mark each block `required`, `keep` (always rendered, left empty for the reader) or
   `optional`. Pasted tracker exports lose bot comments and stray mentions. Output language is

@@ -145,7 +145,7 @@ accepts only `1`; it exists so later formats can migrate rather than guess.
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `ticket.projectKey` | string | `"PROJ"` (placeholder) | Letters and digits, no separators. Uppercase is canonical. | Ticket canonicalization, branch names, PR titles, commit subjects, Jira project key for `tracker.adapter: "jira-mcp"` |
-| `ticket.pattern` | string (regex) | `"^(?:{projectKey}-)?(\\d+)(?:-p?(\\d+))?$"` | Must expose the ticket number as **capture group 1** and the optional phase as **capture group 2**. The literal token `{projectKey}` is replaced with `ticket.projectKey` before the regex is compiled. Matched case-insensitively. | Every phase-aware skill and agent; hooks that resolve the active ticket; `issue-draft`, to recognise ticket keys the source cites |
+| `ticket.pattern` | string (regex) | `"^(?:{projectKey}-)?(\\d+)(?:-p?(\\d+))?$"` | Must expose the ticket number as **capture group 1** and the optional phase as **capture group 2**. The literal token `{projectKey}` is replaced with `ticket.projectKey` before the regex is compiled. Matched case-insensitively. | Every phase-aware skill and agent; hooks that resolve the active ticket; `issue-draft`, to recognise ticket keys the source cites (passed on to `issue-scout`) |
 | `ticket.phaseSuffix` | boolean | `true` | `true` \| `false` | Phase-scoped runs and artifact paths |
 
 Positional capture groups (not named groups) are the contract, so the same pattern compiles
@@ -491,8 +491,8 @@ kartoteka — and both **refuse** rather than degrade: adapter `none` stops with
 `/artel:setup`, absent tools stop with the "configured but not available" message. There is no
 override flag, for the third row's reason. `issue-draft` is a third skill a person invokes from
 the conversation and consults the same key, but it is the exception to both of those rules: it
-takes `--local` and resolves the table above in full, and where these two refuse, it degrades —
-no Related section, every gap asked — because a person asked it for a draft, not for the index.
+takes `--local` and resolves the table above in full, and where these two refuse, it degrades — kartoteka is reported off and the scout's other sources
+still run — because a person asked it for a draft, not for the index.
 The `using_artel` `SessionStart` hook reads the key too, only to tell the injected router
 whether those two routes are live.
 

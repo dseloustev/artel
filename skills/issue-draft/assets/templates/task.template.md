@@ -18,7 +18,8 @@ $TECHNICAL
 
 <!-- keep, table. All four rows, always, in this order; labels bold. A row with no data keeps
      an empty value cell. Platform: the platforms the source names, else All (verbatim).
-     Link rows: every link the source gives, one per line inside the cell as
+     Link rows: every link the source gives and the links retrieval adds (the skill's §6), one
+     per line inside the cell as
      "<what it is>: <url>". Each link lands in exactly one row: Figma links in Figma, Notion
      links in Notion, every other link in URLs. -->
 | **Platform** | $PLATFORM |

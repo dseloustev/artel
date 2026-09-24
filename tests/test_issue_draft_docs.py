@@ -129,6 +129,10 @@ class TestTemplates(unittest.TestCase):
                 self.assertEqual('$SOURCE', tail[-1].strip())
                 self.assertTrue(tail[-2].startswith('<!-- optional'))
 
+    def test_block_rules_admit_what_retrieval_adds(self):
+        self.assertIn('links retrieval adds', unwrapped(TEMPLATE.format('task')))
+        self.assertIn('retrieved decisions and relations', unwrapped(TEMPLATE.format('epic')))
+
     def test_templates_are_english(self):
         for t, text in self.texts.items():
             with self.subTest(t):
@@ -142,9 +146,9 @@ class TestMarkupReference(unittest.TestCase):
 
     def test_spells_the_team_rules(self):
         for spelling in ('`----`', '`- item`', '`# item`', '`| |`', '`\\{`', '[title|https://',
-                         '`\\~`'):
+                         '`\\~`', 'outside a mention, a URL, `{code}` and `{noformat}`'):
             with self.subTest(spelling):
-                self.assertIn(spelling, self.text)
+                self.assertIn(spelling, ' '.join(self.text.split()))
 
     def test_is_english(self):
         self.assertIsNone(CYRILLIC.search(self.text))
@@ -174,6 +178,10 @@ class TestSkill(unittest.TestCase):
             with self.subTest(spelling):
                 self.assertIn(spelling, self.text)
 
+    def test_dispatch_names_the_source_ticket_and_each_source_state(self):
+        self.assertIn('## Source ticket', self.text)
+        self.assertIn('kartoteka: <on | off — <reason line> | off>', self.text)
+
     def test_gates_on_the_project_key(self):
         self.assertIn('knowledge.project', self.text)
         self.assertIn('kartoteka is configured for this project but knowledge.project is not set',
@@ -190,7 +198,13 @@ class TestSkill(unittest.TestCase):
                        'the code map',
                        'the label the source gives wins',
                        'A gap whose answer belongs in AC, environment, steps, expected or actual '
-                       'result stays open',
+                       "result, or in an epic's role, capability or value, stays open",
+                       'A gap whose closing fact is not placed in the description stays open',
+                       "an epic's role, capability and value take nothing from retrieval",
+                       'the `⚠ NON-CURRENT` marker is copied exactly as emitted',
+                       'a status such as rejected only when a source states it',
+                       'A heads-up fact never enters the description',
+                       'Every source that is off carries its one-line reason',
                        'In an epic, code facts go to Also found',
                        'An investigation — finding a cause, a research ticket — is a `task`',
                        '**Heads-up**',

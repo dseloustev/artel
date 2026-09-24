@@ -181,9 +181,9 @@ move to the decision log.
   `../kartoteka/docs/superpowers/specs/2026-09-15-artifact-frontmatter-design.md`).
 - **`issue-draft` operator smoke test** (from the 0.10.0 redesign, 2026-09-04). The templates
   were calibrated on 2026-09-24 against ten real adguard-wallet tickets pulled from kartoteka
-  (decision log, same date), but those runs were `--local` and non-interactive. The 0.20.0
-  evaluation ran retrieval live (kartoteka, tracker, Figma, code); the interactive question round
-  has still never run with a person. Also unverified: whether
+  (decision log, same date), but those runs were `--local` and non-interactive. The 0.20.0 evaluation ran kartoteka, Figma and code
+  retrieval live; tracker reads have never run live (no tracker MCP in the evaluation session),
+  and the interactive question round has still never run with a person. Also unverified: whether
   Jira renders the epic template's bracketed label hints (`As [user role]`) as text or as
   broken links.
 - **Worktrees: the live smoke test has not been run** (from the 2026-09-17 worktree design,
@@ -920,4 +920,9 @@ move to the decision log.
     work lands — history must not turn into requirements.
   - **The Related section is gone**: related tickets are cited inline the way the team writes
     them; leftovers go to the report's Also found.
-  - **`--local` leaves only the code source on** — it is the one source that is not the network.
+    - **`--local` leaves only the code source on** — it is the one source that is not the network.
+  - **Six facts, three of them code, and noise at 3.5 accepted.** The first evaluation round, at
+    eight facts, scored noise 3.5 against the 4.5 target and invented two Figma labels. The fix
+    pass — source labels win, facts that change how the issue reads rank before code, a report
+    heads-up for done or superseded work — removed the invented facts; the operator accepted
+    noise at 3.5 on 2026-09-24 rather than trade away context.

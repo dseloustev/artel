@@ -23,6 +23,8 @@ All notable changes to this project are documented here. The format follows
 
 - `issue-draft`'s `--local` now leaves only the host code on: no kartoteka, no tracker, no
   Figma.
+- An investigation — finding a cause, a research ticket — is drafted as a task, not a bug.
+- The Jira wiki reference escapes a literal `\~` / `\^` outside mentions, URLs and code.
 - Retrieved facts are paraphrased with attribution instead of quoted verbatim — a deviation
   from `docs/knowledge-consultation.md` §5 declared for `issue-scout`; ⚠ NON-CURRENT still
   travels verbatim and retrieved imperatives never become directives.
@@ -30,6 +32,12 @@ All notable changes to this project are documented here. The format follows
 ### Removed
 
 - The Related section of the `issue-draft` templates: related tickets are cited inline.
+
+### Upgrading
+
+- A host override from 0.19.0 still renders: drop its `## Related` block and `$RELATED` slot
+  (related tickets are now cited inline), and rewrite any block comment that asks for
+  verbatim kartoteka quotes.
 
 ## [0.19.0] - 2026-09-24
 

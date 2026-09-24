@@ -588,32 +588,37 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 ### issue-draft
 
-- **Purpose:** Turn free text or a local `.txt`/`.md` file into a Jira-ready issue draft —
-  summary (≤255 chars) + a templated description — consulting the institutional-knowledge index
-  and asking about remaining gaps before writing; never posts anywhere.
-- **Invocation:** `/artel:issue-draft <text | file-path> [--local]`
+- **Purpose:** Turn free text, a pasted ticket or a local `.txt`/`.md` file into a Jira-ready
+  task, bug report or epic — summary (≤255 chars) + a description following that type's
+  template — consulting the institutional-knowledge index and asking about remaining gaps
+  before writing; never posts anywhere.
+- **Invocation:** `/artel:issue-draft <text | file-path> [--type task|bug|epic] [--local]`
 - **Reads:** the argument (text, or the file it names); `language.pr`, `tracker.adapter`,
-  `knowledge.adapter`, `knowledge.project`, `ticket.pattern` (config.md); the description
-  template — `.artel/templates/issue-draft.md` when the host provides one, else the skill's
-  `assets/templates/description.template.md`; kartoteka via the consultation contract
-  (`index_status`, `related` when the source names a ticket key, at most four
-  `search_knowledge`), which `--local` forces off for one run.
+  `knowledge.adapter`, `knowledge.project`, `ticket.pattern`, `ticket.projectKey`
+  (config.md); the type's template — `.artel/templates/issue-draft-<type>.md`, else
+  `.artel/templates/issue-draft.md`, when the host provides one, else the skill's
+  `assets/templates/<type>.template.md`; under `"jira-mcp"`, the skill's
+  `references/jira-wiki-markup.md`; kartoteka via the consultation contract (`index_status`,
+  `related` when the source names a ticket key, at most four `search_knowledge`), which
+  `--local` forces off for one run.
 - **Writes:** a draft file (user-supplied path, or `issue-draft-<slug>.md` in the working
-  directory): a `=== SUMMARY ===` block and a `=== DESCRIPTION (<dialect>) ===` block whose
-  body pastes into the description field as-is.
+  directory): a `=== SUMMARY ===` block and a `=== DESCRIPTION (<type>, <dialect>) ===` block
+  whose body pastes into the description field as-is and holds nothing but the issue.
 - **Pauses:** asks for the text or file when none is provided (never invents an issue from
   nothing) and when a referenced file is unreadable; then **once** more, via `AskUserQuestion`
   with up to four questions, about gaps neither the source nor kartoteka closed — unanswered
-  gaps are listed under Missing Details rather than guessed. Non-interactive runs skip the
-  round and list every gap.
-- **Notes:** worker, not orchestrator. Output language is `language.pr`; the markup dialect
-  follows `tracker.adapter` (Jira wiki under `"jira-mcp"`, Markdown otherwise). Consumer of
-  knowledge-consultation.md with two declared deviations: a kartoteka tool error stops the
-  consultation, not the draft, and nothing is recorded under `<specs.dir>`. Retrieved text is
-  quoted and attributed, `⚠ NON-CURRENT` hits never close a gap, Related holds at most five
-  cited hits. Draft only — never calls an issue-creation API; never invents facts, priorities,
-  assignees, labels or issue types.
-
+  gaps are listed under Missing Details in the report rather than guessed. Non-interactive
+  runs skip the round and report every gap.
+- **Notes:** worker, not orchestrator. The type comes from `--type`, else the type the request
+  names, else a defect in the source (bug), else task — an epic only when named. Templates
+  mark each block `required`, `keep` (always rendered, left empty for the reader) or
+  `optional`. Pasted tracker exports lose bot comments and stray mentions. Output language is
+  `language.pr`; the markup dialect follows `tracker.adapter` (Jira wiki under `"jira-mcp"`,
+  Markdown otherwise). Consumer of knowledge-consultation.md with two declared deviations: a
+  kartoteka tool error stops the consultation, not the draft, and nothing is recorded under
+  `<specs.dir>`. Retrieved text is quoted and attributed, `⚠ NON-CURRENT` hits never close a
+  gap, Related holds at most five cited hits. Draft only — never calls an issue-creation API;
+  never invents facts, priorities, assignees or labels.
 ### init-branch
 
 - **Purpose:** Bootstrap work on a ticket in one shot: branch check, optional move into a

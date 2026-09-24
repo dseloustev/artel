@@ -6,6 +6,58 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`issue-draft` drafts tasks, bug reports and epics, each to its own template.** Three
+  templates (`skills/issue-draft/assets/templates/{task,bug,epic}.template.md`) follow the team
+  Jira formats: a task's description, technical details, Platform/URLs/Figma/Notion table, AC
+  and Additional; a bug's one-line problem above a rule, then environment, steps, expected and
+  actual result; an epic's user-story table and acceptance criteria. The type comes from the
+  new `--type task|bug|epic` flag, else the words of the request, else a defect as the
+  source's main subject, else task — an epic is never inferred. Host overrides go per type at
+  `.artel/templates/issue-draft-<type>.md`; the single `.artel/templates/issue-draft.md` still
+  applies to every type that has none.
+- **A `keep` block rule.** Besides `required` and `optional`, a template block can be `keep`:
+  always rendered, left empty for the reader when there is nothing to say — the team formats'
+  fixed headings and table rows.
+- **Jira wiki markup reference** (`skills/issue-draft/references/jira-wiki-markup.md`): bare
+  links (`<what it is>: <url>` in cells, several of one kind in one cell), `-` bullets, `#`
+  numbering, no blank line inside a list, `| |` empty cells, escaped braces, `----` rules,
+  attachment embeds kept verbatim, and an export's own formatting rewritten, never escaped.
+- The report carries the description block ready to copy, the Missing Details list and the
+  attachments to re-attach.
+
+### Changed
+
+- **Open questions leave the description.** What the question round did not resolve is listed
+  under Missing Details in the report; the drafted description holds only the issue.
+- **Pasted tracker exports are filtered**: bot and system comments are dropped, `[~user]`
+  mentions stay only on contact or reviewer lines, and unfilled template text or a bare `-` /
+  `n/a` counts as no data.
+- The skill text is English only; drafts stay in `language.pr`.
+- The description block header names the type: `=== DESCRIPTION (<type>, <dialect>) ===`.
+
+### Fixed
+
+- **`issue-draft` no longer takes pasted text for a path.** Only a single token with no
+  whitespace is a path candidate; any pasted URL used to trigger the "treat as text / stop"
+  question. A path question that cannot be answered resolves to stop.
+- **Bare numbers are no longer ticket keys.** In free text only `<projectKey>-<digits>` counts;
+  build numbers, Figma node ids and dates used to match `ticket.pattern`.
+- Expected behaviour is never inferred from a title or as the defect's opposite.
+
+### Removed
+
+- `skills/issue-draft/assets/templates/description.template.md`, the universal template, and
+  its `$MISSING` slot.
+
+### Upgrading
+
+- A host override written against the universal template still renders, with two changes:
+  move the comment of the trailing `$SOURCE` slot **above** the slot (every slot's rule is now
+  the comment before it), and drop the Missing Details section — open questions go to the
+  report. To override one type only, save the file as `.artel/templates/issue-draft-<type>.md`.
+
 ## [0.18.0] - 2026-09-24
 
 ### Added

@@ -196,5 +196,36 @@ class TestLegacyForm(GateCase):
         self.assertEqual(env['data']['stages'][0]['name'], 's0')
 
 
+class TestTestSurface(unittest.TestCase):
+    def test_default_surface_picks_common_test_layouts(self):
+        files = ['lib/a.dart', 'test/a_test.dart', 'tests/test_b.py', 'src/c.spec.ts',
+                 'src/d.test.tsx', 'packages/x/test/e_test.dart', 'docs/f.md']
+        self.assertEqual(verify.select_test_paths(files, {}),
+                         ['test/a_test.dart', 'tests/test_b.py', 'src/c.spec.ts',
+                          'src/d.test.tsx', 'packages/x/test/e_test.dart'])
+
+    def test_configured_surface_replaces_the_default(self):
+        cfg = {'verify': {'testSurface': ['spec/**']}}
+        self.assertEqual(verify.select_test_paths(['spec/a.rb', 'test/b_test.py'], cfg),
+                         ['spec/a.rb'])
+
+    def test_excludes_and_only_excludes(self):
+        self.assertTrue(verify.matches_surface('test/a_test.dart', ['test/**', '!**/*.g.dart']))
+        self.assertFalse(verify.matches_surface('test/a.g.dart', ['test/**', '!**/*.g.dart']))
+        self.assertTrue(verify.matches_surface('anything.py', ['!**/*.md']))
+        self.assertFalse(verify.matches_surface('docs/x.md', ['!**/*.md']))
+        # fnmatch semantics, shared with verify.surface: '**/' needs a directory component.
+        self.assertTrue(verify.matches_surface('x.md', ['!**/*.md']))
+
+    def test_empty_or_invalid_surface_means_default(self):
+        for bad in ([], 'test/**', None, 7):
+            cfg = {'verify': {'testSurface': bad}}
+            self.assertEqual(verify.select_test_paths(['test/a_test.dart', 'lib/b.dart'], cfg),
+                             ['test/a_test.dart'])
+
+    def test_no_test_paths_returns_empty_list(self):
+        self.assertEqual(verify.select_test_paths(['lib/a.dart'], {}), [])
+
+
 if __name__ == '__main__':
     unittest.main()

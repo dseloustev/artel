@@ -8,6 +8,7 @@ Exit codes: 0 clean or skipped (no commands configured), 1 findings, 2 environme
 An exit-2 always means a toolchain/invocation problem, never "the code has a bug".
 Contract: docs/superpowers/specs/2026-08-07-phase5-hooks-gates-design.md
 """
+import fnmatch
 import json
 import re
 import shlex
@@ -23,6 +24,8 @@ MAX_KEYS_PER_STAGE = 200
 ENV_ERROR_EXIT_CODES = (126, 127)  # not executable / command not found
 ANSI_RE = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
 GATES = ('task', 'checkpoint')
+DEFAULT_TEST_SURFACE = ['test/**', 'tests/**', '**/*_test.*', '**/test_*.*',
+                        '**/*.test.*', '**/*.spec.*']
 
 
 def load_config():
@@ -37,6 +40,30 @@ def substitute_files(command, files):
     if '{files}' not in command:
         return command
     return command.replace('{files}', ' '.join(shlex.quote(f) for f in files))
+
+
+def matches_surface(path, patterns):
+    """Same semantics as verify.surface (hooks/hook_common.py is_verifiable): fnmatch globs
+    where '*' crosses '/', a '!' prefix excludes, a list with only excludes implies '*' as
+    the positive set, and an empty or non-list value matches everything."""
+    if not patterns or not isinstance(patterns, list):
+        return True
+    positives = [p for p in patterns if isinstance(p, str) and p and not p.startswith('!')]
+    negatives = [p[1:] for p in patterns if isinstance(p, str) and p.startswith('!')]
+    if any(fnmatch.fnmatch(path, n) for n in negatives):
+        return False
+    if not positives:
+        return True
+    return any(fnmatch.fnmatch(path, p) for p in positives)
+
+
+def select_test_paths(files, config):
+    """The test files among `files`, per verify.testSurface (DEFAULT_TEST_SURFACE when the key
+    is absent, empty or not a list). Document order is kept."""
+    surface = (config.get('verify') or {}).get('testSurface')
+    if not isinstance(surface, list) or not surface:
+        surface = DEFAULT_TEST_SURFACE
+    return [f for f in files if matches_surface(f, surface)]
 
 
 def normalize_keys(output, stage_index):

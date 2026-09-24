@@ -50,7 +50,8 @@ second:
 Exit `0` → follow `docs/task-queue.md` §2 steps 2–4: `task_create` each iteration
 row, then each of its children with `parent_id` set to the iteration's
 `task_id`, in the order emitted; then each `data.sections` entry the same way —
-at generation time that is the `## Final Verification` section. Surface every
+usually none at generation time, since no writer emits `## Final Verification` any
+more; a tasklist written before 0.18.0 still mirrors its section. Surface every
 `data.warnings` line.
 
 Exit `2` → print `error.kind` and `error.message`, mirror nothing, and continue.

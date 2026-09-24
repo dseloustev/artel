@@ -228,6 +228,9 @@ first `- [ ]` under the section its dispatch names — and never calls
     start     task_update(task_id, status="in_progress")
     work      implement; flip the checkbox in the tasklist in scope, exactly as before
     report    task_update(task_id, status="done") — no promotion: nothing waits on a fix row
+    close     task_list(project=<project>, ticket_key=<TICKET_KEY>)
+                → no other child of the same parent left backlog / ready / in_progress / blocked?
+                  yes → task_update(parent_id, status="done") — a section closes with its last child
     abort     red gate, any DEVIATION halt, or Abort task ->
                 task_update(task_id, status="blocked")
 
@@ -305,7 +308,7 @@ per checkbox, and `task_ready` never hands one out.
 | `## Code Review Fixes` | `CRF: Code Review Fixes` | `CRF · <source> · <checkbox text>` | file scan, on either path |
 | `## Runtime Fixes` | `RTF: Runtime Fixes` | `RTF · <source> · <checkbox text>` | file scan, on either path |
 | `## Verify Fixes` | `VF: Verify Fixes` | `VF · <source> · <checkbox text>` | file scan, on either path |
-| `## Final Verification` | `FV: Final Verification` | `FV · <source> · <checkbox text>` | file scan, on either path |
+| `## Final Verification` | `FV: Final Verification` | `FV · <source> · <checkbox text>` | file scan, on either path — a section only tasklists written before 0.18.0 carry; no writer emits it now (`docs/gates.md` §1) |
 
 **Why record them.** They are where the longest-running part of a review cycle
 happens. On a host run on 2026-09-18 a deep review appended 21 tasks under
@@ -324,9 +327,17 @@ boundary §3's wrong-phase check exists to hold. So the parser emits them
 iterations — and §3's fix-section protocol moves them by `task_update` alone. The
 file stays their source of truth on every path.
 
-**Section rows are labels.** A section's parent stays `backlog`: nothing claims,
-promotes or completes it, because the next round that appends to its section
-reopens it.
+**Section rows close with their last child.** A fix-section parent (`CRF:`, `RTF:`,
+`VF:`, `FV:`) is `backlog` while any child is open, `done` when its last child is
+`done`, and `backlog` again the moment a writer appends to its section. The
+implementer that marks the last child `done` marks the parent `done` in the same
+exit (§3, `close`); `/artel:tasks done` does the same; every writer in the table
+below (`run-reviewer`, `deep-review`, the runtime gate, the checkpoint,
+`/artel:tasks add --fix`) sets an existing parent back to `backlog` when its
+re-mirror creates a new child under it — `task_create` is idempotent and returns
+the stored parent row with its status, so `task_update(parent, status="backlog")`
+follows whenever that status is `done`. Before 0.18.0 parents were permanent
+labels, which is why a finished ticket never read fully done in kartoteka's rollup.
 
 **The source heading.** Each writer opens its batch with a `### <source>` heading
 inside the section and puts its checkboxes under it. That heading is the title's

@@ -108,9 +108,12 @@ whitespace runs collapsed to one space, so a longer checkbox matches on its star
 `task_update(task_id, status="done")` when you flip the checkbox, and
 `task_update(task_id, status="blocked")` on every exit **Rules** lists for a held
 task — a red gate, any `DEVIATION` halt, a `HITL:` return, an aborted task — and
-never `ready`. No row by that title — an older ticket, a mirror that failed — is
-not an error: work on from the file and put `row not found; file only` in the
-report. Nothing is claimed, so there is no promotion to run.
+never `ready`. When your `done` was the section's last open child — `task_list` shows
+no sibling under the same parent left `backlog`, `ready`, `in_progress` or `blocked` —
+close the parent too: `task_update(parent_id, status="done")` (§3, `close`: a section
+closes with its last child). No row by that title — an older ticket, a mirror that
+failed — is not an error: work on from the file and put `row not found; file only` in
+the report. Nothing is claimed, so there is no iteration promotion to run.
 
 **Fallback path.** Find the first incomplete `- [ ]` task within scope (phase or
 ticket), exactly as before the queue existed. A dispatch carrying **Task queue:**
@@ -167,7 +170,7 @@ both paths — it is what the fallback reads.
 On the queue path, then `task_update(task_id, status="done")` and run the
 promotion step in `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3: `task_list` the
 ticket scoped to `<project>`, and if no `I<N> · ` sibling is left undone, mark the `I<N>: …` parent
-`done` and promote every `I<N+1> · ` child from `backlog` to `ready`. A fix-section row gets `done` and nothing else — no sibling scan, no promotion.
+`done` and promote every `I<N+1> · ` child from `backlog` to `ready`. A fix-section row gets `done`, and its parent gets `done` when it was the section's last open child (task-queue.md §3, `close`) — no iteration promotion.
 
 A red gate is never "done" — if the loop stopped-and-asked (verify budget
 exhausted, no-progress, exit-2 environment error, or out-of-scope baseline

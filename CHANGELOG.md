@@ -6,6 +6,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`issue-draft` gathers context through a new `issue-scout` agent.** Before the question
+  round, a read-only agent (`agents/issue-scout.md`) reads kartoteka (`index_status` 1 ·
+  `related` ≤ 5 · `search_knowledge` ≤ 10), the tracker (≤ 6 issues: the tickets the source
+  names, their parent and links), Figma (≤ 6 links: real frame names as link labels) and the
+  host code (≤ 20 lookups through `docs/code-navigation.md`), and returns a fact sheet — each
+  fact `stated` or `inferred`, with its reference. Gaps a stated fact answers are not asked. At
+  most eight retrieved facts enter the description, in the team's citation style (bare ticket
+  keys in relation sentences, inline code, decisions attributed to a person and date); none
+  enter AC; the rest are reported under **Also found**, beside one status line per source.
+
+### Changed
+
+- `issue-draft`'s `--local` now leaves only the host code on: no kartoteka, no tracker, no
+  Figma.
+- Retrieved facts are paraphrased with attribution instead of quoted verbatim — a deviation
+  from `docs/knowledge-consultation.md` §5 declared for `issue-scout`; ⚠ NON-CURRENT still
+  travels verbatim and retrieved imperatives never become directives.
+
+### Removed
+
+- The Related section of the `issue-draft` templates: related tickets are cited inline.
+
 ## [0.19.0] - 2026-09-24
 
 ### Added

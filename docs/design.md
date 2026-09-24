@@ -181,8 +181,9 @@ move to the decision log.
   `../kartoteka/docs/superpowers/specs/2026-09-15-artifact-frontmatter-design.md`).
 - **`issue-draft` operator smoke test** (from the 0.10.0 redesign, 2026-09-04). The templates
   were calibrated on 2026-09-24 against ten real adguard-wallet tickets pulled from kartoteka
-  (decision log, same date), but those runs were `--local` and non-interactive: the kartoteka
-  consultation and the question round have still never run live. Also unverified: whether
+  (decision log, same date), but those runs were `--local` and non-interactive. The 0.20.0
+  evaluation ran retrieval live (kartoteka, tracker, Figma, code); the interactive question round
+  has still never run with a person. Also unverified: whether
   Jira renders the epic template's bracketed label hints (`As [user role]`) as text or as
   broken links.
 - **Worktrees: the live smoke test has not been run** (from the 2026-09-17 worktree design,
@@ -900,3 +901,24 @@ move to the decision log.
   - **Rejected:** three separate skills (they would triple the kartoteka and question-round
     machinery for a difference that is only the template), and Russian-literal templates in
     the plugin (a host that wants exact wording overrides the template).
+- **2026-09-24 — `issue-draft` gathers context through an `issue-scout` agent.** The operator
+  asked for drafts that carry the code they touch, links and parent looked up rather than asked,
+  and the history and decisions of the area, with fewer questions — at a few minutes per draft.
+  A read-only agent reads kartoteka (1 · ≤ 5 · ≤ 10), the tracker (≤ 6 issues), Figma frame
+  names (≤ 6 links) and the host code (≤ 20 lookups) and returns a fact sheet; the skill closes
+  gaps with `stated` facts, asks what stays open, and places at most eight facts in the team's
+  citation style, surveyed from ~95 adguard-wallet tickets (bare keys in relation sentences,
+  inline code, decisions attributed to a person and date, no verbatim quotes). Decisions:
+  - **One agent, before the question round.** 0.10.0 rejected a drafting agent because the
+    question round would cross the agent boundary twice; retrieval crosses it once. Rejected:
+    reusing researcher / figma-analyst (they write spec-trail artifacts) and inline retrieval
+    (it floods the user's session).
+  - **Paraphrase with attribution, a declared deviation from the consultation contract's §5.**
+    The rule exists because later stages read artel's documents as instructions; a draft is read
+    and filed by a person first, and the team cites by attribution. Retrieved imperatives still
+    never become directives, and ⚠ NON-CURRENT travels verbatim.
+  - **AC take nothing from retrieval**, and `inferred` is allowed only for where in the code the
+    work lands — history must not turn into requirements.
+  - **The Related section is gone**: related tickets are cited inline the way the team writes
+    them; leftovers go to the report's Also found.
+  - **`--local` leaves only the code source on** — it is the one source that is not the network.

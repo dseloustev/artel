@@ -598,9 +598,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   (config.md); the type's template — `.artel/templates/issue-draft-<type>.md`, else
   `.artel/templates/issue-draft.md`, when the host provides one, else the skill's
   `assets/templates/<type>.template.md`; under `"jira-mcp"`, the skill's
-  `references/jira-wiki-markup.md`; kartoteka via the consultation contract (`index_status`,
-  `related` when the source names a ticket key, at most four `search_knowledge`), which
-  `--local` forces off for one run.
+  `references/jira-wiki-markup.md`; context through the `issue-scout` agent: kartoteka (consultation contract, budget 1 · ≤ 5 ·
+  ≤ 10), the tracker (≤ 6 issues), Figma frame names (≤ 6 links) and the host code (≤ 20
+  lookups); `--local` leaves only the code on.
 - **Writes:** a draft file (user-supplied path, or `issue-draft-<slug>.md` in the working
   directory): a `=== SUMMARY ===` block and a `=== DESCRIPTION (<type>, <dialect>) ===` block
   whose body pastes into the description field as-is and holds nothing but the issue.
@@ -614,10 +614,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   mark each block `required`, `keep` (always rendered, left empty for the reader) or
   `optional`. Pasted tracker exports lose bot comments and stray mentions. Output language is
   `language.pr`; the markup dialect follows `tracker.adapter` (Jira wiki under `"jira-mcp"`,
-  Markdown otherwise). Consumer of knowledge-consultation.md with two declared deviations: a
-  kartoteka tool error stops the consultation, not the draft, and nothing is recorded under
-  `<specs.dir>`. Retrieved text is quoted and attributed, `⚠ NON-CURRENT` hits never close a
-  gap, Related holds at most five cited hits. Draft only — never calls an issue-creation API;
+  Markdown otherwise). Retrieval is delegated to `issue-scout`, which consumes knowledge-consultation.md with three
+  declared deviations (an error ends that source, not the draft; nothing recorded under
+  `<specs.dir>`; attributed paraphrase instead of verbatim quotes). At most 8 retrieved facts
+  enter the description, in the team's citation style; none in AC; the rest are reported under
+  Also found. `⚠ NON-CURRENT` facts never close a gap. Draft only — never calls an issue-creation API;
   never invents facts, priorities, assignees or labels.
 ### init-branch
 

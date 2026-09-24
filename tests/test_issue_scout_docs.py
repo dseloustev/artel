@@ -93,5 +93,33 @@ class TestCrew(unittest.TestCase):
         self.assertIn('issue-scout', read('README.md'))
 
 
+class TestDocs(unittest.TestCase):
+
+    def test_consultation_contract_names_the_scout_and_its_deviation(self):
+        text = unwrapped('docs/knowledge-consultation.md')
+        self.assertIn('agents/issue-scout.md', text)
+        self.assertIn('skills/issue-draft/SKILL.md', text)
+        self.assertIn('`index_status` 1 · `related` ≤ 5 · `search_knowledge` ≤ 10', text)
+        self.assertIn('One declared deviation: `issue-scout`.', text)
+
+    def test_config_consumed_by_cells_name_the_scout(self):
+        rows = {key: next(ln for ln in read('docs/config.md').splitlines()
+                          if ln.startswith(f'| `{key}`'))
+                for key in ('tracker.adapter', 'tracker.mcpToolPrefix', 'design.figma',
+                            'knowledge.adapter', 'knowledge.project')}
+        for key, row in rows.items():
+            with self.subTest(key):
+                self.assertIn('issue-scout', row)
+
+    def test_reference_entry_names_the_scout(self):
+        entry = read('docs/skills-reference.md').split('### issue-draft')[1].split('\n### ')[0]
+        self.assertIn('issue-scout', entry)
+        self.assertNotIn('Related holds', entry)
+
+    def test_changelog_announces_it(self):
+        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+        self.assertIn('issue-scout', unreleased)
+
+
 if __name__ == '__main__':
     unittest.main()

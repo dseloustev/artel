@@ -176,8 +176,8 @@ second capture group; `phaseSuffix` only switches the feature on and off.
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `tracker.adapter` | string | `"none"` | `"none"` \| `"github-issues"` \| `"jira-mcp"` | Ticket fetch at pipeline start, status comments, PR↔ticket linking, `issue-draft`'s markup-dialect selection |
-| `tracker.mcpToolPrefix` | string | `""` | Required when `adapter` is `"jira-mcp"`. Full MCP tool prefix including trailing separator, e.g. `"mcp__tracker__"`. | The `jira-mcp` adapter's tool addressing |
+| `tracker.adapter` | string | `"none"` | `"none"` \| `"github-issues"` \| `"jira-mcp"` | Ticket fetch at pipeline start, status comments, PR↔ticket linking, `issue-draft`'s markup-dialect selection and its live ticket reads (`issue-scout`) |
+| `tracker.mcpToolPrefix` | string | `""` | Required when `adapter` is `"jira-mcp"`. Full MCP tool prefix including trailing separator, e.g. `"mcp__tracker__"`. | The `jira-mcp` adapter's tool addressing, `issue-scout`'s `jira_get_issue` included |
 
 - **`none`** — artel never talks to a tracker. The ticket description is a local file the operator
   writes (or the `generate-idea` skill produces) at `<specs.dir>/<TICKET_ID>/idea.md`. Steps that
@@ -321,7 +321,7 @@ conventions.
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `design.figma` | boolean | `false` | `true` \| `false` | The Figma analysis stage and its agent |
+| `design.figma` | boolean | `false` | `true` \| `false` | The Figma analysis stage and its agent; `issue-scout`'s frame-name reads for a drafted issue |
 
 `true` enables the design-analysis stage. Even then it is runtime-optional: with no Figma MCP
 connected the stage skips silently and the pipeline continues.
@@ -346,9 +346,9 @@ evidence text ([spec-storage.md](spec-storage.md)).
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook; the read half below (`analyst`, `researcher`, `deep-review`, `issue-draft`); the task queue |
+| `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook; the read half below (`analyst`, `researcher`, `deep-review`, `issue-draft` through `issue-scout`); the task queue |
 | `knowledge.baseUrl` | string | `""` | Required when `adapter` is `"kartoteka"`. Origin only, no trailing path — e.g. `http://127.0.0.1:8734`, or a hosted daemon's `https://` origin. | The `knowledge_mirror` hook's request addressing; `scripts/spec_store.py` |
-| `knowledge.project` | string | `""` | Required when `adapter` is `"kartoteka"`. The kartoteka project this repository's trail, queue and consultations belong to: lowercase kebab-case, `^[a-z0-9][a-z0-9-]*$`, e.g. `adguard-wallet`. Must be registered in the daemon's database — `kartoteka project add <name>`, once, on the daemon machine. No default; see below. | Every kartoteka call: the `knowledge_mirror` hook's request body, `related`, the scoped reads, `task_create` / `task_ready`; the `issue-draft` consultation |
+| `knowledge.project` | string | `""` | Required when `adapter` is `"kartoteka"`. The kartoteka project this repository's trail, queue and consultations belong to: lowercase kebab-case, `^[a-z0-9][a-z0-9-]*$`, e.g. `adguard-wallet`. Must be registered in the daemon's database — `kartoteka project add <name>`, once, on the daemon machine. No default; see below. | Every kartoteka call: the `knowledge_mirror` hook's request body, `related`, the scoped reads, `task_create` / `task_ready`; the `issue-draft` consultation (`issue-scout`) |
 | `knowledge.tokenEnv` | string | `""` | Optional. The **name** of the environment variable holding a kartoteka bearer token — never the token itself; `[A-Za-z_][A-Za-z0-9_]*`, conventionally `KARTOTEKA_TOKEN`. Needed when the daemon has `[auth] enabled = true` (kartoteka 0.32.0; every hosted daemon). Empty, or naming a variable that is unset, sends the request unauthenticated. See below. | The `knowledge_mirror` hook's `Authorization` header; the `using-artel` host status (set or not, never the value); `scripts/spec_store.py` — which needs a CLI-minted token even where the MCP session signs in with GitHub (kartoteka 0.42.0) |
 
 - **`none`** — nothing is mirrored. The spec trail stays on disk, exactly as it always has.
@@ -423,7 +423,7 @@ those go over MCP, whose token is wired where the server is (`docs/opencode.md` 
 
 `knowledge.adapter` gates three things, not one. Beyond the mirror above, it declares that this
 project's agents may **consult** kartoteka before working: the `analyst` before its interview,
-the `researcher` during its scan, and `issue-draft` from the conversation before it drafts — the
+the `researcher` during its scan, and `issue-draft` before it drafts, through the `issue-scout` agent — the
 full contract is `docs/knowledge-consultation.md` — and `deep-review`'s forecast of how a branch
 will fare in review, which has its own contract and its own, larger lookup budget:
 `docs/review-forecast.md`. The third is the task queue — `#### The task queue` below.

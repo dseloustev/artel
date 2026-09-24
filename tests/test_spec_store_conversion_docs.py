@@ -10,7 +10,10 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-AGENTS = sorted(p.stem for p in (ROOT / 'agents').glob('*.md'))
+# Agents outside the spec trail read no spec document and write none, so store mode
+# never reaches them. Guarded for the absence, not the presence.
+OUTSIDE_TRAIL = ('issue-scout',)
+AGENTS = sorted(p.stem for p in (ROOT / 'agents').glob('*.md') if p.stem not in OUTSIDE_TRAIL)
 DISPATCHERS = ('analysis', 'researcher', 'planner', 'tasklist', 'generate-tasklist',
                'generate-vision', 'implementer', 'run-reviewer', 'qa', 'validate',
                'docs-update', 'pr-description', 'figma-analysis', 'deep-review')
@@ -30,6 +33,11 @@ def skill(name):
 
 
 class TestAgents(unittest.TestCase):
+    def test_agents_outside_the_trail_carry_no_spec_store_section(self):
+        for name in OUTSIDE_TRAIL:
+            with self.subTest(name):
+                self.assertNotIn('\n## Spec store\n', read('agents/{}.md'.format(name)))
+
     def test_every_agent_has_the_spec_store_section(self):
         for name in AGENTS:
             with self.subTest(name):

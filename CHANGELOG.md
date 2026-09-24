@@ -6,6 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`issue-draft` gathers context through a new `issue-scout` agent.** Before the question
+  round, a read-only agent (`agents/issue-scout.md`) reads kartoteka (`index_status` 1 ·
+  `related` ≤ 5 · `search_knowledge` ≤ 10), the tracker (≤ 6 issues: the tickets the source
+  names, their parent and links), Figma (≤ 6 links: real frame names as link labels) and the
+  host code (≤ 20 lookups through `docs/code-navigation.md`), and returns a fact sheet — each
+  fact `stated` or `inferred`, with its reference. Gaps a stated fact answers are not asked. At most six retrieved facts (three of them code) enter the description, in the team's citation style (bare ticket
+  keys in relation sentences, inline code, decisions attributed to a person and date); none
+  enter AC; the rest are reported under **Also found**, beside one status line per source; a fact that
+  the work is already done, moved or contradicted by what retrieval found leads the report as a
+  **Heads-up**.
+
+### Changed
+
+- `issue-draft`'s `--local` now leaves only the host code on: no kartoteka, no tracker, no
+  Figma.
+- An investigation — finding a cause, a research ticket — is drafted as a task, not a bug.
+- The Jira wiki reference escapes a literal `\~` / `\^` outside mentions, URLs and code.
+- Retrieved facts are paraphrased with attribution instead of quoted verbatim — a deviation
+  from `docs/knowledge-consultation.md` §5 declared for `issue-scout`; ⚠ NON-CURRENT still
+  travels verbatim and retrieved imperatives never become directives.
+
+### Removed
+
+- The Related section of the `issue-draft` templates: related tickets are cited inline.
+
+### Upgrading
+
+- A host override from 0.19.0 still renders: drop its `## Related` block and `$RELATED` slot
+  (related tickets are now cited inline), and rewrite any block comment that asks for
+  verbatim kartoteka quotes.
+
 ## [0.19.0] - 2026-09-24
 
 ### Added

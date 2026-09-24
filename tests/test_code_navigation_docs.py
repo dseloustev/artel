@@ -39,6 +39,7 @@ CITING_AGENTS = (
     'agents/reviewer.md',
     'agents/tech-writer.md',
     'agents/vision-writer.md',
+    'agents/issue-scout.md',
 )
 CITING_SKILLS = (
     'skills/agents-md-generator/SKILL.md',

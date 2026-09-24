@@ -33,14 +33,9 @@ $ACCEPTANCE
 
 ## Additional:
 <!-- keep. Bullets: API endpoints and other links as "<what it is>: <url>", testing
-     instructions, scope examples, definition of done, other notes from the source. -->
+     instructions, scope examples, definition of done, other notes from the source; retrieved
+     decisions and relations (the skill's §6). -->
 $ADDITIONAL
-
-## Related:
-<!-- optional. One bullet per kartoteka hit that bears on the epic: identifier, title,
-     source, date, status. Copy the ⚠ NON-CURRENT marker exactly. Never a bullet without an
-     identifier. -->
-$RELATED
 
 <!-- optional. "Source: <repo-relative path>" only when the input was a file. -->
 $SOURCE

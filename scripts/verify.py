@@ -225,7 +225,39 @@ def run_legacy(config, inv):
 
 
 def run_task_gate(config, inv):
-    return 2, {'error': {'kind': 'invalid_argument', 'message': 'task gate not implemented yet'}}
+    """The task gate (docs/gates.md §1): verify.fast on the changed paths, then verify.test on
+    the test files among them. A missing command or an empty test scope records that half
+    `skipped`; a red half stops the gate; exit 2 is an environment error."""
+    verify_cfg = config.get('verify') or {}
+    files = inv['files'] or []
+
+    def command(key):
+        value = verify_cfg.get(key) or ''
+        return value.strip() if isinstance(value, str) else ''
+
+    plan = [
+        ('fast', command('fast'), files, 'no fast command'),
+        ('test', command('test'), select_test_paths(files, config), 'no test command'),
+    ]
+    stages = []
+    for index, (name, cmd, scope, why) in enumerate(plan):
+        if not cmd:
+            stages.append({'name': name, 'skipped': True, 'reason': why})
+            continue
+        if name == 'test' and not scope:
+            stages.append({'name': name, 'skipped': True, 'reason': 'no test path in scope'})
+            continue
+        stage, error_kind = run_stage(cmd, scope, inv['timeout'], index, name)
+        if name == 'test':
+            stage['scoped'] = '{files}' in cmd
+            stage['files'] = list(scope)
+        stages.append(stage)
+        if error_kind is not None:
+            return 2, stage_error(stage, error_kind, stages)
+        if not stage['ok']:
+            return 1, {'data': {'skipped': False, 'stages': stages}}
+    all_skipped = all(s.get('skipped') for s in stages)
+    return 0, {'data': {'skipped': all_skipped, 'stages': stages}}
 
 
 def run_checkpoint_gate(config, inv):

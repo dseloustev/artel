@@ -227,5 +227,66 @@ class TestTestSurface(unittest.TestCase):
         self.assertEqual(verify.select_test_paths(['lib/a.dart'], {}), [])
 
 
+class TestTaskGate(GateCase):
+    def test_fast_green_and_no_test_paths(self):
+        self.write_config({'fast': GREEN, 'test': GREEN})
+        code, env = self.run_main(['task', '--files', 'lib/a.dart'])
+        self.assertEqual(code, 0)
+        stages = env['data']['stages']
+        self.assertEqual([s['name'] for s in stages], ['fast', 'test'])
+        self.assertTrue(stages[0]['ok'])
+        self.assertIn('lib/a.dart', stages[0]['command'])
+        self.assertEqual(stages[1], {'name': 'test', 'skipped': True,
+                                     'reason': 'no test path in scope'})
+        self.assertFalse(env['data']['skipped'])
+
+    def test_test_stage_runs_only_on_test_paths(self):
+        self.write_config({'fast': GREEN, 'test': GREEN})
+        code, env = self.run_main(['task', '--files', 'lib/a.dart,test/a_test.dart'])
+        self.assertEqual(code, 0)
+        test_stage = env['data']['stages'][1]
+        self.assertTrue(test_stage['ok'])
+        self.assertTrue(test_stage['scoped'])
+        self.assertEqual(test_stage['files'], ['test/a_test.dart'])
+        self.assertIn('test/a_test.dart', test_stage['command'])
+        self.assertNotIn('lib/a.dart', test_stage['command'])
+
+    def test_red_test_stage_exits_1(self):
+        self.write_config({'fast': GREEN, 'test': RED_OTHER})
+        code, env = self.run_main(['task', '--files', 'test/a_test.py'])
+        self.assertEqual(code, 1)
+        self.assertEqual(env['data']['stages'][1]['keys'], ['s1:test/a_test.py: FAILED'])
+
+    def test_red_fast_stage_stops_before_test(self):
+        self.write_config({'fast': RED, 'test': GREEN})
+        code, env = self.run_main(['task', '--files', 'lib/a.py,test/a_test.py'])
+        self.assertEqual(code, 1)
+        self.assertEqual(len(env['data']['stages']), 1)
+        self.assertEqual(env['data']['stages'][0]['name'], 'fast')
+
+    def test_both_halves_empty_is_skipped(self):
+        self.write_config({})
+        code, env = self.run_main(['task', '--files', 'lib/a.py'])
+        self.assertEqual(code, 0)
+        self.assertTrue(env['data']['skipped'])
+        self.assertEqual([s['reason'] for s in env['data']['stages']],
+                         ['no fast command', 'no test command'])
+
+    def test_unscoped_test_command_runs_and_says_so(self):
+        self.write_config({'fast': '', 'test': "sh -c 'echo whole suite; exit 0'"})
+        code, env = self.run_main(['task', '--files', 'test/a_test.py'])
+        self.assertEqual(code, 0)
+        test_stage = env['data']['stages'][1]
+        self.assertFalse(test_stage['scoped'])
+        self.assertEqual(test_stage['command'], "sh -c 'echo whole suite; exit 0'")
+
+    def test_environment_error_in_test_stage(self):
+        self.write_config({'fast': GREEN, 'test': MISSING})
+        code, env = self.run_main(['task', '--files', 'test/a_test.py'])
+        self.assertEqual(code, 2)
+        self.assertEqual(env['error']['kind'], 'command_not_found')
+        self.assertIn('stage test', env['error']['message'])
+
+
 if __name__ == '__main__':
     unittest.main()

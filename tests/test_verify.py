@@ -2,13 +2,16 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
 import verify  # noqa: E402
+import hook_common as h  # noqa: E402
 
 
 class TestNormalizeKeys(unittest.TestCase):
@@ -146,6 +149,24 @@ class GateCase(unittest.TestCase):
         self.assertEqual(len(lines), 1, 'exactly one envelope line')
         return code, json.loads(lines[0])
 
+    def touch(self, *paths):
+        for rel in paths:
+            path = Path(rel)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('', encoding='utf-8')
+
+    def many_findings_script(self, extra_line=None):
+        """A command printing 240 distinct, digit-free finding lines (past the envelope's
+        key cap), optionally one more, then exiting 1."""
+        lines = ["import sys",
+                 "for i in range(240):",
+                 "    print('lib/' + chr(97 + i // 26) + chr(97 + i % 26) + '.py: error')"]
+        if extra_line:
+            lines.append('print({!r})'.format(extra_line))
+        lines.append('sys.exit(1)')
+        Path('many.py').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+        return 'python3 many.py'
+
 
 GREEN = "sh -c 'echo ok {files}; exit 0'"
 RED = "sh -c 'echo lib/a.py:3:1 error boom; exit 1'"
@@ -199,10 +220,17 @@ class TestLegacyForm(GateCase):
 class TestTestSurface(unittest.TestCase):
     def test_default_surface_picks_common_test_layouts(self):
         files = ['lib/a.dart', 'test/a_test.dart', 'tests/test_b.py', 'src/c.spec.ts',
-                 'src/d.test.tsx', 'packages/x/test/e_test.dart', 'docs/f.md']
+                 'src/d.test.tsx', 'packages/x/test/e_test.dart', 'docs/f.md',
+                 'test_cli.py', 'index.test.js', 'app.spec.ts', 'main_test.go']
         self.assertEqual(verify.select_test_paths(files, {}),
                          ['test/a_test.dart', 'tests/test_b.py', 'src/c.spec.ts',
-                          'src/d.test.tsx', 'packages/x/test/e_test.dart'])
+                          'src/d.test.tsx', 'packages/x/test/e_test.dart',
+                          'test_cli.py', 'index.test.js', 'app.spec.ts', 'main_test.go'])
+
+    def test_default_surface_leaves_helpers_fixtures_and_goldens_alone(self):
+        files = ['test/helpers/pump_app.dart', 'tests/conftest.py', 'tests/__init__.py',
+                 'test/goldens/home.png', 'test/fixtures/wallet.json', 'lib/test_data.dart']
+        self.assertEqual(verify.select_test_paths(files, {}), ['lib/test_data.dart'])
 
     def test_configured_surface_replaces_the_default(self):
         cfg = {'verify': {'testSurface': ['spec/**']}}
@@ -230,6 +258,7 @@ class TestTestSurface(unittest.TestCase):
 class TestTaskGate(GateCase):
     def test_fast_green_and_no_test_paths(self):
         self.write_config({'fast': GREEN, 'test': GREEN})
+        self.touch('lib/a.dart')
         code, env = self.run_main(['task', '--files', 'lib/a.dart'])
         self.assertEqual(code, 0)
         stages = env['data']['stages']
@@ -242,6 +271,7 @@ class TestTaskGate(GateCase):
 
     def test_test_stage_runs_only_on_test_paths(self):
         self.write_config({'fast': GREEN, 'test': GREEN})
+        self.touch('lib/a.dart', 'test/a_test.dart')
         code, env = self.run_main(['task', '--files', 'lib/a.dart,test/a_test.dart'])
         self.assertEqual(code, 0)
         test_stage = env['data']['stages'][1]
@@ -253,12 +283,14 @@ class TestTaskGate(GateCase):
 
     def test_red_test_stage_exits_1(self):
         self.write_config({'fast': GREEN, 'test': RED_OTHER})
+        self.touch('test/a_test.py')
         code, env = self.run_main(['task', '--files', 'test/a_test.py'])
         self.assertEqual(code, 1)
         self.assertEqual(env['data']['stages'][1]['keys'], ['s1:test/a_test.py: FAILED'])
 
     def test_red_fast_stage_stops_before_test(self):
         self.write_config({'fast': RED, 'test': GREEN})
+        self.touch('lib/a.py', 'test/a_test.py')
         code, env = self.run_main(['task', '--files', 'lib/a.py,test/a_test.py'])
         self.assertEqual(code, 1)
         self.assertEqual(len(env['data']['stages']), 1)
@@ -266,6 +298,7 @@ class TestTaskGate(GateCase):
 
     def test_both_halves_empty_is_skipped(self):
         self.write_config({})
+        self.touch('lib/a.py')
         code, env = self.run_main(['task', '--files', 'lib/a.py'])
         self.assertEqual(code, 0)
         self.assertTrue(env['data']['skipped'])
@@ -274,6 +307,7 @@ class TestTaskGate(GateCase):
 
     def test_unscoped_test_command_runs_and_says_so(self):
         self.write_config({'fast': '', 'test': "sh -c 'echo whole suite; exit 0'"})
+        self.touch('test/a_test.py')
         code, env = self.run_main(['task', '--files', 'test/a_test.py'])
         self.assertEqual(code, 0)
         test_stage = env['data']['stages'][1]
@@ -282,10 +316,28 @@ class TestTaskGate(GateCase):
 
     def test_environment_error_in_test_stage(self):
         self.write_config({'fast': GREEN, 'test': MISSING})
+        self.touch('test/a_test.py')
         code, env = self.run_main(['task', '--files', 'test/a_test.py'])
         self.assertEqual(code, 2)
         self.assertEqual(env['error']['kind'], 'command_not_found')
         self.assertIn('stage test', env['error']['message'])
+
+    def test_missing_paths_are_dropped_and_reported(self):
+        self.write_config({'fast': GREEN, 'test': GREEN})
+        self.touch('lib/a.dart')
+        code, env = self.run_main(['task', '--files', 'lib/a.dart,test/removed_test.dart'])
+        self.assertEqual(code, 0)
+        self.assertEqual(env['data']['missing'], ['test/removed_test.dart'])
+        self.assertNotIn('removed_test', env['data']['stages'][0]['command'])
+        self.assertEqual(env['data']['stages'][1]['reason'], 'no test path in scope')
+
+    def test_only_missing_paths_skips_both_halves(self):
+        self.write_config({'fast': GREEN, 'test': GREEN})
+        code, env = self.run_main(['task', '--files', 'gone.py'])
+        self.assertEqual(code, 0)
+        self.assertTrue(env['data']['skipped'])
+        self.assertEqual(env['data']['stages'][0]['reason'], 'no existing path in scope')
+        self.assertEqual(env['data']['missing'], ['gone.py'])
 
 
 class TestTicketResolution(GateCase):
@@ -352,6 +404,7 @@ class TestCheckpointGate(GateCase):
         self.assertIn('recorded_at', recorded)
         self.assertEqual([s['keys'] for s in recorded['stages']],
                          [['s0:lib/a.py:: error boom'], ['s1:test/a_test.py: FAILED'], []])
+        self.assertEqual([s['ok'] for s in recorded['stages']], [False, False, True])
         # the command as executed, {files} substituted, exactly as the envelope's stage shows it
         self.assertEqual(recorded['stages'][2]['command'], verify.substitute_files(GREEN, []))
 
@@ -451,6 +504,52 @@ class TestBaselineCompare(GateCase):
         self.assertEqual(code, 0)
         self.assertEqual(env['data']['baseline'], 'recorded')
         self.assertTrue(Path('.artel/run/AW-1/verify-baseline.json').exists())
+
+    def test_new_key_past_the_envelope_cap_is_still_red(self):
+        self.record([self.many_findings_script()])
+        self.write_config({'commands': [self.many_findings_script('lib/zz.py: NEW_REGRESSION')]},
+                          ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 1)
+        s0 = env['data']['stages'][0]
+        self.assertEqual(s0['new_keys'], ['s0:lib/zz.py: NEW_REGRESSION'])
+        self.assertFalse(s0['baseline_red'])
+        self.assertEqual(len(s0['keys']), 241, 'the checkpoint gate does not cap its keys')
+
+    def test_green_at_arm_then_red_without_output_is_red(self):
+        self.record(["sh -c 'exit 0'"])
+        self.write_config({'commands': ["sh -c 'exit 1'"]}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 1)
+        s0 = env['data']['stages'][0]
+        self.assertFalse(s0['baseline_red'])
+        self.assertEqual(s0['new_keys'], [])
+
+    def test_red_at_arm_then_red_without_output_stays_baseline_red(self):
+        self.record(["sh -c 'exit 1'"])
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 0)
+        self.assertTrue(env['data']['stages'][0]['baseline_red'])
+
+
+class TestSubprocessForm(GateCase):
+    """The hooks execute verify.py as a subprocess; this is the only test that does too."""
+
+    def test_the_hooks_call_shape_runs_and_keeps_the_legacy_fields(self):
+        self.write_config({'fast': GREEN})
+        self.touch('a.py')
+        proc = subprocess.run([sys.executable, str(h.VERIFY_SCRIPT), '--fast', '--files', 'a.py'],
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        env = json.loads(proc.stdout.strip().splitlines()[-1])
+        stage = env['data']['stages'][0]
+        for field in ('name', 'command', 'exit_code', 'ok', 'keys', 'tail'):
+            self.assertIn(field, stage)
+        self.assertEqual(stage['name'], 's0')
+        code, env2 = h.run_fast_verify(['a.py'])
+        self.assertEqual(code, 0)
+        self.assertEqual(h.finding_keys(env2), set())
+        self.assertFalse(env2['data']['skipped'])
 
 
 if __name__ == '__main__':

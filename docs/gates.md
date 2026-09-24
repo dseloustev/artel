@@ -45,12 +45,20 @@ One JSON line, the shape `docs/workflow-guide.md` describes, with these addition
   were skipped;
 - the `test` stage carries `scoped` (whether the command has the `{files}` token) and `files`
   (the test paths it ran on);
+- the task gate's `data.missing` lists the `--files` paths that do not exist (a task that
+  deleted them); they are dropped from both scopes, and a scope emptied that way is
+  `skipped` with `no existing path in scope`;
 - on the checkpoint gate `data.baseline` is `absent`, `loaded`, `recorded`, `disabled` or
   `skipped`, `data.baseline_path` names the file, and with a loaded baseline each stage
-  carries `new_keys` (its keys not in the baseline) and `baseline_red` (red with no new key).
+  carries `new_keys` (its keys not in the baseline) and `baseline_red` (red, no new key,
+  **and red at arm time too** — a stage that was green then and fails now without output is
+  red, not baseline red);
+- the checkpoint gate's `keys` are **uncapped** (the legacy and task forms keep the 200-key
+  cap): the compare has to see every finding.
 
-The baseline file: `{"recorded_at": <ISO-8601 UTC>, "stages": [{"name", "command", "keys"}, …]}`,
-where `command` is the command as executed (`{files}` substituted).
+The baseline file: `{"recorded_at": <ISO-8601 UTC>, "stages": [{"name", "command", "ok", "keys"}, …]}`,
+where `command` is the command as executed (`{files}` substituted), `ok` whether the stage
+passed at arm time, and `keys` its uncapped finding keys.
 
 ## 4. Rules
 
@@ -79,8 +87,9 @@ spots follow, stated so nobody rediscovers them:
 
 - a new finding whose text equals a baseline finding's — the same rule in the same file on
   another line — collapses into the baseline key and is not reported;
-- a stage's keys are capped at 200; a baseline stage that is cut at the cap can report a
-  pre-existing finding as new when an earlier one disappears and pushes it into the first 200.
+- a line that carries something other than digits that changes from run to run (a temp
+  path, a UUID, a timestamp spelled in words) is a new key every time, so a baseline-red
+  stage that prints one stays red until the host's command stops printing it.
 
 The alternative the evaluated runs applied by hand — a file byte-identical to the default
 branch is baseline — was coarser than both.

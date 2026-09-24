@@ -30,8 +30,11 @@ MAX_KEYS_PER_STAGE = 200
 ENV_ERROR_EXIT_CODES = (126, 127)  # not executable / command not found
 ANSI_RE = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
 GATES = ('task', 'checkpoint')
-DEFAULT_TEST_SURFACE = ['test/**', 'tests/**', '**/*_test.*', '**/test_*.*',
-                        '**/*.test.*', '**/*.spec.*']
+# A leading '*' crosses '/' under fnmatch, so '*_test.*' already covers nested test files;
+# 'test_*.*' needs its '**/' twin for the nested form. Directory globs ('test/**') are
+# deliberately absent: they select helpers, fixtures, goldens and generated mocks, which
+# a scoped test command cannot run.
+DEFAULT_TEST_SURFACE = ['*_test.*', 'test_*.*', '**/test_*.*', '*.test.*', '*.spec.*']
 
 
 def load_config():
@@ -89,10 +92,12 @@ def select_test_paths(files, config):
     return [f for f in files if matches_surface(f, surface)]
 
 
-def normalize_keys(output, stage_index):
+def normalize_keys(output, stage_index, cap=MAX_KEYS_PER_STAGE):
     """Finding keys: non-empty output lines of a red stage, ANSI- and digit-stripped,
-    whitespace-collapsed, deduped, prefixed s<index>:, capped. Digit-stripping keeps keys
-    stable against shifting line numbers and timing noise ("Done in 3.2s")."""
+    whitespace-collapsed, deduped, prefixed s<index>:, capped at `cap` (None: uncapped — the
+    checkpoint gate compares every key, or a new finding past the cap would go unseen).
+    Digit-stripping keeps keys stable against shifting line numbers and timing noise
+    ("Done in 3.2s")."""
     keys = []
     seen = set()
     for line in output.splitlines():
@@ -106,7 +111,7 @@ def normalize_keys(output, stage_index):
             continue
         seen.add(key)
         keys.append(key)
-        if len(keys) >= MAX_KEYS_PER_STAGE:
+        if cap is not None and len(keys) >= cap:
             break
     return keys
 
@@ -186,10 +191,11 @@ def envelope(ok, elapsed_ms, data=None, error=None):
     return json.dumps(out)
 
 
-def run_stage(command, files, timeout, index, name=None):
+def run_stage(command, files, timeout, index, name=None, key_cap=MAX_KEYS_PER_STAGE):
     """Run one configured command. Returns (stage_dict, error_kind_or_None).
     `name` is the stage's label in the envelope ('s<index>' for the legacy form and the
-    checkpoint gate; 'fast' / 'test' for the task gate)."""
+    checkpoint gate; 'fast' / 'test' for the task gate). `key_cap` bounds the finding keys
+    (None for the checkpoint gate, which must see every key)."""
     cmd = substitute_files(command, files)
     label = name or 's{}'.format(index)
     try:
@@ -208,7 +214,7 @@ def run_stage(command, files, timeout, index, name=None):
         'command': cmd,
         'exit_code': proc.returncode,
         'ok': verdict == 'ok',
-        'keys': normalize_keys(output, index) if verdict != 'ok' else [],
+        'keys': normalize_keys(output, index, key_cap) if verdict != 'ok' else [],
         'tail': output[-TAIL_CHARS:],
     }, None
 
@@ -252,7 +258,10 @@ def run_task_gate(config, inv):
     the test files among them. A missing command or an empty test scope records that half
     `skipped`; a red half stops the gate; exit 2 is an environment error."""
     verify_cfg = config.get('verify') or {}
-    files = inv['files'] or []
+    # A task that deleted a file still lists it; a linter or test runner handed a path that
+    # is gone reports "no such file" as findings. Drop them here and say so in the envelope.
+    files = [f for f in (inv['files'] or []) if Path(f).is_file()]
+    missing = [f for f in (inv['files'] or []) if not Path(f).is_file()]
 
     def command(key):
         value = verify_cfg.get(key) or ''
@@ -267,8 +276,9 @@ def run_task_gate(config, inv):
         if not cmd:
             stages.append({'name': name, 'skipped': True, 'reason': why})
             continue
-        if name == 'test' and not scope:
-            stages.append({'name': name, 'skipped': True, 'reason': 'no test path in scope'})
+        if not scope:
+            reason = 'no test path in scope' if name == 'test' else 'no existing path in scope'
+            stages.append({'name': name, 'skipped': True, 'reason': reason})
             continue
         stage, error_kind = run_stage(cmd, scope, inv['timeout'], index, name)
         if name == 'test':
@@ -278,16 +288,25 @@ def run_task_gate(config, inv):
         if error_kind is not None:
             return 2, stage_error(stage, error_kind, stages)
         if not stage['ok']:
-            return 1, {'data': {'skipped': False, 'stages': stages}}
-    all_skipped = all(s.get('skipped') for s in stages)
-    return 0, {'data': {'skipped': all_skipped, 'stages': stages}}
+            return 1, {'data': task_data(stages, missing)}
+    return 0, {'data': task_data(stages, missing)}
+
+
+def task_data(stages, missing):
+    data = {'skipped': all(s.get('skipped') for s in stages), 'stages': stages}
+    if missing:
+        data['missing'] = missing
+    return data
 
 
 def record_baseline(path, stages):
-    """Write the baseline: one entry per stage with the keys it produced (empty when green)."""
+    """Write the baseline: one entry per stage with whether it passed and the keys it produced
+    (empty when green). `ok` is what tells a stage that was green at arm time and fails
+    silently later from one that was red all along."""
     payload = {
         'recorded_at': datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-        'stages': [{'name': s['name'], 'command': s['command'], 'keys': list(s.get('keys') or [])}
+        'stages': [{'name': s['name'], 'command': s['command'], 'ok': bool(s['ok']),
+                    'keys': list(s.get('keys') or [])}
                    for s in stages],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -295,15 +314,21 @@ def record_baseline(path, stages):
 
 
 def load_baseline(path):
-    """{stage_index: set(keys)} from a baseline file; None when absent. An unreadable or
-    malformed file is also None — treated as absent, with one warning line on stderr — so
-    a crash mid-record can never wedge a checkpoint (the gate then reads 'any red is red')."""
+    """{stage_index: {'ok': bool, 'keys': set}} from a baseline file; None when absent. An
+    unreadable or malformed file is also None — treated as absent, with one warning line on
+    stderr — so a crash mid-record can never wedge a checkpoint (the gate then reads 'any red
+    is red')."""
     if not path.is_file():
         return None
     try:
         payload = json.loads(path.read_text(encoding='utf-8'))
-        stages = payload['stages']
-        return {index: set(entry.get('keys') or []) for index, entry in enumerate(stages)}
+        loaded = {}
+        for index, entry in enumerate(payload['stages']):
+            keys = entry.get('keys') or []
+            if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+                raise ValueError('keys must be a list of strings')
+            loaded[index] = {'ok': bool(entry.get('ok', False)), 'keys': set(keys)}
+        return loaded
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         print('verify: warning: baseline {} unreadable ({}); treating it as absent'.format(
             path, exc.__class__.__name__), file=sys.stderr)
@@ -340,17 +365,22 @@ def run_checkpoint_gate(config, inv):
         status = 'loaded' if baseline is not None else 'absent'
     stages = []
     for index, command in enumerate(commands):
-        stage, error_kind = run_stage(command, [], inv['timeout'], index)
+        # Uncapped keys: the compare must see every finding, or a new one past the cap of a
+        # long baseline-red stage would pass unseen.
+        stage, error_kind = run_stage(command, [], inv['timeout'], index, key_cap=None)
         stages.append(stage)
         if error_kind is not None:
             return 2, stage_error(stage, error_kind, stages)
         if baseline is not None:
-            known = baseline.get(index) or set()
-            stage['new_keys'] = [k for k in stage['keys'] if k not in known]
-            stage['baseline_red'] = (not stage['ok']) and not stage['new_keys']
+            base = baseline.get(index) or {'ok': True, 'keys': set()}
+            stage['new_keys'] = [k for k in stage['keys'] if k not in base['keys']]
+            # Red only on baseline keys, AND red at arm time too: a stage that was green then
+            # and fails now without output has no new key, but it is not a baseline red.
+            stage['baseline_red'] = ((not stage['ok']) and not stage['new_keys']
+                                     and not base['ok'])
         if record:
             continue  # the baseline wants every stage, red or not
-        stops = (not stage['ok']) and (baseline is None or bool(stage['new_keys']))
+        stops = (not stage['ok']) and (baseline is None or not stage['baseline_red'])
         if stops:
             break
     data = {'skipped': False, 'stages': stages, 'baseline': status, 'baseline_path': str(path)}
@@ -358,7 +388,7 @@ def run_checkpoint_gate(config, inv):
         record_baseline(path, stages)
         return 0, {'data': data}
     if baseline is not None:
-        red = any(s.get('new_keys') for s in stages)
+        red = any((not s['ok']) and not s.get('baseline_red') for s in stages)
     else:
         red = any(not s['ok'] for s in stages)
     return (1 if red else 0), {'data': data}

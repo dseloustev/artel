@@ -296,7 +296,7 @@ Checked while writing this, and recorded so it is not investigated twice.
 
 ---
 
-## §6 Store mode as built (2026-09-22)
+## §6 Store mode as built (2026-09-22, 2026-09-23)
 
 - **K1 `artifact_patch`** — **Shipped 0.43.0.** Ordered `{old_string, new_string}` /
   `{append}` edits applied atomically to the newest version under the store's write lock; MCP
@@ -304,6 +304,19 @@ Checked while writing this, and recorded so it is not investigated twice.
   — a ticked box, an appended fix batch — is one call, not a whole-document round trip.
 - **K2 write receipts** — **Shipped 0.43.0.** `artifact_put` and `artifact_patch` answer with
   the stored version's header, not the body the caller just sent.
+- **K3 attachment store** — **Shipped 0.44.0.** Images of a ticket's trail, keyed
+  `(project, ticket_key, path)` with the path verbatim from the ticket folder (`design/x.png`,
+  `phase-2/runtime/y.png`):
+  - versioned and content-addressed;
+  - PNG, JPEG, GIF and WebP only, sniffed from magic bytes, with the extension required to agree;
+  - capped by `[workspace] max_attachment_bytes` (5 MiB by default);
+  - never indexed, and with no MCP tool.
+
+  The routes are `PUT` and `GET /api/attachments/{ticket_key}/{path}` (raw bytes, idempotent
+  put, `ETag`/`304`), `GET /api/attachments?project=&ticket_key=[&path=]` and a redacting
+  `DELETE`. The dashboard renders an artifact's relative image links that name a stored
+  attachment. artel 0.17.0 sweeps images in with `spec_store.py image sync` and views them with
+  `image fetch` (`docs/spec-storage.md` §4.6).
 
 ## Summary
 
@@ -317,6 +330,7 @@ Checked while writing this, and recorded so it is not investigated twice.
 | 3.1 | Relax `TICKET_KEY` for release identifiers | Conditional | Small, wide blast radius | **Open** — conditional, binds nothing today |
 | 4.x | `artifact_delete`, `artifact_versions` tool, `parent_id` in list output | Nice to have | Small | **Shipped** — 0.30.0 (as `artifact_redact`), 0.30.0, 0.28.0 |
 | 6 | `artifact_patch`, write receipts | Store mode | Small | **Shipped 0.43.0** |
+| 6.3 | Attachment store (K3) | Spec images | Medium | **Shipped 0.44.0** |
 
 Only 1.1 and 1.2 stand between artel and a working store mode against a local daemon. Everything
 in §2 stands between that and deleting anyone's files.
@@ -324,4 +338,4 @@ in §2 stands between that and deleting anyone's files.
 **Where that leaves things (2026-09-06).** Both sentences above are now satisfied: §1 and §2
 have shipped in full, so nothing on kartoteka's side blocks store mode, and nothing blocks local
 deletion either. Store mode shipped in artel 0.16.0 against kartoteka 0.43.0, which added §6's
-two items.
+first two items; spec images (0.17.0) need kartoteka 0.44.0's K3.

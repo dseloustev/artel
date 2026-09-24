@@ -139,11 +139,24 @@ move to the decision log.
   gain the holder those rows lack today. Store mode (0.16.0) did not need them: the tasklist
   stayed a document (2026-09-22 decision log). Moving task state wholly into the queue — option
   A of the 2026-09-22 design — is where they would land.
-- **Store mode's live smoke test is still owed.** 0.16.0 shipped on the unit and doc-contract
-  suites alone; the end-to-end run (migration, a store-mode `dev` run, an outage, the guard,
-  a live `artifact_patch`) is to be done on a live project, with the result recorded here. Two
-  follow-ups are parked: evidence files (`findings.json`, `observation.md`) moving into the store, and
-  `.active_ticket` moving to `.artel/run/` (2026-09-22 design, §16).
+- **Store mode and spec images: the live smoke test is still owed.** 0.16.0 and 0.17.0 shipped
+  on the unit and doc-contract suites alone. The end-to-end run is to be done on a live project,
+  with the result recorded here. It covers:
+  - migration of documents and images (AW-3270);
+  - a store-mode `dev` run whose checkpoint sweeps a new screenshot;
+  - an outage;
+  - the guard and its `Read` hint;
+  - a live `artifact_patch`;
+  - the dashboard rendering `design-analysis.md` with its images;
+  - `image fetch` from a fresh worktree.
+- **Spec images: parked follow-ups.** (2026-09-23 design, §15):
+  - blobs out of SQLite if database size hurts backups;
+  - an MCP `attachment_get` returning image content, once OpenCode support is known;
+  - user-supplied images and Jira attachments as sources;
+  - phase-relative image links.
+
+  Evidence files (`findings.json`, `observation.md`) moving into the store, and `.active_ticket`
+  moving to `.artel/run/`, stay parked (2026-09-22 design, §16).
 - **A generated ticket never reads fully done in kartoteka's rollup.** Fix-section parents
   (`CRF: …`, `RTF: …`, `VF: …`, `FV: …`) stay `backlog` by design, because nothing claims,
   promotes or completes a label row and the next round appending to its section would
@@ -802,3 +815,31 @@ move to the decision log.
   - a copy that may hold redacted text is always a conflict, shown with no diff;
   - `keep-stored` needs a stored version;
   - a `keep-local` answer is pinned to the version the user saw.
+- **2026-09-23 — Images are inputs, not evidence.** `figma-analyst`'s `design/` screenshots are
+  what the implementer builds from and what the validator judges runtime screenshots against. So
+  they must travel with the documents that embed them. This amends the 2026-09-22 design's §1.2,
+  which had kept `design/*.png` on disk as gate evidence. Runtime screenshots move with them.
+  Evidence *text* (`observation.md`, `verify/*`, `findings.json`) stays on disk.
+- **2026-09-23 — A separate attachment store, not binary artifacts.** kartoteka 0.44.0 keeps
+  images in their own path-keyed, content-addressed store. Every text-only invariant of the
+  artifact store (`artifact_get`, `artifact_patch`, the indexer, the renderer), and every
+  document listing artel reads, stays untouched. It is HTTP only: producers need a script
+  anyway, and viewing images through MCP depends on host support that is unverified on
+  OpenCode.
+- **2026-09-23 — A sweep at fixed points instead of per-producer uploads.** Images arrive through
+  Bash, `curl`, host scripts and simulator tools, which no hook sees. The enforcement is
+  `spec_store.py image sync`, run at the end of design analysis, before each checkpoint commit,
+  in `pr-create` and at completion, together with a staging exclude. A failed sweep never
+  pauses: nothing is lost while the images stay local and untracked.
+- **2026-09-23 — Hard-require kartoteka 0.44.0.** It follows 0.16.0's hard requirement of 0.43.0,
+  and avoids a mixed mode where documents are stored but images stay files. Design:
+  `2026-09-23-kartoteka-spec-images-design.md`.
+- **2026-09-23 — A tracked image's age is its last commit's author time.** Git resets mtime on
+  checkout, so judging a committed image by mtime would let an old image become the newest stored
+  version during migration. For a copy unchanged since HEAD, migration's `successor` rule uses
+  `git log -1 --format=%at`. A locally modified copy keeps its mtime. No usable time means
+  `conflict`.
+- **2026-09-23 — An unrecoverable sweep is surfaced whole.** `image sync` exits `2` with kind
+  `unrecoverable` when a file can be neither verified nor put back. The bytes are renamed to
+  `<cache file>.unverified`, the message names that path and where the file belongs, and
+  orchestrators copy the whole message into the journal and the report without pausing.

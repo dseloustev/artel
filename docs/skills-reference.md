@@ -67,7 +67,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### feature-development
 
 - **Purpose:** End-to-end autonomous orchestrator that carries a ticket from idea through PRD,
-  vision, plan, tasklist, implementation, review, runtime check, QA, docs, and PR — with exactly
+  vision, plan, tasklist, implementation, review, runtime check, docs (once per ticket), and PR — with exactly
   one approval pause.
 - **Invocation:** `/artel:feature-development [ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]`
 - **Reads:** `.artel/config.json` (missing → invokes `setup` first); whichever ticket artifacts
@@ -78,7 +78,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `run-journal.md`, `runtime-observation.md` (the runtime-retry counter — run bookkeeping,
   distinct from `run-app`'s `runtime/observation.md` evidence in the spec trail), the
   `open-questions.md` status flips, and the description-file sync — everything else (`prd.md`,
-  `vision.md`, `plan.md`, `tasklist.md`, `review.md`, `qa.md`, `pr-description.md`, …) is
+  `vision.md`, `plan.md`, `tasklist.md`, `review.md`, `pr-description.md`, …) is
   delegated to sub-skills/agents. Also performs the checkpoint commits & pushes to `origin`
   (autonomous-run.md §14: planning + one per completed phase).
 - **Pauses:** one plan+tasklist approval pause (skipped entirely in `yolo`, per
@@ -95,12 +95,14 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `scripts/plan_check.py --strict` with a bounded bounce loop
   (`MAX_PLAN_CHECK_BOUNCES = 2`). Multi-phase tasklists are traversed phase-by-phase in one run
   (autonomous-run.md §15): `.active_ticket` is rewritten at each phase start and a checkpoint
-  commit+push closes each phase; `pr-create` then finds a clean tree and only opens the PR.
+  commit+push closes each phase; `pr-create` then finds a clean tree and only opens the PR. The
+  run records the checkpoint gate's baseline once at arm time and confirms the completion
+  checklist itself (autonomous-run.md §7); QA and validate are not pipeline stages since 0.18.0.
 
 ### dev
 
 - **Purpose:** Lean autonomous implementation loop for straightforward work — implement, review,
-  and runtime-gate a confirmed work list, with no PRD/plan/QA/docs artifacts.
+  and runtime-gate a confirmed work list, with no PRD/plan/docs artifacts.
 - **Invocation:** `/artel:dev [ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates]`
 - **Reads:** `.artel/config.json` (missing → invokes `setup` first); an existing tasklist or
   `phase-<N>/tasks.md` with incomplete tasks; else `idea.md` + `vision.md`; else `$1`/an inline
@@ -116,8 +118,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   remains manual (`dev` never invokes `pr-create`).
 - **Notes:** `--mode` resolves the same way as `feature-development` (autonomous-run.md §10);
   `--step` is the legacy per-gate mode (alias `--mode=full-gates`, §6). **No `--dry-run` flag**
-  — that is a `feature-development`-only capability. No PRD/plan/QA/docs gates exist on this
-  path. Multi-phase tasklists are traversed phase-by-phase in one run (autonomous-run.md §15)
+  — that is a `feature-development`-only capability. No PRD/plan/docs gates exist on this path.
+  Multi-phase tasklists are traversed phase-by-phase in one run (autonomous-run.md §15)
   with a checkpoint commit+push per phase.
 
 ### setup
@@ -303,8 +305,10 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   option first, Abort-task always offered) — pipeline callers only bracket that call with
   `pause_reason` set/clear.
 - **Notes:** single-phase autonomous model — implements directly, no proposal/approval
-  round-trip. The verify loop is the composed `inner-loop` procedure, capped at
-  `MAX_VERIFY_ITERATIONS` (autonomous-run.md §5). A task tagged `[HITL: …]` is never
+  round-trip. The verify loop is the composed `inner-loop` procedure over the task gate —
+  `verify.fast` on the changed paths, `verify.test` on the changed tests ([gates.md](gates.md)
+  §1) — capped at `MAX_VERIFY_ITERATIONS` (autonomous-run.md §5); the whole-tree gate is the
+  orchestrator's checkpoint. A task tagged `[HITL: …]` is never
   implemented directly — the skill stops and returns control instead. When a change's effect
   isn't obvious from tests alone the agent may launch the app via the `run-app` flow
   (`runtime.run` configured) — an on-demand check, not the `RUNTIME_OK` gate.
@@ -314,18 +318,20 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Run the bounded verify→fix→re-verify loop until the configured quality gate is
   green, leaving JSON evidence per iteration.
 - **Invocation:** `/artel:inner-loop [paths to scope the gate, comma-separated]`
-- **Reads:** `verify.fast` / `verify.commands`; the changed-path set (argument, or derived from
-  `git status`/`git diff`); `<specs.dir>/.active_ticket` for evidence pathing.
+- **Reads:** `verify.fast` / `verify.test` (the task gate, [gates.md](gates.md) §1); the
+  changed-path set (argument, or derived from `git status`/`git diff`);
+  `<specs.dir>/.active_ticket` for evidence pathing.
 - **Writes:** minimal code fixes inside the scoped paths;
-  `<specs.dir>/<TICKET_ID>/[phase-<N>/]verify/iteration-<i>.json` (fast check),
-  `iteration-<i>-full.json` (full gate), `residual.json` on budget exhaustion.
+  `<specs.dir>/<TICKET_ID>/[phase-<N>/]verify/iteration-<i>.json` (the task gate's envelope,
+  both stages), `residual.json` on budget exhaustion.
 - **Pauses:** stop-and-ask on an environment error (exit-2 class — never "fixed" by editing app
   code), on no-progress between iterations, and on exceeding `MAX_VERIFY_ITERATIONS`
   (autonomous-run.md §5).
 - **Notes:** worker, not orchestrator — a fixed procedure, manual/composed only
   (`disable-model-invocation`); the `implementer` agent consumes it by reading this file, since
-  subagents do not inherit skills. Empty `verify.fast` makes the fast check a no-op; empty
-  `verify.commands` degrades the full gate to `skipped`, never `green`. Findings outside the
+  subagents do not inherit skills. Empty `verify.fast` or `verify.test` makes that half
+  `skipped`, never `green`; the full gate (`verify.commands`) is the checkpoint's, never this
+  loop's. Findings outside the
   scoped paths are pre-existing baseline — reported, never fixed.
 
 ---
@@ -400,12 +406,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Reads:** scope and paths resolved internally by the `qa` agent (release / ticket / phase).
 - **Writes:** (via the agent) `qa.md` (or its phase-scoped variant; release scope:
   `<specs.releases>/<RELEASE_ID>/qa.md`) with a verdict.
-- **Pauses:** never — generates a verdict rather than pausing on it (`feature-development`
-  gate 9).
-- **Notes:** orchestrator (dispatches the `qa` agent). Capped at `MAX_QA_ROUNDS`
-  (autonomous-run.md §5, enforced by the calling orchestrators): a negative verdict triggers
-  one implementer fix round, then a re-run, before a cap escalation. Release identifiers start
-  with `R-` and are passed through as-is.
+- **Pauses:** never — generates a verdict rather than pausing on it.
+- **Notes:** orchestrator (dispatches the `qa` agent). Not a pipeline stage since 0.18.0: no
+  gate calls it, no fix round follows it; the reviewer's `## PRD acceptance criteria` table is
+  the pipeline's record of criteria against evidence. Release identifiers start with `R-` and
+  are passed through as-is.
 
 ### validate
 
@@ -413,12 +418,12 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Invocation:** `/artel:validate [ticket-id] or [ticket-id]-[phase] or R-[release-id]`
 - **Reads:** the gate artifacts the `validator` agent already knows about (`PRD_READY`,
   `PLAN_APPROVED`, `TASKLIST_READY`, `IMPLEMENT_STEP_OK`, `REVIEW_OK`, `RUNTIME_OK`,
-  `RELEASE_READY`, `DOCS_UPDATED`, `AUTOMATION_REMOVED`).
+  `CHECKPOINT_OK`, `DOCS_UPDATED`, `AUTOMATION_REMOVED`).
 - **Writes:** nothing — a read-only status report.
 - **Pauses:** never.
-- **Notes:** orchestrator (dispatches the `validator` agent). `feature-development`'s completion
-  gate treats any red gate as a defect and routes back to the owning step (max one loop, then a
-  cap escalation); `run-state.json`'s `completed` flag is never set while a gate is red.
+- **Notes:** orchestrator (dispatches the `validator` agent). Not a pipeline stage since 0.18.0:
+  `feature-development`'s completion gate confirms the same facts itself (autonomous-run.md §7)
+  and routes a red one back once; this is the à-la-carte report.
   Unconfigured gates (`verify.commands` empty, no `runtime.run`) report `skipped`, never
   `green`.
 
@@ -432,7 +437,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   variant) plus a `CHANGELOG.md` entry.
 - **Pauses:** never.
 - **Notes:** thin orchestrator — the agent owns its own input/output paths. Runs as
-  `feature-development` gate 10 (`DOCS_UPDATED`) only; `dev` has no docs gate.
+  `feature-development` gate 10 (`DOCS_UPDATED`) once per ticket, after the last phase; `dev`
+  has no docs gate.
 
 ### pr-description
 

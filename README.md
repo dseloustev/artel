@@ -11,7 +11,7 @@ A crew of specialized agents — analyst, researcher, planner, implementer, revi
 writer — hands work down the line, leaving a durable spec trail behind:
 
 ```
-idea → PRD → vision → plan → tasklist → ⏸ approval → implement → review → QA → docs → PR
+idea → PRD → vision → plan → tasklist → ⏸ approval → implement → review → docs → PR
 ```
 
 ## Status
@@ -46,7 +46,7 @@ Core design properties:
   ([docs/spec-storage.md](docs/spec-storage.md)); `/artel:migrate-specs` moves existing local
   trails in.
 - **One approval pause** — the pipeline interviews you, drafts the plan, and stops exactly once
-  for a green light; then runs implement → review → QA → PR unattended.
+  for a green light; then runs implement → review → docs → PR unattended.
 - **Gates, not vibes** — hooks enforce verification before "done": analyzer/tests must pass,
   the stop gate latches until evidence exists, sensitive paths are guarded in autonomous mode.
 - **Resumable** — re-invoking the same entry-point command resumes an interrupted run.

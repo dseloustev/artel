@@ -205,5 +205,57 @@ class TestReviewAndDocsSeats(unittest.TestCase):
         self.assertIn('Not a pipeline stage since 0.18.0', read('skills/qa/SKILL.md'))
 
 
+class TestSurroundingDocsConversion(unittest.TestCase):
+    """Task 5 of the conversion."""
+
+    def test_the_guide_and_reference_drop_the_qa_gate(self):
+        guide = read('docs/workflow-guide.md')
+        self.assertNotIn('*Gate 9 — QA.*', guide)
+        self.assertNotIn('→ QA →', guide)
+        self.assertIn('once per ticket', guide)
+        self.assertIn('verify.py task', guide)
+        self.assertIn('new_keys', guide)
+        reference = read('docs/skills-reference.md')
+        self.assertNotIn('MAX_QA_ROUNDS', reference)
+        self.assertNotIn('RELEASE_READY', reference)
+        self.assertIn('Not a pipeline stage since 0.18.0', section(reference, '### qa', '### validate'))
+        self.assertIn('CHECKPOINT_OK', section(reference, '### validate', '### docs-update'))
+
+    def test_the_router_and_readme_describe_the_new_pipeline(self):
+        router = read('skills/using-artel/SKILL.md')
+        self.assertNotIn('no PRD/QA/docs', router)
+        self.assertIn('à la carte', router)
+        readme = read('README.md')
+        self.assertNotIn('→ QA →', readme)
+
+    def test_config_setup_and_design_record_the_change(self):
+        config = read('docs/config.md')
+        row = config.split('| `verify.commands` |')[1].split('\n')[0]
+        self.assertIn('verify.py checkpoint', row)
+        self.assertNotIn('inner loop', row)
+        self.assertIn('`verify.test`', section(read('skills/setup/SKILL.md'), 'Round 3', 'Round 4'))
+        design = read('docs/design.md')
+        self.assertNotIn('A generated ticket never reads fully done', design)
+        self.assertIn('2026-09-24 — The gate diet.', design)
+
+    def test_no_live_file_keeps_a_retired_name(self):
+        live = PROMPT_FILES + [
+            str(p.relative_to(ROOT)) for p in (ROOT / 'docs').glob('*.md')
+            if p.name != 'design.md'
+        ] + ['README.md']
+        for rel in live:
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertNotIn('MAX_QA_ROUNDS', text)
+                self.assertNotIn('RELEASE_READY', text)
+                self.assertNotIn('Skill: qa', text)
+
+    def test_changelog_records_the_conversion(self):
+        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+        for phrase in ('### Removed', 'QA gate', 'Final Verification', 'validator', 'once per ticket',
+                       'close with their last child'):
+            self.assertIn(phrase, unreleased)
+
+
 if __name__ == '__main__':
     unittest.main()

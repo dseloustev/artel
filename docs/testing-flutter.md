@@ -104,6 +104,8 @@ Notes on the choices:
   `flutter build macos --debug`), or an integration-test command.
 - **`verify.fast` carries `{files}`** so the per-edit hook analyzes only what changed;
   `verify.surface` keeps generated files out of the hooks' sight.
+- **`verify.test` carries `{files}` too** — `fvm flutter test {files}` runs only the test files
+  a task touched; the task gate ([gates.md](gates.md) §1) never runs the suite.
 - **`tracker.adapter: "none"`** keeps the whole test local — the ticket description comes from
   a file you write. Switch to `"github-issues"` later to exercise the tracker path.
 
@@ -195,8 +197,9 @@ Reset the scratch repo (or make a second ticket `FLT-2` with a new description) 
 itself, which is the path 4.1 skips.)
 
 **Expected:** the same head as 4.2 but the pause is live — **Approve** it. The run arms, makes
-the planning checkpoint, implements, reviews, skips runtime, runs QA (`qa.md` verdict), updates
-docs/CHANGELOG, validates all gates, regenerates `pr-description.md`, and pauses at the PR gate
+the planning checkpoint, implements (the task gate per task), reviews, skips runtime, runs the
+checkpoint gate against the baseline it recorded at arm time, updates docs/CHANGELOG once,
+confirms the completion checklist, regenerates `pr-description.md`, and pauses at the PR gate
 ("Open the PR now?"). With `gh` authenticated and an `origin` on GitHub, approving opens a real
 PR; otherwise choose "Skip — I'll do it manually" and confirm the run still closes cleanly
 (`run-state.json` flips to `completed: true`, `run_active: false`; `run-journal.md` has the

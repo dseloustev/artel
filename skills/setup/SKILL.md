@@ -37,7 +37,10 @@ arrive via the "Other" option.
   error (config.md reading rule 3), so re-ask rather than write one.
 - **Round 3 — quality gate and languages:** `verify.commands` (ordered list, one command per
   line; empty = no gate, recorded `skipped`), `verify.fast` (one quick per-edit command, or
-  empty; commands may carry a `{files}` token the hooks replace with the changed paths), and
+  empty; commands may carry a `{files}` token the hooks replace with the changed paths),
+  `verify.test` (one scoped test command with `{files}`, run on the test files a task touched —
+  `fvm flutter test {files}`, `npm test -- --run {files}`, `python3 -m pytest {files}`; empty =
+  the task gate runs the fast check only; without the token the whole suite runs per task), and
   `language.docs` / `language.pr` (IETF BCP 47 codes, default `en`).
 - **Round 4 — optional extras**, one multi-select question ("configure now, or leave inert?")
   offering: `setup.commands` (post-branch install/codegen), `design.figma` (the design-analysis

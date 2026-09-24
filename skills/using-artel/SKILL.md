@@ -36,7 +36,7 @@ it). `<ticket>-<N>` is a phase-scoped run.
 |---|---|
 | a ticket taken from idea to pull request, one approval pause | `/artel:feature-development <ticket> [description-file] [--mode=…] [--dry-run] [--local]` |
 | just the approved work plan, no implementation | `/artel:feature-development <ticket> --dry-run` |
-| a small change implemented, reviewed and runtime-checked, no PRD/QA/docs | `/artel:dev <ticket> [description-file] [--mode=…]` |
+| a small change implemented, reviewed and runtime-checked, no PRD/docs | `/artel:dev <ticket> [description-file] [--mode=…]` |
 | the next phase of a phased ticket | `/artel:feature-development <ticket>-<N>` or `/artel:dev <ticket>-<N>` |
 | an interrupted run resumed | re-invoke the same entry-point command |
 | artel configured or reconfigured for this repo | `/artel:setup` |
@@ -63,8 +63,8 @@ it). `<ticket>-<N>` is a phase-scoped run.
 | a branch reviewed and its review outcome forecast from kartoteka precedents | `/artel:deep-review <ticket> [branch] [pr-link] [--local]` |
 | the app built and launched (gate or inspection) | `/artel:run-app [--gate]` |
 | the running app driven through its UI | `/artel:drive-app` (needs `/artel:add-automation` first) |
-| a QA plan and report | `/artel:qa <ticket> or R-<release>` |
-| to know which gates have passed | `/artel:validate <ticket> or R-<release>` |
+| a QA plan and report (à la carte; not a pipeline stage) | `/artel:qa <ticket> or R-<release>` |
+| to know which gates have passed (à la carte; the pipeline confirms them itself) | `/artel:validate <ticket> or R-<release>` |
 | documentation updated for the ticket's work | `/artel:docs-update <ticket>` |
 | a PR description / the PR opened | `/artel:pr-description <ticket>` · `/artel:pr-create <ticket>` |
 | a single PR comment addressed | `/artel:address-pr-comment <pr-comment-url>` |
@@ -140,7 +140,7 @@ a skill that resolves ticket context first; use the skill.
 
 | Thought | Reality |
 |---|---|
-| "I'll read `tasklist.md` to see what's next" | With the adapter on, the queue is authoritative for iteration work — `/artel:tasks list`; the file still owns the review/runtime/verify-fix and Final Verification sections, and the queue now shows their rows too. |
+| "I'll read `tasklist.md` to see what's next" | With the adapter on, the queue is authoritative for iteration work — `/artel:tasks list`; the file still owns the review/runtime/verify-fix sections (and a Final Verification section an older tasklist carries), and the queue shows their rows too. |
 | "I'll call `search_knowledge` myself" | `/artel:knowledge` keeps the search budget, the citations and the ⚠ NON-CURRENT markers. |
 | "I'll `task_create` it directly" | `/artel:tasks add` keeps `tasklist.md` and the queue in step; a bare row breaks promotion. |
 | "I'll grep for that class" | With the index on PATH, `/ast-index:ast-index` answers in milliseconds; grep is for regex, literals and comments. |

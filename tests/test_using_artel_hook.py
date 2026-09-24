@@ -244,5 +244,18 @@ class TestHostStatusSpecStoreLine(unittest.TestCase):
         self.assertNotIn('pending local save(s)', status)
 
 
+class TestVerifyTestStatus(unittest.TestCase):
+    def test_scoped_unscoped_and_unset(self):
+        self.assertEqual(ua.verify_test_status({'verify': {'test': 'pytest {files}'}}),
+                         'verify.test: scoped (pytest {files})')
+        self.assertEqual(ua.verify_test_status({'verify': {'test': 'pytest'}}),
+                         'verify.test: unscoped (no {files} token — the whole suite runs on every task)')
+        self.assertEqual(ua.verify_test_status({'verify': {}}),
+                         'verify.test: unset (the task gate runs verify.fast only)')
+
+    def test_host_status_carries_the_line(self):
+        self.assertIn('- verify.test: ', ua.host_status({'verify': {'test': ''}}))
+
+
 if __name__ == '__main__':
     unittest.main()

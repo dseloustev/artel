@@ -123,5 +123,58 @@ class TestTaskLoop(unittest.TestCase):
                 self.assertNotIn('iteration-<i>-full', text)
 
 
+class TestOrchestrators(unittest.TestCase):
+    """Task 3 of the conversion."""
+
+    def setUp(self):
+        self.fd = read('skills/feature-development/SKILL.md')
+        self.dev = read('skills/dev/SKILL.md')
+        self.run = read('docs/autonomous-run.md')
+
+    def test_both_orchestrators_record_the_baseline_at_a_fresh_arm_only(self):
+        for name, text in (('feature-development', self.fd), ('dev', self.dev)):
+            with self.subTest(name):
+                self.assertIn('verify.py checkpoint --record-baseline --ticket <TICKET_ID>', text)
+                self.assertIn('Fresh arm only', text)
+                self.assertIn('a missing one stays missing', text)
+
+    def test_gate_nine_is_gone_and_gate_ten_runs_once(self):
+        self.assertNotIn('| 9 |', self.fd)
+        self.assertNotIn('Skill: qa', self.fd)
+        self.assertNotIn('Skill: qa', self.dev)
+        row = self.fd.split('| 10 | `DOCS_UPDATED` |')[1].split('\n')[0]
+        self.assertIn('once per ticket', row)
+        self.assertIn('DOCS_UPDATED: deferred to the final phase', row)
+        self.assertNotIn('QA gate 9', self.fd)
+
+    def test_the_checkpoint_runs_the_checkpoint_gate(self):
+        step = self.fd.split('3. **Quality gate (phase-end only).**')[1].split('4. **Stage explicitly.**')[0]
+        self.assertIn('verify.py checkpoint --ticket <TICKET_ID>', step)
+        self.assertIn('new_keys', step)
+        self.assertIn('baseline_red', step)
+        # the chain phrase test_spec_images_conversion_docs pins is untouched (dev wraps it)
+        for text in (self.fd, ' '.join(self.dev.split())):
+            self.assertIn('the image sweep (kartoteka path) → the `verify.commands` gate', text)
+
+    def test_the_completion_gate_is_a_checklist_not_a_dispatch(self):
+        gate = self.fd.split('### 6. Completion gate')[1].split('### 7.')[0]
+        self.assertNotIn('Skill: validate', gate)
+        for fact in ('PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK',
+                     'RUNTIME_OK', 'CHECKPOINT_OK', 'DOCS_UPDATED', 'AUTOMATION_REMOVED'):
+            self.assertIn(fact, gate)
+        self.assertNotIn('RELEASE_READY', self.fd)
+        self.assertIn('the final gate stands', self.dev.split('### 8. Complete')[1].split('### 9.')[0])
+
+    def test_autonomous_run_drops_the_qa_loop_and_gains_the_baseline(self):
+        self.assertNotIn('MAX_QA_ROUNDS', self.run)
+        self.assertIn('verify-baseline.json', self.run)
+        caps = self.run.split('## 5. Capped loops')[1].split('## 6.')[0]
+        self.assertIn('task gate', caps)
+        self.assertIn('baseline capture', caps)
+        completion = self.run.split('## 7. Completion gate')[1].split('## 8.')[0]
+        self.assertIn('CHECKPOINT_OK', completion)
+        self.assertNotIn('`validate` reports every gate green', completion)
+
+
 if __name__ == '__main__':
     unittest.main()

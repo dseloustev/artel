@@ -26,6 +26,7 @@ lives under `.artel/run/` in the host repo instead, matching config.md's descrip
     ├── run-journal.md          # append-only run journal (§11)
     ├── open-questions.md       # question collection before the approval pause (§3)
     ├── runtime-observation.md  # runtime-gate retry counter (§5)
+    ├── verify-baseline.json    # the checkpoint gate's baseline, recorded once at a fresh arm (gates.md §1)
     ├── reports/                # per-task worker output (§1 "Bulk stays in files", §16):
     │   ├── NNN-<slug>.md       #   the implementer's report for one task
     │   ├── NNN-<slug>.diff     #   that task's diff package (review.perTask only)
@@ -152,19 +153,19 @@ agreed upon before the run starts.
 Every loop writes its counter into the artifact it produces, so re-invocation cannot reset it. Counters
 reset only when the user resumes with guidance after a cap escalation. Exception:
 `counters.correction_rounds` is authoritative in `run-state.json` itself — it has no single loop
-artifact to live in (it spans review, runtime, and QA rounds). On resume/re-arm it is **preserved,
+artifact to live in (it spans review and runtime rounds). On resume/re-arm it is **preserved,
 never re-zeroed**; it resets only at the initial arm of a fresh run or on an explicit user reset after
 a cap escalation.
 
 | Loop | Cap (default) | Counter location |
 |---|---|---|
-| implement → verify fixes (per task) | `MAX_VERIFY_ITERATIONS = 4` | `Verify iterations: N` in the implementer completion note |
+| task gate → fix (per task, gates.md §1) | `MAX_VERIFY_ITERATIONS = 4` | `Verify iterations: N` in the implementer completion note |
 | per-task review → fix (per task, `review.perTask` only, §16) | `MAX_TASK_REVIEW_ROUNDS = 1` | the task's `task review` entry in `run-journal.md` (the round also counts toward `correction_rounds`) |
 | review → fix → re-review | `MAX_REVIEW_ROUNDS = 3` | `**Review round:** N` in `review.md` (reset by deleting it on the files path, by a round-0 version on the kartoteka path — spec-storage.md §4.4) |
 | runtime gate red → fix | `MAX_RUNTIME_RETRIES = 1` | `.artel/run/<TICKET_ID>/runtime-observation.md` |
-| QA negative verdict → fix | `MAX_QA_ROUNDS = 1` | `qa.md` |
 | checkpoint verify → fix (per checkpoint, §14) | `MAX_CHECKPOINT_VERIFY_ROUNDS = 2` | checkpoint entry in `run-journal.md` (rounds also count toward `correction_rounds`) |
-| global correction rounds (review + runtime + QA fix rounds) | `MAX_TOTAL_CORRECTION_ROUNDS = 8` | `counters.correction_rounds` in `run-state.json` |
+| baseline capture (§14, gates.md §1) | once per run, at a fresh arm — never re-recorded on resume or at a phase boundary | `.artel/run/<TICKET_ID>/verify-baseline.json` |
+| global correction rounds (review + runtime fix rounds) | `MAX_TOTAL_CORRECTION_ROUNDS = 8` | `counters.correction_rounds` in `run-state.json` |
 | global wall-clock | `WALL_CLOCK_HOURS = 3` | `run-state.json` `started_at` |
 
 These are the workflow's built-in defaults, not `.artel/config.json` keys. The runtime-gate row
@@ -186,10 +187,18 @@ the autonomous default — confirm between major phases, per-task implementer ap
 
 ## 7. Completion gate
 
-A run may set `completed: true` only when its pipeline's gates all pass — for `feature-development`,
-`validate` reports every gate green; for `dev`, all work items are `- [x]`, review has no unresolved
-Blocking/Important findings, and the runtime gate is green or skipped. The final report always includes
-the aggregated `Deviations:` line (per the deviation protocol) and the loop counters.
+A run may set `completed: true` only when its pipeline's gates all pass. For
+`feature-development` the orchestrator confirms eight facts itself, from the artifacts it already
+reads, and journals one line each: `PLAN_APPROVED`, `TASKLIST_READY`, `IMPLEMENT_STEP_OK` (no
+unchecked box in any iteration or fix section), `REVIEW_OK` (`review.md` with a round line, no
+open `## Code Review Fixes` box), `RUNTIME_OK` (green or skipped, newer than the last
+`runtime.surface` change), `CHECKPOINT_OK` (the final gate — the last checkpoint green and no
+`verify.surface` change since its commit, else one more checkpoint gate; gates.md §1),
+`DOCS_UPDATED` (`summary.md` exists) and `AUTOMATION_REMOVED`; the table is in
+`feature-development` §6. For `dev`, all work items are `- [x]`, review has no unresolved
+Blocking/Important findings, the runtime gate is green or skipped, and the final gate stands. No
+agent is dispatched: `/artel:validate` is à la carte. The final report always includes the
+aggregated `Deviations:` line (per the deviation protocol) and the loop counters.
 
 ## 8. Stop hook interplay
 
@@ -326,7 +335,7 @@ by `analysis`, `researcher`, and `planner`.
 Both orchestrators commit and push at fixed checkpoints so the branch on `origin` always carries
 the latest approved docs and every completed phase: a **planning/work-list checkpoint** right after
 arming (docs only, no verify gate) and a **phase-end checkpoint** after each phase's gates pass
-(the verify gate — `verify.commands` — plus capped fixes first). Checkpoints are orchestrator-owned
+(the checkpoint gate — `verify.commands` compared against the run's baseline, gates.md §1 — plus capped fixes first). Checkpoints are orchestrator-owned
 Bash actions, pre-approved at the approval pause (§4 exception), never pause, and are journaled as
 external actions (§11). The full procedure (branch guard, the image sweep, idempotence, the verify
 gate, explicit staging, push, journal) and the commit-subject table are defined in the `feature-development`
@@ -335,7 +344,9 @@ skill (`../skills/feature-development/SKILL.md`, `## Checkpoint commits & pushes
 aside, only `.active_ticket` changed it skips the commit and journals
 `planning checkpoint: skipped — the spec trail is in kartoteka`. On the kartoteka path every
 checkpoint sweeps images into kartoteka first and never stages one
-([spec-storage.md](spec-storage.md) §4.6).
+([spec-storage.md](spec-storage.md) §4.6). The baseline is recorded once per run at a fresh arm
+(`verify.py checkpoint --record-baseline`) and never on resume; gates.md §1 says what its absence
+means.
 
 ## 15. Phase traversal & `.active_ticket`
 

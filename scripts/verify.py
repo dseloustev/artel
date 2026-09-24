@@ -292,36 +292,74 @@ def record_baseline(path, stages):
     path.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
 
 
+def load_baseline(path):
+    """{stage_index: set(keys)} from a baseline file; None when absent. An unreadable or
+    malformed file is also None — treated as absent, with one warning line on stderr — so
+    a crash mid-record can never wedge a checkpoint (the gate then reads 'any red is red')."""
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding='utf-8'))
+        stages = payload['stages']
+        return {index: set(entry.get('keys') or []) for index, entry in enumerate(stages)}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        print('verify: warning: baseline {} unreadable ({}); treating it as absent'.format(
+            path, exc.__class__.__name__), file=sys.stderr)
+        return None
+
+
 def run_checkpoint_gate(config, inv):
-    """The checkpoint gate (docs/gates.md §1): verify.commands in order. With --record-baseline
-    every stage runs and its keys are written to the ticket's baseline file. Task 7 adds the
-    compare against a loaded baseline."""
+    """The checkpoint gate (docs/gates.md §1): verify.commands in order, compared against the
+    baseline recorded at arm time. A stage red only on baseline keys is `baseline_red` and does
+    not stop the chain; a stage with `new_keys` does. --record-baseline runs every stage and
+    writes the keys instead of comparing."""
     try:
         ticket = resolve_ticket(inv, config)
     except ValueError as exc:
         return 2, {'error': {'kind': 'invalid_argument', 'message': str(exc)}}
     path = baseline_path_for(ticket)
     verify_cfg = config.get('verify') or {}
+    use_baseline = verify_cfg.get('baseline', True)
+    if not isinstance(use_baseline, bool):
+        return 2, {'error': {'kind': 'invalid_argument',
+                             'message': 'verify.baseline must be a JSON boolean, got {!r}'.format(
+                                 use_baseline)}}
     commands = [c for c in (verify_cfg.get('commands') or []) if isinstance(c, str) and c.strip()]
     if not commands:
         return 0, {'data': {'skipped': True, 'stages': [], 'baseline': 'skipped'}}
     record = inv['record_baseline']
+    baseline = None
+    if record:
+        status = 'recorded'
+    elif not use_baseline:
+        status = 'disabled'
+    else:
+        baseline = load_baseline(path)
+        status = 'loaded' if baseline is not None else 'absent'
     stages = []
     for index, command in enumerate(commands):
         stage, error_kind = run_stage(command, [], inv['timeout'], index)
         stages.append(stage)
         if error_kind is not None:
             return 2, stage_error(stage, error_kind, stages)
-        if not record and not stage['ok']:
+        if baseline is not None:
+            known = baseline.get(index) or set()
+            stage['new_keys'] = [k for k in stage['keys'] if k not in known]
+            stage['baseline_red'] = (not stage['ok']) and not stage['new_keys']
+        if record:
+            continue  # the baseline wants every stage, red or not
+        stops = (not stage['ok']) and (baseline is None or bool(stage['new_keys']))
+        if stops:
             break
-    data = {'skipped': False, 'stages': stages, 'baseline_path': str(path)}
+    data = {'skipped': False, 'stages': stages, 'baseline': status, 'baseline_path': str(path)}
     if record:
         record_baseline(path, stages)
-        data['baseline'] = 'recorded'
         return 0, {'data': data}
-    data['baseline'] = 'absent'
-    code = 0 if all(s['ok'] for s in stages) else 1
-    return code, {'data': data}
+    if baseline is not None:
+        red = any(s.get('new_keys') for s in stages)
+    else:
+        red = any(not s['ok'] for s in stages)
+    return (1 if red else 0), {'data': data}
 
 
 def main(argv):

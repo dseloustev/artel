@@ -379,5 +379,79 @@ class TestCheckpointGate(GateCase):
         self.assertIn('.active_ticket', env['error']['message'])
 
 
+class TestBaselineCompare(GateCase):
+    def setUp(self):
+        super().setUp()
+        self.ticket_cfg = {'projectKey': 'AW'}
+
+    def record(self, commands):
+        self.write_config({'commands': commands}, ticket=self.ticket_cfg)
+        code, _ = self.run_main(['checkpoint', '--record-baseline', '--ticket', 'AW-1'])
+        self.assertEqual(code, 0)
+
+    def test_red_only_on_baseline_keys_is_green(self):
+        self.record([RED, GREEN])
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 0)
+        self.assertEqual(env['data']['baseline'], 'loaded')
+        s0, s1 = env['data']['stages']
+        self.assertFalse(s0['ok'])
+        self.assertTrue(s0['baseline_red'])
+        self.assertEqual(s0['new_keys'], [])
+        self.assertTrue(s1['ok'], 'a baseline-red stage does not stop the chain')
+
+    def test_new_keys_after_a_baseline_red_stage_exit_1(self):
+        self.record([RED, GREEN])
+        self.write_config({'commands': [RED, RED_OTHER, GREEN]}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 1)
+        s0, s1 = env['data']['stages']
+        self.assertTrue(s0['baseline_red'])
+        self.assertEqual(s1['new_keys'], ['s1:test/a_test.py: FAILED'])
+        self.assertFalse(s1['baseline_red'])
+        self.assertEqual(len(env['data']['stages']), 2, 'a new-keys stage stops the chain')
+
+    def test_new_key_in_a_baseline_red_stage_is_red(self):
+        self.record([RED])
+        both = "sh -c 'echo lib/a.py:3:1 error boom; echo lib/b.py:1:1 error fresh; exit 1'"
+        self.write_config({'commands': [both]}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 1)
+        self.assertEqual(env['data']['stages'][0]['new_keys'], ['s0:lib/b.py:: error fresh'])
+
+    def test_baseline_disabled_by_config(self):
+        self.record([RED])
+        self.write_config({'commands': [RED], 'baseline': False}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 1)
+        self.assertEqual(env['data']['baseline'], 'disabled')
+        self.assertNotIn('new_keys', env['data']['stages'][0])
+
+    def test_corrupt_baseline_is_absent_with_a_warning(self):
+        self.write_config({'commands': [RED]}, ticket=self.ticket_cfg)
+        os.makedirs('.artel/run/AW-1')
+        Path('.artel/run/AW-1/verify-baseline.json').write_text('{not json', encoding='utf-8')
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 1)
+        self.assertEqual(env['data']['baseline'], 'absent')
+        self.assertIn('verify: warning:', err.getvalue())
+
+    def test_non_boolean_baseline_key_is_invalid(self):
+        self.write_config({'commands': [GREEN], 'baseline': 'yes'}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 2)
+        self.assertEqual(env['error']['kind'], 'invalid_argument')
+        self.assertIn('verify.baseline', env['error']['message'])
+
+    def test_record_ignores_the_disabled_key(self):
+        self.write_config({'commands': [RED], 'baseline': False}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--record-baseline', '--ticket', 'AW-1'])
+        self.assertEqual(code, 0)
+        self.assertEqual(env['data']['baseline'], 'recorded')
+        self.assertTrue(Path('.artel/run/AW-1/verify-baseline.json').exists())
+
+
 if __name__ == '__main__':
     unittest.main()

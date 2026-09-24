@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-09-24
+
 ### Added
 
 - **Named quality gates in the runner.** `scripts/verify.py task --files …` runs `verify.fast`

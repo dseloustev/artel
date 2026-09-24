@@ -1,7 +1,7 @@
 {
   "name": "artel",
   "description": "Spec-driven autonomous feature workflow for Claude Code and OpenCode: a ticket goes in, a pull request comes out, with one human approval pause in between.",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "author": {
     "name": "Dmitry Seloustev",
     "email": "d.seloustev@adguard.com"

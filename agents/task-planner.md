@@ -66,6 +66,8 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   - optional subtasks
   - acceptance criteria for each task
   - file status (DRAFT, TASKLIST_READY)
+  - no `## Final Verification` section and no task whose work is running a check — the
+    end-of-feature gate is the orchestrator's (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1)
 
 ### Phase-scoped
 - `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md`:
@@ -83,6 +85,10 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 - **Phase scope:** When working on a specific phase, tasks should only cover that phase's requirements.
 - **Small steps:** Break work into small, independently verifiable chunks.
 - **Dependencies:** If tasks depend on each other, note the dependency.
+- **No gate tasks.** Never write a task whose work is running a check (`Run the quality gates`,
+  `Run make analyze`, `Run verify.commands`): the orchestrator runs every gate
+  (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md`). A command may still appear as an acceptance criterion
+  of a real task.
 - **Never silently write a flat `phase-<N>.md` at the ticket root.** The phase tasks file lives at `phase-<PHASE_NUM>/tasks.md`.
 - **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
 - **HITL tagging** (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4): tag any task that requires a human decision

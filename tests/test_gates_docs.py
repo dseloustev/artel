@@ -57,5 +57,71 @@ class TestSurroundingDocs(unittest.TestCase):
             self.assertIn(phrase, unreleased)
 
 
+def section(text, start, end=None):
+    """The text between two anchors (to the end when `end` is None)."""
+    body = text.split(start, 1)[1]
+    return body.split(end, 1)[0] if end else body
+
+
+PROMPT_FILES = sorted(
+    [str(p.relative_to(ROOT)) for p in (ROOT / 'agents').glob('*.md')]
+    + [str(p.relative_to(ROOT)) for p in (ROOT / 'skills').glob('*/SKILL.md')]
+)
+
+
+class TestTaskLoop(unittest.TestCase):
+    """Task 1 of the conversion: the task loop runs the task gate and nothing else."""
+
+    def test_inner_loop_runs_the_task_gate_only(self):
+        text = read('skills/inner-loop/SKILL.md')
+        self.assertIn('verify.py task --files', text)
+        self.assertIn('docs/gates.md', text)
+        self.assertNotIn('iteration-<i>-full', text)
+        self.assertNotIn('run the full gate', text)
+
+    def test_implementer_closes_on_the_task_gate(self):
+        text = read('agents/implementer.md')
+        step_four = section(text, '### Step 4', '### Step 5')
+        self.assertIn('docs/gates.md', step_four)
+        self.assertIn('never yours', step_four)
+        step_five = section(text, '### Step 5', '### Step 6')
+        self.assertIn('last task gate is green or skipped', step_five)
+        self.assertNotIn('unscoped verify', text)
+        rule = section(text, '- **Gate before done**', '\n- ')
+        self.assertIn('task gate', rule)
+
+    def test_implementer_step_one_still_works_a_legacy_final_verification_section(self):
+        # Review Focus 2: older tasklists carry the section; the file scan keeps it.
+        step_one = section(read('agents/implementer.md'), '### Step 1', '### Step 2')
+        self.assertIn('Final Verification', step_one)
+
+    def test_implementer_skill_dispatch_names_the_task_gate(self):
+        text = read('skills/implementer/SKILL.md')
+        self.assertIn('task gate', text)
+        self.assertIn('docs/gates.md', text)
+        self.assertNotIn('unscoped verify green', text)
+
+    def test_tasklist_writer_stops_emitting_final_verification(self):
+        text = read('agents/tasklist-writer.md')
+        self.assertNotIn('Required `## Final Verification` section', text)
+        self.assertNotIn('Run every command in `verify.commands`', text)
+        self.assertIn('### No `## Final Verification` section', text)
+        self.assertIn('docs/gates.md', text)
+        after = section(text, '### After changes', '**Test:**')
+        self.assertIn('task gate', after)
+
+    def test_task_planner_forbids_gate_tasks(self):
+        text = read('agents/task-planner.md')
+        self.assertIn('**No gate tasks.**', text)
+        self.assertIn('no `## Final Verification` section', text)
+
+    def test_no_prompt_file_runs_the_full_gate_per_task(self):
+        for rel in PROMPT_FILES:
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertNotIn('Run every command in `verify.commands`', text)
+                self.assertNotIn('iteration-<i>-full', text)
+
+
 if __name__ == '__main__':
     unittest.main()

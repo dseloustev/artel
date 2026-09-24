@@ -451,9 +451,15 @@ class TestFixWritersRecordTheirAppend(unittest.TestCase):
                 with self.subTest(rel=rel, step=start, phrase=phrase):
                     self.assertIn(phrase, step)
 
-    def test_final_verification_is_written_without_a_source_heading(self):
-        text = (ROOT / 'agents/tasklist-writer.md').read_text(encoding='utf-8')
-        self.assertIn('`FV · tasklist · <checkbox text>`', text)
+    def test_final_verification_is_no_longer_written_and_stays_a_legacy_row(self):
+        # Since 0.18.0 no writer emits `## Final Verification` (the gate is the
+        # orchestrator's, docs/gates.md §1); the parser keeps the section so an older
+        # tasklist still mirrors, and §6's table still names its row shape.
+        writer = (ROOT / 'agents/tasklist-writer.md').read_text(encoding='utf-8')
+        self.assertNotIn('`FV · tasklist · <checkbox text>`', writer)
+        self.assertIn('### No `## Final Verification` section', writer)
+        contract = (ROOT / 'docs/task-queue.md').read_text(encoding='utf-8')
+        self.assertIn('`FV · <source> · <checkbox text>`', contract)
 
 
 class TestLongFixTitlesStayFindable(unittest.TestCase):

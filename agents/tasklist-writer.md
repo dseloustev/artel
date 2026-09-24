@@ -87,7 +87,7 @@ Based on [vision.md](./vision.md).
 ### After changes
 - [ ] Run the host's codegen step (only if generated sources changed, and only if the host has one)
 - [ ] Run the host's localization-generation step (only if localization sources changed, and only if the host has one)
-- [ ] Run `verify.fast` (config.md) — must pass clean; when `verify.fast` is empty this check is recorded as skipped
+- [ ] Run the task gate (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1) — `verify.fast` on the changed files and `verify.test` on the changed tests; an empty command records that half skipped
 - [ ] Format changed files per the host's conventions — hand-written files only, never generated ones
 
 **Test:** {how the developer verifies this iteration end-to-end — user-visible behavior or concrete build/run check}
@@ -115,27 +115,12 @@ Based on [vision.md](./vision.md).
 - **Conclude every iteration with a `**Test:**` footer** — one or two sentences describing the manual or automated verification step for that iteration. "Test: the module compiles and generated sources are up to date" is acceptable only for a pure scaffolding iteration; later iterations must test user-visible behavior.
 - Target **3–7 iterations** for a typical feature. Fewer is fine; more is usually a signal to merge.
 
-### Required `## Final Verification` section
+### No `## Final Verification` section
 
-After the last iteration, **every tasklist must end with a `## Final Verification` section** — verbatim structure below. It is the end-of-feature gate (heavier than the per-iteration `verify.fast` check), not a per-iteration step. Do not omit it.
-
-```markdown
----
-
-## Final Verification
-
-Run after **all iterations above are complete and checked off**. This is the end-of-feature gate — heavier than the per-iteration `verify.fast` step, so do not run it after every edit.
-
-- [ ] Run every command in `verify.commands` (config.md), in order — all must exit clean. An empty list means this gate is recorded `skipped`, never `green`.
-- [ ] Refresh the host's optional code-symbol index, if the host has wired one up (see `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §1) — silently skipped otherwise.
-
-**Gate:** Do not mark the ticket as done until the `verify.commands` gate exits clean (or is recorded skipped, when the list is empty).
-```
-
-Its checkboxes sit directly under the heading, with no `###` subheading: the task queue records
-them as `FV · tasklist · <checkbox text>` rows under an `FV: Final Verification` parent
-(`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6), created by the mirror that runs after you write
-the file. They are still worked from the file, after the iterations.
+The tasklist ends with the last iteration. The end-of-feature checks — the whole-tree
+`verify.commands` gate and the index refresh — are the orchestrator's checkpoint and completion
+gates (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1), never tasklist items: a copy of a gate in the
+file drifts from the gate. Tasklists written before 0.18.0 carry one; the queue still parses it.
 
 ## Per-run workflow
 
@@ -167,7 +152,7 @@ These apply to every iteration you draft. If the user's answers would push you p
 - **No meta-tasks.** "Write docs," "open a PR," "notify QA" — cut them. The tasklist is about the code change.
 - **No unit-test-authoring tasks by default.** Test footers describe manual or automated verification of the iteration's behavior, not tasks to write tests — unless the host's own conventions (its CLAUDE.md and testing docs) call for test authorship as part of the change.
 - **Each iteration is small.** If a single iteration touches more than ~6 files or has more than ~15 checkboxes, split it. If it has fewer than 2 checkboxes, merge it into a neighbor.
-- **Every iteration ends green.** After the iteration's tasks are complete, `verify.fast` (config.md) must pass clean — the host's own definition of green. Call this out in the "After changes" checklist.
+- **Every iteration ends green.** After the iteration's tasks are complete, the task gate (`verify.fast` on the changed files, `verify.test` on the changed tests — config.md, `${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1) must pass clean — the host's own definition of green. Call this out in the "After changes" checklist.
 - **No speculation.** If the idea/vision is silent on a decision, ask in your questions list. Do not invent answers.
 - **HITL tagging** (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4): tag any task that requires a human decision
   as `- [ ] [HITL: <reason>] <task text>`. Mandatory triggers: sensitive surfaces — paths matched

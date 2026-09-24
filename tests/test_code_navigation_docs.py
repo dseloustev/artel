@@ -137,18 +137,16 @@ class EveryNavigatingBodyCitesIt(unittest.TestCase):
                 self.assertIn(PLUGIN_ROOT + 'docs/code-navigation.md', read(rel))
 
     def test_no_body_still_points_at_the_refresh_hook_for_search(self):
-        """`orchestrator-common.md` §1 owns the refresh hook only. `tasklist-writer`
-        is the one body that legitimately cites it -- its Final Verification step
-        *is* a refresh."""
-        for rel in CITING:
+        """`orchestrator-common.md` §1 owns the refresh hook only. Until 0.18.0
+        `tasklist-writer` legitimately cited it -- its Final Verification step *was* a
+        refresh; that step is the orchestrator's now (docs/gates.md §1), so no body
+        cites the refresh hook at all."""
+        for rel in CITING + ('agents/tasklist-writer.md',):
             with self.subTest(rel):
                 self.assertNotIn('orchestrator-common.md` §1', read(rel))
 
     def test_the_refresh_hook_hands_off_the_query_side(self):
         self.assertIn('code-navigation.md', read(REFRESH_HOOK_DOC))
-
-    def test_tasklist_writer_still_cites_the_refresh_hook(self):
-        self.assertIn('orchestrator-common.md` §1', read('agents/tasklist-writer.md'))
 
 
 class DeliberateSilences(unittest.TestCase):

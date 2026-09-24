@@ -330,7 +330,7 @@ Release-scope artifacts (`R-<RELEASE_ID>` identifiers) live under `<specs.releas
 `<specs.releases>/<RELEASE_ID>.md` (the release definition) and `<specs.releases>/<RELEASE_ID>/qa.md`
 (the combined QA report). With knowledge.adapter "kartoteka" the spec trail is not kept here at
 all: kartoteka's artifact store holds it, and `<specs.dir>` keeps only .active_ticket and gate
-evidence ([spec-storage.md](spec-storage.md)).
+evidence text ([spec-storage.md](spec-storage.md)).
 
 ### `knowledge` — the institutional-memory mirror
 
@@ -344,7 +344,7 @@ evidence ([spec-storage.md](spec-storage.md)).
 - **`none`** — nothing is mirrored. The spec trail stays on disk, exactly as it always has.
 - **`kartoteka`** — kartoteka's artifact store is this project's spec store
   ([spec-storage.md](spec-storage.md)): spec documents are written there and nowhere else,
-  and `<specs.dir>` keeps only `.active_ticket` and gate evidence. When kartoteka cannot be
+  and `<specs.dir>` keeps only `.active_ticket` and gate evidence text. When kartoteka cannot be
   reached, a run asks before saving anything locally (headless: `specs.onUnavailable`), and
   `/artel:migrate-specs` moves local trails in. The `PostToolUse` mirror hook still posts
   files written on the files path — `--local`, or a run the user allowed to work locally —

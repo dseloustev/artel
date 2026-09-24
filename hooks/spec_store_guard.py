@@ -1,18 +1,25 @@
 """PreToolUse(Edit|Write|MultiEdit): with kartoteka as the spec store, a spec
 document is never written to disk without the user's permission.
+PreToolUse(Read): with a fresh kartoteka decision, a Read of an image the sweep
+already moved into kartoteka is denied with the command that fetches it -- a
+hint, not enforcement.
 
 Inert without .artel/config.json, with knowledge.adapter other than "kartoteka",
-for a project key outside kartoteka's ticket-key grammar (one character, or
-containing `_` or `-`), and for any path that is not a mirrored spec document.
-Otherwise a write is allowed only while the ticket's storage decision is a
-fresh files decision, or for a path the user approved saving locally during an
-outage (`pending`) -- spec_decision.py.
+and for a project key outside kartoteka's ticket-key grammar (one character, or
+containing `_` or `-`). A write is guarded only for a mirrored spec document,
+and allowed only while the ticket's storage decision is a fresh files decision,
+or for a path the user approved saving locally during an outage (`pending`) --
+spec_decision.py. Writing an image is always allowed: producers save images at
+their logical paths and the orchestrators sweep them in. A Read is looked at
+only for an image under the trail with no file at its path.
 
 Why a hook: "no local copies" otherwise rests on every sentence of 60-odd agent
 and skill files staying correct, and a missed one fails silently into exactly
 the second copy store mode exists to remove. Here it fails loudly, with the fix
 in the message. Bash writes (cat >, cp, rsync) are not seen -- the same limit
-vcs_guard.py documents. Contract: docs/spec-storage.md §6.
+vcs_guard.py documents. The Read hint exists because an agent reading a swept
+image's old path by habit would see "file does not exist" and may conclude the
+image is missing. Contract: docs/spec-storage.md §6.
 """
 import json
 import os
@@ -30,6 +37,8 @@ REASON = ("kartoteka is this project's spec store: {name} is written with artifa
           "without the user's permission.")
 STALE_REASON = ('the storage decision for {ticket} is stale (older than {hours} hours): '
                 're-resolve it (docs/spec-storage.md §2) before writing {name}')
+READ_HINT = ('images are stored in kartoteka: run spec_store.py image fetch {path} and Read '
+             'the path it prints')
 
 
 def deny(reason):
@@ -40,8 +49,28 @@ def deny(reason):
     }}))
 
 
+def read_hint(rel, config):
+    """Deny a Read of an image the sweep already moved into kartoteka, naming the fetch."""
+    identity = kh.image_identity(rel, config)
+    if identity is None or os.path.exists(rel):
+        return  # not an image under the trail, or still on disk: it reads as usual
+    decision = sd.load(identity[0])
+    if decision is not None and decision.get('store') == 'kartoteka' and sd.is_fresh(decision):
+        deny(READ_HINT.format(path=rel))
+
+
 def main():
-    data = h.read_hook_input()  # first: it moves into the session's worktree
+    try:
+        data = json.load(sys.stdin)
+    except Exception:
+        return 0
+    if not isinstance(data, dict):
+        return 0
+    reading = str(data.get('tool_name') or '').lower() == 'read'  # OpenCode sends `read`
+    file_path = str((data.get('tool_input') or {}).get('file_path') or '')
+    if reading and not kh.is_image_name(os.path.basename(file_path)):
+        return 0  # this hook sees every Read: anything but an image stops here, cheaply
+    h.enter_session_root(data)  # as h.read_hook_input() does: into the session's worktree first
     if not h.CONFIG_PATH.exists():
         return 0
     config = h.load_config()
@@ -53,6 +82,9 @@ def main():
     if not rel:
         return 0
     rel = os.path.normpath(rel)  # a `..` segment must not walk past the address check
+    if reading:
+        read_hint(rel, config)
+        return 0
     identity = kh.artifact_identity(rel, config)
     if identity is None:
         return 0

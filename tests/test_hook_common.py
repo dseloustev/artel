@@ -235,6 +235,13 @@ HOOKS_DIR = Path(__file__).resolve().parent.parent / 'hooks'
 # using_artel never reads its input: SessionStart fires before any worktree move, and its
 # in-process test would block on a terminal's stdin.
 READS_NO_INPUT = {'using_artel.py'}
+# spec_store_guard.py reads stdin itself (plain json.load, no hook_common call), so a Read of
+# a non-image can return before paying enter_session_root()'s up-to-three git calls. Its first
+# hook_common touch is therefore enter_session_root() directly -- the same worktree move
+# read_hook_input() makes, just reached after that early return instead of before the stdin
+# read. The invariant this test enforces (nothing touches hook_common before the worktree
+# move) still holds; only which name performs the move differs.
+ENTERS_ROOT_DIRECTLY = {'spec_store_guard.py'}
 # Not lifecycle hooks at all, so "has no main()" is not a violation: shared library
 # modules that hooks (and scripts) import, kept in hooks/ because that is what imports
 # them. kartoteka_http.py is kartoteka's HTTP client, shared by knowledge_mirror.py and,
@@ -245,7 +252,8 @@ NOT_A_HOOK = {'hook_common.py', 'kartoteka_http.py', 'spec_decision.py'}
 
 class TestHooksReadInputFirst(unittest.TestCase):
     """read_hook_input() moves the process into the session's worktree, so no hook may
-    touch hook_common (config, run state, git) before calling it."""
+    touch hook_common (config, run state, git) before calling it -- directly, or, for
+    ENTERS_ROOT_DIRECTLY, before calling the enter_session_root() it wraps."""
 
     def first_h_call(self, path):
         tree = ast.parse(path.read_text(encoding='utf-8'))
@@ -261,7 +269,9 @@ class TestHooksReadInputFirst(unittest.TestCase):
                        if p.name not in NOT_A_HOOK and p.name not in READS_NO_INPUT)
         self.assertTrue(hooks)
         for path in hooks:
-            self.assertEqual(self.first_h_call(path), 'read_hook_input', path.name)
+            expected = ('enter_session_root' if path.name in ENTERS_ROOT_DIRECTLY
+                       else 'read_hook_input')
+            self.assertEqual(self.first_h_call(path), expected, path.name)
 
 
 if __name__ == '__main__':

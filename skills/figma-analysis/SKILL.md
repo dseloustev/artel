@@ -88,7 +88,7 @@ You are analyzing the Figma design workflow for <TICKET_ID>.
 
 Follow your agent definition's Procedure end-to-end: context & preflight → metadata extraction →
 flow graph (screenshot cross-check) → form-factor pairing → code mapping → findings classification →
-write <specs.dir>/<TICKET_ID>/design-analysis.md + design/ evidence.
+write <specs.dir>/<TICKET_ID>/design-analysis.md + design/ screenshots.
 Do NOT resolve Major findings yourself — return them per your Return format.
 ```
 
@@ -127,6 +127,15 @@ Record each in §5 Major as **Resolution:** <decision>, finalize the artifact (`
 is Park for designer), and return DESIGN_ANALYSIS_COMPLETE with summary counts.
 ```
 
+**Sweep the screenshots** (kartoteka path) once the agent has returned, whatever its outcome:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:figma-analysis`
+(`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.6). It moves the `design/` screenshots into
+kartoteka; `design-analysis.md`'s links to them stay as written. Exit `5`, or `failed` entries,
+never stop this stage: put `image-sync: <n> left local — <first error line>` (spec-storage.md
+§5.6) in the report and go on — the screenshots stay local and untracked, and the next sweep
+point retries them. Exit `2` with kind `unrecoverable` never stops it either, but put its whole
+message, not a first line, in the report (spec-storage.md §5.6).
+
 If any resolution was **Park for designer**: after the agent returns, report
 `DESIGN_BLOCKED: <the parked findings>` to the caller and terminate — the pipeline must not
 continue on a broken design. Re-run after the design is fixed (manual re-run → Overwrite).
@@ -134,7 +143,10 @@ continue on a broken design. Re-run after the design is fixed (manual re-run →
 ### Completion
 
 Report: sections analyzed; screen counts (exists as-is / needs modification / new); transition
-count; Major count (with resolutions) and Minor count; evidence file count; artifact path
+count; Major count (with resolutions) and Minor count; screenshot count, and on the kartoteka
+path the sweep's `uploaded`, `unchanged`, `failed` and `skipped` counts (each `skipped` entry with
+its reason — a screenshot whose name falls outside §4.6's grammar will not render in kartoteka's
+dashboard) plus its `image-sync:` line when it left any local; artifact path
 `<specs.dir>/<TICKET_ID>/design-analysis.md`. Note the ignored phase suffix when applicable.
 
 ## Important Rules

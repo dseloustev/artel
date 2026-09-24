@@ -138,7 +138,8 @@ Then run the **planning checkpoint** (see `## Checkpoint commits & pushes`): com
 `<specs.dir>/<TICKET_ID>/**` + `<specs.dir>/.active_ticket` and push — subject `docs: <TICKET_ID>
 planning artifacts` (phase runs: `docs: <TICKET_ID> phase <N> planning artifacts`). Journal it as
 an external action. No verify gate here (`verify.commands`) — docs only, no code yet. On the
-kartoteka path, when only `.active_ticket` changed, skip the commit and journal `planning checkpoint: skipped — the spec trail is in kartoteka`.
+kartoteka path the procedure sweeps images first and never stages one (its steps 2 and 4); when,
+images aside, only `.active_ticket` changed, skip the commit and journal `planning checkpoint: skipped — the spec trail is in kartoteka`.
 
 ### 5. Autonomous tail
 
@@ -180,7 +181,7 @@ current when it is read.
 | 9 | `RELEASE_READY` | `Skill: qa` with `$0` — generate, don't pause. Negative verdict → one implementer fix round (`MAX_QA_ROUNDS = 1`) → re-run qa; second negative → cap escalation. |
 | 10 | `DOCS_UPDATED` | `Skill: docs-update` with `$0`. |
 | 10.5 | phase write-back (phase runs only) | `Skill: sync-phases` with `$0` — sync completion into `tasklist.md`. |
-| 10.7 | `PHASE_CHECKPOINT` | Run the phase-end checkpoint (see `## Checkpoint commits & pushes`): the `verify.commands` gate → capped `## Verify Fixes` implementer rounds → explicit staging → commit (`feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>`; no phase → `<ticket summary>`) → push → journal. Then advance `.active_ticket` to the next incomplete phase; on a multi-phase run loop back to the traversal (next phase), else proceed to step 6. |
+| 10.7 | `PHASE_CHECKPOINT` | Run the phase-end checkpoint (see `## Checkpoint commits & pushes`): the image sweep (kartoteka path) → the `verify.commands` gate → capped `## Verify Fixes` implementer rounds → explicit staging (no trail image on the kartoteka path) → commit (`feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>`; no phase → `<ticket summary>`) → push → journal. Then advance `.active_ticket` to the next incomplete phase; on a multi-phase run loop back to the traversal (next phase), else proceed to step 6. |
 
 **Journal (§11):** append an entry to `run-journal.md` at every gate completion, pause/resume,
 and external action.
@@ -220,13 +221,18 @@ with checkbox tasks).
 
 ### 9. Final report
 
+On the kartoteka path, sweep once more before writing it:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:feature-development`
+(`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §5.6). A failure never pauses: the report lists what
+it left local instead.
+
 Ticket; phases traversed; gates passed; aggregated `Deviations:` line (`none` when clean); loop
 counters (verify iterations total, review rounds, escalation count); QA verdict; runtime status;
 checkpoint commits (hash + subject each, incl. push results); path to `pr-description.md`; PR
 status (`PR_OPENED`/`PR_EXISTS` URL, `skipped-manual`, or `pending`); description-sync status;
 reminder that opening the PR remains manual (only when the PR gate was skipped — the work itself
 is already committed and pushed by the checkpoints); effective mode + why (`mode_reasons`);
-external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); path to `run-journal.md`.
+external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); images left local on the kartoteka path — each `failed` or `skipped` entry of that sweep with its reason, or on exit `5` or `2` every image still under the trail; an `unrecoverable` sweep's whole message — with the `image sync` command above to move them in (headless runs journal the same lines); path to `run-journal.md`.
 
 ## Important
 
@@ -264,7 +270,7 @@ they never pause, and each one is journaled as an external action (autonomous-ru
 
 | Checkpoint | When | Contents | Subject |
 |---|---|---|---|
-| Planning (step 4; `dev` step 3) | immediately after arming | `<specs.dir>/<TICKET_ID>/**` + `.active_ticket` (kartoteka path: skipped when only `.active_ticket` changed) | `docs: <TICKET_ID> planning artifacts` (phase runs: `… phase <N> planning artifacts`; `dev`: `… work list`) |
+| Planning (step 4; `dev` step 3) | immediately after arming | `<specs.dir>/<TICKET_ID>/**` + `.active_ticket` (kartoteka path: skipped when, images aside, only `.active_ticket` changed) | `docs: <TICKET_ID> planning artifacts` (phase runs: `… phase <N> planning artifacts`; `dev`: `… work list`) |
 | Phase-end (gate 10.7; `dev` step 7.5) | after the phase's gates pass | the phase's code changes + updated ticket artifacts | `feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>` (no phase → `<ticket summary>`) |
 
 Procedure:
@@ -272,8 +278,17 @@ Procedure:
 1. **Branch guard.** `git branch --show-current` — on the default branch (`git symbolic-ref
    refs/remotes/origin/HEAD`, fallback `main`) → stop-and-ask (environment error): checkpoints
    never commit to the default branch. Never any `--force` variant anywhere in this procedure.
-2. **Idempotence.** `git status --porcelain` clean → skip the commit (resume-safe); still push
-   when the local branch is ahead of `origin`.
+2. **Image sweep (kartoteka path), then idempotence.** On the kartoteka path, first run
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:<skill>`
+   — `<skill>` is `feature-development`, or `dev` when `dev` runs this procedure
+   (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.6). It moves every untracked image under the
+   trail into kartoteka. Exit `5`, or `failed` entries, never pause: journal
+   `image-sync: <n> left local — <first error line>` (spec-storage.md §5.6) and go on; those
+   images stay untracked, and the next sweep point retries them. Exit `2` with kind
+   `unrecoverable` never pauses either, but journal its whole message, not a first line, and
+   repeat it in the final report (spec-storage.md §5.6). Any other non-zero exit: as exit `5` —
+   never a `STORE_UNAVAILABLE` pause. Then: `git status --porcelain`
+   clean → skip the commit (resume-safe); still push when the local branch is ahead of `origin`.
 3. **Quality gate (phase-end only).** Run `verify.commands` in order (config.md), stopping at the
    first failure; an empty list ⇒ record the verify step as `skipped` in the journal entry and
    continue to staging. Findings → append them as `- [ ]` tasks under `## Verify Fixes` in the
@@ -290,7 +305,15 @@ Procedure:
    quirk) is an **environment error** — stop-and-ask, never a fix round.
 4. **Stage explicitly.** The ticket's changed files, `<specs.dir>/<TICKET_ID>/**`, and
    `<specs.dir>/.active_ticket`. Never `git add -A`; never generated files; never `.artel/**`.
-5. **Commit.** Conventional message, always English, subject line only, no trailers.
+   On the kartoteka path no image under the trail is ever staged: add one exclude per image
+   extension (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.6), and leave
+   `'<specs.dir>/<TICKET_ID>'` out when that folder neither exists nor has tracked files —
+   `git add` refuses a pathspec that matches nothing:
+
+       git add -- <the ticket's changed files> '<specs.dir>/<TICKET_ID>' '<specs.dir>/.active_ticket' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.png' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.jpg' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.jpeg' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.gif' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.webp'
+5. **Commit.** Nothing staged (`git diff --cached --quiet` exits 0 — on the kartoteka path, the
+   only changes were images a failed sweep left untracked) → skip the commit and go on to the
+   push. Otherwise: conventional message, always English, subject line only, no trailers.
 6. **Push.** `git push -u origin <branch>`. Rejected non-fast-forward → stop-and-ask (the user
    reconciles; force-push is never an option).
 7. **Journal.** Checkpoint entry: commit hash, subject, push result, verify fix rounds.

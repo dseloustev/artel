@@ -1,6 +1,11 @@
+import argparse
 import json
+import os
 import re
+import shlex
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,6 +14,7 @@ sys.path.insert(0, str(ROOT / 'hooks'))
 sys.path.insert(0, str(ROOT / 'scripts'))
 import kartoteka_http as kh  # noqa: E402
 import spec_store  # noqa: E402
+import spec_store_guard as guard  # noqa: E402
 
 DOC = ROOT / 'docs' / 'spec-storage.md'
 ROW = re.compile(r'^\| `(<specs\.dir>/[^`]+)` \| `([^`]+)` \| `([^`]+)` \| `([^`]+)` \|$')
@@ -18,6 +24,32 @@ def section(text, heading):
     start = text.index(heading)
     nxt = text.find('\n## ', start + len(heading))
     return text[start:nxt if nxt != -1 else None]
+
+
+IMAGE_ROW = re.compile(r'^\| `(<specs\.dir>/[^`]+)` \| (?:`([^`]+)`|—) \| (?:`([^`]+)`|—) \|$')
+CONFIG = {'ticket': {'projectKey': 'PROJ'}, 'specs': {'dir': 'specs/.current'}}
+
+
+def subsection(text, heading):
+    """`heading` up to the next `### ` or `## ` heading."""
+    start = text.index(heading)
+    ends = [i for i in (text.find('\n### ', start + len(heading)),
+                        text.find('\n## ', start + len(heading))) if i != -1]
+    return text[start:min(ends) if ends else None]
+
+
+def flat(text):
+    return ' '.join(text.split())
+
+
+def excludes():
+    return ["':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*{}'".format(ext)
+            for ext in kh.IMAGE_TYPES]
+
+
+def subcommands(parser):
+    action = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
+    return action.choices
 
 
 class TestContract(unittest.TestCase):
@@ -43,9 +75,11 @@ class TestContract(unittest.TestCase):
                         '### 2.2 The decision file', '### 2.3 The dispatch field',
                         '## 3. Addressing', '## 4. Operations', '### 4.1 Agents',
                         '### 4.2 Scripts', '### 4.3 The tasklist', '### 4.4 The review-round reset',
-                        '### 4.5 When kartoteka fails', '## 5. Unavailability', '### 5.1 At the start',
+                        '### 4.5 When kartoteka fails', '### 4.6 Images', '## 5. Unavailability',
+                        '### 5.1 At the start',
                         '### 5.2 Mid-run', '### 5.3 Resume', '### 5.4 Headless',
-                        '### 5.5 Completion', '## 6. The guard', '## 7. Local trails and migration',
+                        '### 5.5 Completion', '### 5.6 Images', '## 6. The guard',
+                        '## 7. Local trails and migration',
                         '## 8. spec_store.py'):
             self.assertIn(heading, self.text)
 
@@ -65,6 +99,130 @@ class TestContract(unittest.TestCase):
             self.assertIn('`{}'.format(verb), ref)
         for code in ('`0`', '`2`', '`3`', '`4`', '`5`'):
             self.assertIn(code, ref)
+
+
+class TestImagesMove(unittest.TestCase):
+    def setUp(self):
+        self.text = DOC.read_text(encoding='utf-8')
+        self.images = subsection(self.text, '### 4.6 Images')
+
+    def test_images_move_and_evidence_text_stays(self):
+        scope = section(self.text, '## 1. What moves')
+        self.assertNotIn('design/*.png', scope)
+        for ext in kh.IMAGE_TYPES:
+            self.assertIn('`{}`'.format(ext), scope)
+        for kept in ('.active_ticket', 'review/findings.json', 'runtime/observation.md',
+                     'runtime/drive-observation.md', 'change-report.html', 'pr-pending.md'):
+            self.assertIn(kept, scope)
+        self.assertIn('§4.6', scope)
+        self.assertIn('Images follow the documents', scope)
+
+    def test_a_daemon_without_attachments_is_a_row_8_variant(self):
+        scope = subsection(self.text, '### 2.1 Resolution')
+        row = next(line for line in scope.splitlines() if line.startswith('| 8 |'))
+        self.assertIn(spec_store.ATTACHMENTS_MISSING, row)
+        self.assertIn('GET /api/attachments?project=<project>&ticket_key=<TICKET_ID>', flat(scope))
+
+    def test_the_image_addressing_table_matches_the_code(self):
+        rows = [IMAGE_ROW.match(line) for line in self.images.splitlines()]
+        rows = [r for r in rows if r]
+        self.assertGreaterEqual(len(rows), 4)
+        self.assertTrue(any(r.group(2) is None for r in rows), 'a row with no address')
+        for match in rows:
+            logical = match.group(1).replace('<specs.dir>', 'specs/.current')
+            expected = None if match.group(2) is None else (match.group(2), match.group(3))
+            self.assertEqual(kh.image_identity(logical, CONFIG), expected, logical)
+        self.assertIn("`hooks/kartoteka_http.py`'s `image_identity`", flat(self.images))
+
+    def test_the_section_names_the_fetch_the_cache_the_sweep_and_its_points(self):
+        text = flat(self.images)
+        for phrase in ('spec_store.py image fetch <logical path>',
+                       '.artel/run/<TICKET_ID>/images/<path>',
+                       '.artel/run/<TICKET_ID>/images/@v<N>/<path>',
+                       'spec_store.py image sync <TICKET_ID> --author artel:<skill>',
+                       '`figma-analysis`', '`feature-development`', '`dev`', '`pr-create`',
+                       '`restore-context`', 'redact'):
+            self.assertIn(phrase, text)
+
+    def test_the_documented_exclude_keeps_every_image_out_of_git(self):
+        line = next(l.strip() for l in self.images.splitlines()
+                    if l.strip().startswith('git add -- <paths> '))
+        for exclude in excludes():
+            self.assertIn(exclude, line)
+        command = (line.replace('<paths>', "assets/icon.png '<specs.dir>/<TICKET_ID>' "
+                                           "'<specs.dir>/.active_ticket'")
+                   .replace('<specs.dir>', 'specs/.current').replace('<TICKET_ID>', 'PROJ-12'))
+        images = ('design/a.png', 'design/B.PNG', 'design/c.Jpg', 'design/d.jpeg',
+                  'design/e.GIF', 'design/f.webp', 'runtime/g.png', 'phase-2/runtime/h.WebP',
+                  'top.png')
+        text = ('runtime/observation.md', 'verify/iteration-1.json',
+                'phase-2/runtime/observation.md')
+        env = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(['git', 'init', '-q', str(root)], check=True, env=env)
+            for rel in images + text:
+                path = root / 'specs/.current/PROJ-12' / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'x')
+            (root / 'specs/.current/.active_ticket').write_text('PROJ-12\n', encoding='utf-8')
+            (root / 'assets').mkdir()
+            (root / 'assets/icon.png').write_bytes(b'x')
+            proc = subprocess.run(shlex.split(command), cwd=str(root), env=env,
+                                  capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            staged = subprocess.run(['git', 'ls-files'], cwd=str(root), env=env, check=True,
+                                    capture_output=True, text=True).stdout.split()
+        self.assertEqual(sorted(staged), sorted(
+            ['assets/icon.png', 'specs/.current/.active_ticket'] +
+            ['specs/.current/PROJ-12/' + rel for rel in text]))
+
+    def test_ticket_parsing_stores_images_by_path(self):
+        text = flat((ROOT / 'docs' / 'ticket-parsing.md').read_text(encoding='utf-8'))
+        self.assertIn('is stored in kartoteka by path (spec-storage.md §4.6)', text)
+        self.assertNotIn('`runtime/`, `design/`, `change-report.html`', text)
+
+
+class TestImageRules(unittest.TestCase):
+    CLASSES = ('absent', 'current', 'stale', 'successor', 'conflict', 'skipped')
+
+    def setUp(self):
+        self.text = DOC.read_text(encoding='utf-8')
+
+    def test_a_failed_sweep_never_pauses(self):
+        scope = flat(subsection(self.text, '### 5.6 Images'))
+        for phrase in ('image-sync: <n> left local — <first error line>', 'never pauses',
+                       'STORE_UNAVAILABLE', "find '<specs.dir>/<TICKET_ID>' -type f",
+                       'image sync <TICKET_ID> --author artel:<skill>', 'Headless runs journal'):
+            self.assertIn(phrase, scope)
+
+    def test_the_guard_section_quotes_the_read_hint(self):
+        scope = section(self.text, '## 6. The guard')
+        self.assertIn(guard.READ_HINT.format(path='<path>'), scope)
+        self.assertIn('and on `Read`', flat(scope))
+        self.assertIn('Writing an image is always allowed', flat(scope))
+
+    def test_migration_classifies_images_like_documents(self):
+        scope = section(self.text, '## 7. Local trails and migration')
+        for cls in self.CLASSES:
+            self.assertGreaterEqual(scope.count('| `{}` |'.format(cls)), 2, cls)
+        self.assertIn('image fetch --version N', flat(scope))
+        self.assertIn('Untracked images under the trail', flat(scope))
+
+    def test_every_image_verb_and_flag_is_documented(self):
+        ref = section(self.text, '## 8. spec_store.py')
+        image = subcommands(subcommands(spec_store.build_parser())['image'])
+        self.assertEqual(sorted(image), ['fetch', 'list', 'put', 'sync'])
+        for verb, parser in image.items():
+            with self.subTest(verb):
+                row = next((line for line in ref.splitlines()
+                            if line.startswith('| `image {} '.format(verb))), '')
+                self.assertTrue(row, 'no row for image ' + verb)
+                for action in parser._actions:
+                    for flag in action.option_strings:
+                        if flag not in ('-h', '--help'):
+                            self.assertIn(flag, row)
+        self.assertIn('`image sync` and every `migrate` verb exit `5`', flat(ref))
 
 
 class TestConfig(unittest.TestCase):
@@ -113,3 +271,43 @@ class TestMigrateSpecsSkill(unittest.TestCase):
         end = self.text.index('\n\n', start)
         bullet = self.text[start:end]
         self.assertIn('apply', bullet)
+
+
+class TestMigrateSpecsImages(unittest.TestCase):
+    """spec-images §8 and §10.3: image items in the migrate-specs report and its
+    conflict prompt, spelled as scripts/spec_store.py prints them."""
+    SKILL = ROOT / 'skills' / 'migrate-specs' / 'SKILL.md'
+
+    def setUp(self):
+        self.text = self.SKILL.read_text(encoding='utf-8')
+
+    def test_names_which_images_the_trail_holds(self):
+        for phrase in ('git tracks under `<specs.dir>/<TICKET_ID>/`',
+                       '`.artel/context/tickets/<TICKET_ID>/spec-trail/`',
+                       '`spec_store.py image sync`', '`kind: "image"`'):
+            self.assertIn(phrase, self.text)
+
+    def test_counts_images_apart_and_names_the_old_daemon(self):
+        self.assertIn('`image_summary`', self.text)
+        self.assertIn(spec_store.ATTACHMENTS_MISSING, self.text)
+
+    def test_an_image_conflict_shows_sizes_hashes_and_the_cached_stored_copy(self):
+        start = self.text.index('### Image conflicts')
+        block = self.text[start:self.text.index('\n## ', start)]
+        for phrase in ('never has a diff', '`byte_size`', '`sha256`', '`stored.cache_path`',
+                       '`stored.redacted: true`', 'image fetch --version <N>',
+                       'keep-local@<N>', '`expected_version`', '`keep-stored`', '`skip`'):
+            self.assertIn(phrase, block)
+
+    def test_an_image_kartoteka_cannot_address_is_named_for_renaming(self):
+        self.assertTrue(spec_store.OUTSIDE_THE_GRAMMAR.startswith(
+            "outside kartoteka's image path grammar"))
+        self.assertIn("`outside kartoteka's image path grammar`", self.text)
+        self.assertIn('rename it', self.text)
+
+    def test_images_are_no_longer_listed_as_evidence(self):
+        start = self.text.index('**Never deleted')
+        never = self.text[start:self.text.index('\n\n', start)]
+        self.assertNotIn('`design/`', never)
+        self.assertIn('`runtime/*.md`', never)
+        self.assertIn('untracked working-tree images', never)

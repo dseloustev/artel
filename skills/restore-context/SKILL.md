@@ -44,7 +44,7 @@ test -d "$STORE_ROOT" || { echo "No context store found at $STORE_ROOT — nothi
 ### Branch A — Full restore (no ticket argument)
 
 Substitute the literal `<specs.dir>` value (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`; default
-`specs/.current`); run as-is otherwise. When `knowledge.adapter` is `kartoteka`, kartoteka is the spec store (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`) and spec documents are never restored to disk: add `--exclude={idea,vision,prd,research,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md` to both `rsync` commands in this file (Branch A and Branch B step 3), and report that old spec copies stay in the context store until `/artel:migrate-specs` moves them in.
+`specs/.current`); run as-is otherwise. When `knowledge.adapter` is `kartoteka`, kartoteka is the spec store (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`) and spec documents are never restored to disk: add `--exclude={idea,vision,prd,research,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md --exclude='*.[pP][nN][gG]' --exclude='*.[jJ][pP][gG]' --exclude='*.[jJ][pP][eE][gG]' --exclude='*.[gG][iI][fF]' --exclude='*.[wW][eE][bB][pP]'` to both `rsync` commands in this file (Branch A and Branch B step 3) — images are stored in kartoteka too (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.6), and each bracketed pattern matches its extension in any case — and report that old spec copies and images stay in the context store until `/artel:migrate-specs` moves them in.
 
 ```bash
 STORE_ROOT=".artel/context"
@@ -56,7 +56,7 @@ while IFS= read -r -d '' t; do
   ID=$(basename "$t")
   [ -d "$t/spec-trail" ] || continue
   mkdir -p "<specs.dir>/${ID}"
-  # kartoteka as the spec store: add --exclude={idea,vision,prd,research,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md (see above)
+  # kartoteka as the spec store: add --exclude={idea,vision,prd,research,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md --exclude='*.[pP][nN][gG]' --exclude='*.[jJ][pP][gG]' --exclude='*.[jJ][pP][eE][gG]' --exclude='*.[gG][iI][fF]' --exclude='*.[wW][eE][bB][pP]' (see above)
   rsync -av --exclude='.DS_Store' "$t/spec-trail/" "<specs.dir>/${ID}/"
 done < <(find "$STORE_ROOT/tickets" -mindepth 1 -maxdepth 1 -type d -print0)
 ls -la CLAUDE.md CHANGELOG.md 2>/dev/null; ls -la "<specs.dir>"
@@ -102,7 +102,7 @@ touched. Substitute the resolved `TICKET_ID` and the literal `<specs.dir>` value
    FOUND=0
    if [ -d "$STORE_ROOT/tickets/${TICKET_ID}/spec-trail" ]; then
      mkdir -p "<specs.dir>/${TICKET_ID}"
-     # kartoteka as the spec store: add --exclude={idea,vision,prd,research,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md (see above)
+     # kartoteka as the spec store: add --exclude={idea,vision,prd,research,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md --exclude='*.[pP][nN][gG]' --exclude='*.[jJ][pP][gG]' --exclude='*.[jJ][pP][eE][gG]' --exclude='*.[gG][iI][fF]' --exclude='*.[wW][eE][bB][pP]' (see above)
      rsync -av --exclude='.DS_Store' "$STORE_ROOT/tickets/${TICKET_ID}/spec-trail/" "<specs.dir>/${TICKET_ID}/"
      FOUND=1
    fi

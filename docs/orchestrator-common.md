@@ -27,7 +27,7 @@ Orchestrators:
   orchestrators perform; everything else external — opening or updating a pull request — goes
   through the `pr-create` skill and the configured `vcs.adapter` ([config.md](config.md)).
 - Ensure the ticket directory `<specs.dir>/<TICKET_ID>/` exists — on the kartoteka path that
-  directory holds only evidence.
+  directory holds only evidence text.
 - Check which artifacts already exist under it and skip gates that are already satisfied
   (skip-if-exists — [autonomous-run.md](autonomous-run.md) §9). On the kartoteka path one
   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py list <TICKET_ID>` answers it

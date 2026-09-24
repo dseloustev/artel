@@ -28,7 +28,8 @@ Idempotent by design: re-runs must never duplicate a PR, a commit of nothing, or
 
 ### 3. Commit & push
 
-- `git status --porcelain` clean → skip the commit (idempotent re-run), else stage the ticket's changed files explicitly (never `git add -A` on `.artel/**` or `<specs.dir>/**` unless they are the ticket's own artifacts; on the kartoteka path `<specs.dir>/<TICKET_ID>/` holds only evidence) and commit: conventional message, subject line only, no trailers, following the host repo's own commit-message conventions — `language.docs`/`language.pr` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`) govern spec-trail artifacts and PR-facing text, never commit messages.
+- **Image sweep (kartoteka path).** First run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:pr-create` (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.6). Exit `5`, or `failed` entries, never stop this skill: put `image-sync: <n> left local — <first error line>` (spec-storage.md §5.6) in the report and go on — those images stay untracked. Exit `2` with kind `unrecoverable` never stops it either, but put its whole message, not a first line, in the report (spec-storage.md §5.6).
+- `git status --porcelain` clean → skip the commit (idempotent re-run), else stage the ticket's changed files explicitly (never `git add -A` on `.artel/**` or `<specs.dir>/**` unless they are the ticket's own artifacts; on the kartoteka path `<specs.dir>/<TICKET_ID>/` holds only evidence text, and staging never takes an image from it — `git add -- <the ticket's changed files> '<specs.dir>/<TICKET_ID>' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.png' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.jpg' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.jpeg' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.gif' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.webp'`, leaving `'<specs.dir>/<TICKET_ID>'` out when that folder neither exists nor has tracked files) and commit: conventional message, subject line only, no trailers, following the host repo's own commit-message conventions — `language.docs`/`language.pr` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`) govern spec-trail artifacts and PR-facing text, never commit messages. Nothing staged (`git diff --cached --quiet` exits 0 — only images a failed sweep left untracked had changed) → skip the commit.
 - Push: `git push -u origin <branch>`. Never any `--force` variant. Rejected non-fast-forward → stop and report (the user reconciles; force-push is never an option).
 
 ### 4. PR (idempotency check first)
@@ -50,6 +51,7 @@ Branch on `tracker.adapter`:
 
 ### 6. Report
 
-`PR_OPENED: <url>` (or `PR_EXISTS: <url>`), commit hash, tracker keys commented, and anything skipped.
+`PR_OPENED: <url>` (or `PR_EXISTS: <url>`), commit hash, tracker keys commented, anything skipped,
+and the sweep's `image-sync:` line when it left images local.
 
 Additionally: if `runtime.scaffold` is configured (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`) and its artifacts still appear present on the branch, append to the report: "automation still applied — run `/artel:remove-automation` before merge (expected order: it lands as a cleanup commit on this PR)".

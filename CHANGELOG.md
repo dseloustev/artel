@@ -6,6 +6,66 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+**Requires kartoteka 0.44.0** when `knowledge.adapter` is `"kartoteka"`. Read **Upgrading**
+before the first run.
+
+### Added
+
+- **Spec images live in kartoteka too.** With `knowledge.adapter: "kartoteka"`, image files in a
+  ticket's trail are uploaded to kartoteka 0.44.0's new attachment store and moved out of the
+  trail: `figma-analysis`'s `design/` screenshots, runtime screenshots under `runtime/`, and any
+  `*.png`, `*.jpg`, `*.jpeg`, `*.gif` or `*.webp`.
+  - **They travel with the documents that embed them.** Another worktree, another machine or a
+    teammate gets them too, and the dashboard shows `design-analysis.md` with its images inline.
+  - **Producers don't change.** They write images where they always have. Orchestrators sweep them
+    in with `spec_store.py image sync` at the end of design analysis, before each checkpoint
+    commit, in `pr-create`, and at completion.
+  - **Images are never staged on the kartoteka path**, so pull requests stop carrying
+    screenshots.
+  - **Agents view an image with `spec_store.py image fetch <logical path>`.** It downloads into a
+    disposable cache under `.artel/run/<TICKET_ID>/images/`.
+  - **An unaddressable or oversized image is `skipped`.** One whose name is outside kartoteka's
+    path grammar — for example macOS's default "Screenshot … at ….png", which contains spaces
+    — or which is larger than 5 MiB, is neither stored nor committed and stays only in the
+    worktree. The final report names it; rename or shrink it, then sweep again.
+  - Contract: `docs/spec-storage.md` §4.6.
+- **`/artel:migrate-specs` moves committed images in**, with the same guarantees as documents:
+  - each image's hash is compared with every stored version;
+  - a conflict shows sizes, hashes and both images instead of a diff;
+  - a local copy is deleted only once kartoteka verifiably holds it;
+  - it also moves images from `save-context` copies (`.artel/context/tickets/<TICKET_ID>/spec-trail/`).
+
+### Changed
+
+- **The storage decision also requires kartoteka's attachment store.** A daemon older than 0.44.0
+  is reported as unavailable:
+  `the kartoteka daemon predates attachments (0.44.0); upgrade it`.
+- **Reading an image's old path is refused with a hint.** On the kartoteka path, when no local
+  copy exists at an image's path under the trail, the guard names `image fetch`
+  (`hooks/spec_store_guard.py`, now also on `Read`).
+- **A failed sweep never pauses a run.** Its images stay local and untracked, are retried at the
+  next sweep point, and are listed in the final report with the `image sync` command.
+  - In the rare case where an image can be neither verified nor put back (`image sync` exits `2`
+    with kind `unrecoverable`), its bytes are set aside as `<cache file>.unverified`.
+  - The run still does not pause, and the whole message, naming both paths, goes into the
+    journal and the final report.
+- **`restore-context` no longer restores images on the kartoteka path.** They are excluded
+  alongside the spec documents; both stay in the context store until `/artel:migrate-specs`
+  moves them in.
+- **OpenCode users re-run `scripts/install-opencode.sh`** to pick up the bridge's new `read`
+  hook.
+
+### Upgrading
+
+1. Upgrade kartoteka to 0.44.0, run `kartoteka migrate`, and restart the daemon.
+   - Until kartoteka is upgraded, every run on the kartoteka path, and `/artel:migrate-specs`,
+     stops at the storage decision with the line above.
+   - A 0.44.0 daemon whose database was not migrated refuses to start, which artel reports as
+     `kartoteka is unreachable at …`, so run `kartoteka migrate` first.
+2. Move trails that have committed images in with `/artel:migrate-specs <TICKET_ID>`, or
+   `--all`. A headless run stops at start while a trail still holds committed images, as it does
+   for committed documents.
+
 ## [0.16.0] - 2026-09-23
 
 **Requires kartoteka 0.43.0** when `knowledge.adapter` is `"kartoteka"`. Read **Upgrading**

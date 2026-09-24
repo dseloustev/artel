@@ -14,6 +14,8 @@ import kartoteka_http as kh  # noqa: E402
 SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'spec_store.py'
 PROJECT = 'adguard-wallet'
 NOT_SET = 'kartoteka is configured for this project but {} is not set'
+PNG = b'\x89PNG\r\n\x1a\n' + b'fixture'
+ATTACHMENTS_MISSING = 'the kartoteka daemon predates attachments (0.44.0); upgrade it'
 
 
 class StoreCase(unittest.TestCase):
@@ -389,6 +391,56 @@ class TestDecide(StoreCase):
         self.assertTrue(out['reason'].startswith(prefix), out['reason'][:80])
         self.assertEqual(len(out['reason']),
                          len(prefix) + kh.ERROR_BODY_LIMIT + len('...(truncated)'))
+
+    def test_a_daemon_before_attachments_is_unavailable(self):
+        self.fake.mode = 'pre_attachments'
+        self.assertRecord(ATTACHMENTS_MISSING)
+
+    def test_the_attachment_probe_follows_the_artifact_listing(self):
+        code, out = self.decide()
+        self.assertEqual((code, out['store']), (0, 'kartoteka'))
+        self.assertEqual([(r[0], r[1]) for r in self.fake.requests], [
+            ('PATCH', '/api/artifacts/AW-12/artel-probe/probe.md'),
+            ('GET', '/api/artifacts'),
+            ('GET', '/api/attachments')])
+        query = self.fake.requests[-1][2]
+        self.assertEqual((query['project'], query['ticket_key']), (PROJECT, 'AW-12'))
+        self.assertNotIn('path', query)
+
+    def test_an_older_daemon_is_named_before_the_attachment_probe(self):
+        self.fake.mode = 'old'
+        self.assertRecord('the kartoteka daemon predates artifact_patch (0.43.0); upgrade it')
+        self.assertNotIn('/api/attachments', [r[1] for r in self.fake.requests])
+
+    def test_an_unexpected_attachment_answer_is_the_one_answered_record(self):
+        def refuse_the_attachment_listing(method, path, query, body):
+            if path == '/api/attachments':
+                self.fake.forced['GET'] = (500, 'Internal Server Error')
+        self.fake.on_request = refuse_the_attachment_listing
+        code, out = self.decide()
+        self.assertEqual(code, 5)
+        self.assertTrue(out['reason'].startswith('kartoteka answered HTTP 500'), out['reason'])
+        self.assertIsNone(self.stored())
+
+    def test_the_decision_file_gains_no_field(self):
+        # spec-images §7: image versions are not tracked in the decision.
+        self.fake.seed_image(PROJECT, 'AW-12', 'design/x.png', PNG)
+        code, _ = self.decide()
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(self.stored()), ['decided_at', 'decided_by', 'pending', 'reason',
+                                                 'store', 'versions'])
+
+    def test_the_local_trail_names_tracked_images_not_untracked_ones(self):
+        design = self.repo / 'specs' / '.current' / 'AW-12' / 'design'
+        design.mkdir(parents=True)
+        (design / 'committed.png').write_bytes(PNG)
+        (design / 'Screen Shot.png').write_bytes(PNG)   # tracked, but kartoteka cannot address it
+        for args in (('init', '-q'), ('add', 'specs')):
+            subprocess.run(['git', *args], cwd=self.repo, check=True, capture_output=True)
+        (design / 'fresh.png').write_bytes(PNG)         # untracked: the sweep's
+        code, out = self.decide()
+        self.assertEqual((code, out['local_trail']),
+                         (0, ['specs/.current/AW-12/design/committed.png']))
 
 
 class TestDecisionAndPending(StoreCase):

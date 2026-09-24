@@ -13,6 +13,7 @@ Contract: docs/spec-storage.md §2.
 """
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -100,10 +101,15 @@ def admits_local_write(rel, ticket):
     return decision.get('store') == 'files' and is_fresh(decision)
 
 
-def local_trail(ticket, config):
-    """This ticket's spec documents on disk, repo-relative: first <specs.dir>/<T>/
-    (phase folders included), then save-context's .artel/context copy. Only
-    mirrored filenames count -- evidence and .active_ticket are not a trail."""
+def local_trail(ticket, config, unmovable=False):
+    """This ticket's spec trail on disk, repo-relative.
+
+    First its documents: <specs.dir>/<T>/ (phase folders included), then
+    save-context's .artel/context copy. Only mirrored filenames count, so
+    evidence and .active_ticket are not a trail. Then its images
+    (_trail_images), the ones kartoteka can address. unmovable=True also adds
+    the images it cannot. Migration lists those to report them, but they are no
+    trail a run is asked to migrate, since nothing could ever move them."""
     specs_dir = (config.get('specs') or {}).get('dir') or 'specs/.current'
     found = []
     for root in (Path(specs_dir) / ticket, CONTEXT_TICKETS / ticket / 'spec-trail'):
@@ -113,4 +119,68 @@ def local_trail(ticket, config):
             logical = str(Path(specs_dir) / ticket / candidate.relative_to(root))
             if kh.artifact_identity(logical, config) is not None:
                 found.append(str(candidate))
-    return found
+    movable, unaddressable = _trail_images(ticket, specs_dir, config)
+    return found + movable + (unaddressable if unmovable else [])
+
+
+def _trail_images(ticket, specs_dir, config):
+    """(movable, unaddressable) image files that belong to migration (spec-images
+    §8): those git tracks under <specs.dir>/<T>/, then every one in the context
+    copy, each list sorted. An untracked working-tree image is the sweep's
+    (spec_store.py image sync). Symbolic links are listed: migration reports
+    them skipped and never reads one, as it does a symlinked document."""
+    movable, unaddressable = [], []
+    tree = Path(specs_dir) / ticket
+    for root in (tree, CONTEXT_TICKETS / ticket / 'spec-trail'):
+        if not root.is_dir():
+            continue
+        tracked = _tracked_under(root) if root == tree else None
+        for candidate in sorted(root.rglob('*')):
+            if not kh.is_image_name(candidate.name):
+                continue
+            if not (candidate.is_symlink() or candidate.is_file()):
+                continue
+            if tracked is not None and os.path.normpath(str(candidate)) not in tracked:
+                continue
+            logical = str(tree / candidate.relative_to(root))
+            if kh.image_identity(logical, config) is None:
+                unaddressable.append(str(candidate))
+            else:
+                movable.append(str(candidate))
+    return movable, unaddressable
+
+
+def _tracked_under(root):
+    """The paths git's index holds under root, normalised and spelled as this
+    process's working directory spells them. It draws the same line
+    `spec_store.py image sync` draws with `git ls-files`. A file that is staged
+    but never committed counts as tracked. Without git, or outside a work tree,
+    it returns none, so no working-tree image is taken from the sweep."""
+    try:
+        proc = subprocess.run(['git', '--literal-pathspecs', 'ls-files', '-z', '--', str(root)],
+                              capture_output=True)
+    except OSError:
+        return set()
+    if proc.returncode != 0:
+        return set()
+    return {os.path.normpath(os.fsdecode(p)) for p in proc.stdout.split(b'\0') if p}
+
+
+def image_files(root):
+    """Every image file under `root`, at any depth, sorted: regular files only.
+
+    A symbolic link is never listed, and a link met while walking below
+    `root` is never entered (os.walk does not follow a link once it is
+    inside the walk). `root` itself can still be a link -- os.walk walks
+    into whatever it is first pointed at -- so a linked ticket directory is
+    not this function's problem to catch: the sweep's own
+    `_outside_the_trail` runs before any path from here is read. Used by the
+    sweep (`spec_store.py image sync`) and by migration.
+    """
+    found = []
+    for directory, _, names in os.walk(str(root)):
+        for name in names:
+            path = Path(directory) / name
+            if kh.is_image_name(name) and path.is_file() and not path.is_symlink():
+                found.append(path)
+    return sorted(found)

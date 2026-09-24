@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -120,3 +121,87 @@ class TestLocalTrail(InRepo):
             'specs/.current/AW-12/prd.md',
             '.artel/context/tickets/AW-12/spec-trail/plan.md',
         ])
+
+
+class TestImageFiles(InRepo):
+    def test_every_regular_image_file_at_any_depth_sorted(self):
+        self.touch('specs/.current/AW-12/design/b.PNG')
+        self.touch('specs/.current/AW-12/design/a.png')
+        self.touch('specs/.current/AW-12/phase-2/runtime/x.webp')
+        self.touch('specs/.current/AW-12/shot.jpeg')
+        self.touch('specs/.current/AW-12/design-analysis.md')    # a document
+        self.touch('specs/.current/AW-12/runtime/observation.md')
+        self.touch('specs/.current/AW-12/diagram.svg')           # not an image kartoteka takes
+        self.assertEqual(sd.image_files(Path('specs/.current/AW-12')), [
+            Path('specs/.current/AW-12/design/a.png'),
+            Path('specs/.current/AW-12/design/b.PNG'),
+            Path('specs/.current/AW-12/phase-2/runtime/x.webp'),
+            Path('specs/.current/AW-12/shot.jpeg'),
+        ])
+
+    def test_links_are_never_listed_or_entered(self):
+        self.touch('outside/secret.png')
+        self.touch('specs/.current/AW-12/design/real.png')
+        os.symlink(os.path.abspath('outside/secret.png'), 'specs/.current/AW-12/design/link.png')
+        os.symlink(os.path.abspath('outside'), 'specs/.current/AW-12/linked-dir')
+        self.assertEqual(sd.image_files(Path('specs/.current/AW-12')),
+                         [Path('specs/.current/AW-12/design/real.png')])
+
+    def test_a_missing_root_is_empty(self):
+        self.assertEqual(sd.image_files(Path('specs/.current/AW-99')), [])
+
+
+class TestLocalTrailImages(InRepo):
+    """spec-images §8: the images migration owns -- tracked ones in the working
+    tree and every one in the context copy. An untracked working-tree image is
+    the sweep's, so a resume after a failed sweep asks no migration question."""
+
+    def setUp(self):
+        super().setUp()
+        self.git('init', '-q')
+
+    def git(self, *args):
+        subprocess.run(['git', *args], check=True, capture_output=True)
+
+    def test_tracked_tree_images_then_every_context_image_after_the_documents(self):
+        self.touch('specs/.current/AW-12/prd.md')
+        self.touch('specs/.current/AW-12/design/desktop.png')
+        self.touch('specs/.current/AW-12/phase-2/runtime/shot.JPG')
+        self.touch('specs/.current/AW-12/design/notes.txt')           # not an image
+        self.touch('specs/.current/AW-13/design/other.png')           # another ticket
+        self.git('add', 'specs')          # staged, never committed: tracked all the same
+        self.touch('specs/.current/AW-12/runtime/fresh.png')          # untracked: the sweep's
+        self.touch('.artel/context/tickets/AW-12/spec-trail/design/old.webp')
+        self.assertEqual(sd.local_trail('AW-12', CONFIG), [
+            'specs/.current/AW-12/prd.md',
+            'specs/.current/AW-12/design/desktop.png',
+            'specs/.current/AW-12/phase-2/runtime/shot.JPG',
+            '.artel/context/tickets/AW-12/spec-trail/design/old.webp',
+        ])
+
+    def test_an_image_kartoteka_cannot_address_is_listed_only_for_migration(self):
+        self.touch('specs/.current/AW-12/design/Screen Shot.png')     # a space
+        self.touch('specs/.current/AW-12/a/b/c/d/deep.png')           # five levels
+        self.git('add', 'specs')
+        self.touch('.artel/context/tickets/AW-12/spec-trail/runtime/shot (1).png')
+        self.assertEqual(sd.local_trail('AW-12', CONFIG), [])
+        self.assertEqual(sd.local_trail('AW-12', CONFIG, unmovable=True), [
+            'specs/.current/AW-12/a/b/c/d/deep.png',
+            'specs/.current/AW-12/design/Screen Shot.png',
+            '.artel/context/tickets/AW-12/spec-trail/runtime/shot (1).png',
+        ])
+
+    def test_a_tracked_symbolic_link_is_listed_for_migration_to_skip(self):
+        os.makedirs('specs/.current/AW-12/design')
+        os.symlink('nowhere.png', 'specs/.current/AW-12/design/link.png')
+        self.git('add', 'specs')
+        self.assertEqual(sd.local_trail('AW-12', CONFIG),
+                         ['specs/.current/AW-12/design/link.png'])
+
+
+class TestLocalTrailWithoutGit(InRepo):
+    def test_outside_a_work_tree_no_working_tree_image_is_the_trails(self):
+        self.touch('specs/.current/AW-12/design/x.png')
+        self.touch('.artel/context/tickets/AW-12/spec-trail/design/y.png')
+        self.assertEqual(sd.local_trail('AW-12', CONFIG),
+                         ['.artel/context/tickets/AW-12/spec-trail/design/y.png'])

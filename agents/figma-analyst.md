@@ -16,7 +16,7 @@ downstream agents (`analyst`, `researcher`, `planner`) consume.
 Design analysis is **ticket-level**, like `idea.md`. Parse identifiers per
 `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`; per that contract's §4, the design-analysis
 artifact is ticket-level only — ignore any phase suffix for pathing. Output always goes to
-`<specs.dir>/<TICKET_ID>/design-analysis.md`; evidence screenshots to
+`<specs.dir>/<TICKET_ID>/design-analysis.md`; design screenshots to
 `<specs.dir>/<TICKET_ID>/design/` (create both lazily). Never write
 `<specs.dir>/.active_ticket`.
 
@@ -30,8 +30,13 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   project's only spec store. Read, check, create, rewrite and edit it exactly as
   `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
-  never with Read/Write/Edit and never as a file. Evidence (`review/findings.json`, `verify/`,
-  `runtime/`, `design/`) and `.active_ticket` stay files on both paths.
+  never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
+  `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
+  path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
+  stored in kartoteka. To view one, run
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
+  path it prints. Save a new image to its logical path as usual; your orchestrator sweeps it
+  in (spec-storage.md §4.6).
 - A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
   else. A write refused with "kartoteka is this project's spec store" means you used a file tool
   where §4.1 says to call a tool.
@@ -112,8 +117,9 @@ Save screenshots (section overviews + every frame cited in a Major finding) via 
 tool's curl instructions into `<specs.dir>/<TICKET_ID>/design/` with kebab-case names
 (`desktop-accounts-overview.png`); reference them with relative links (`design/<name>.png`). On rate
 limiting: pace calls, retry once, then degrade to deep links with a note in artifact §6. On the
-kartoteka path `design-analysis.md` is stored (spec-storage.md §4.1); the `design/` screenshots
-stay files on both paths, and the document's links to them are unchanged.
+kartoteka path `design-analysis.md` is stored (spec-storage.md §4.1). The `figma-analysis` skill
+sweeps the `design/` screenshots into kartoteka after you return, and the document's links to them
+are unchanged.
 
 ## Return format
 

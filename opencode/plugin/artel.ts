@@ -9,6 +9,8 @@
  *       deny               -> throw (OpenCode's way to deny a tool call)
  *   tool.execute.before (edit|write|apply_patch) -> hooks/spec_store_guard.py (after sensitive_guard.py)
  *       deny               -> throw (OpenCode's way to deny a tool call)
+ *   tool.execute.before (read) -> hooks/spec_store_guard.py (the Read hint for a swept image)
+ *       deny               -> throw (the read errors, naming `spec_store.py image fetch`)
  *   tool.execute.before (bash | any non-edit tool whose name carries a platform token:
  *                       bitbucket / github / jira)             -> hooks/vcs_guard.py
  *       deny               -> throw (OpenCode's way to deny a tool call)
@@ -157,6 +159,21 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
             `artel vcs guard: ${decision.permissionDecisionReason ?? "this platform is not this project's home"}`,
           )
         }
+      }
+
+      if (input.tool === "read" && hasArtelConfig(directory)) {
+        // docs/spec-storage.md §6: the old path of an image kartoteka now holds names the
+        // command that fetches it. Payload in Claude Code's casing, as the VCS guard's is.
+        const payload = claudeEditPayload(input.sessionID, directory, "Read", output.args)
+        if (!payload) return
+        const hint = await runHook("spec_store_guard.py", payload, directory, 10_000)
+        const hintDecision = firstJson(hint.stdout)?.hookSpecificOutput
+        if (hintDecision?.permissionDecision === "deny") {
+          throw new Error(
+            `artel spec-store guard: ${hintDecision.permissionDecisionReason ?? "images are stored in kartoteka"}`,
+          )
+        }
+        return
       }
 
       if (!EDIT_TOOLS.has(input.tool) || !hasArtelConfig(directory)) return

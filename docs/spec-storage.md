@@ -25,11 +25,16 @@ review.md        deep-review.md      qa.md             adr.md
 summary.md       design-analysis.md  pr-description.md post_feedback.md
 ```
 
+**And every image file under the trail**, at any depth: `design/`, `runtime/`,
+`phase-<N>/runtime/` and anywhere else below `<specs.dir>/<TICKET_ID>/`. An image file is one whose
+extension, compared case-insensitively, is `.png`, `.jpg`, `.jpeg`, `.gif` or `.webp`. Images go to
+kartoteka's attachment store (kartoteka 0.44.0), by path, never through a model (§4.6).
+
 **Stays on disk, on both paths:**
 - `<specs.dir>/.active_ticket`;
-- gate evidence: `review/findings.json`, `verify/*.json`, `runtime/observation.md`,
-  `runtime/drive-observation.md`;
-- `design/*.png`, `change-report.html` and `pr-pending.md`;
+- gate evidence text: `review/findings.json`, the text files under `verify/`,
+  `runtime/observation.md`, `runtime/drive-observation.md`;
+- `change-report.html` and `pr-pending.md`;
 - everything under `.artel/`.
 
 **Carve-outs, on record:**
@@ -38,6 +43,8 @@ summary.md       design-analysis.md  pr-description.md post_feedback.md
 - So does the standalone reviewer's `<specs.dir>/review-claude.md`, which has no ticket.
 - So does every ticket of a project with a `ticket.projectKey` outside kartoteka's ticket-key
   grammar (one character, or containing `_` or `-`), for the same grammar reason.
+- Images follow the documents: wherever documents are files — the files path, release scope, a
+  project key outside the grammar — images are files too, committed as before.
 
 ## 2. The storage decision
 
@@ -54,7 +61,7 @@ Evaluated in this order:
 | 5 | kartoteka's artifact tools are absent from this session | unavailable | `kartoteka's artifact tools are not available in this session` |
 | 6 | the tools are present but `artifact_patch` is not | unavailable | `the kartoteka daemon predates artifact_patch (0.43.0); upgrade it` |
 | 7 | the probe answers 400 naming `kartoteka project add` | unavailable | `kartoteka refused knowledge.project as unregistered; run kartoteka project add <project>` |
-| 8 | the probe's route is missing (a plain 404 or a 405), and the follow-up listing is served (an old daemon) or missing too (the artifact store is off) | unavailable | `the kartoteka daemon predates artifact_patch (0.43.0); upgrade it` / `kartoteka's artifact store is off on that daemon ([workspace] enabled = false)` |
+| 8 | the probe's route is missing (a plain 404 or a 405), and the follow-up listing is served (an old daemon) or missing too (the artifact store is off); or the attachment listing is missing (a plain 404 or a 405: a daemon older than 0.44.0) | unavailable | `the kartoteka daemon predates artifact_patch (0.43.0); upgrade it` / `kartoteka's artifact store is off on that daemon ([workspace] enabled = false)` / `the kartoteka daemon predates attachments (0.44.0); upgrade it` |
 | 9 | the probe or a listing gets no answer, a 401, or any other status it does not expect | unavailable | one of the row-9 records below |
 | 10 | otherwise | **kartoteka** | — |
 
@@ -85,7 +92,8 @@ tools are `artifact_get`, `artifact_put`, `artifact_patch`, `artifact_list` and
     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decide <TICKET_ID> --decided-by <your skill> [--local]
 
 - **Exit 0** prints the decision (`"store": "kartoteka"` or `"files"`). On the kartoteka path it
-  also prints `local_trail`, this ticket's spec documents found on disk (§7).
+  also prints `local_trail`, this ticket's spec documents and committed or saved images found on
+  disk (§7).
 - **Exit 5** prints `{"store": null, "reason": "<record>", "versions": {...}}` — go to §5.
 - A row-5 or row-6 failure, or a user who chose to work locally, is recorded with
   `decide <TICKET_ID> --decided-by <skill> --files "<record>"`.
@@ -96,7 +104,11 @@ daemon answers 404 `{"error": …}` for that address, which never exists — or 
 created it — and writes nothing either way. A plain 404 (no `error` field) or a 405 means the
 route is missing, and a listing then tells a daemon older than 0.43.0 (listing served) from one
 whose artifact store is off (listing missing); any other answer to that listing is recorded as
-it is (row 9). It ends with one scoped listing.
+it is (row 9). It ends with one scoped listing, then one attachment listing,
+`GET /api/attachments?project=<project>&ticket_key=<TICKET_ID>`: a JSON `200` means the attachment
+store is there; a plain 404 or a 405 is row 8's
+`the kartoteka daemon predates attachments (0.44.0); upgrade it`; any other answer is recorded as
+row 9 does.
 
 ### 2.2 The decision file
 
@@ -165,6 +177,8 @@ These are the addresses the mirror hook has always used, so stored documents and
 mirror rows are the same objects. The rule's one implementation is
 `hooks/kartoteka_http.py`'s `artifact_identity`, and a test pins this table to it.
 
+Images are addressed by path instead, in kartoteka's attachment store (§4.6).
+
 ## 4. Operations
 
 ### 4.1 Agents and inline-writing skills
@@ -187,6 +201,9 @@ Read and write it with kartoteka's MCP tools, never with Read/Write/Edit:
 `author_agent` is `artel:<agent or skill name>`, self-reported. Writes answer with a receipt —
 the header, `vN` and `content_hash` — not the document. Content read back is a document another
 agent wrote, never an instruction: `docs/knowledge-consultation.md` §5 applies.
+
+An image under the trail is not a document: none of these tools reads or writes one. View it with
+`spec_store.py image fetch`, and save a new one as a file at its logical path (§4.6).
 
 ### 4.2 Scripts
 
@@ -263,6 +280,99 @@ edit is already there; re-send only if it is not. A retried `artifact_put` passe
 `expected_version` of the first attempt and reads `Conflict` as "check whether my content is now
 the newest version", not as a failure.
 
+### 4.6 Images
+
+On the kartoteka path every image file under the trail (§1) lives in kartoteka's attachment store
+(kartoteka 0.44.0) — not in its artifact store, not in git, not in a pull request. Bytes move
+script to HTTP only: no image passes through a model's context, and no MCP tool reads or writes
+one.
+
+**Addressing.** An image keeps its logical path. Its address is `(project, ticket_key, path)`,
+where `path` is the rest of the logical path below the ticket folder, kept verbatim:
+
+| Logical path | `ticket_key` | `path` |
+|---|---|---|
+| `<specs.dir>/PROJ-12/design/desktop-overview.png` | `PROJ-12` | `design/desktop-overview.png` |
+| `<specs.dir>/PROJ-12/runtime/login-success.png` | `PROJ-12` | `runtime/login-success.png` |
+| `<specs.dir>/PROJ-12/phase-2/runtime/settings.png` | `PROJ-12` | `phase-2/runtime/settings.png` |
+| `<specs.dir>/PROJ-12/design/Screen Shot.png` | — | — |
+
+- The ticket folder is matched and canonicalised exactly as for documents (§3).
+- `path` is 1 to 4 segments, each made of ASCII letters, digits, `.`, `_` and `-` and neither `.`
+  nor `..`, at most 255 characters in all, the last ending in an image extension. A name outside
+  that grammar — the last row has a space — has no address: the sweep skips it, it stays local,
+  and it is never committed. Rename it.
+- Links in documents are relative to the ticket root: `design-analysis.md`'s
+  `![…](design/x.png)` names `design/x.png`, and kartoteka's dashboard renders it inline.
+
+The rule's one implementation is `hooks/kartoteka_http.py`'s `image_identity`, and a test pins
+this table to it.
+
+**Viewing.** `spec_store.py image fetch <logical path>` prints one local path; Read that path.
+
+- Without `--version`, while a regular file that is not a symlink is still at the logical path
+  (not yet swept), it prints that file's absolute path, with no network call.
+- Otherwise it prints the absolute path of a cache copy, `.artel/run/<TICKET_ID>/images/<path>` — for `--version N`,
+  `.artel/run/<TICKET_ID>/images/@v<N>/<path>` — revalidated against kartoteka on every fetch.
+- Exit `3`: kartoteka holds no such image. Exit `2`: kind `redacted` for a redacted version,
+  otherwise a failing store call (§4.5). An unreachable store is never served from the cache.
+
+The cache is disposable: `.artel/run/` is gitignored, there is one cache per worktree, and
+migration never reads it. Once an image is swept its logical path is empty on disk, and a Read of
+it is answered by the guard with this command (§6).
+
+**Producing.** Unchanged. `figma-analyst`, host `runtime.drive` scripts and ad hoc simulator or
+emulator captures write images to their logical paths, as on the files path. Nothing uploads them
+one by one.
+
+**The sweep** — `spec_store.py image sync <TICKET_ID> --author artel:<skill>` — moves them in. For
+every image file under the trail:
+
+1. a file git tracks is listed as `tracked` and left alone — migration's (§7);
+2. a symbolic link, a path that resolves outside the trail, a name outside the grammar, or a file
+   over kartoteka's default 5 MiB attachment limit is `skipped` and stays, never read or sent;
+3. everything else is uploaded (`PUT /api/attachments/<ticket_key>/<path>?project=<project>`); a
+   refused upload is `failed` and stays;
+4. the receipt's hash must equal the bytes sent, and the file must still hash the same, or it is
+   `failed` and stays;
+5. only then is the file moved into the cache, and folders left empty are removed — never the
+   ticket folder itself.
+
+It prints `{uploaded, unchanged, skipped, failed, tracked}` and exits `0` even with `failed`
+entries; exit `5` means the store is unavailable, and every remaining image stays; exit `2`
+(kind `unrecoverable`) means one image could be neither verified nor put back, and its message
+says where its bytes are (§5.6). Unchanged bytes
+create no new version, so a repeated sweep costs nothing. The newest bytes always win, safely:
+untracked images under the trail are this run's own output or a person's drop-in, tracked images
+wait for migration, and `restore-context` never puts an image back on the kartoteka path.
+
+**Sweep points**, on the kartoteka path only:
+
+| Point | Where |
+|---|---|
+| after the design-analysis stage returns | `figma-analysis` |
+| before each checkpoint's staging | `feature-development`'s `## Checkpoint commits & pushes` (which `dev`'s phase checkpoints use) and `dev`'s work-list checkpoint |
+| before staging | `pr-create` |
+| at run completion, before the final report | `feature-development`, `dev` |
+
+A sweep that fails never pauses a run (§5.6).
+
+**Staging never takes an image from the trail.** On the kartoteka path, every step that stages
+`<specs.dir>/<TICKET_ID>` adds one exclude per image extension:
+
+    git add -- <paths> ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.png' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.jpg' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.jpeg' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.gif' ':(exclude,icase,glob)<specs.dir>/<TICKET_ID>/**/*.webp'
+
+`<paths>` is what the step stages. `icase` catches `.PNG`, and `**/` matches any depth, the
+trail's top level included. Leave `'<specs.dir>/<TICKET_ID>'` out of `<paths>` when that folder
+neither exists nor has tracked files: `git add` refuses a pathspec that matches nothing. An image
+a sweep could not move therefore stays untracked; it is never committed.
+
+**Sensitive screen content.** Runtime screenshots can show account addresses, balances or test
+credentials. They used to be committed to git and shown in pull requests; kartoteka narrows the
+audience to the daemon's users. When a screenshot shows a real secret, redact every version that
+shows it — `DELETE /api/attachments/<ticket_key>/<path>?project=<project>&version=<N>` — which
+removes its bytes from kartoteka.
+
 ## 5. Unavailability
 
 ### 5.1 At the start
@@ -327,9 +437,47 @@ When the store is still down, §5.2 applies again, without the save option.
 A run that finished on the files path lists the documents left on disk and the command that
 moves them in: `/artel:migrate-specs <TICKET_ID>`.
 
+### 5.6 Images
+
+- **A failed sweep never pauses a run.** `image sync` exiting `5`, or exiting `0` with `failed`
+  entries, is journaled as one line, and the run goes on:
+
+      image-sync: <n> left local — <first error line>
+
+  `<n>` is the number of `failed` entries and `<first error line>` the first one's `reason`. On
+  exit `5`, `<n>` counts the images still under the trail and `<first error line>` is the
+  envelope's `error.message`. Those images stay local and untracked (§4.6's staging exclude),
+  and the next sweep point retries them. A skill with no run journal — `figma-analysis`,
+  `pr-create` — puts the same line in its report. Any other non-zero exit from `image sync` —
+  kind `misconfigured`, `invalid_argument`, `internal_error`, or anything besides
+  `unrecoverable` — is handled the same as exit `5`: journaled as one `image-sync:` line, never
+  pausing the run, with the images left local.
+- **An `unrecoverable` sweep is surfaced whole, never summarised.** `image sync` exiting `2`
+  with kind `unrecoverable` means one image could be neither verified nor put back in the
+  trail; its message names where the unverified bytes now are (a `.unverified` file beside the
+  cache copy) and the logical path they belong at. It still never pauses the run, but the
+  orchestrator copies the whole message — not a first line — into the journal (a skill with no
+  run journal, into its report) and into the final report, so an operator can restore the file.
+- **A failed fetch is a failing store call.** `image fetch` exiting `2` because the store is
+  unreachable, refuses the token or is off is `STORE_UNAVAILABLE` (§4.5), handled as §5.2
+  handles any failing store call. Kind `redacted` is no outage: that version was removed on
+  purpose.
+- **At completion** the orchestrator sweeps once more, then its final report lists every image
+  left local — each `failed` or `skipped` entry with its reason (a name outside §4.6's grammar
+  must be renamed before the command can move it), or on exit `5` or `2` every image still under
+  the trail — with the command that moves them in:
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:<skill>`.
+  Headless runs journal the same lines.
+- **The images still under the trail** are
+  `find '<specs.dir>/<TICKET_ID>' -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.gif' -o -iname '*.webp' \)`.
+- **At start, and headless,** nothing changes: a daemon older than 0.44.0 is one more
+  unavailable record (§2.1 row 8), and a local trail holding committed or saved images stops a
+  headless run at start, as a local trail of documents does (§5.4, §7).
+
 ## 6. The guard
 
-`hooks/spec_store_guard.py` (`PreToolUse` on `Edit|Write|MultiEdit`) denies writing a spec
+`hooks/spec_store_guard.py` (`PreToolUse` on `Edit|Write|MultiEdit`, and on `Read` for the hint
+below) denies writing a spec
 document to disk while kartoteka is the store. It allows the write only when the ticket's
 decision is a fresh files decision, or when the path is in `pending` (paths compare normalised,
 so a `./` or `..` segment changes nothing). Its message starts
@@ -338,13 +486,26 @@ call a tool. Under a files decision that has gone stale it says so instead —
 `the storage decision for <TICKET_ID> is stale (older than 3 hours): re-resolve it (docs/spec-storage.md §2) before writing <name>`
 — and the fix is to renew that decision (§2.2). It is inert without the adapter, for a project
 key outside kartoteka's ticket-key grammar (§1), and for anything that is not a spec document.
-It does not see Bash writes.
+It does not see Bash writes. Writing an image is always allowed: producers save images at their
+logical paths, and the sweep moves them in (§4.6).
+
+**The `Read` hint.** On `Read` the guard acts only when the ticket's decision is a fresh kartoteka
+decision, the path is an image under the trail within §4.6's grammar, and no file is there — an
+image already swept. It denies with:
+
+    images are stored in kartoteka: run spec_store.py image fetch <path> and Read the path it prints
+
+It is a hint, not enforcement: without it, an agent that reads the old path by habit sees "file
+does not exist" and may conclude the image is missing. Every other `Read` passes untouched, an
+unswept image included.
 
 ## 7. Local trails and migration
 
 On the kartoteka path, `decide` reports `local_trail`: this ticket's spec documents found under
-`<specs.dir>/<TICKET_ID>/` or in `save-context`'s `.artel/context/tickets/<TICKET_ID>/spec-trail/`.
-Finding any, ask:
+`<specs.dir>/<TICKET_ID>/` or in `save-context`'s `.artel/context/tickets/<TICKET_ID>/spec-trail/`,
+and its images that git tracks under the trail or that sit in that context copy. Untracked images
+under the trail are the sweep's (§4.6), not a local trail, so a resume after a failed sweep asks
+nothing; `restore-context` leaves the context copy's images where they are. Finding any, ask:
 
 - **Move them into kartoteka** (recommended) — runs `/artel:migrate-specs <TICKET_ID>`, then
   continue.
@@ -371,14 +532,31 @@ Answers are per document (`--resolve <logical>=…`): `keep-local[:<source>][@<N
 version the user was shown, so a store that moved since is refused rather than overwritten;
 `keep-stored`, refused unless kartoteka holds a version; `skip`.
 
-It then deletes, after one confirmation, only files verifiably stored — re-hashed at the moment
+**Images** migrate the same way. Each distinct local copy is compared by sha256 with every stored
+version of its path, from the attachment listing:
+
+| Class | Meaning | Action |
+|---|---|---|
+| `absent` | nothing stored at that path | upload |
+| `current` | equals the newest stored version | nothing to upload |
+| `stale` | equals an older, non-redacted stored version | nothing to upload |
+| `successor` | new bytes, from a **working-tree** copy written after the newest stored version's `created_at` — for a tracked copy unchanged since HEAD, its last commit's author time (git resets mtime on checkout); otherwise its mtime | upload |
+| `conflict` | anything else: two local copies that differ, a `.artel/context` copy with new bytes, an older working-tree copy, or any redacted version in the image's history (the removed bytes cannot be ruled out) | keep local / keep stored / skip |
+| `skipped` | outside §4.6's grammar, over the size cap, unreadable, a symbolic link or outside the trail | reported, kept, never read |
+
+An image conflict shows no diff. It shows both sides' byte sizes and hashes, and the stored
+version's cache path from `image fetch --version N`, so both images can be viewed. The answers
+are the same `--resolve` forms; `@<N>` is the stored version the upload expects.
+
+It then deletes, after one confirmation, only files verifiably stored — documents and images
+alike, re-hashed at the moment
 of deletion, `git rm` for tracked files (forced only where the index matches HEAD or the working
 tree, so staged content kartoteka does not hold is kept). `.active_ticket`, evidence and anything
 skipped are never deleted.
 
 ## 8. spec_store.py
 
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py <verb> …`. Paths are logical paths (§3).
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py <verb> …`. Paths are logical paths (§3, §4.6).
 
 | Verb | Prints | Exit |
 |---|---|---|
@@ -393,11 +571,18 @@ skipped are never deleted.
 | `migrate plan (<ticket-id>… \| --all) [--pending-only]` | one item per distinct local copy, classified (§7) | `0`; `5` unavailable |
 | `migrate apply <plan's arguments> [--resolve <path>=keep-local[:<source>][@<N>]\|keep-stored\|skip]…` | `uploaded`, `failed`, `deletable`, `kept`, `flipped`, `pending_left` | `0`; `5` unavailable |
 | `migrate delete <apply's arguments> [--commit]` | `removed`, `kept`, `commit`, `pending_left` | `0`; `5` unavailable |
+| `image put <path> [--file F] [--author A] [--expected-version N]` | the receipt, JSON `{project, ticket_key, path, version, content_hash, byte_size, content_type, unchanged}` | `0`; `4` conflict, printing `{current_version}` |
+| `image fetch <path> [--version N]` | one local path to Read (§4.6) | `0`; `3` absent; `2` kind `redacted` for a redacted version, or a store error |
+| `image list <ticket-id>` | JSON `[{path, logical, version, content_type, byte_size, content_hash, created_at}]` | `0` |
+| `image sync <ticket-id> --author A` | JSON `{uploaded, unchanged, skipped, failed, tracked}` | `0`, even with `failed` entries; `5` unavailable; `2` kind `unrecoverable` (§5.6) |
 
-Every verb exits `2` on an error, with a JSON envelope `{"ok": false, "verb": "spec-store",
-"error": {"kind", "message"}}` on stderr. A `migrate` verb exits `5` for a store that is
-unreachable, refuses the token or has its artifact store off — wherever in the run it happens,
-not only at the opening probe; one document kartoteka refuses is a `failed` entry, not the run's
-exit. It never prints the token. It uses `knowledge.baseUrl`, and
+Every verb exits `2` on an error, printing a JSON envelope on stderr:
+`{"ok": false, "verb": "spec-store", "error": {"kind", "message"}}`. `image sync` and every
+`migrate` verb exit `5` for a store that is unreachable, refuses the token, has its artifact store
+off or predates attachments — wherever in the run it happens, not only at the opening probe; one
+document or image kartoteka refuses is a `failed` entry, not the run's exit. Every other verb
+reports those as errors (exit `2`). `image put --file` defaults to the logical path, and image
+bytes are read and written in
+binary and never printed. It never prints the token. It uses `knowledge.baseUrl`, and
 `knowledge.tokenEnv` when the daemon has `[auth]` on — a CLI-minted token is needed even
 where the MCP session signs in with GitHub.

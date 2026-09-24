@@ -87,15 +87,19 @@ Five layers:
     never reaches the log: a value with whitespace or control characters, or a plaintext
     `http://` `baseUrl` off loopback while a token is present, is `misconfigured` by name and
     nothing is sent, and an exception text is redacted before it is logged.
-  - `spec_store_guard.py` (`PreToolUse` on `Edit|Write|MultiEdit`) — with `knowledge.adapter`
-    `"kartoteka"`, kartoteka is the spec store ([spec-storage.md](../docs/spec-storage.md)),
-    and this denies writing a spec document to disk unless the ticket's storage decision
-    (`.artel/run/<TICKET_ID>/spec-store.json`) is a fresh files decision, or the path is one the
-    user approved saving locally during an outage (`pending`). The deny names the MCP tools to
-    use instead, or, under a files decision that has gone stale, says to re-resolve it. Inert
-    without the adapter, for a `ticket.projectKey` outside kartoteka's ticket-key grammar (one
-    character, or containing `_` or `-`), and for evidence files and `.active_ticket`. Bash
-    writes are not seen.
+  - `spec_store_guard.py` (`PreToolUse` on `Edit|Write|MultiEdit`, and on `Read`) — with
+    `knowledge.adapter` `"kartoteka"`, kartoteka is the spec store
+    ([spec-storage.md](../docs/spec-storage.md)), and this denies writing a spec document to disk
+    unless the ticket's storage decision (`.artel/run/<TICKET_ID>/spec-store.json`) is a fresh
+    files decision, or the path is one the user approved saving locally during an outage
+    (`pending`). The deny names the MCP tools to use instead, or, under a files decision that has
+    gone stale, says to re-resolve it. Inert without the adapter, for a `ticket.projectKey`
+    outside kartoteka's ticket-key grammar (one character, or containing `_` or `-`), and for
+    evidence files, images and `.active_ticket`. Bash writes are not seen. On `Read` it only
+    hints: under a fresh kartoteka decision, a Read of an image path under the trail where no
+    file exists — the sweep moved it into kartoteka — is denied with the
+    `spec_store.py image fetch` command that fetches it (spec-storage.md §6). Every other Read
+    passes after a file-extension check.
 - **Session layer** — turn-one routing, no gate:
   - `using_artel.py` (`SessionStart`, matcher `startup|clear|compact`) — injects the
     `using-artel` router skill (frontmatter stripped) plus the host-status lines as

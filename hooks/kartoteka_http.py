@@ -5,7 +5,8 @@ scripts must not route spec documents through a model's context
 (docs/spec-storage.md §4), so both speak kartoteka's HTTP facade. Everything
 that decides where a request goes and what it carries lives here once: the
 target (baseUrl + project), the bearer token, the plaintext guard, the
-proxy-free opener, and the spec-trail addressing rule.
+proxy-free opener, and the spec-trail addressing rules -- one for documents
+(artifact_identity), one for images (image_identity).
 
 Stdlib only. Imported by hooks/knowledge_mirror.py, hooks/spec_decision.py,
 hooks/spec_store_guard.py and scripts/spec_store.py.
@@ -66,6 +67,43 @@ def storable_project_key(project_key):
     """Whether kartoteka can key tickets `<project_key>-<N>` (compared upper-cased,
     as artel writes the key)."""
     return bool(STORABLE_PROJECT_KEY.match(project_key.upper()))
+
+
+# The image files a ticket's spec trail keeps in kartoteka's attachment store
+# (docs/spec-storage.md §4.6), by extension, compared lower-cased, with the type
+# each must sniff as. A guard, never the authority, like MAX_BYTES: kartoteka
+# sniffs the bytes and refuses a type the extension does not name.
+IMAGE_TYPES = {
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif', '.webp': 'image/webp',
+}
+
+# kartoteka's attachment path grammar, copied for the same reason: 1 to 4
+# segments of [A-Za-z0-9._-], neither '.' nor '..', at most 255 characters in
+# all. A name outside it (a space, a fifth level) could never be stored, so
+# the sweep leaves that file local and says why instead of sending it.
+MAX_IMAGE_PATH = 255
+MAX_IMAGE_SEGMENTS = 4
+IMAGE_SEGMENT = re.compile(r'[A-Za-z0-9._-]+\Z')
+
+
+def is_image_name(name):
+    """Whether a file name (or path) ends in an image extension, any case."""
+    return os.path.splitext(name)[1].lower() in IMAGE_TYPES
+
+
+def image_path_ok(path):
+    """Whether `path` is inside kartoteka's attachment path grammar, with an
+    image extension on its last segment."""
+    if not isinstance(path, str) or not path or len(path) > MAX_IMAGE_PATH:
+        return False
+    segments = path.split('/')
+    if len(segments) > MAX_IMAGE_SEGMENTS:
+        return False
+    for segment in segments:
+        if segment in ('.', '..') or not IMAGE_SEGMENT.match(segment):
+            return False
+    return is_image_name(segments[-1])
 
 
 # A large error page (an HTML 500 page from some intermediary, say) must not
@@ -185,6 +223,30 @@ def plaintext_off_loopback(base_url):
     return not (host == 'localhost' or host == '::1' or host.startswith('127.'))
 
 
+def _trail_address(rel, config):
+    """(ticket_key, parts below the ticket directory) for a path under
+    <specs.dir>/<ticket dir>/, else None.
+
+    The one place a trail path's ticket directory is matched and canonicalised
+    -- `AW-12-2/` and `12/` both address AW-12 -- so a document and an image in
+    the same directory can never be filed under two tickets.
+    """
+    specs_dir = (config.get('specs') or {}).get('dir') or 'specs/.current'
+    try:
+        parts = Path(rel).relative_to(specs_dir).parts
+    except ValueError:
+        return None
+    if len(parts) < 2:
+        return None
+    compiled, project_key = h.ticket_matcher(config)
+    if compiled is None:
+        return None
+    match = compiled.match(parts[0])
+    if not match:
+        return None
+    return '{}-{}'.format(project_key.upper(), match.group(1)), parts[1:]
+
+
 def artifact_identity(rel, config):
     """(ticket_key, stage, name) for a mirrored spec-trail path, else None.
 
@@ -193,30 +255,39 @@ def artifact_identity(rel, config):
     key. `name` stays slash-free because the /api read route uses a plain path
     converter.
     """
-    specs_dir = (config.get('specs') or {}).get('dir') or 'specs/.current'
-    try:
-        parts = Path(rel).relative_to(specs_dir).parts
-    except ValueError:
+    found = _trail_address(rel, config)
+    if found is None:
         return None
-    if len(parts) == 2:
-        ticket_dir, phase, filename = parts[0], None, parts[1]
-    elif len(parts) == 3 and PHASE_DIR.match(parts[1]):
-        ticket_dir, phase, filename = parts[0], parts[1], parts[2]
+    ticket_key, rest = found
+    if len(rest) == 1:
+        phase, filename = None, rest[0]
+    elif len(rest) == 2 and PHASE_DIR.match(rest[0]):
+        phase, filename = rest
     else:
         return None
     if filename not in MIRRORED:
         return None
-    compiled, project_key = h.ticket_matcher(config)
-    if compiled is None:
-        return None
-    match = compiled.match(ticket_dir)
-    if not match:
-        return None
-    ticket_key = '{}-{}'.format(project_key.upper(), match.group(1))
     stem = filename[:-len('.md')]
     stage = STAGE_OVERRIDES.get(stem, stem)
     name = filename if phase is None else '{}.{}'.format(phase, filename)
     return ticket_key, stage, name
+
+
+def image_identity(rel, config):
+    """(ticket_key, path) for an image under a ticket's spec trail, else None.
+
+    The ticket directory is read exactly as artifact_identity reads it
+    (_trail_address). Everything below it is the attachment path, verbatim:
+    images are path-keyed (docs/spec-storage.md §4.6), so
+    `phase-2/runtime/x.png` stays a path and never becomes a `phase-2.` name,
+    and a document's `![…](design/x.png)` link is the stored path as written.
+    """
+    found = _trail_address(rel, config)
+    if found is None:
+        return None
+    ticket_key, rest = found
+    path = '/'.join(rest)
+    return (ticket_key, path) if image_path_ok(path) else None
 
 
 def post_artifact(base_url, payload, token=None, timeout=2):
@@ -317,5 +388,55 @@ def call(base_url, method, path, token=None, query=None, body=None, timeout=15):
         finally:
             exc.close()  # unclosed -> ResourceWarning; callers never see the object to close it
         return exc.code, _json_or_none(raw)
+    except Exception as exc:
+        raise Unreachable(redacted(str(exc), token)) from None
+
+
+def _header_dict(message):
+    """{lower-cased name: value} for a response's headers: HTTP names are
+    case-insensitive, and a plain dict is what callers compare against."""
+    return {name.lower(): value for name, value in message.items()} if message else {}
+
+
+def call_bytes(base_url, method, path, token=None, query=None, data=None, content_type=None,
+               headers=None, timeout=60):
+    """(status, raw body bytes, {lower-cased header: value}) for one request.
+
+    call()'s twin for kartoteka's attachment routes, where the body is an
+    image: `data` goes up as raw bytes under its own Content-Type, and the
+    answer comes back as bytes plus the headers that carry its metadata
+    (ETag, X-Kartoteka-Version). Nothing is decoded or parsed here -- an
+    image must never be turned into text on its way through.
+
+    The trust boundary is call()'s: the proxy-free opener, TLS verified by the
+    system store, and a token that never reaches a message. Every HTTP status
+    is an answer, 304 included (urllib raises it as an HTTPError, like any
+    status it does not follow); only a request that got no answer raises
+    Unreachable. The timeout is longer than call()'s: a body can be megabytes.
+    """
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    url = base_url + path
+    if query:
+        url += '?' + urllib.parse.urlencode(query)
+    sent = dict(headers or {})
+    if data is not None and content_type:
+        sent['Content-Type'] = content_type
+    if token:
+        sent['Authorization'] = 'Bearer ' + token
+    request = urllib.request.Request(url, data=data, headers=sent, method=method)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            return response.status, response.read(), _header_dict(response.headers)
+    except urllib.error.HTTPError as exc:
+        try:
+            raw = exc.read()
+        except Exception:
+            raw = b''
+        finally:
+            exc.close()  # unclosed -> ResourceWarning; callers never see the object to close it
+        return exc.code, raw, _header_dict(exc.headers)
     except Exception as exc:
         raise Unreachable(redacted(str(exc), token)) from None

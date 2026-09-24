@@ -37,7 +37,7 @@ is missing. Unconfigured gates degrade to `skipped`, never to fake green: an emp
 
 With `knowledge.adapter: "kartoteka"`, kartoteka is the spec store: every spec document —
 `idea.md` through `pr-description.md` — is written to and read from kartoteka's artifact store,
-and nothing lands under `<specs.dir>` except `.active_ticket` and gate evidence. Nothing about
+and nothing stays under `<specs.dir>` except `.active_ticket` and gate evidence text. Nothing about
 the documents changes: same names, same templates, same statuses. Read them on kartoteka's
 dashboard (`/ticket`, `/artifact`) or with `/artel:knowledge <ticket> --artifacts`. The contract
 is [spec-storage.md](spec-storage.md).
@@ -53,6 +53,17 @@ is [spec-storage.md](spec-storage.md).
   documents are uploaded, stale copies never overwrite newer stored versions, conflicts show a
   diff and ask, and local copies are deleted only after kartoteka verifiably holds them — with
   `git rm`, in one optional commit.
+- **Images** (`design/` screenshots, runtime screenshots, any `*.png|jpg|jpeg|gif|webp` under a
+  ticket's trail) live in kartoteka too (kartoteka 0.44.0 and later).
+  - Nothing changes for whoever produces them: images are written where they always were.
+  - The orchestrator sweeps them in at fixed points with `spec_store.py image sync`, and never
+    stages one.
+  - Agents view one with `spec_store.py image fetch <logical path>`.
+  - A failed sweep never pauses a run. It is journaled as `image-sync: <n> left local — <first error line>`,
+    and those images stay local until the next sweep.
+  - Committed images from older trails move in with `/artel:migrate-specs`.
+
+  The contract is [spec-storage.md](spec-storage.md) §4.6 and §5.6.
 - A **write refused with "kartoteka is this project's spec store"** is `spec_store_guard.py`
   catching a file write where a store call belongs; see [spec-storage.md](spec-storage.md) §6.
 

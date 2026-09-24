@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from fake_kartoteka import FakeKartoteka
 
@@ -15,10 +16,26 @@ import spec_store  # noqa: E402
 SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'spec_store.py'
 PROJECT = 'adguard-wallet'
 SPECS = Path('specs/.current')
+ATTACHMENTS_MISSING = 'the kartoteka daemon predates attachments (0.44.0); upgrade it'
 
 
 def sha(text):
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+PNG = b'\x89PNG\r\n\x1a\n'
+LONG_AGO = '2020-01-01T00:00:00+00:00'   # a stored version's created_at, before any test file
+BEFORE_THAT = 1546300800                  # 2019-01-01, as an mtime: older than LONG_AGO
+IMG = 'specs/.current/AW-12/design/x.png'
+CONTEXT_IMG = '.artel/context/tickets/AW-12/spec-trail/design/x.png'
+
+
+def png(tag):
+    return PNG + tag.encode('utf-8')
+
+
+def sha_bytes(data):
+    return hashlib.sha256(data).hexdigest()
 
 
 class MigrateCase(unittest.TestCase):
@@ -898,3 +915,546 @@ class TestDelete(MigrateCase):
         self.assertEqual(out['pending_left'], {'AW-12': 0})
         decision = json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
         self.assertEqual(decision['pending'], 5)
+
+
+class TestAttachmentProbe(MigrateCase):
+    def test_a_daemon_before_attachments_stops_every_migrate_verb(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.fake.mode = 'pre_attachments'
+        for verb in ('plan', 'apply', 'delete'):
+            proc = self.cli('migrate', verb, 'AW-12')
+            self.assertEqual(proc.returncode, 5, (verb, proc.stdout, proc.stderr))
+            self.assertEqual(json.loads(proc.stderr)['error'],
+                             {'kind': 'unavailable', 'message': ATTACHMENTS_MISSING})
+        self.assertEqual(self.fake.artifacts, {})
+        self.assertTrue((self.repo / SPECS / 'AW-12/prd.md').exists())
+
+
+class ImageCase(MigrateCase):
+    """AW-12's design/x.png. A working-tree copy is `git add`-ed unless
+    track=False: migration owns only tracked working-tree images (Task 2)."""
+
+    def image(self, rel, data, track=True):
+        path = self.repo / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        if track:
+            self.git('add', '--', str(rel))
+        return str(rel)
+
+    def older(self, rel):
+        os.utime(self.repo / rel, (BEFORE_THAT, BEFORE_THAT))
+
+    def stored(self, data, path='design/x.png', **fields):
+        return self.fake.seed_image(PROJECT, 'AW-12', path, data, **fields)
+
+
+class TestClassifyImages(ImageCase):
+    def test_absent(self):
+        self.image(IMG, png('a'))
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['kind'], item['class'], item['name'], item['sources']),
+                         ('image', 'absent', 'design/x.png', [IMG]))
+        self.assertEqual((item['sha256'], item['byte_size'], item['diff']),
+                         (sha_bytes(png('a')), len(png('a')), None))
+
+    def test_current_and_stale(self):
+        self.image(IMG, png('old'))
+        self.image('specs/.current/AW-12/design/y.png', png('same'))
+        self.stored(png('old'), created_at=LONG_AGO)
+        self.stored(png('new'), created_at=LONG_AGO)
+        self.stored(png('same'), path='design/y.png', created_at=LONG_AGO)
+        items = self.plan('AW-12')
+        self.assertEqual((items[IMG]['class'], items[IMG]['newest_version'], items[IMG]['reason']),
+                         ('stale', 2, 'kartoteka has moved on to v2'))
+        self.assertEqual(items['specs/.current/AW-12/design/y.png']['class'], 'current')
+
+    def test_a_working_copy_written_after_the_newest_version_is_a_successor(self):
+        self.image(IMG, png('new'))
+        self.stored(png('v1'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('successor', "written after kartoteka's v1"))
+
+    def test_i3_an_older_committed_copy_freshly_checked_out_is_a_conflict_not_a_successor(self):
+        # 2026-09-23 ruling (I-3): git sets a tracked file's mtime at
+        # checkout, worktree add, rebase or merge, so a fresh checkout of an
+        # OLDER commit can look newer than the stored version by mtime alone
+        # -- the mtime here is "now", well after the stored version, yet the
+        # commit that wrote these bytes is older. The tracked-and-unmodified
+        # copy's git AUTHOR time must be trusted instead: conflict, never a
+        # successor.
+        self.image(IMG, png('older commit'))
+        self.git('commit', '--date', '2024-06-01T11:00:00+00:00', '-m', 'older commit')
+        self.stored(png('v1'), created_at='2024-06-01T12:00:00+00:00')  # an hour later
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual(item['class'], 'conflict')
+
+    def test_i3_a_commit_authored_after_the_stored_version_unmodified_is_a_successor(self):
+        self.image(IMG, png('newer commit'))
+        self.git('commit', '--date', '2024-06-01T13:00:00+00:00', '-m', 'newer commit')
+        self.stored(png('v1'), created_at='2024-06-01T12:00:00+00:00')  # an hour earlier
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('successor', "written after kartoteka's v1"))
+
+    def test_i3_a_locally_modified_tracked_copy_uses_its_own_recent_mtime(self):
+        # Edited since the commit, so `git diff --quiet HEAD` no longer holds:
+        # the successor rule falls back to this file's own mtime, as for any
+        # other candidate -- here a recent one, over a stored version created
+        # long ago, so it is still a successor.
+        self.image(IMG, png('committed'))
+        self.git('commit', '--date', LONG_AGO, '-m', 'first')
+        (self.repo / IMG).write_bytes(png('locally modified'))
+        self.stored(png('v1'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('successor', "written after kartoteka's v1"))
+
+    def test_i3_no_usable_git_author_time_is_a_conflict_not_a_successor(self):
+        # A tracked-and-unmodified copy whose git history spec_store cannot
+        # read (log unavailable, or the stamp unparseable) is no usable
+        # signal at all -- like an unparseable created_at, it can only
+        # refuse a successor, never grant one.
+        self.image(IMG, png('committed'))
+        self.git('commit', '--date', LONG_AGO, '-m', 'first')
+        self.stored(png('v1'), created_at=LONG_AGO)
+        real_git = spec_store._git
+
+        def log_fails(*args):
+            if 'log' in args:
+                return subprocess.CompletedProcess(args, 1, '', 'git log failed')
+            return real_git(*args)
+
+        cwd = os.getcwd()
+        os.chdir(str(self.repo))
+        self.addCleanup(os.chdir, cwd)
+        with mock.patch.object(spec_store, '_git', side_effect=log_fails):
+            config = spec_store.load_config()
+            store = spec_store.Store(config)
+            items = spec_store.plan_items(store, config, ['AW-12'], False)
+        item = next(i for i in items if i['logical'] == IMG)
+        self.assertEqual(item['class'], 'conflict')
+
+    def test_an_older_working_copy_is_a_conflict(self):
+        self.image(IMG, png('old local'))
+        self.older(IMG)
+        self.stored(png('v1'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('conflict', "this copy is older than kartoteka's v1"))
+
+    def test_an_unreadable_created_at_never_makes_a_successor(self):
+        self.image(IMG, png('new'))
+        self.stored(png('v1'), created_at='whenever')
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('conflict', "nothing shows this copy is newer than kartoteka's v1"))
+
+    def test_a_context_copy_with_new_bytes_is_a_conflict(self):
+        self.image(CONTEXT_IMG, png('snapshot'), track=False)
+        self.stored(png('v1'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['sources'], item['reason']), (
+            'conflict', [CONTEXT_IMG],
+            'a saved context copy with new bytes; it may be older than what kartoteka holds'))
+
+    def test_each_distinct_copy_is_classified_on_its_own(self):
+        self.image(IMG, png('stored'))
+        self.image(CONTEXT_IMG, png('other'), track=False)
+        self.stored(png('stored'), created_at=LONG_AGO)
+        items = self.by_source('AW-12')
+        self.assertEqual((items[IMG]['class'], items[CONTEXT_IMG]['class']),
+                         ('current', 'conflict'))
+
+    def test_differing_local_copies_are_each_a_conflict_shown_by_size_and_hash(self):
+        self.image(IMG, png('tree'))
+        self.image(CONTEXT_IMG, png('context!'), track=False)
+        items = self.items('AW-12')
+        self.assertEqual([(i['sources'], i['class']) for i in items],
+                         [([IMG], 'conflict'), ([CONTEXT_IMG], 'conflict')])
+        self.assertEqual(items[0]['reason'],
+                         'the local copies differ: {}, {}'.format(IMG, CONTEXT_IMG))
+        self.assertEqual([(i['sha256'], i['byte_size'], i['diff'], i['stored']) for i in items], [
+            (sha_bytes(png('tree')), len(png('tree')), None, None),
+            (sha_bytes(png('context!')), len(png('context!')), None, None)])
+
+    def test_a_conflict_shows_the_stored_side_and_fetches_it_into_the_cache(self):
+        self.image(IMG, png('local'))
+        self.older(IMG)
+        self.stored(png('stored v1'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        cache = '.artel/run/AW-12/images/@v1/design/x.png'
+        self.assertEqual((item['class'], item['diff']), ('conflict', None))
+        self.assertEqual(item['stored'], {
+            'version': 1, 'sha256': sha_bytes(png('stored v1')),
+            'byte_size': len(png('stored v1')), 'redacted': False, 'cache_path': cache})
+        self.assertEqual((self.repo / cache).read_bytes(), png('stored v1'))
+
+    def test_a_rejected_stored_fetch_leaves_the_conflicts_cache_path_null(self):
+        # M-1: a non-STORE_DOWN failure fetching the stored side of a
+        # conflict (a rejected 5xx, here) must not abort the whole plan --
+        # only this one conflict's cache_path stays null. A store-level
+        # failure (STORE_DOWN) is a different thing and still exits 5
+        # (test_losing_the_attachment_routes_midway_exits_5 covers that).
+        self.image(IMG, png('local'))
+        self.older(IMG)
+        self.stored(png('stored v1'), created_at=LONG_AGO)
+
+        def force_500_on_the_byte_route(method, path, query, body):
+            # The listing route (plain '/api/attachments', ticket and path as
+            # query params) must keep working -- only the byte-serving route
+            # ('/api/attachments/<ticket>/<path...>') is forced to fail.
+            if method == 'GET' and path != '/api/attachments':
+                self.fake.forced['GET'] = (500, {'error': 'boom'})
+            else:
+                self.fake.forced.pop('GET', None)
+        self.fake.on_request = force_500_on_the_byte_route
+        proc = self.cli('migrate', 'plan', 'AW-12')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        item = {i['logical']: i for i in json.loads(proc.stdout)['items']}[IMG]
+        self.assertEqual(item['class'], 'conflict')
+        self.assertEqual(item['stored']['cache_path'], None)
+
+    def test_a_redacted_newest_version_is_a_conflict_with_nothing_fetched(self):
+        self.image(IMG, png('secret screen'))
+        self.stored(png('secret screen'), redacted=True, created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']),
+                         ('conflict', 'the stored newest version (v1) is redacted'))
+        self.assertEqual((item['stored']['redacted'], item['stored']['cache_path']), (True, None))
+        self.assertFalse((self.repo / '.artel/run/AW-12/images').exists())
+
+    def test_a_redaction_anywhere_blocks_the_successor_rule(self):
+        # The 2026-09-22 §9.2 invariant: a redacted version's bytes are gone, so
+        # nothing shows this copy is not the image kartoteka removed.
+        self.image(IMG, png('secret screen'))
+        self.stored(png('secret screen'), redacted=True, created_at=LONG_AGO)
+        self.stored(png('cleaned'), created_at=LONG_AGO)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']), (
+            'conflict', 'kartoteka redacted v1 of this image; this copy may show the removed '
+                        'content — view it before choosing'))
+
+    def test_an_image_kartoteka_cannot_address_is_skipped_and_never_read(self):
+        bad = self.image('specs/.current/AW-12/design/Screen Shot.png', png('a'))
+        item = self.plan('AW-12')[bad]
+        self.assertEqual((item['kind'], item['class'], item['reason'], item['name']),
+                         ('image', 'skipped', spec_store.OUTSIDE_THE_GRAMMAR, None))
+        self.assertEqual(self.fake.attachments, {})
+
+    def test_a_symbolic_link_is_skipped_and_never_read(self):
+        # A directory of its own, not a fixed name in the shared system temp
+        # dir: two parallel runs of this test must not collide there.
+        outside_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(outside_dir.cleanup)
+        outside = Path(outside_dir.name) / 'outside-the-repo.png'
+        outside.write_bytes(png('not this trail'))
+        link = self.repo / IMG
+        link.parent.mkdir(parents=True)
+        os.symlink(outside, link)
+        self.git('add', '--', IMG)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['reason']), ('skipped', spec_store.OUTSIDE_THE_TRAIL))
+
+    def test_an_image_over_the_cap_is_skipped_unread(self):
+        self.image(IMG, PNG + b'\0' * spec_store.IMAGE_CAP_BYTES)
+        item = self.plan('AW-12')[IMG]
+        self.assertEqual((item['class'], item['sha256']), ('skipped', None))
+        self.assertIn('5242880-byte attachment limit', item['reason'])
+
+    def test_an_untracked_working_tree_image_is_the_sweeps(self):
+        self.image(IMG, png('fresh'), track=False)
+        self.assertEqual(self.plan('AW-12'), {})
+
+    def test_the_plan_counts_images_apart_and_leaves_document_items_as_they_were(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.image(IMG, png('a'))
+        proc = self.cli('migrate', 'plan', 'AW-12')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual((out['summary'], out['image_summary']), ({'absent': 1}, {'absent': 1}))
+        by_logical = {i['logical']: i for i in out['items']}
+        self.assertEqual(sorted(by_logical['specs/.current/AW-12/prd.md']), [
+            'base_version', 'class', 'diff', 'logical', 'name', 'newest_version', 'reason',
+            'sha256', 'source', 'sources', 'ticket'])
+        self.assertEqual(sorted(by_logical[IMG]), [
+            'base_version', 'byte_size', 'class', 'diff', 'kind', 'logical', 'name',
+            'newest_version', 'reason', 'sha256', 'source', 'sources', 'stored', 'ticket'])
+
+    def test_losing_the_attachment_routes_midway_exits_5(self):
+        self.image(IMG, png('a'))
+
+        def lose_attachments(method, path, query, body):
+            if path == '/api/attachments' and 'path' in query:
+                self.fake.on_request = None
+                self.fake.mode = 'pre_attachments'
+        self.fake.on_request = lose_attachments
+        proc = self.cli('migrate', 'plan', 'AW-12')
+        self.assertEqual(proc.returncode, 5, proc.stdout)
+        self.assertEqual(json.loads(proc.stderr)['error'],
+                         {'kind': 'unavailable', 'message': ATTACHMENTS_MISSING})
+
+
+class TestApplyImages(ImageCase):
+    def apply(self, *args):
+        proc = self.cli('migrate', 'apply', *args)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def puts(self):
+        return [r for r in self.fake.requests if r[0] == 'PUT']
+
+    def stored_decision(self):
+        return json.loads((self.repo / '.artel/run/AW-12/spec-store.json').read_text())
+
+    def conflict(self):
+        """design/x.png: a tracked local copy older than kartoteka's v1."""
+        self.image(IMG, png('local'))
+        self.older(IMG)
+        self.stored(png('stored v1'), created_at=LONG_AGO)
+
+    def test_pending_only_never_uploads_an_image(self):
+        # M-3: --pending-only is a documents-only concept -- spec_decision's
+        # pending list never names an image, so an image is simply never a
+        # candidate under it, not uploaded even though it is otherwise absent.
+        self.local(SPECS / 'AW-12/prd.md', 'a')
+        self.image(IMG, png('new'))
+        self.decision('AW-12', pending=[{'path': 'specs/.current/AW-12/prd.md', 'base_version': 0}])
+        out = self.apply('AW-12', '--pending-only')
+        self.assertEqual(out['uploaded'], [{'logical': 'specs/.current/AW-12/prd.md', 'version': 1}])
+        self.assertEqual(self.puts(), [])
+        self.assertTrue((self.repo / IMG).exists())
+
+    def test_absent_is_uploaded_as_new_verified_and_becomes_deletable(self):
+        self.image(IMG, png('a'))
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'kind': 'image', 'logical': IMG, 'version': 1}])
+        newest = self.fake.newest_image(PROJECT, 'AW-12', 'design/x.png')
+        self.assertEqual((newest['bytes'], newest['author_agent']),
+                         (png('a'), 'artel:migrate-specs'))
+        put = self.puts()[-1]
+        self.assertEqual((put[1], put[2]['expected_version'], put[3]),
+                         ('/api/attachments/AW-12/design/x.png', '0', png('a')))
+        self.assertEqual(out['deletable'], [IMG])
+
+    def test_a_successor_is_uploaded_against_the_newest_version(self):
+        self.image(IMG, png('new'))
+        self.stored(png('v1'), created_at=LONG_AGO)
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'kind': 'image', 'logical': IMG, 'version': 2}])
+        self.assertEqual(self.puts()[-1][2]['expected_version'], '1')
+
+    def test_an_unresolved_conflict_uploads_nothing_and_is_kept(self):
+        self.conflict()
+        out = self.apply('AW-12')
+        self.assertEqual((out['uploaded'], out['deletable'], self.puts()), ([], [], []))
+        self.assertEqual(out['kept'], [{'logical': IMG, 'sources': [IMG], 'class': 'conflict',
+                                        'reason': "this copy is older than kartoteka's v1",
+                                        'kind': 'image'}])
+
+    def test_keep_local_at_the_version_the_user_saw_uploads(self):
+        self.conflict()
+        out = self.apply('AW-12', '--resolve', IMG + '=keep-local@1')
+        self.assertEqual(out['uploaded'], [{'kind': 'image', 'logical': IMG, 'version': 2}])
+        self.assertEqual(self.puts()[-1][2]['expected_version'], '1')
+        self.assertEqual(out['deletable'], [IMG])
+
+    def test_keep_local_refuses_a_store_that_moved_since_the_user_saw_it(self):
+        # spec-images §8: @<N> becomes expected_version=N, so a moved store answers 409.
+        self.conflict()
+        self.stored(png('teammate v2, never shown'), created_at=LONG_AGO)
+        out = self.apply('AW-12', '--resolve', IMG + '=keep-local@1')
+        self.assertEqual(out['uploaded'], [])
+        self.assertEqual(out['failed'], [{'logical': IMG, 'kind': 'image', 'reason': (
+            'kartoteka moved from v1 to v2 since you decided; run migrate-specs again')}])
+        self.assertEqual(self.fake.newest_image(PROJECT, 'AW-12', 'design/x.png')['bytes'],
+                         png('teammate v2, never shown'))
+
+    def test_keep_stored_uploads_nothing_and_the_copy_becomes_deletable(self):
+        self.conflict()
+        out = self.apply('AW-12', '--resolve', IMG + '=keep-stored')
+        self.assertEqual((out['uploaded'], out['deletable']), ([], [IMG]))
+
+    def test_a_refused_image_fails_on_its_own_and_the_rest_moves(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.image(IMG, png('a'))
+        self.fake.forced['PUT'] = (413, {'error': 'attachment is over max_attachment_bytes'})
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'logical': 'specs/.current/AW-12/prd.md', 'version': 1}])
+        self.assertEqual([(f['kind'], f['logical']) for f in out['failed']], [('image', IMG)])
+        self.assertIn('413', out['failed'][0]['reason'])
+        self.assertEqual(out['deletable'], ['specs/.current/AW-12/prd.md'])
+
+    def test_a_store_that_moves_before_verification_is_reported(self):
+        self.image(IMG, png('a'))
+
+        def someone_writes_after_the_put(method, path, query, body):
+            if method == 'GET' and path == '/api/attachments' and self.puts():
+                self.fake.on_request = None
+                self.fake.seed_image(PROJECT, 'AW-12', 'design/x.png', png('someone else'))
+        self.fake.on_request = someone_writes_after_the_put
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [])
+        self.assertEqual(out['failed'], [{'logical': IMG, 'kind': 'image', 'reason': (
+            'the upload could not be verified; the local copy is kept')}])
+        # v1 still holds these bytes, so the copy is stale -- verifiably held, and deletable.
+        self.assertEqual(out['deletable'], [IMG])
+
+    def test_an_outage_mid_upload_exits_5(self):
+        self.image(IMG, png('a'))
+
+        def go_down(method, path, query, body):
+            if method == 'PUT':
+                self.fake.on_request = None
+                self.fake.mode = 'unauthorized'
+        self.fake.on_request = go_down
+        proc = self.cli('migrate', 'apply', 'AW-12')
+        self.assertEqual(proc.returncode, 5, proc.stdout)
+        self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'unavailable')
+
+    def test_apply_never_downloads_image_bytes(self):
+        self.conflict()
+        self.apply('AW-12')
+        self.assertEqual([r for r in self.fake.requests
+                          if r[0] == 'GET' and r[1].startswith('/api/attachments/')], [])
+
+    def test_an_outstanding_image_keeps_a_files_decision(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.conflict()
+        self.decision('AW-12', store='files', reason='worked locally', versions={})
+        out = self.apply('AW-12')
+        self.assertEqual(out['flipped'], [])
+        self.assertEqual(self.stored_decision()['store'], 'files')
+
+    def test_an_image_kartoteka_cannot_address_never_holds_the_flip(self):
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        bad = self.image('specs/.current/AW-12/design/Screen Shot.png', png('a'))
+        self.decision('AW-12', store='files', reason='worked locally', versions={})
+        out = self.apply('AW-12')
+        self.assertEqual(out['flipped'], ['AW-12'])
+        self.assertEqual(out['kept'], [{'logical': bad, 'sources': [bad], 'class': 'skipped',
+                                        'reason': spec_store.OUTSIDE_THE_GRAMMAR,
+                                        'kind': 'image'}])
+
+    def test_the_flip_keeps_no_files_base_for_an_image(self):
+        # files_base is a document base: an image copy never rests on it.
+        self.local(SPECS / 'AW-12/prd.md', 'P')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'P')
+        self.conflict()
+        self.decision('AW-12', store='files', reason='worked locally', versions={'prd.md': 1})
+        out = self.apply('AW-12', '--resolve', IMG + '=keep-stored')
+        self.assertEqual(out['flipped'], ['AW-12'])
+        self.assertNotIn('files_base', self.stored_decision())
+
+    def test_files_base_goes_once_only_images_are_left(self):
+        self.conflict()
+        self.decision('AW-12', store='kartoteka', versions={'prd.md': 1},
+                      files_base={'prd.md': 1})
+        self.apply('AW-12')
+        self.assertNotIn('files_base', self.stored_decision())
+
+
+class TestDeleteImages(ImageCase):
+    def delete(self, *args):
+        proc = self.cli('migrate', 'delete', *args)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def test_pending_only_never_deletes_an_image(self):
+        # M-3: the mirror of the apply-side test -- an image kartoteka
+        # verifiably holds (otherwise deletable on its own) must stay
+        # untouched under --pending-only, because it is never a candidate.
+        self.local(SPECS / 'AW-12/prd.md', 'a')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'a')
+        self.image(IMG, png('stored'))
+        self.stored(png('stored'))
+        self.decision('AW-12', pending=[{'path': 'specs/.current/AW-12/prd.md', 'base_version': 1}])
+        out = self.delete('AW-12', '--pending-only')
+        self.assertEqual(out['removed'], ['specs/.current/AW-12/prd.md'])
+        self.assertTrue((self.repo / IMG).exists())
+
+    def test_a_tracked_image_is_git_rm_and_committed_with_the_trail(self):
+        self.image(IMG, png('a'))
+        self.local(SPECS / 'AW-12/runtime/observation.md', 'RUNTIME_OK')
+        self.local(SPECS / '.active_ticket', 'AW-12\n')
+        self.commit_all()
+        self.stored(png('a'))
+        out = self.delete('AW-12', '--commit')
+        self.assertEqual(out['removed'], [IMG])
+        self.assertFalse((self.repo / 'specs/.current/AW-12/design').exists())
+        self.assertTrue((self.repo / SPECS / 'AW-12/runtime/observation.md').exists())
+        self.assertTrue((self.repo / SPECS / '.active_ticket').exists())
+        log = self.git('log', '-1', '--name-status', '--format=%s').stdout
+        self.assertIn('chore: move AW-12 spec trail to kartoteka', log)
+        self.assertIn('D\t' + IMG, log)
+        self.assertNotIn('observation.md', log)
+
+    def test_a_context_image_is_unlinked_and_its_directories_pruned(self):
+        self.image(CONTEXT_IMG, png('a'), track=False)
+        self.stored(png('a'))
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [CONTEXT_IMG])
+        self.assertFalse((self.repo / '.artel/context/tickets/AW-12/spec-trail').exists())
+        self.assertTrue((self.repo / '.artel/context/tickets/AW-12').is_dir())
+
+    def test_an_image_rewritten_after_classification_is_kept(self):
+        self.image(IMG, png('a'))
+        self.stored(png('a'))
+
+        def rewrite(method, path, query, body):
+            if method == 'GET' and path == '/api/attachments' and 'path' in query:
+                self.fake.on_request = None    # after the plan read it, before it is deleted
+                (self.repo / IMG).write_bytes(png('rewritten'))
+        self.fake.on_request = rewrite
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [])
+        self.assertEqual(out['kept'], [{'kind': 'image', 'logical': IMG, 'source': IMG,
+                                        'class': 'error', 'reason': (
+                                            'it changed since it was classified; run '
+                                            'migrate-specs again')}])
+        self.assertEqual((self.repo / IMG).read_bytes(), png('rewritten'))
+
+    def test_a_tracked_image_with_staged_bytes_kartoteka_lacks_is_kept(self):
+        self.image(IMG, png('committed'))
+        self.commit_all()
+        self.image(IMG, png('staged, stored nowhere'))              # staged by image()
+        (self.repo / IMG).write_bytes(png('working tree, verified'))
+        self.stored(png('working tree, verified'))
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [])
+        self.assertEqual(out['kept'], [{'kind': 'image', 'logical': IMG, 'source': IMG,
+                                        'class': 'error', 'reason': (
+                                            'has staged changes kartoteka does not hold; '
+                                            'commit or unstage them first')}])
+        self.assertTrue((self.repo / IMG).exists())
+
+    def test_a_tracked_image_edited_since_the_last_commit_is_removed(self):
+        self.image(IMG, png('committed'))
+        self.commit_all()
+        (self.repo / IMG).write_bytes(png('edited'))
+        self.stored(png('edited'))
+        out = self.delete('AW-12', '--commit')
+        self.assertEqual((out['removed'], out['kept']), ([IMG], []))
+        self.assertIn('D\t' + IMG, self.git('log', '-1', '--name-status', '--format=%s').stdout)
+
+    def test_keep_stored_deletes_the_local_image(self):
+        self.image(IMG, png('local'))
+        self.older(IMG)
+        self.stored(png('stored v1'), created_at=LONG_AGO)
+        out = self.delete('AW-12', '--resolve', IMG + '=keep-stored')
+        self.assertEqual(out['removed'], [IMG])
+
+    def test_nothing_unverified_skipped_or_untracked_is_deleted(self):
+        absent = self.image('specs/.current/AW-12/design/new.png', png('never stored'))
+        bad = self.image('specs/.current/AW-12/design/Screen Shot.png', png('b'))
+        fresh = self.image('specs/.current/AW-12/runtime/fresh.png', png('c'), track=False)
+        self.image(IMG, png('local'))
+        self.older(IMG)
+        self.stored(png('stored v1'), created_at=LONG_AGO)           # a conflict
+        out = self.delete('AW-12')
+        self.assertEqual(out['removed'], [])
+        self.assertEqual({(k['logical'], k['class']) for k in out['kept']},
+                         {(absent, 'absent'), (bad, 'skipped'), (IMG, 'conflict')})
+        for rel in (absent, bad, fresh, IMG):
+            self.assertTrue((self.repo / rel).exists(), rel)

@@ -304,7 +304,8 @@ re-prompt rather than a hard block. Host specifics: `docs/opencode.md`.
 Conditional chatty-head stage — gate 0.5 of `feature-development`, between `generate-idea` and the
 analysis interview — run only when `design.figma` is enabled (config.md) and either `idea.md`
 contains a design-tool link (e.g. a Figma URL) or a URL is passed explicitly. Produces the ticket-level
-`design-analysis.md` (+ `design/` evidence — see [ticket-parsing.md](ticket-parsing.md)) consumed
+`design-analysis.md` (+ `design/` screenshots — kartoteka path: kartoteka, viewed with
+`image fetch`; files path: files, as before — see [ticket-parsing.md](ticket-parsing.md)) consumed
 by `analysis`, `researcher`, and `planner`.
 
 - Runs pre-arm (chatty head): its **Major-findings handshake** may call `AskUserQuestion` — plain,
@@ -327,10 +328,14 @@ the latest approved docs and every completed phase: a **planning/work-list check
 arming (docs only, no verify gate) and a **phase-end checkpoint** after each phase's gates pass
 (the verify gate — `verify.commands` — plus capped fixes first). Checkpoints are orchestrator-owned
 Bash actions, pre-approved at the approval pause (§4 exception), never pause, and are journaled as
-external actions (§11). The full procedure (branch guard, idempotence, the verify gate, explicit
-staging, push, journal) and the commit-subject table are defined in the `feature-development`
+external actions (§11). The full procedure (branch guard, the image sweep, idempotence, the verify
+gate, explicit staging, push, journal) and the commit-subject table are defined in the `feature-development`
 skill (`../skills/feature-development/SKILL.md`, `## Checkpoint commits & pushes`; shared with
-`dev`). On the kartoteka path the planning checkpoint stages the same paths, and when only `.active_ticket` changed it skips the commit and journals `planning checkpoint: skipped — the spec trail is in kartoteka`.
+`dev`). On the kartoteka path the planning checkpoint stages the same paths, and when, images
+aside, only `.active_ticket` changed it skips the commit and journals
+`planning checkpoint: skipped — the spec trail is in kartoteka`. On the kartoteka path every
+checkpoint sweeps images into kartoteka first and never stages one
+([spec-storage.md](spec-storage.md) §4.6).
 
 ## 15. Phase traversal & `.active_ticket`
 

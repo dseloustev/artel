@@ -54,18 +54,20 @@ class TestClassifyExit(unittest.TestCase):
 
 
 class TestParseArgs(unittest.TestCase):
-    def test_parses_fast_files_timeout(self):
-        fast, files, timeout = verify.parse_args(
-            ['--fast', '--files', 'a.py,b.py', '--timeout', '90'])
-        self.assertTrue(fast)
-        self.assertEqual(files, ['a.py', 'b.py'])
-        self.assertEqual(timeout, 90)
+    def test_parses_legacy_fast_files_timeout(self):
+        inv = verify.parse_args(['--fast', '--files', 'a.py,b.py', '--timeout', '90'])
+        self.assertIsNone(inv['gate'])
+        self.assertTrue(inv['fast'])
+        self.assertEqual(inv['files'], ['a.py', 'b.py'])
+        self.assertEqual(inv['timeout'], 90)
+        self.assertFalse(inv['record_baseline'])
+        self.assertIsNone(inv['ticket'])
 
     def test_defaults(self):
-        fast, files, timeout = verify.parse_args([])
-        self.assertFalse(fast)
-        self.assertIsNone(files)
-        self.assertEqual(timeout, verify.DEFAULT_TIMEOUT)
+        inv = verify.parse_args([])
+        self.assertEqual(inv, {'gate': None, 'fast': False, 'files': None,
+                               'timeout': verify.DEFAULT_TIMEOUT,
+                               'record_baseline': False, 'ticket': None})
 
     def test_rejects_blank_files(self):
         for blank in ('', '   ', ',,,'):
@@ -75,6 +77,44 @@ class TestParseArgs(unittest.TestCase):
     def test_rejects_unknown_flag(self):
         with self.assertRaises(ValueError):
             verify.parse_args(['--paths', 'a.py'])
+
+    def test_task_gate_needs_files(self):
+        inv = verify.parse_args(['task', '--files', 'lib/a.dart'])
+        self.assertEqual(inv['gate'], 'task')
+        self.assertEqual(inv['files'], ['lib/a.dart'])
+        with self.assertRaises(ValueError) as ctx:
+            verify.parse_args(['task'])
+        self.assertIn('--files', str(ctx.exception))
+
+    def test_checkpoint_gate_flags(self):
+        inv = verify.parse_args(['checkpoint', '--record-baseline', '--ticket', 'AW-12-3'])
+        self.assertEqual(inv['gate'], 'checkpoint')
+        self.assertTrue(inv['record_baseline'])
+        self.assertEqual(inv['ticket'], 'AW-12-3')
+        self.assertIsNone(inv['files'])
+
+    def test_unknown_gate_token_is_rejected(self):
+        with self.assertRaises(ValueError) as ctx:
+            verify.parse_args(['final'])
+        self.assertIn('final', str(ctx.exception))
+
+    def test_checkpoint_only_flags_are_rejected_elsewhere(self):
+        with self.assertRaises(ValueError):
+            verify.parse_args(['--record-baseline'])
+        with self.assertRaises(ValueError):
+            verify.parse_args(['task', '--files', 'a.py', '--ticket', 'AW-1'])
+        with self.assertRaises(ValueError):
+            verify.parse_args(['--ticket', 'AW-1'])
+
+    def test_fast_belongs_to_the_legacy_form(self):
+        with self.assertRaises(ValueError):
+            verify.parse_args(['task', '--fast', '--files', 'a.py'])
+
+    def test_blank_ticket_is_rejected(self):
+        with self.assertRaises(ValueError):
+            verify.parse_args(['checkpoint', '--ticket', '   '])
+        with self.assertRaises(ValueError):
+            verify.parse_args(['checkpoint', '--ticket'])
 
 
 if __name__ == '__main__':

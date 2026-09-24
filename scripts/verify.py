@@ -22,6 +22,7 @@ TAIL_CHARS = 2000
 MAX_KEYS_PER_STAGE = 200
 ENV_ERROR_EXIT_CODES = (126, 127)  # not executable / command not found
 ANSI_RE = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
+GATES = ('task', 'checkpoint')
 
 
 def load_config():
@@ -70,33 +71,60 @@ def classify_exit(returncode):
 
 
 def parse_args(argv):
-    """Return (fast, files_or_None, timeout). Raises ValueError on a bad invocation.
+    """Return the invocation as a dict. Raises ValueError on a bad invocation.
+
+    Legacy form:  [--fast] [--files a,b] [--timeout N]            -> gate None
+    Named gates:  task --files a,b [--timeout N]                   -> gate 'task'
+                  checkpoint [--record-baseline] [--ticket T] [--timeout N]
     A present-but-blank --files is rejected rather than parsed to []: blank would be
     indistinguishable from the flag being absent and silently widen a scoped call."""
-    fast = False
-    files = None
-    timeout = DEFAULT_TIMEOUT
+    inv = {'gate': None, 'fast': False, 'files': None, 'timeout': DEFAULT_TIMEOUT,
+           'record_baseline': False, 'ticket': None}
+    args = list(argv)
+    if args and not args[0].startswith('--'):
+        gate = args.pop(0)
+        if gate not in GATES:
+            raise ValueError('unknown gate: {} (expected one of: {})'.format(
+                gate, ', '.join(GATES)))
+        inv['gate'] = gate
     i = 0
-    while i < len(argv):
-        arg = argv[i]
+    while i < len(args):
+        arg = args[i]
         if arg == '--fast':
-            fast = True
+            inv['fast'] = True
         elif arg == '--files':
             i += 1
-            raw = argv[i] if i < len(argv) else ''
+            raw = args[i] if i < len(args) else ''
             files = [p.strip() for p in raw.split(',') if p.strip()]
             if not files:
                 raise ValueError('blank --files: a scoped call must name its paths')
+            inv['files'] = files
         elif arg == '--timeout':
             i += 1
             try:
-                timeout = int(argv[i])
+                inv['timeout'] = int(args[i])
             except (IndexError, ValueError):
                 raise ValueError('--timeout expects an integer number of seconds')
+        elif arg == '--record-baseline':
+            inv['record_baseline'] = True
+        elif arg == '--ticket':
+            i += 1
+            ticket = args[i].strip() if i < len(args) else ''
+            if not ticket:
+                raise ValueError('--ticket expects a ticket id')
+            inv['ticket'] = ticket
         else:
             raise ValueError('unknown flag: {}'.format(arg))
         i += 1
-    return fast, files, timeout
+    if inv['gate'] == 'task' and inv['files'] is None:
+        raise ValueError('the task gate needs --files: a task gate always has a scope')
+    if inv['gate'] != 'checkpoint' and inv['record_baseline']:
+        raise ValueError('--record-baseline belongs to the checkpoint gate')
+    if inv['gate'] != 'checkpoint' and inv['ticket'] is not None:
+        raise ValueError('--ticket belongs to the checkpoint gate')
+    if inv['gate'] is not None and inv['fast']:
+        raise ValueError('--fast belongs to the legacy form; the task gate runs verify.fast itself')
+    return inv
 
 
 def envelope(ok, elapsed_ms, data=None, error=None):
@@ -138,7 +166,7 @@ def main(argv):
         return int((time.monotonic() - start) * 1000)
 
     try:
-        fast, files, timeout = parse_args(argv)
+        inv = parse_args(argv)
     except ValueError as exc:
         print(envelope(False, elapsed(),
                        error={'kind': 'invalid_argument', 'message': str(exc)}))
@@ -146,7 +174,7 @@ def main(argv):
 
     config = load_config()
     verify_cfg = config.get('verify') or {}
-    if fast:
+    if inv['fast']:
         fast_cmd = verify_cfg.get('fast') or ''
         commands = [fast_cmd] if isinstance(fast_cmd, str) and fast_cmd.strip() else []
     else:
@@ -160,7 +188,7 @@ def main(argv):
 
     stages = []
     for index, command in enumerate(commands):
-        stage, error_kind = run_stage(command, files or [], timeout, index)
+        stage, error_kind = run_stage(command, inv['files'] or [], inv['timeout'], index)
         stages.append(stage)
         if error_kind is not None:
             print(envelope(False, elapsed(), error={

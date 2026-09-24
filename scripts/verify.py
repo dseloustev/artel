@@ -15,6 +15,7 @@ import shlex
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
@@ -280,8 +281,47 @@ def run_task_gate(config, inv):
     return 0, {'data': {'skipped': all_skipped, 'stages': stages}}
 
 
+def record_baseline(path, stages):
+    """Write the baseline: one entry per stage with the keys it produced (empty when green)."""
+    payload = {
+        'recorded_at': datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        'stages': [{'name': s['name'], 'command': s['command'], 'keys': list(s.get('keys') or [])}
+                   for s in stages],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
+
+
 def run_checkpoint_gate(config, inv):
-    return 2, {'error': {'kind': 'invalid_argument', 'message': 'checkpoint gate not implemented yet'}}
+    """The checkpoint gate (docs/gates.md §1): verify.commands in order. With --record-baseline
+    every stage runs and its keys are written to the ticket's baseline file. Task 7 adds the
+    compare against a loaded baseline."""
+    try:
+        ticket = resolve_ticket(inv, config)
+    except ValueError as exc:
+        return 2, {'error': {'kind': 'invalid_argument', 'message': str(exc)}}
+    path = baseline_path_for(ticket)
+    verify_cfg = config.get('verify') or {}
+    commands = [c for c in (verify_cfg.get('commands') or []) if isinstance(c, str) and c.strip()]
+    if not commands:
+        return 0, {'data': {'skipped': True, 'stages': [], 'baseline': 'skipped'}}
+    record = inv['record_baseline']
+    stages = []
+    for index, command in enumerate(commands):
+        stage, error_kind = run_stage(command, [], inv['timeout'], index)
+        stages.append(stage)
+        if error_kind is not None:
+            return 2, stage_error(stage, error_kind, stages)
+        if not record and not stage['ok']:
+            break
+    data = {'skipped': False, 'stages': stages, 'baseline_path': str(path)}
+    if record:
+        record_baseline(path, stages)
+        data['baseline'] = 'recorded'
+        return 0, {'data': data}
+    data['baseline'] = 'absent'
+    code = 0 if all(s['ok'] for s in stages) else 1
+    return code, {'data': data}
 
 
 def main(argv):

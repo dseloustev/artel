@@ -315,5 +315,69 @@ class TestTicketResolution(GateCase):
         self.assertIn('.active_ticket', str(ctx.exception))
 
 
+class TestCheckpointGate(GateCase):
+    def setUp(self):
+        super().setUp()
+        self.ticket_cfg = {'projectKey': 'AW'}
+
+    def test_no_commands_is_skipped(self):
+        self.write_config({}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 0)
+        self.assertEqual(env['data'], {'skipped': True, 'stages': [], 'baseline': 'skipped'})
+
+    def test_without_a_baseline_any_red_is_red(self):
+        self.write_config({'commands': [RED, GREEN]}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 1)
+        self.assertEqual(env['data']['baseline'], 'absent')
+        self.assertEqual(len(env['data']['stages']), 1)
+        self.assertNotIn('new_keys', env['data']['stages'][0])
+
+    def test_green_without_a_baseline(self):
+        self.write_config({'commands': [GREEN]}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--ticket', 'AW-1'])
+        self.assertEqual(code, 0)
+        self.assertEqual(env['data']['baseline'], 'absent')
+        self.assertTrue(env['data']['baseline_path'].endswith(
+            os.path.join('AW-1', 'verify-baseline.json')))
+
+    def test_record_baseline_runs_every_stage_and_exits_0(self):
+        self.write_config({'commands': [RED, RED_OTHER, GREEN]}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--record-baseline', '--ticket', 'AW-12-3'])
+        self.assertEqual(code, 0)
+        self.assertEqual(env['data']['baseline'], 'recorded')
+        self.assertEqual([s['name'] for s in env['data']['stages']], ['s0', 's1', 's2'])
+        recorded = json.loads(Path('.artel/run/AW-12/verify-baseline.json').read_text())
+        self.assertIn('recorded_at', recorded)
+        self.assertEqual([s['keys'] for s in recorded['stages']],
+                         [['s0:lib/a.py:: error boom'], ['s1:test/a_test.py: FAILED'], []])
+        # the command as executed, {files} substituted, exactly as the envelope's stage shows it
+        self.assertEqual(recorded['stages'][2]['command'], verify.substitute_files(GREEN, []))
+
+    def test_record_baseline_env_error_writes_nothing(self):
+        self.write_config({'commands': [RED, MISSING]}, ticket=self.ticket_cfg)
+        os.makedirs('.artel/run/AW-1')
+        Path('.artel/run/AW-1/verify-baseline.json').write_text('{"stages": []}')
+        code, env = self.run_main(['checkpoint', '--record-baseline', '--ticket', 'AW-1'])
+        self.assertEqual(code, 2)
+        self.assertEqual(env['error']['kind'], 'command_not_found')
+        self.assertEqual(Path('.artel/run/AW-1/verify-baseline.json').read_text(),
+                         '{"stages": []}')
+
+    def test_record_baseline_with_no_commands_writes_nothing(self):
+        self.write_config({}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint', '--record-baseline', '--ticket', 'AW-1'])
+        self.assertEqual(code, 0)
+        self.assertFalse(Path('.artel/run/AW-1/verify-baseline.json').exists())
+
+    def test_missing_ticket_is_invalid_argument(self):
+        self.write_config({'commands': [GREEN]}, ticket=self.ticket_cfg)
+        code, env = self.run_main(['checkpoint'])
+        self.assertEqual(code, 2)
+        self.assertEqual(env['error']['kind'], 'invalid_argument')
+        self.assertIn('.active_ticket', env['error']['message'])
+
+
 if __name__ == '__main__':
     unittest.main()

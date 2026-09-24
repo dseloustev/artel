@@ -125,7 +125,7 @@ The bound is about focus, not speed. An agent that runs twenty searches pastes n
 
 `agents/issue-scout.md` declares a larger budget — `index_status` 1 · `related` ≤ 5 ·
 `search_knowledge` ≤ 10 — because it stands in for the author's own lookups for a whole draft,
-and `issue-draft` caps what reaches the document at eight facts.
+and `issue-draft` caps what reaches the document at six facts.
 
 ## 4. What to record
 

@@ -13,10 +13,11 @@ All notable changes to this project are documented here. The format follows
   `related` ≤ 5 · `search_knowledge` ≤ 10), the tracker (≤ 6 issues: the tickets the source
   names, their parent and links), Figma (≤ 6 links: real frame names as link labels) and the
   host code (≤ 20 lookups through `docs/code-navigation.md`), and returns a fact sheet — each
-  fact `stated` or `inferred`, with its reference. Gaps a stated fact answers are not asked. At
-  most eight retrieved facts enter the description, in the team's citation style (bare ticket
+  fact `stated` or `inferred`, with its reference. Gaps a stated fact answers are not asked. At most six retrieved facts (three of them code) enter the description, in the team's citation style (bare ticket
   keys in relation sentences, inline code, decisions attributed to a person and date); none
-  enter AC; the rest are reported under **Also found**, beside one status line per source.
+  enter AC; the rest are reported under **Also found**, beside one status line per source; a fact that
+  the work is already done, moved or contradicted by what retrieval found leads the report as a
+  **Heads-up**.
 
 ### Changed
 

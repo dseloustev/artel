@@ -616,9 +616,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `language.pr`; the markup dialect follows `tracker.adapter` (Jira wiki under `"jira-mcp"`,
   Markdown otherwise). Retrieval is delegated to `issue-scout`, which consumes knowledge-consultation.md with three
   declared deviations (an error ends that source, not the draft; nothing recorded under
-  `<specs.dir>`; attributed paraphrase instead of verbatim quotes). At most 8 retrieved facts
-  enter the description, in the team's citation style; none in AC; the rest are reported under
-  Also found. `⚠ NON-CURRENT` facts never close a gap. Draft only — never calls an issue-creation API;
+  `<specs.dir>`; attributed paraphrase instead of verbatim quotes). At most 6 retrieved facts (3 code) enter the description, in the team's citation style; none in AC; the rest are reported under Also found, and a fact that the work is done, moved or contradicted leads the report as a heads-up. `⚠ NON-CURRENT` facts never close a gap. Draft only — never calls an issue-creation API;
   never invents facts, priorities, assignees or labels.
 ### init-branch
 

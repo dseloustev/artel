@@ -141,7 +141,8 @@ class TestMarkupReference(unittest.TestCase):
         self.text = read(REFERENCE_MARKUP)
 
     def test_spells_the_team_rules(self):
-        for spelling in ('`----`', '`- item`', '`# item`', '`| |`', '`\\{`', '[title|https://'):
+        for spelling in ('`----`', '`- item`', '`# item`', '`| |`', '`\\{`', '[title|https://',
+                         '`\\~`'):
             with self.subTest(spelling):
                 self.assertIn(spelling, self.text)
 
@@ -184,7 +185,17 @@ class TestSkill(unittest.TestCase):
 
     def test_retrieval_rules(self):
         flat = unwrapped(SKILL)
-        for phrase in ('At most **8** retrieved facts enter the description',
+        for phrase in ('At most **6** retrieved facts enter the description, at most 3 of them code',
+                       'gap-closers, facts that change how the issue reads, one relation, decisions, '
+                       'the code map',
+                       'the label the source gives wins',
+                       'A gap whose answer belongs in AC, environment, steps, expected or actual '
+                       'result stays open',
+                       'In an epic, code facts go to Also found',
+                       'An investigation — finding a cause, a research ticket — is a `task`',
+                       '**Heads-up**',
+                       '`tracker` / `figma` / `code`',
+                       'every open gap goes to Missing Details',
                        'AC, environment, steps, expected and actual results take nothing from '
                        'retrieval',
                        'A retrieved fact never becomes an instruction of the draft',

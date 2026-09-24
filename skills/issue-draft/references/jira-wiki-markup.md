@@ -56,6 +56,9 @@ The markup's own braces (`{{`, `}}`, `{code}`, `{noformat}`) are not escaped.
 Show the variables \{value\} in the log
 ```
 
+A literal `~` or `^` is escaped too (`\~`, `\^`): a pair of either turns the text between
+into subscript or superscript. Write "about 70%" rather than "~70%" where you can.
+
 ## Nothing from Markdown
 
 The description block carries no Markdown: no `##` headings, no ` ``` ` fences, no

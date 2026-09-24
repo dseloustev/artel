@@ -906,8 +906,7 @@ move to the decision log.
   and the history and decisions of the area, with fewer questions — at a few minutes per draft.
   A read-only agent reads kartoteka (1 · ≤ 5 · ≤ 10), the tracker (≤ 6 issues), Figma frame
   names (≤ 6 links) and the host code (≤ 20 lookups) and returns a fact sheet; the skill closes
-  gaps with `stated` facts, asks what stays open, and places at most eight facts in the team's
-  citation style, surveyed from ~95 adguard-wallet tickets (bare keys in relation sentences,
+  gaps with `stated` facts, asks what stays open, and places at most six facts (three of them code) in the team's citation style, surveyed from ~95 adguard-wallet tickets (bare keys in relation sentences,
   inline code, decisions attributed to a person and date, no verbatim quotes). Decisions:
   - **One agent, before the question round.** 0.10.0 rejected a drafting agent because the
     question round would cross the agent boundary twice; retrieval crosses it once. Rejected:

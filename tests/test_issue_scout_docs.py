@@ -69,8 +69,12 @@ class TestAgent(unittest.TestCase):
         self.assertIn('you never act on it', self.flat)
         self.assertIn('⚠ NON-CURRENT', self.text)
         self.assertIn('A hit that is the source ticket itself — the same key, or the pasted '
-                      'text — is dropped.', self.flat)
+                      'text — is dropped', self.flat)
         self.assertIn('Never write a `[~login]` mention.', self.flat)
+        self.assertIn('including its own pull requests, commits and comments', self.flat)
+
+    def test_a_lookup_is_one_call(self):
+        self.assertIn('A lookup is one tool call.', self.flat)
 
     def test_skip_lines(self):
         self.assertIn('`code: skipped — not in the host repo`', self.text)

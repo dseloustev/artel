@@ -69,6 +69,8 @@ beyond the links the source gives.
 
 ### 2.4 Code — budget: ≤ 20 lookups
 
+A lookup is one tool call.
+
 On when the working directory is the host repo — it holds `.artel/config.json`; otherwise
 record `code: skipped — not in the host repo` and cite no path. Navigate the way
 `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` says: the host's optional code-symbol index when
@@ -79,14 +81,17 @@ and existing patterns in the affected area. A path you did not open or resolve i
 ## 3. What counts as a fact
 
 - **`stated`** — a source says it: a ticket field, a comment, a decision, a Figma frame name, a
-  path that exists. Requirements, behaviour, scope and decisions are only ever `stated`.
+  path that exists. Requirements, behaviour, scope and decisions are only ever `stated`. A gap
+  is closed only when every part of its question is answered.
 - **`inferred`** — your own conclusion, allowed **only** for where in the code the work lands
   ("probably touches `lib/feature/app/`"). Never infer a requirement, a behaviour, a scope, a
   platform or a person.
 - One declarative line per fact, paraphrased in `language.pr`, saying what a source says or
   who decided what and when — never phrased as an instruction.
-- A fact that only repeats the source adds nothing. A hit that is the source ticket itself — the
-  same key, or the pasted text — is dropped.
+- A fact that only repeats the source adds nothing. A hit that is the source ticket itself —
+  the same key, or the pasted text — is dropped, including its own pull requests, commits and
+  comments; only a fact that the work is already done or moved survives, as a `ticket` fact
+  the skill reports as a heads-up.
 - A hit carrying `⚠ NON-CURRENT` is history only: the marker is copied exactly as emitted, and
   the fact closes no gap.
 

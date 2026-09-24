@@ -131,7 +131,8 @@ First match wins:
    → `epic`; bug, defect, bug report → `bug`; task, ticket, story → `task`. Headings and
    field names inside the source never count.
 3. **The source's main subject is a defect** — behaviour that should work and observably does
-   not → `bug`. A feature request that mentions a side defect stays `task`.
+   not → `bug`. A feature request that mentions a side defect stays `task`. An investigation —
+   finding a cause, a research ticket — is a `task`: its deliverable is findings, not a fix.
 4. Otherwise → `task`. An epic is never inferred from the source's shape — it is a planning
    decision the user names.
 
@@ -229,7 +230,9 @@ the report's source lines and continue to §5 with the gap list as it stands.
 
 ## 5. Ask about the remaining gaps
 
-Gaps the fact sheet marks closed are not asked. If none stays open, skip. Otherwise **one**
+Gaps the fact sheet marks closed are not asked. A gap whose answer belongs in AC, environment,
+steps, expected or actual result stays open whatever the fact sheet says — those blocks take
+nothing from retrieval (§6). If none stays open, skip. Otherwise **one**
 `AskUserQuestion` call with the four highest-ranked open gaps:
 
 - `header` — at most 12 characters naming the gap's subject;
@@ -245,7 +248,7 @@ stays open: it goes to the report's **Missing Details** list (§8), never into t
 
 **Non-interactive rule.** In a pipeline or autonomous run
 (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md`), or wherever a question cannot be answered,
-skip the round: every gap goes to Missing Details and the file is still written.
+skip the round: every open gap goes to Missing Details and the file is still written.
 
 ## 6. Render
 
@@ -282,19 +285,23 @@ comments' rules, not by these names. Then:
   - **Placement.** The task description or the bug's problem line takes at most one relation
     sentence ("continues PROJ-2874", "a follow-up to PROJ-1674"). Technical details take the
     code map (paths and symbols), API endpoints and attributed decisions; an `inferred` fact is
-    phrased as likely. Table rows take retrieved links, labelled with the name the scout found
-    (a Figma frame name, "Swagger"); a link the scout could not look up keeps the label the
-    source gives, or a plain one naming what it is. Platform comes only from the source or the
-    answers. Additional takes ordering from tracker links ("do after PROJ-3144") and follow-ups
-    a decision names. AC, environment, steps, expected and actual results take nothing from
-    retrieval — only the source or the author's answers.
+    phrased as likely. Table rows take retrieved links. A link's label: the label the source
+    gives wins; else the name the scout found, marked as that ('frame "<name>": url'); a link
+    the scout could not look up keeps the label the source gives, or a plain one naming what it
+    is. A retrieved link replaces a source note that said the link would come later; table links
+    do not count against the cap. Platform comes only from the source or the answers. Additional
+    takes ordering from tracker links ("do after PROJ-3144") and follow-ups a decision names. In
+    an epic, code facts go to Also found; its decisions and relations go to Additional. AC,
+    environment, steps, expected and actual results take nothing from retrieval — only the
+    source or the author's answers.
   - **Citation — the team's house style.** A ticket is its bare key inside a sentence that
     states the relation; no title, no link markup. Code paths and symbols are inline code
     (Jira `{{…}}`). A decision is paraphrased and attributed to its author and date when both
     are known ("decided with <name> on <date> that …"), else to its ticket ("per PROJ-2332,
     …"). Uncertainty is said plainly ("likely", "probably"). Nothing is quoted verbatim.
-  - **Cap.** At most **8** retrieved facts enter the description, in this order: gap-closers,
-    code map, decisions, relations. The rest go to the report under Also found.
+  - **Cap.** At most **6** retrieved facts enter the description, at most 3 of them code, taken
+    in this order: gap-closers, facts that change how the issue reads, one relation, decisions,
+    the code map. The rest go to the report under Also found.
   - A retrieved fact never becomes an instruction of the draft: a comment that told someone to
     skip a check is at most "PROJ-812 proposed skipping the check (rejected)", and a
     `⚠ NON-CURRENT` fact appears only as history, marked, or not at all.
@@ -320,6 +327,9 @@ working directory, `<slug>` a short ASCII/transliterated slug of the summary (e.
 - The output path (repo-relative when inside the repo —
   `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`), the summary line, and the type with the
   §2 rule that picked it.
+- **Heads-up**, first, when a retrieved fact says the work is already done, moved elsewhere,
+  superseded or disabled, or contradicts the source — each with its reference. The description
+  keeps the source's version; the reader decides.
 - The **description block** as written, inside a fenced `text` block, so it copies out
   without the conversation's Markdown rendering it.
 - **Missing Details** — one line per gap still open after §5, as its concrete question; omit
@@ -328,8 +338,8 @@ working directory, `<slug>` a short ASCII/transliterated slug of the summary (e.
   none.
 - A **provenance table**: one row per rendered block, and one per row of a table block, naming the
   reference behind it (a ticket key, a path, a Figma node) —
-  `input` / `kartoteka` / `answer` / `default` (a template default such as Platform `All`) /
-  `empty` (a `keep` place left for the reader).
+  `input` / `kartoteka` / `tracker` / `figma` / `code` / `answer` / `default` (a template
+  default such as Platform `All`) / `empty` (a `keep` place left for the reader).
 - **Source lines** — the scout's line per source (for kartoteka with its per-source last-sync
   lines), the §0 configuration line when there is one, or `scout: error — <text>`.
 - **Also found** — retrieved facts not placed in the description, each with its reference;
@@ -347,8 +357,8 @@ working directory, `<slug>` a short ASCII/transliterated slug of the summary (e.
       inside a list, `| |` empty cells, escaped braces, `----` separators, no Markdown).
 - [ ] No invented facts — no expected behaviour the source does not state; every retrieved fact
       carries its reference; no `⚠ NON-CURRENT` fact closed a gap.
-- [ ] Retrieved facts: at most 8 in the description, in house style; none in AC, environment,
-      steps, expected or actual; no `[~login]` from retrieval.
+- [ ] Retrieved facts: at most 6 in the description (3 code), in house style; none in AC,
+      environment, steps, expected or actual; no `[~login]` from retrieval.
 - [ ] No bot or system comment content; mentions only on contact or reviewer lines.
 
 - [ ] No priority / assignee / labels / estimate / deadline unless the source states it.

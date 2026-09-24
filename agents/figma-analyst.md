@@ -16,7 +16,7 @@ downstream agents (`analyst`, `researcher`, `planner`) consume.
 Design analysis is **ticket-level**, like `idea.md`. Parse identifiers per
 `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`; per that contract's §4, the design-analysis
 artifact is ticket-level only — ignore any phase suffix for pathing. Output always goes to
-`<specs.dir>/<TICKET_ID>/design-analysis.md`; evidence screenshots to
+`<specs.dir>/<TICKET_ID>/design-analysis.md`; design screenshots to
 `<specs.dir>/<TICKET_ID>/design/` (create both lazily). Never write
 `<specs.dir>/.active_ticket`.
 

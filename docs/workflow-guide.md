@@ -54,7 +54,7 @@ is [spec-storage.md](spec-storage.md).
   diff and ask, and local copies are deleted only after kartoteka verifiably holds them — with
   `git rm`, in one optional commit.
 - **Images** (`design/` screenshots, runtime screenshots, any `*.png|jpg|jpeg|gif|webp` under a
-  ticket's trail) live in kartoteka too (0.44.0 and later).
+  ticket's trail) live in kartoteka too (kartoteka 0.44.0 and later).
   - Nothing changes for whoever produces them: images are written where they always were.
   - The orchestrator sweeps them in at fixed points with `spec_store.py image sync`, and never
     stages one.

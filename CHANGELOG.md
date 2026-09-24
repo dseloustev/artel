@@ -12,8 +12,8 @@ before the first run.
 ### Added
 
 - **Spec images live in kartoteka too.** With `knowledge.adapter: "kartoteka"`, image files in a
-  ticket's trail are uploaded to kartoteka 0.44.0's new attachment store and removed from disk:
-  `figma-analysis`'s `design/` screenshots, runtime screenshots under `runtime/`, and any
+  ticket's trail are uploaded to kartoteka 0.44.0's new attachment store and moved out of the
+  trail: `figma-analysis`'s `design/` screenshots, runtime screenshots under `runtime/`, and any
   `*.png`, `*.jpg`, `*.jpeg`, `*.gif` or `*.webp`.
   - **They travel with the documents that embed them.** Another worktree, another machine or a
     teammate gets them too, and the dashboard shows `design-analysis.md` with its images inline.
@@ -24,11 +24,16 @@ before the first run.
     screenshots.
   - **Agents view an image with `spec_store.py image fetch <logical path>`.** It downloads into a
     disposable cache under `.artel/run/<TICKET_ID>/images/`.
+  - **An unaddressable or oversized image is `skipped`.** One whose name is outside kartoteka's
+    path grammar — for example macOS's default "Screenshot … at ….png", which contains spaces
+    — or which is larger than 5 MiB, is neither stored nor committed and stays only in the
+    worktree. The final report names it; rename or shrink it, then sweep again.
   - Contract: `docs/spec-storage.md` §4.6.
 - **`/artel:migrate-specs` moves committed images in**, with the same guarantees as documents:
   - each image's hash is compared with every stored version;
   - a conflict shows sizes, hashes and both images instead of a diff;
-  - a local copy is deleted only once kartoteka verifiably holds it.
+  - a local copy is deleted only once kartoteka verifiably holds it;
+  - it also moves images from `save-context` copies (`.artel/context/tickets/<TICKET_ID>/spec-trail/`).
 
 ### Changed
 
@@ -44,11 +49,19 @@ before the first run.
     with kind `unrecoverable`), its bytes are set aside as `<cache file>.unverified`.
   - The run still does not pause, and the whole message, naming both paths, goes into the
     journal and the final report.
+- **`restore-context` no longer restores images on the kartoteka path.** They are excluded
+  alongside the spec documents; both stay in the context store until `/artel:migrate-specs`
+  moves them in.
+- **OpenCode users re-run `scripts/install-opencode.sh`** to pick up the bridge's new `read`
+  hook.
 
 ### Upgrading
 
-1. Upgrade kartoteka to 0.44.0, run `kartoteka migrate`, and restart the daemon. Until then,
-   every run on the kartoteka path stops at the storage decision with the line above.
+1. Upgrade kartoteka to 0.44.0, run `kartoteka migrate`, and restart the daemon.
+   - Until kartoteka is upgraded, every run on the kartoteka path, and `/artel:migrate-specs`,
+     stops at the storage decision with the line above.
+   - A 0.44.0 daemon whose database was not migrated refuses to start, which artel reports as
+     `kartoteka is unreachable at …`, so run `kartoteka migrate` first.
 2. Move trails that have committed images in with `/artel:migrate-specs <TICKET_ID>`, or
    `--all`. A headless run stops at start while a trail still holds committed images, as it does
    for committed documents.

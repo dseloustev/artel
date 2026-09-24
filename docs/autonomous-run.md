@@ -334,7 +334,8 @@ skill (`../skills/feature-development/SKILL.md`, `## Checkpoint commits & pushes
 `dev`). On the kartoteka path the planning checkpoint stages the same paths, and when, images
 aside, only `.active_ticket` changed it skips the commit and journals
 `planning checkpoint: skipped — the spec trail is in kartoteka`. On the kartoteka path every
-checkpoint sweeps images into kartoteka first and never stages one ([spec-storage.md](spec-storage.md) §4.6).
+checkpoint sweeps images into kartoteka first and never stages one
+([spec-storage.md](spec-storage.md) §4.6).
 
 ## 15. Phase traversal & `.active_ticket`
 

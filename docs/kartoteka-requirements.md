@@ -7,7 +7,8 @@ the kartoteka-primary spec-storage design*
 0.31.0 and 0.32.0 between them closed the whole blocking and gating set. Only §3.1
 (`TICKET_KEY`) remains open, and it is conditional. Each subsection carries its own
 **Shipped —** paragraph below; the Summary table records the state at a glance. artel's store mode
-shipped in 0.16.0 on kartoteka 0.43.0 (§6 below); §1.1/§1.2's parameters are still unused by
+shipped in 0.16.0 on kartoteka 0.43.0 (§6 below); spec images shipped in 0.17.0 on kartoteka
+0.44.0's K3 attachment store (§6 below); §1.1/§1.2's parameters are still unused by
 `docs/task-queue.md`.
 
 artel's spec trail is moving from "files on disk, best-effort mirror into kartoteka" to

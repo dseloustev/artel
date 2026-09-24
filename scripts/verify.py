@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Deterministic verify gate: run the configured verify commands, print one JSON envelope line.
+"""Deterministic verify gates: run the configured commands, print one JSON envelope line.
 
-Wraps `verify.fast` (--fast) or `verify.commands` (default) from .artel/config.json in the
-envelope contract the hooks consume. Run from the host repo root.
+Forms — legacy `[--fast] [--files a,b]` (what the hooks call), `task --files a,b` (verify.fast
+on the paths, then verify.test on the test files among them) and `checkpoint
+[--record-baseline] [--ticket T]` (verify.commands in order, compared against the baseline
+recorded at arm time). Contract: docs/gates.md. Config keys: docs/config.md (`verify.*`).
+Run from the host repo root.
 
 Exit codes: 0 clean or skipped (no commands configured), 1 findings, 2 environment error.
 An exit-2 always means a toolchain/invocation problem, never "the code has a bug".
-Contract: docs/superpowers/specs/2026-08-07-phase5-hooks-gates-design.md
 """
 import fnmatch
 import json

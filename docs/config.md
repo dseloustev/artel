@@ -86,7 +86,10 @@ placeholder the init interview replaces.
   },
   "verify": {
     "commands": [],
-    "fast": ""
+    "fast": "",
+    "test": "",
+    "testSurface": ["test/**", "tests/**", "**/*_test.*", "**/test_*.*", "**/*.test.*", "**/*.spec.*"],
+    "baseline": true
   },
   "review": {
     "perTask": false
@@ -221,13 +224,17 @@ cannot be written to disk — so both failure modes stop rather than degrade:
 | `verify.commands` | array of strings | `[]` | Ordered shell commands forming the full gate. Run from the host repo root; the gate stops at the first non-zero exit. | Full-gate checks: inner loop, implementation checkpoints, validate stage, `deep-review`'s step-0 quality gate, `merge-conflicts`' post-resolution check |
 | `verify.fast` | string | `""` | One quick command for per-edit feedback (lint/analyze of the touched scope, not the whole test suite). | Fast per-edit and verify stop-gate hooks, `inner-loop`'s fast-check step, `add-automation`/`remove-automation`'s post-change check |
 | `verify.surface` | array of strings | absent | Repo-relative glob patterns (`fnmatch` semantics — `*` crosses `/` — like `runtime.surface`); a `!`-prefixed pattern excludes (generated files). A path counts when it matches ≥ 1 positive and 0 negative patterns; a list with only excludes implies `*` as the positive set. Absent → every changed file counts. | The per-edit and stop-gate hooks' changed-file filter |
+| `verify.test` | string | `""` | One scoped test command with `{files}`, run by the task gate on the test files a task changed or added (`docs/gates.md` §1). Empty → the test half of the task gate is `skipped`. Without `{files}` it runs unscoped — the suite per task, which this key exists to avoid — and the envelope says `scoped: false`. | `verify.py task` (the inner loop, from 0.18.0's conversion on) |
+| `verify.testSurface` | array of strings | `["test/**", "tests/**", "**/*_test.*", "**/test_*.*", "**/*.test.*", "**/*.spec.*"]` | Globs (`fnmatch` semantics — `*` crosses `/`, and `**/` needs a directory component; a `!` prefix excludes; only excludes imply `*`) selecting which of a task's changed paths are test files. An empty list or a non-list means the default. | `verify.py task` |
+| `verify.baseline` | boolean | `true` | Compare the checkpoint gate against the baseline the orchestrator records at arm time (`.artel/run/<TICKET_ID>/verify-baseline.json`, `docs/gates.md` §1); `false` → any red stage is red. Any value other than a JSON boolean is a configuration error under reading rule 3. | `verify.py checkpoint` |
 
 Commands must be non-interactive, exit non-zero on failure, and be safe to re-run. An empty
 `verify.commands` degrades the gate to `skipped` — it is never reported as `green`. An empty
 `verify.fast` makes the per-edit hook a no-op.
 
 Any command may contain the literal token `{files}`: callers that pass an explicit file scope
-(the hooks; `scripts/verify.py --files`; `add-automation`/`remove-automation`, whose scope is the
+(the hooks; `scripts/verify.py --files`; `scripts/verify.py task`, whose `test` stage passes only
+the test paths; `add-automation`/`remove-automation`, whose scope is the
 scaffold's own changed paths) replace it with the space-joined, shell-quoted paths, so
 `"eslint {files}"` checks only what changed. A command without the token always runs unscoped. A
 caller that has a scope and skips the substitution passes the literal token to the shell — a

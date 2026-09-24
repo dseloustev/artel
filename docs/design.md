@@ -149,11 +149,19 @@ move to the decision log.
   - a live `artifact_patch`;
   - the dashboard rendering `design-analysis.md` with its images;
   - `image fetch` from a fresh worktree.
-- **Spec images: parked follow-ups.** (2026-09-23 design, §15):
+- **Spec images: parked follow-ups.** From the 2026-09-23 design, §15:
   - blobs out of SQLite if database size hurts backups;
   - an MCP `attachment_get` returning image content, once OpenCode support is known;
   - user-supplied images and Jira attachments as sources;
   - phase-relative image links.
+  - **Per-Read hook cost.** Every Read in an artel project now starts `python3`, about 30 ms
+    each: on OpenCode, through the bridge; on Claude Code, through the new `Read` matcher in
+    `hooks.json`. A cheap image-extension check before the hook runs would avoid the cost for
+    non-image Reads. On OpenCode that check goes in TypeScript, before `runHook`.
+  - **Guard input parsing.** `spec_store_guard.py` parses its input inline instead of calling
+    `hook_common.read_hook_input`, which the `ENTERS_ROOT_DIRECTLY` allowlist in
+    `tests/test_hook_common.py` permits. A shared parse primitive in `hook_common` would remove
+    the allowlist.
 
   Evidence files (`findings.json`, `observation.md`) moving into the store, and `.active_ticket`
   moving to `.artel/run/`, stay parked (2026-09-22 design, §16).

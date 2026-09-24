@@ -52,7 +52,8 @@ class TestSurroundingDocs(unittest.TestCase):
         self.assertIn('docs/gates.md', head)
 
     def test_changelog_announces_the_runner(self):
-        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+        # Everything since 0.17.0: [Unreleased] before the release is cut, [0.18.0] after.
+        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [0.17.0]', 1)[0]
         for phrase in ('docs/gates.md', 'verify.py task', 'verify.py checkpoint', 'verify.test'):
             self.assertIn(phrase, unreleased)
 
@@ -252,7 +253,8 @@ class TestSurroundingDocsConversion(unittest.TestCase):
                 self.assertNotIn('iteration-<i>-full', text)
 
     def test_changelog_records_the_conversion(self):
-        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+        # Everything since 0.17.0: [Unreleased] before the release is cut, [0.18.0] after.
+        unreleased = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [0.17.0]', 1)[0]
         for phrase in ('### Removed', 'QA gate', 'Final Verification', 'validator', 'once per ticket',
                        'close with their last child'):
             self.assertIn(phrase, unreleased)

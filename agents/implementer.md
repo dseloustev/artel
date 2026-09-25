@@ -61,7 +61,7 @@ read it with `artifact_get` and scan it exactly as you would the file.
 - Updated tasklist — the completed task's checkbox flipped to `- [x]`
 - Updated Progress Report table (when one exists in the tasklist)
 - `implementation-notes.md` — a `## Deviations` entry for every deviation from the approved proposal (see `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §3); created lazily, only when a deviation occurs
-- On the kartoteka path (**Spec store:**): the checkbox and the Progress Report row are one `artifact_patch(project=<project>, …)` carrying both edits (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.3); `implementation-notes.md` is created with `artifact_put(project=<project>, …, expected_version=0)` at the first deviation and appended to with `artifact_patch` after.
+- On the kartoteka path (**Spec store:**): the checkbox and the Progress Report row are one `artifact_patch(project=<project>, …)` carrying the version bump and both edits (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.3); `implementation-notes.md` is created with `artifact_put(project=<project>, …, expected_version=0)` at the first deviation and appended to with `artifact_patch` after.
 
 ---
 
@@ -163,7 +163,7 @@ Run the quality gates **before** claiming completion:
 
 Only when the last task gate is green or skipped (gates.md §1, rule 1): flip the checkbox to `- [x]` and
 update the Progress Report table when present. On the kartoteka path both edits go
-in one `artifact_patch` (spec-storage.md §4.3). The tasklist in scope
+in one `artifact_patch`, version bump first (spec-storage.md §4.3). The tasklist in scope
 (`tasklist.md`, or `phase-<N>/tasks.md` on a phase-scoped run) is kept current on
 both paths — it is what the fallback reads.
 

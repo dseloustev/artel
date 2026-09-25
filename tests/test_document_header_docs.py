@@ -125,5 +125,40 @@ class TestGateWriters(unittest.TestCase):
         self.assertIn('never the policy file', read('agents/vision-writer.md'))
 
 
+OTHER_WRITERS = {
+    'skills/generate-idea/SKILL.md': '$VERSION', 'agents/researcher.md': 'type: research',
+    'agents/reviewer.md': 'type: review', 'agents/review-forecaster.md': 'type: deep-review',
+    'agents/qa.md': 'type: qa', 'agents/tech-writer.md': 'type: summary',
+    'skills/pr-description/SKILL.md': 'type: pr-description',
+    'docs/deviation-protocol.md': 'type: implementation-notes',
+    'skills/sync-phases/SKILL.md': 'type: tasklist', 'skills/deep-review/SKILL.md': 'type: tasklist',
+    'agents/tasklist-writer.md': 'type: tasklist',
+}
+
+
+class TestOtherWriters(unittest.TestCase):
+    def test_every_writer_cites_the_header_and_names_its_type(self):
+        for rel, field in OTHER_WRITERS.items():
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertIn('spec-storage.md` §3.2' if rel != 'docs/deviation-protocol.md'
+                              else 'spec-storage.md) §3.2', text)
+                self.assertIn(field, text)
+
+    def test_the_idea_template_opens_with_the_header(self):
+        self.assertTrue(read('skills/generate-idea/assets/templates/idea.template.md')
+                        .startswith('---\ntype: idea\nticket: $TICKET_ID\nversion: $VERSION\n'))
+
+    def test_patches_name_the_version_bump(self):
+        for rel in ('agents/implementer.md', 'skills/sync-phases/SKILL.md'):
+            with self.subTest(rel):
+                self.assertIn('version bump', read(rel))
+
+    def test_the_tasklist_template_cites_the_vision_by_reference(self):
+        text = read('agents/tasklist-writer.md')
+        self.assertNotIn('[vision.md](./vision.md)', text)
+        self.assertIn('workspace:<TICKET_ID>/vision/vision.md', text)
+
+
 if __name__ == '__main__':
     unittest.main()

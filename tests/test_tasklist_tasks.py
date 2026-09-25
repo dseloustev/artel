@@ -9,7 +9,7 @@ import tasklist_tasks  # noqa: E402
 
 TASKLIST = '''# Development Tasklist: Wallet adapter (AW-1234)
 
-Based on [vision.md](./vision.md).
+Based on specs/.current/AW-1234/vision.md.
 
 ---
 

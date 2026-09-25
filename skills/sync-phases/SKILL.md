@@ -63,7 +63,7 @@ For each existing `phase-N/tasks.md`:
    - Sync individual task completion status (checkboxes) to the tasklist iteration body section.
    - Update progress count in the Progress Report table row (e.g., `2/4`) and set status to the "in progress" variant.
 
-On the kartoteka path every checkbox, Progress Report and (Step 7) `**Current Phase:**` change to the tasklist is one `artifact_patch(project=<project>, …)` with an edit per changed line (spec-storage.md §4.3).
+On the kartoteka path every checkbox, Progress Report and (Step 7) `**Current Phase:**` change to the tasklist is one `artifact_patch(project=<project>, …)` with the version bump (spec-storage.md §4.1) first and an edit per changed line (spec-storage.md §4.3).
 
 ### Step 5: Find the target phase for extraction (Step 6)
 
@@ -91,6 +91,15 @@ If `<specs.dir>/<TICKET_ID>/phase-<N>/tasks.md` does NOT exist for the target ph
    - **From vision file**: class/entity structure, data model details, usage scenarios, logging approach, code examples and patterns.
 4. Create `<specs.dir>/<TICKET_ID>/phase-<N>/tasks.md` with this structure:
    ```markdown
+   ---
+   type: tasklist
+   ticket: <TICKET_ID>
+   version: <1 on the kartoteka path, 0 on the files path>
+   title: Phase N: Title
+   status: <the ticket-wide tasklist's status>
+   schema: 1
+   produced_by: artel:sync-phases
+   ---
    # Phase N: Title
 
    **Goal:** [extracted goal]
@@ -130,6 +139,8 @@ If `<specs.dir>/<TICKET_ID>/phase-<N>/tasks.md` does NOT exist for the target ph
 
    [Extract any implementation notes from tasklist for this phase, or leave placeholder]
    ```
+   The header follows `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2;
+   `tasklist_tasks.py` skips it.
 
    On the kartoteka path it is `artifact_put(project=<project>, …, name="phase-<N>.tasks.md", expected_version=0)`.
 

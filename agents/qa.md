@@ -69,6 +69,9 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 
 ## Output
 
+Every `qa.md` opens with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: qa`,
+`produced_by: artel:qa`; a release-scope one carries `ticket: <RELEASE_ID>` and `version: 0`.
+
 ### Release
 - `<specs.releases>/<RELEASE_ID>/qa.md`:
   - Combined QA plan for all tickets in the release

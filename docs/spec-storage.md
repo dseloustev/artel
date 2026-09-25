@@ -529,7 +529,7 @@ before.
 | `absent` | nothing stored at that address | upload |
 | `current` | equals the newest stored version | nothing to upload |
 | `stale` | equals an older stored version — a redacted version never counts as a match | nothing to upload; the store has moved on |
-| `successor` | new content, and the store has not moved since this copy's known base (`pending` → `files_base` → a standing files decision's `versions`); or, with no known base, a **working-tree** copy no older than a mirror-only history, which can only lag; with a header, B = S (or B = 0 over a mirror-only history, which can only lag) | upload |
+| `successor` | new content, and the store has not moved since this copy's known base (`pending` → `files_base` → a standing files decision's `versions`); or, with no known base, a **working-tree** copy no older than a mirror-only history, which can only lag; with a header, B = S, or a **working-tree** copy with B = 0 over a mirror-only history, which can only lag | upload |
 | `mergeable` | the header says B < S, and no version from B to S is redacted | three-way merge with vB and vS on `apply`: clean → uploaded as vS+1 (`merged`); every local change already in vS → nothing uploaded; conflicting → the marked text goes to `<logical>.merge` (`conflicted`) and nothing is uploaded |
 | `conflict` | anything else: two local copies of one document that differ, a redacted version with no known base (shown without a diff — the copy may carry the removed text), a redacted newest version, a `.artel/context` copy with no known base, a working-tree copy whose mtime predates the newest version, or versions written in kartoteka that this copy never saw; with a header: B > S, B ≥ 1 with nothing stored, B = 0 with versions written in kartoteka (created twice), or a redaction from B to S | show the diff; keep local / keep stored / skip |
 | `skipped` | too large, unreadable, or a symbolic link or path outside the ticket's trail | reported, kept, never read |
@@ -544,9 +544,19 @@ Answers are per document (`--resolve <logical>=…`), for a `conflict` or a `mer
 copies differ — and `@<N>` is the stored version the user was shown, so a store that moved since
 is refused rather than overwritten; `keep-merged[@<N>]`, which uploads `<logical>.merge` once the
 user has edited its conflict markers out (refused while any remain, when the file is missing, or
-when the address's copies differ); `keep-stored`, refused unless kartoteka holds a version;
-`skip`. A verified upload removes the address's `.merge` file, and so does `delete` with the
-address's copies.
+when the address's copies differ). When the address already has nothing open — an earlier
+`keep-merged` run already settled it — a repeated `keep-merged` is accepted as a no-op instead of
+refused for "nothing to merge", so a resumed `delete` or a re-run `apply` with the same
+`--resolve` arguments still succeeds. `keep-stored`, refused unless kartoteka holds a version;
+`skip`.
+
+`apply` never overwrites an existing `<logical>.merge`: a `mergeable` item whose merge file is
+already there from an earlier run comes back `conflicted` with that same file and a `note`,
+rather than replacing work the user may be mid-edit on — resolve it (`keep-merged`) or delete the
+file first to have it remerged from scratch. A `conflicted` entry with `merge_file: null` means
+git itself could not merge the three copies (its `reason` says why, most often a missing `git`);
+it offers no `keep-merged`, only keep local / keep stored / skip. A verified upload removes the
+address's `.merge` file, and so does `delete`, once none of the address's copies is kept.
 
 **Images** migrate the same way. Each distinct local copy is compared by sha256 with every stored
 version of its path, from the attachment listing:

@@ -6,8 +6,8 @@ kartoteka and here alike. artel's header is flat `key: value` scalars in a fixed
 order, so this reads lines, not YAML: stdlib only, and nothing here can expand
 (kartoteka refuses YAML aliases for exactly that reason).
 
-A shared library module, not a hook: scripts/spec_store.py and
-hooks/knowledge_mirror.py import it.
+A shared library module, not a hook: scripts/spec_store.py imports it (and a
+hook may too, from a later plan).
 """
 import re
 

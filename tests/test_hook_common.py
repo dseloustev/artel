@@ -247,8 +247,8 @@ ENTERS_ROOT_DIRECTLY = {'spec_store_guard.py'}
 # them. kartoteka_http.py is kartoteka's HTTP client, shared by knowledge_mirror.py and,
 # from later tasks, scripts/spec_store.py. spec_decision.py is the per-ticket storage
 # decision module, shared by scripts/spec_store.py and hooks/spec_store_guard.py.
-# doc_header.py reads the spec-trail document header, shared by scripts/spec_store.py and
-# hooks/knowledge_mirror.py.
+# doc_header.py reads the spec-trail document header, imported by scripts/spec_store.py
+# (and, from a later plan, a hook may too).
 NOT_A_HOOK = {'hook_common.py', 'kartoteka_http.py', 'spec_decision.py', 'doc_header.py'}
 
 

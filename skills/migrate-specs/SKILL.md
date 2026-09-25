@@ -114,8 +114,8 @@ give the `reason`, and let the user open the file themselves before answering.
 
 ### Merge conflicts
 
-For each `conflicted` entry of `apply` (step 4), the marked text is in `merge_file`
-(`<logical>.merge`, beside the document's path), with `local` / `kartoteka v<B>` /
+For each `conflicted` entry of `apply` (step 4) whose `merge_file` is not null, the marked text
+is there (`<logical>.merge`, beside the document's path), with `local` / `kartoteka v<B>` /
 `kartoteka v<S>` sections. Ask:
 
 - **Keep merged** → the user edits the markers out of `merge_file` first, then
@@ -126,6 +126,17 @@ For each `conflicted` entry of `apply` (step 4), the marked text is in `merge_fi
 
 `<S>` is the entry's `newest_version`. Never edit `merge_file` for the user unless they ask.
 Under `--no-prompt` the entry stays unresolved: nothing with markers is ever uploaded.
+
+A `conflicted` entry with `merge_file: null` means git itself could not merge the three copies —
+most often a missing `git` — and names why in its `reason`. There is nothing to edit: offer keep
+local, keep stored or skip, never keep-merged.
+
+A plan item already showing a `merge_file` while still `mergeable` means an earlier `apply` wrote
+it and a later one left it alone rather than overwrite it: treat it as already `conflicted`, go
+straight to this section, and either resolve the existing file (edit its markers out, then
+`keep-merged@<S>`) or delete it and run `apply` again to have it remerged from scratch. Once an
+address has nothing left open, a repeated `keep-merged` with the same arguments is accepted as a
+no-op — safe to re-run `delete` or `apply` after a resume.
 
 ### Image conflicts
 

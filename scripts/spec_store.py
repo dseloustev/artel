@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
 import hook_common as h  # noqa: E402
 import kartoteka_http as kh  # noqa: E402
 import spec_decision as sd  # noqa: E402
+import doc_header as dh  # noqa: E402
 
 VERB = 'spec-store'
 OK, ERROR, ABSENT, CONFLICT, UNAVAILABLE = 0, 2, 3, 4, 5
@@ -274,16 +275,39 @@ def cmd_versions(args, config):
 
 
 def cmd_put(args, config):
+    """A document with a header goes up stamped `version: <expected>+1`, where
+    <expected> is --expected-version or, without it, the stored newest (design
+    2026-09-24 §2.2): kartoteka 0.45.0 refuses any other number. Content that is
+    already the stored newest is that version's receipt -- a version whose only
+    change is its version line is never produced (§2.3). A legacy document goes
+    as it is."""
     ticket_key, stage, name = address(args.path, config)
     content = sys.stdin.buffer.read().decode('utf-8')
+    store = Store(config)
+    expected = args.expected_version
+    if dh.split(content)[0] is not None:
+        rows = store.versions(ticket_key, stage, name)
+        newest = rows[0] if rows else None
+        if newest is not None and not _redacted(newest) \
+                and newest['content_hash'] == _sha(content):
+            print(json.dumps({'version': newest['version'],
+                              'content_hash': newest['content_hash']}))
+            return OK
+        if expected is None:
+            expected = newest['version'] if newest else 0
+        try:
+            content = dh.set_version(content, expected + 1)
+        except ValueError:
+            raise Failure('no_version_line', (
+                '{} opens with a header block that has no `version:` line; artel\'s header '
+                'needs one (docs/spec-storage.md §3.2)').format(args.path))
     if len(content.encode('utf-8')) > kh.MAX_BYTES:
         raise Failure('too_large', '{} is over {} bytes'.format(args.path, kh.MAX_BYTES))
-    status, payload = Store(config).put(ticket_key, stage, name, content,
-                                        args.expected_version, args.author)
+    status, payload = store.put(ticket_key, stage, name, content, expected, args.author)
     if status == 409:
         print(json.dumps({'current_version': payload.get('current_version')}))
         raise Failure('conflict', 'kartoteka holds {} at version {}, not {}'.format(
-            name, payload.get('current_version'), args.expected_version), CONFLICT)
+            name, payload.get('current_version'), expected), CONFLICT)
     print(json.dumps({'version': payload['version'], 'content_hash': payload['content_hash']}))
     return OK
 

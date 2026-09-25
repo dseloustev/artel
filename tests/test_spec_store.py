@@ -169,6 +169,46 @@ class TestPut(StoreCase):
         self.assertEqual(proc.returncode, 4)
         self.assertEqual(json.loads(proc.stdout), {'current_version': 1})
 
+    def sent(self):
+        return [r[3] for r in self.fake.requests if r[0] == 'POST']
+
+    def test_a_new_document_goes_up_as_version_1(self):
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', stdin=header(0))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)['version'], 1)
+        self.assertEqual(self.sent()[-1]['expected_version'], 0)
+        self.assertIn('\nversion: 1\n', self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['content'])
+
+    def test_a_rewrite_is_stamped_against_the_newest_version(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(2, body='two\n'))
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', stdin=header(2, body='three\n'))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual((self.sent()[-1]['expected_version'], json.loads(proc.stdout)['version']),
+                         (2, 3))
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['content'],
+                         header(3, body='three\n'))
+
+    def test_an_explicit_expected_version_is_what_the_line_follows(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(2, body='two\n'))
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', '--expected-version', '1',
+                            stdin=header(1, body='from v1\n'))
+        self.assertEqual(proc.returncode, 4)
+        self.assertIn('\nversion: 2\n', self.sent()[-1]['content'])
+
+    def test_an_unchanged_fetched_document_is_a_no_op(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', stdin=header(1))
+        self.assertEqual((proc.returncode, json.loads(proc.stdout)['version']), (0, 1))
+        self.assertEqual(self.sent(), [])
+
+    def test_a_block_without_a_version_line_is_refused(self):
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md',
+                            stdin='---\ntype: plan\nticket: AW-12\n---\nbody')
+        self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'no_version_line'))
+        self.assertEqual(self.sent(), [])
+
 
 class TestTokenHandling(StoreCase):
     knowledge_extra = {'tokenEnv': 'ARTEL_TEST_TOKEN'}

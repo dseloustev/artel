@@ -209,6 +209,20 @@ class TestPut(StoreCase):
         self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'no_version_line'))
         self.assertEqual(self.sent(), [])
 
+    def test_a_prose_block_is_legacy_not_a_header(self):
+        # F7: kartoteka treats a non-mapping opening block as no block at all;
+        # put must not refuse it as a header missing its version line.
+        text = '---\nA short intro paragraph.\n---\n# Plan\n'
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', stdin=text)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['content'], text)
+
+    def test_a_put_with_only_the_version_line_changed_is_a_no_op(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', stdin=header(7))
+        self.assertEqual((proc.returncode, json.loads(proc.stdout)['version']), (0, 1))
+        self.assertEqual(self.sent(), [])
+
 
 class TestTokenHandling(StoreCase):
     knowledge_extra = {'tokenEnv': 'ARTEL_TEST_TOKEN'}

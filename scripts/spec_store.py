@@ -28,6 +28,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -285,11 +286,19 @@ def cmd_put(args, config):
     content = sys.stdin.buffer.read().decode('utf-8')
     store = Store(config)
     expected = args.expected_version
-    if dh.split(content)[0] is not None:
+    # A block is a header only once it has a `key: value` field (F7): kartoteka
+    # itself reads a non-mapping opening block -- prose, say -- as no block at all,
+    # and a document like that must go up legacy, not be refused for lacking a
+    # version line it was never going to have.
+    if dh.fields(content):
         rows = store.versions(ticket_key, stage, name)
         newest = rows[0] if rows else None
-        if newest is not None and not _redacted(newest) \
-                and newest['content_hash'] == _sha(content):
+        if newest is not None and not _redacted(newest) and (
+                newest['content_hash'] == _sha(content)
+                or newest['content_hash'] == _sha(_stamped(content, newest['version']))):
+            # Either byte-exact, or differing only in its own version line (F8,
+            # plan decision 7): a version whose only change is that line is never
+            # produced, so this put is that version's receipt, not a new upload.
             print(json.dumps({'version': newest['version'],
                               'content_hash': newest['content_hash']}))
             return OK
@@ -1502,9 +1511,22 @@ def _align_local_copies(item, text):
             problems.append('{} changed since it was classified'.format(source))
             continue
         try:
+            mode = stat.S_IMODE(os.stat(path).st_mode)
+        except OSError:
+            mode = None
+        try:
             _write_atomically(path, data)
         except OSError as exc:
             problems.append('{} could not be rewritten: {}'.format(source, exc))
+            continue
+        if mode is not None:
+            # _write_atomically's mkstemp defaults to 0600 (it is shared with the
+            # image cache, so it is not changed there): put the copy's own mode back
+            # rather than silently tightening it on every aligned successor (F9).
+            try:
+                os.chmod(path, mode)
+            except OSError:
+                pass
     return problems
 
 
@@ -1608,7 +1630,12 @@ def _merge_item(store, config, item, resolutions):
     merged, conflicts = three_way_merge(mine, common, theirs, [
         'local', 'kartoteka v{}'.format(base), 'kartoteka v{}'.format(current)])
     if merged is None:
-        return 'failed', conflicts
+        # git itself could not merge the three copies -- a missing `git`, most often
+        # (design 2026-09-24 §2.5): the item degrades to a conflict, never a bare
+        # failure, so the skill still offers keep local/stored/skip and the ticket can
+        # still be resolved. There is nothing to edit, so no merge file is written.
+        return 'conflicted', {'logical': item['logical'], 'merge_file': None,
+                              'reason': conflicts, 'newest_version': current}
     counts = {'local_changes': _changes(common, mine), 'stored_changes': _changes(common, theirs)}
     if conflicts:
         if _outside_the_trail(str(target), item['ticket'], config):
@@ -1807,7 +1834,7 @@ def cmd_migrate_delete(args, config):
     _validate_resolutions(items, resolutions, config)
     deletable, kept = deletion_sets(items, resolutions)
     removed, committed_paths, committed_tickets = [], [], set()
-    removed_logicals = set()
+    removed_logicals, logical_tickets = set(), {}
     for entry in deletable:
         path, ticket = entry['path'], entry['ticket']
 
@@ -1838,13 +1865,19 @@ def cmd_migrate_delete(args, config):
         removed.append(path)
         if not entry.get('kind'):
             removed_logicals.add(entry['logical'])
+            logical_tickets[entry['logical']] = ticket
         _prune_empty_parents(path, config, ticket)
     # A `.merge` belongs to its address, not to any one copy: drop it only once every
     # copy of that document is gone -- an address still `kept` (an open merge/conflict
-    # elsewhere, or a copy that failed to delete) keeps its `.merge` file too.
+    # elsewhere, or a copy that failed to delete) keeps its `.merge` file too. Pruning
+    # runs again after this discard (F6): a ticket directory holding only the deleted
+    # copy and its `.merge` was left non-empty by the per-entry prune above, which ran
+    # before the `.merge` itself was gone.
     kept_logicals = {entry['logical'] for entry in kept if not entry.get('kind')}
     for logical in removed_logicals - kept_logicals:
-        _discard(_merge_path(logical))
+        merge_path = _merge_path(logical)
+        _discard(merge_path)
+        _prune_empty_parents(str(merge_path), config, logical_tickets.get(logical))
     pending_left = tidy_decisions(tickets, config)
     commit = None
     if args.commit and committed_paths:

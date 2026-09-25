@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -871,6 +872,15 @@ class TestApplyByHeader(MigrateCase):
         self.assertEqual(self.stored()['content'], doc(2, 'one, edited\n'))
         self.assertEqual(out['deletable'], [PRD])
 
+    def test_the_aligned_copys_mode_survives_the_rewrite(self):
+        # F9: _write_atomically's mkstemp defaults to 0600 -- aligning a copy to the
+        # newly stamped bytes must not silently tighten its permissions.
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'one\n'), author_agent='a')
+        path = self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
+        os.chmod(str(self.repo / path), 0o644)
+        self.apply('AW-12')
+        self.assertEqual(stat.S_IMODE(os.stat(str(self.repo / path)).st_mode), 0o644)
+
     def test_a_second_apply_uploads_nothing(self):
         self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'one\n'), author_agent='a')
         self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
@@ -1030,6 +1040,26 @@ class TestApplyMerge(MergeCase):
         self.assertIn('an earlier merge file is kept', entry['note'])
         self.assertEqual(self.stored()['version'], 2)
 
+    def test_a_git_failure_degrades_the_item_to_a_conflict(self):
+        self.history(self.BODY.replace('second', 'second, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'first, local')))
+        cwd = os.getcwd()
+        os.chdir(str(self.repo))
+        self.addCleanup(os.chdir, cwd)
+        config = spec_store.load_config()
+        store = spec_store.Store(config)
+        item = spec_store.plan_items(store, config, ['AW-12'], False)[0]
+        self.assertEqual(item['class'], 'mergeable')
+        with mock.patch.object(spec_store, 'three_way_merge',
+                              return_value=(None, 'git merge-file could not run: x')):
+            kind, result = spec_store._merge_item(store, config, item, {})
+        self.assertEqual(kind, 'conflicted')
+        self.assertEqual(result, {'logical': PRD, 'merge_file': None,
+                                  'reason': 'git merge-file could not run: x',
+                                  'newest_version': 2})
+        self.assertFalse((self.repo / (PRD + '.merge')).exists())
+        self.assertEqual(self.stored()['version'], 2)
+
 
 class TestKeepMerged(MergeCase):
     def conflicted(self):
@@ -1117,6 +1147,15 @@ class TestKeepMerged(MergeCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertFalse((self.repo / PRD).exists())
         self.assertFalse(merge.exists())
+
+    def test_delete_of_the_only_copy_prunes_the_now_empty_ticket_directory(self):
+        # F6: the document and its .merge were the only entries left in the ticket
+        # directory -- pruning ran before the .merge was discarded and left it behind.
+        self.conflicted()
+        self.apply('AW-12', '--resolve', PRD + '=keep-stored')
+        proc = self.cli('migrate', 'delete', 'AW-12', '--resolve', PRD + '=keep-stored')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse((self.repo / SPECS / 'AW-12').exists())
 
     def test_delete_keeps_the_merge_file_while_its_address_is_open(self):
         merge = self.conflicted()

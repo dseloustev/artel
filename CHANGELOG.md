@@ -48,8 +48,8 @@ before the first run.
 - Documents written before this release have no header, and they keep working. Their status is
   read from the old `Status:` line for one release, and they gain a header the next time they are
   rewritten. Nothing migrates them.
-- On a daemon older than 0.46.0 nothing stops a run: headers go unvalidated, and without `ref:`
-  lines documents name each other in prose.
+- On a daemon older than 0.46.0 nothing stops a run: without `ref:` lines documents name each
+  other in prose. 0.45.x still validates headers; before 0.45.0 they go unvalidated.
 
 ## [0.20.0] - 2026-09-24
 

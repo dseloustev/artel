@@ -160,5 +160,20 @@ class TestOtherWriters(unittest.TestCase):
         self.assertIn('workspace:<TICKET_ID>/vision/vision.md', text)
 
 
+class TestWhatLeaves(unittest.TestCase):
+    def test_every_posting_path_drops_the_header(self):
+        text = read('skills/pr-create/SKILL.md')
+        files = 'spec_store.py body < <specs.dir>/<TICKET_ID>/pr-description.md) && printf'
+        store = ('pr-description.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py body) '
+                 '&& printf')
+        self.assertEqual((text.count(files), text.count(store)), (2, 2))  # gh edit, gh create
+        self.assertIn('spec_store.py body < <path>', text)                # Bitbucket
+        self.assertNotIn('--body-file <specs.dir>/<TICKET_ID>/pr-description.md', text)
+
+    def test_the_pr_description_cites_no_trail_document(self):
+        text = flat(read('skills/pr-description/SKILL.md'))
+        self.assertIn('no `workspace:` reference and no spec-trail path', text)
+
+
 if __name__ == '__main__':
     unittest.main()

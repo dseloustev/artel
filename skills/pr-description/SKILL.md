@@ -129,16 +129,18 @@ You are writing a short, plain-language PR description for ticket <TICKET_ID>. A
 
 4. **Language.** Body must be `<language.pr>`. Translate any content in another language (e.g. tracker fields, local docs, code comments paraphrased in prose) into it. Keep code identifiers, file paths, class/method names, branch names, and commit hashes verbatim — do not transliterate them.
 
-5. **Reader contract.** The description is written for a QA engineer and a reviewer who have not opened the code and will not read the ticket docs. Every sentence states visible behavior, user impact, or a check the reader can perform. A bullet may name the single class/package/model that is the subject of its change — that is the only place code identifiers appear. Everything about *how* the change works — measurements, constants, internal callbacks and lifecycle events, rejected alternatives, design rationale — lives in the diff; the description states what changed and why.
+5. **Cite no trail document.** A pull-request reader cannot open kartoteka: the body carries no `workspace:` reference and no spec-trail path. Describe what changed and why in the body's own words.
 
-6. **Section contract** — what each section is, using the style sample's own headings:
+6. **Reader contract.** The description is written for a QA engineer and a reviewer who have not opened the code and will not read the ticket docs. Every sentence states visible behavior, user impact, or a check the reader can perform. A bullet may name the single class/package/model that is the subject of its change — that is the only place code identifiers appear. Everything about *how* the change works — measurements, constants, internal callbacks and lifecycle events, rejected alternatives, design rationale — lives in the diff; the description states what changed and why.
+
+7. **Section contract** — what each section is, using the style sample's own headings:
    - **Summary** — 1–3 sentences: what was broken or missing, and how the app behaves now. If the PR targets a non-default base branch, one extra line names it.
    - **Major changes** — 0–2 one-line bullets: only changes a reviewer must know about before reading the diff (behavior change, schema bump, new dependency). State "None." when there are none.
    - **Minor changes** — 1–4 one-sentence bullets. State "None." when there are none.
    - **QA notes** — 1–6 numbered scenarios: where in the app + what to do + what should be visible; platform-specific caveats live here. A deliberate behavior change that QA might file as a bug gets one line starting "Not a bug: …". Every entry of `review.md`'s `## Manual checks outstanding` becomes one more numbered scenario, marked as not yet run.
    - **Platforms tested** — the checklist, or a single "any platform" line for platform-independent changes.
 
-7. **Accuracy.** Every factual claim must be verifiable from the inlined diff or the inlined docs. Do not invent rationale or behavior. If something cannot be verified, omit it.
+8. **Accuracy.** Every factual claim must be verifiable from the inlined diff or the inlined docs. Do not invent rationale or behavior. If something cannot be verified, omit it.
 
 ### Fallback structure (use ONLY if STYLE_SAMPLE_EMPTY or the sample is too short to derive a structure)
 

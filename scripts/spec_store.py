@@ -1165,11 +1165,12 @@ def cmd_migrate_plan(args, config):
     return OK
 
 
-RESOLUTIONS = ('keep-local', 'keep-stored', 'skip')
+RESOLUTIONS = ('keep-local', 'keep-stored', 'keep-merged', 'skip')
 
 
 def parse_resolutions(values):
-    """--resolve <logical>=keep-local[:<source>][@<N>] | keep-stored | skip, repeatable.
+    """--resolve <logical>=keep-local[:<source>][@<N>] | keep-merged[@<N>] | keep-stored | skip,
+    repeatable.
 
     `@<N>` is the stored newest version the conflict was shown against -- the
     answer belongs to the version the user saw, and the upload carries it as
@@ -1184,9 +1185,12 @@ def parse_resolutions(values):
         if at and re.match(r'^[0-9]+$', tail):
             answer, seen = head, int(tail)
         action, _, source = answer.partition(':')
-        if not eq or action not in RESOLUTIONS or (seen is not None and action != 'keep-local'):
-            raise Failure('invalid_argument', 'bad --resolve {!r}: expected <path>={}, and '
-                                              '@<version> only on keep-local'.format(
+        if not eq or action not in RESOLUTIONS \
+                or (seen is not None and action not in ('keep-local', 'keep-merged')) \
+                or (source and action != 'keep-local'):
+            raise Failure('invalid_argument', 'bad --resolve {!r}: expected <path>={}, a '
+                                              ':<source> only on keep-local, and @<version> '
+                                              'only on keep-local or keep-merged'.format(
                                                   value, '|'.join(RESOLUTIONS)))
         resolved[os.path.normpath(logical)] = (action, source or None, seen)
     return resolved
@@ -1227,8 +1231,12 @@ def _upload_source(item, resolutions):
         return item['source'], 0
     if item['class'] == 'successor':
         return item['source'], item['newest_version']
-    if item['class'] == 'conflict' and action == 'keep-local':
+    open_item = item['class'] in ('conflict', 'mergeable')
+    if open_item and action == 'keep-local':
         return item['source'], seen if seen is not None else (item['newest_version'] or 0)
+    if open_item and action == 'keep-merged':
+        return str(_merge_path(item['logical'])), \
+            seen if seen is not None else (item['newest_version'] or 0)
     return None
 
 
@@ -1243,7 +1251,9 @@ def _validate_resolutions(items, resolutions):
     - a plain keep-local for an address whose local copies differ: it must say
       which copy to keep;
     - keep-stored for an address kartoteka holds no version of: there is no
-      stored copy to keep, and discarding the local ones would lose the document.
+      stored copy to keep, and discarding the local ones would lose the document;
+    - keep-merged for an address with no single open item, or whose .merge file
+      is missing, unreadable or still marked.
     """
     by_logical = _by_logical(items)
     for logical, (action, source, _) in sorted(resolutions.items()):
@@ -1253,6 +1263,23 @@ def _validate_resolutions(items, resolutions):
         if action == 'keep-stored' and any(i['newest_version'] is None for i in copies):
             raise Failure('invalid_argument', 'keep-stored for {}: kartoteka holds no version '
                                               'of it'.format(logical))
+        if action == 'keep-merged':
+            open_items = [i for i in copies if i['class'] in ('conflict', 'mergeable')]
+            if len(open_items) != 1:
+                raise Failure('invalid_argument', 'keep-merged for {}: {}'.format(
+                    logical, 'there is nothing to merge' if not open_items else
+                    'its local copies differ; keep one with keep-local:<source>'))
+            target = _merge_path(logical)
+            try:
+                merged = target.read_bytes().decode('utf-8')
+            except (OSError, UnicodeDecodeError) as exc:
+                raise Failure('invalid_argument', 'keep-merged for {}: {} is not readable: '
+                                                  '{}'.format(logical, target, exc))
+            if MERGE_MARKER.search(merged):
+                raise Failure('invalid_argument', 'keep-merged for {}: {} still has conflict '
+                                                  'markers; edit them out first'.format(
+                                                      logical, target))
+            continue
         if action != 'keep-local':
             continue
         if source is None:
@@ -1284,7 +1311,7 @@ def _settled(item, resolutions, by_logical):
         return False
     action, source, _ = _resolution(resolutions, item['logical'])
     if action == 'keep-stored':
-        return item['class'] == 'conflict' and item['newest_version'] is not None
+        return item['class'] in ('conflict', 'mergeable') and item['newest_version'] is not None
     if action == 'keep-local' and source is not None:
         chosen = next((i for i in by_logical[item['logical']] if _holds(i, source)), None)
         return chosen is not None and chosen is not item and chosen['class'] == 'current'
@@ -1635,8 +1662,12 @@ def cmd_migrate_apply(args, config):
             # read_bytes().decode, never read_text: read_text translates newlines, so a
             # CRLF document would go up as LF and be verified against the translated
             # text, while the plan hashed -- and the deletion re-checks -- the raw bytes.
+            merging = _resolution(resolutions, item['logical'])[0] == 'keep-merged'
             text = Path(source).read_bytes().decode('utf-8')
-            if _sha(text) != item['sha256']:
+            if merging and MERGE_MARKER.search(text):
+                fail('{} still has conflict markers; edit them out first'.format(source))
+                continue
+            if not merging and _sha(text) != item['sha256']:
                 fail('it changed since it was classified; run migrate-specs again')
                 continue
             entry, reason = _upload_document(store, config, item, text, expected, resolutions)
@@ -1778,6 +1809,8 @@ def cmd_migrate_delete(args, config):
                 keep(str(exc))
                 continue
         removed.append(path)
+        if not entry.get('kind'):
+            _discard(_merge_path(entry['logical']))
         _prune_empty_parents(path, config, ticket)
     pending_left = tidy_decisions(tickets, config)
     commit = None

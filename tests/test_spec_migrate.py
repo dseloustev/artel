@@ -977,6 +977,65 @@ class TestApplyMerge(MergeCase):
         self.assertEqual(self.plan('AW-12')[PRD]['merge_file'], PRD + '.merge')
 
 
+class TestKeepMerged(MergeCase):
+    def conflicted(self):
+        self.history(self.BODY.replace('first', 'first, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'first, local')))
+        self.apply('AW-12')
+        return self.repo / (PRD + '.merge')
+
+    def resolve_markers(self, path):
+        text = path.read_text(encoding='utf-8')
+        start, end = text.index('<<<<<<< local'), text.index('>>>>>>> kartoteka v2\n')
+        path.write_text(text[:start] + 'first, both\n' + text[end + len('>>>>>>> kartoteka v2\n'):],
+                        encoding='utf-8')
+
+    def test_keep_merged_uploads_the_edited_merge(self):
+        merge = self.conflicted()
+        self.resolve_markers(merge)
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 3}])
+        self.assertIn('first, both', self.stored()['content'])
+        self.assertIn('\nversion: 3\n', self.stored()['content'])
+        self.assertFalse(merge.exists())
+        self.assertEqual(out['deletable'], [PRD])
+
+    def test_keep_merged_is_refused_while_markers_remain(self):
+        self.conflicted()
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('still has conflict markers', json.loads(proc.stderr)['error']['message'])
+        self.assertEqual(self.stored()['version'], 2)
+
+    def test_keep_merged_without_a_merge_file_is_refused(self):
+        self.history(self.BODY.replace('second', 'x'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'y')))
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertEqual(proc.returncode, 2)
+
+    def test_keep_merged_takes_no_source(self):
+        proc = self.cli('migrate', 'plan', 'AW-12')  # a valid run first
+        self.assertEqual(proc.returncode, 0)
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged:x@2')
+        self.assertEqual(proc.returncode, 2)
+
+    def test_keep_local_overrides_the_merge(self):
+        self.conflicted()
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-local@2')
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 3}])
+        self.assertIn('first, local', self.stored()['content'])
+        self.assertFalse((self.repo / (PRD + '.merge')).exists())
+
+    def test_keep_stored_discards_the_copy_and_delete_takes_the_merge_file(self):
+        merge = self.conflicted()
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-stored')
+        self.assertEqual((out['uploaded'], out['deletable']), ([], [PRD]))
+        proc = self.cli('migrate', 'delete', 'AW-12', '--resolve', PRD + '=keep-stored')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse((self.repo / PRD).exists())
+        self.assertFalse(merge.exists())
+
+
 class TestDelete(MigrateCase):
     def delete(self, *args):
         proc = self.cli('migrate', 'delete', *args)

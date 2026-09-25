@@ -554,6 +554,17 @@ class TestClassifyByHeader(MigrateCase):
         item = self.plan('AW-12')[PRD]
         self.assertEqual((item['class'], item['header_version']), ('current', 1))
 
+    def test_a_context_only_snapshot_older_than_the_store_is_a_conflict_not_mergeable(self):
+        # design 2026-09-24 §2.5: a .artel/context snapshot is never merged; its
+        # working-tree twin is the one that carries the work -- and here there is none.
+        self.seed(1, 'one\n')
+        self.seed(2, 'two\n')
+        self.local('.artel/context/tickets/AW-12/spec-trail/prd.md',
+                  doc(1, 'one, abandoned draft\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual(item['class'], 'conflict')
+        self.assertIn('a snapshot is never merged', item['reason'])
+
 
 class TestApply(MigrateCase):
     def apply(self, *args):
@@ -893,6 +904,34 @@ class TestApplyByHeader(MigrateCase):
         self.local(SPECS / 'AW-12/prd.md', 'no header\n')
         self.apply('AW-12')
         self.assertEqual(self.stored()['content'], 'no header\n')
+
+    def test_a_context_only_snapshot_is_never_auto_merged(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'one\n'), author_agent='a')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(2, 'two\n'), author_agent='a')
+        self.local('.artel/context/tickets/AW-12/spec-trail/prd.md',
+                  doc(1, 'one, abandoned draft\n'))
+        out = self.apply('AW-12')
+        self.assertEqual((out['uploaded'], out['merged']), ([], []))
+        self.assertEqual(out['kept'][0]['class'], 'conflict')
+        self.assertEqual(self.stored()['version'], 2)
+
+    def test_a_context_snapshot_beside_a_current_working_copy_is_never_auto_merged(self):
+        # Unlike the lone-context case above, this snapshot's edit does not conflict
+        # with kartoteka's own edit -- were it ever judged `mergeable`, the merge
+        # would go up clean as v3. It must stay a conflict instead: a snapshot is
+        # never merged, whether or not a working-tree twin sits beside it.
+        body = 'intro\n\n## One\nfirst\n\n## Two\nsecond\n'
+        stored_body = body.replace('second', 'second, stored')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, body), author_agent='a')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(2, stored_body), author_agent='a')
+        self.local(SPECS / 'AW-12/prd.md', doc(2, stored_body))
+        self.local('.artel/context/tickets/AW-12/spec-trail/prd.md',
+                  doc(1, body.replace('first', 'first, abandoned draft')))
+        out = self.apply('AW-12')
+        self.assertEqual((out['uploaded'], out['merged']), ([], []))
+        self.assertEqual(self.stored()['version'], 2)
+        self.assertIn('a snapshot is never merged',
+                      next(k for k in out['kept'] if k['class'] == 'conflict')['reason'])
 
 
 class TestThreeWayMerge(unittest.TestCase):

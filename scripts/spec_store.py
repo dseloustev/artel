@@ -819,6 +819,9 @@ def _judge_by_header(item, text, versions, stored, pending, working_copy):
         return conflict('kartoteka redacted {} since v{}; a merge could carry the removed text '
                         'back -- review this copy before choosing'.format(
                             ', '.join('v{}'.format(n) for n in sorted(removed)), base))
+    if working_copy is None:
+        return conflict('a saved context copy made from v{}; kartoteka moved to v{} -- a '
+                        'snapshot is never merged'.format(base, current))
     item.update({'class': 'mergeable', 'diff': diff(),
                  'reason': 'made from v{}; kartoteka moved to v{}'.format(base, current) + note})
 

@@ -80,6 +80,42 @@ def _attachment_path_error(path):
     return None
 
 
+def _header_fields(content):
+    """kartoteka 0.45.0's read_header for flat blocks: {key: raw value}, or None
+    when the content opens with no block. Its own parser, never doc_header's."""
+    if not content.startswith('---\n'):
+        return None
+    end = content.find('\n---\n', 4)
+    if end == -1:
+        return None
+    meta = {}
+    for line in content[4:end].split('\n'):
+        key, sep, value = line.partition(':')
+        if sep and key and not key.startswith((' ', '\t', '#')):
+            meta[key] = value.strip()
+    return meta or None
+
+
+def _header_refusal(content, stage, ticket, next_version):
+    """The 400 text kartoteka answers for a header that disagrees with the row it
+    would become, or None. Only the fields the block carries are checked."""
+    meta = _header_fields(content)
+    if meta is None:
+        return None
+    if 'version' in meta and meta['version'] != str(next_version):
+        current = next_version - 1
+        where = 'the store is at v{}'.format(current) if current else 'no version is stored yet'
+        advice = 're-read, re-apply, then ' if current else ''
+        return ('header version {} is not the version this write creates ({}): {}set '
+                '`version: {}` and pass expected_version={}').format(
+                    meta['version'], where, advice, next_version, current)
+    if 'type' in meta and meta['type'] != stage:
+        return 'header type does not match the stage {!r}'.format(stage)
+    if 'ticket' in meta and meta['ticket'] != ticket:
+        return 'header ticket does not match the ticket_key {!r}'.format(ticket)
+    return None
+
+
 class FakeKartoteka:
     def __init__(self):
         self.mode = 'ok'
@@ -385,6 +421,9 @@ def _handler_for(fake):
             if expected is not None and expected != current:
                 return self._send(409, {'error': 'artifact is at version {}'.format(current),
                                         'current_version': current})
+            refusal = _header_refusal(body['content'], key[2], key[1], current + 1)
+            if refusal:
+                return self._send(400, {'error': refusal})
             stored = fake.seed(*key, body['content'], author_agent=body.get('author_agent'))
             return self._send(200, _row(key, stored))
 
@@ -413,6 +452,11 @@ def _handler_for(fake):
                     text += edit['append']
                 else:
                     text = text.replace(edit['old_string'], edit['new_string'], 1)
+            if _sha256(text) == newest['content_hash']:
+                return self._send(200, _row(key, newest))
+            refusal = _header_refusal(text, key[2], key[1], newest['version'] + 1)
+            if refusal:
+                return self._send(400, {'error': refusal})
             stored = fake.seed(*key, text, author_agent=body.get('author_agent'))
             return self._send(200, _row(key, stored))
 

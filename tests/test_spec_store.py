@@ -490,3 +490,56 @@ class TestDecisionAndPending(StoreCase):
     def test_pending_without_a_decision_is_an_error(self):
         proc = self.run_cli('pending', 'add', 'specs/.current/AW-12/plan.md', '--base-version', '2')
         self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'no_decision'))
+
+
+def header(version, stage='plan', ticket='AW-12', body='# Plan\n'):
+    return '---\ntype: {}\nticket: {}\nversion: {}\n---\n{}'.format(stage, ticket, version, body)
+
+
+class TestFakeHeaderValidation(StoreCase):
+    """The fake refuses what kartoteka 0.45.0 refuses, so a wrong version line fails here."""
+
+    def post(self, content, expected=None):
+        body = {'project': PROJECT, 'ticket_key': 'AW-12', 'stage': 'plan', 'name': 'plan.md',
+                'content': content}
+        if expected is not None:
+            body['expected_version'] = expected
+        return kh.call(self.fake.base_url, 'POST', '/api/artifacts', body=body)
+
+    def test_the_version_the_write_creates_is_accepted(self):
+        self.assertEqual(self.post(header(1))[0], 200)
+        self.assertEqual(self.post(header(2), expected=1)[0], 200)
+
+    def test_a_wrong_version_is_refused_and_nothing_is_stored(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        status, payload = self.post(header(1, body='changed\n'))
+        self.assertEqual(status, 400)
+        self.assertIn('set `version: 2` and pass expected_version=1', payload['error'])
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['version'], 1)
+
+    def test_type_and_ticket_must_match_the_address(self):
+        self.assertIn("does not match the stage 'plan'",
+                      self.post(header(1, stage='prd'))[1]['error'])
+        self.assertIn("does not match the ticket_key 'AW-12'",
+                      self.post(header(1, ticket='AW-13'))[1]['error'])
+
+    def test_a_block_without_those_fields_and_a_legacy_document_pass(self):
+        self.assertEqual(self.post('---\ntitle: only a title\n---\nbody')[0], 200)
+        self.assertEqual(self.post('no header', expected=1)[0], 200)
+
+    def test_an_unchanged_repush_is_a_no_op_before_the_header_is_read(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        self.assertEqual(self.post(header(1))[0], 200)
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['version'], 1)
+
+    def test_a_patch_is_checked_after_its_edits(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        path = '/api/artifacts/AW-12/plan/plan.md'
+        edit = {'old_string': 'ticket: AW-12\nversion: 1\n', 'new_string': 'ticket: AW-12\nversion: 2\n'}
+        status, _ = kh.call(self.fake.base_url, 'PATCH', path, body={
+            'project': PROJECT, 'edits': [{'append': 'more\n'}]})
+        self.assertEqual(status, 400)
+        status, _ = kh.call(self.fake.base_url, 'PATCH', path, body={
+            'project': PROJECT, 'edits': [edit, {'append': 'more\n'}]})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['version'], 2)

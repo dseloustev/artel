@@ -452,6 +452,109 @@ class TestFilesBase(MigrateCase):
         self.assertNotIn('files_base', self.stored_decision())
 
 
+def doc(version, body='body\n', stage='prd', ticket='AW-12', title='T'):
+    """A spec document with artel's header, as a writer produces it."""
+    return ('---\ntype: {}\nticket: {}\nversion: {}\ntitle: {}\nstatus: PRD_READY\nschema: 1\n'
+            'produced_by: artel:analyst\n---\n{}').format(stage, ticket, version, title, body)
+
+
+PRD = 'specs/.current/AW-12/prd.md'
+
+
+class TestClassifyByHeader(MigrateCase):
+    def seed(self, version, body, author='artel:analyst', redacted=False):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(version, body),
+                       author_agent=author, redacted=redacted)
+
+    def test_made_from_the_newest_is_a_successor(self):
+        self.seed(1, 'one\n')
+        self.seed(2, 'two\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(2, 'two, edited\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['header_version'], item['legacy']),
+                         ('successor', 2, False))
+        self.assertEqual(item['reason'], 'made from v2')
+
+    def test_made_from_an_older_version_is_mergeable(self):
+        self.seed(1, 'one\n')
+        self.seed(2, 'two\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['base_version'], item['newest_version']),
+                         ('mergeable', 1, 2))
+        self.assertIn('+one, edited', item['diff'])
+        self.assertIsNone(item['merge_file'])
+
+    def test_a_redaction_since_the_base_is_a_conflict_without_a_diff(self):
+        self.seed(1, 'one\n')
+        self.seed(2, 'secret\n', redacted=True)
+        self.seed(3, 'three\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['diff']), ('conflict', None))
+        self.assertIn('v2', item['reason'])
+
+    def test_never_stored_is_absent(self):
+        self.local(SPECS / 'AW-12/prd.md', doc(0))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['legacy']), ('absent', False))
+
+    def test_never_stored_but_kartoteka_holds_it_is_created_twice(self):
+        self.seed(1, 'written in kartoteka\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(0, 'written locally\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual(item['class'], 'conflict')
+        self.assertIn('created twice', item['reason'])
+
+    def test_never_stored_over_a_mirror_only_history_is_a_successor(self):
+        self.seed(1, 'mirrored\n', author=None)
+        self.local(SPECS / 'AW-12/prd.md', doc(0, 'edited after the mirror\n'))
+        self.assertEqual(self.plan('AW-12')[PRD]['class'], 'successor')
+
+    def test_a_base_newer_than_the_store_is_a_conflict(self):
+        self.seed(1, 'one\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(4))
+        self.assertEqual(self.plan('AW-12')[PRD]['class'], 'conflict')
+
+    def test_a_base_with_nothing_stored_is_a_conflict(self):
+        self.local(SPECS / 'AW-12/prd.md', doc(2))
+        self.assertEqual(self.plan('AW-12')[PRD]['class'], 'conflict')
+
+    def test_a_redacted_newest_is_a_conflict(self):
+        self.seed(1, 'one\n')
+        self.seed(2, 'secret\n', redacted=True)
+        self.local(SPECS / 'AW-12/prd.md', doc(2, 'edited\n'))
+        self.assertEqual(self.plan('AW-12')[PRD]['class'], 'conflict')
+
+    def test_the_header_wins_over_a_pending_record(self):
+        self.seed(1, 'one\n')
+        self.seed(2, 'two\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(2, 'saved in the outage\n'))
+        self.decision('AW-12', pending=[{'path': PRD, 'base_version': 1}])
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual(item['class'], 'successor')
+        self.assertIn('the pending record said v1', item['reason'])
+
+    def test_an_unreadable_version_line_is_legacy(self):
+        self.seed(1, 'one\n')
+        self.local(SPECS / 'AW-12/prd.md', doc('"1"', 'edited\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['legacy'], item['header_version'], item['class']),
+                         (True, None, 'conflict'))
+
+    def test_no_header_is_legacy_under_todays_rules(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1')  # the mirror
+        self.local(SPECS / 'AW-12/prd.md', 'edited after the last mirror')
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['legacy']), ('successor', True))
+
+    def test_a_fetched_copy_is_current_and_reports_its_header(self):
+        self.seed(1, 'one\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(1, 'one\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['header_version']), ('current', 1))
+
+
 class TestApply(MigrateCase):
     def apply(self, *args):
         proc = self.cli('migrate', 'apply', *args)
@@ -1176,8 +1279,8 @@ class TestClassifyImages(ImageCase):
         self.assertEqual((out['summary'], out['image_summary']), ({'absent': 1}, {'absent': 1}))
         by_logical = {i['logical']: i for i in out['items']}
         self.assertEqual(sorted(by_logical['specs/.current/AW-12/prd.md']), [
-            'base_version', 'class', 'diff', 'logical', 'name', 'newest_version', 'reason',
-            'sha256', 'source', 'sources', 'ticket'])
+            'base_version', 'class', 'diff', 'header_version', 'legacy', 'logical', 'merge_file',
+            'name', 'newest_version', 'reason', 'sha256', 'source', 'sources', 'ticket'])
         self.assertEqual(sorted(by_logical[IMG]), [
             'base_version', 'byte_size', 'class', 'diff', 'kind', 'logical', 'name',
             'newest_version', 'reason', 'sha256', 'source', 'sources', 'stored', 'ticket'])

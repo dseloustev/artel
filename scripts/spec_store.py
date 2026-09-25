@@ -749,15 +749,94 @@ def _known_base(sources, name, decision, pending):
     return base if isinstance(base, int) and not isinstance(base, bool) else None
 
 
+def _merge_path(logical):
+    """Where an unresolved merge of this document is written for the user to edit:
+    beside its working-tree path. `*.md.merge` is no trail name, so nothing scans,
+    mirrors or guards it."""
+    return Path(logical + '.merge')
+
+
+def _pending_base(sources, pending):
+    """The base_version a pending save recorded for one of these copies, or None."""
+    for source in sources:
+        base = pending.get(source)
+        if isinstance(base, int) and not isinstance(base, bool):
+            return base
+    return None
+
+
+def _judge_by_header(item, text, versions, stored, pending, working_copy):
+    """Classify a copy whose header names its base B (design 2026-09-24 §2.4).
+
+    The header is the document's own record of what it descends from, so it wins
+    over a pending entry that disagrees (the reason says so). A redaction anywhere
+    in B..S blocks the merge -- the removed text cannot be ruled out -- and any
+    redaction in the history withholds the diff, as for every other class."""
+    base = item['header_version']
+    newest = versions[0] if versions else None
+    current = newest['version'] if newest else 0
+    item['base_version'] = base
+    recorded = _pending_base(item['sources'], pending)
+    note = '' if recorded in (None, base) else (
+        ' (the header says v{}; the pending record said v{} -- the header wins)'.format(
+            base, recorded))
+    withheld = any(_redacted(v) for v in versions)
+    merge_file = _merge_path(item['logical'])
+    item['merge_file'] = str(merge_file) if merge_file.exists() else None
+
+    def diff():
+        if withheld or newest is None:
+            return None
+        return _diff(stored().get('content', ''), text, 'kartoteka v{}'.format(current),
+                     item['source'])
+
+    def conflict(reason):
+        item.update({'class': 'conflict', 'reason': reason + note, 'diff': diff()})
+
+    if newest is None:
+        if base == 0:
+            item.update({'class': 'absent', 'reason': note.strip() or None})
+            return
+        return conflict('the header says v{} but kartoteka holds no version of it'.format(base))
+    if _redacted(newest):
+        return conflict('the stored newest version (v{}) is redacted'.format(current))
+    if base == current:
+        item.update({'class': 'successor', 'reason': 'made from v{}'.format(base) + note})
+        return
+    if base == 0:
+        if all(v.get('author_agent') is None for v in versions) and working_copy is not None \
+                and not _older_than(working_copy, newest):
+            item.update({'class': 'successor', 'reason': (
+                'new here, and kartoteka holds only mirror copies of it, which can only lag'
+                + note)})
+            return
+        return conflict('the header says it was never stored (v0), but kartoteka holds v{}: '
+                        'created twice'.format(current))
+    if base > current:
+        return conflict('the header says v{}, newer than kartoteka\'s v{}'.format(base, current))
+    removed = [v['version'] for v in versions if _redacted(v) and v['version'] >= base]
+    if removed:
+        return conflict('kartoteka redacted {} since v{}; a merge could carry the removed text '
+                        'back -- review this copy before choosing'.format(
+                            ', '.join('v{}'.format(n) for n in sorted(removed)), base))
+    item.update({'class': 'mergeable', 'diff': diff(),
+                 'reason': 'made from v{}; kartoteka moved to v{}'.format(base, current) + note})
+
+
 def _judge(item, text, versions, stored, decision, pending, working_copy):
     """Classify the one local copy of an address kartoteka does not hold:
-    absent, successor, or conflict (docs/spec-storage.md §7).
+    absent, successor, or conflict (docs/spec-storage.md §7) -- or, for a copy
+    whose header names its base, _judge_by_header's classes.
 
     A redaction blocks every automatic upload of a copy that has no known base:
     a redacted version keeps the marker and the marker's hash, so the removed
     text can never read as current or stale, and a copy that still carries it
     would otherwise be uploaded as the newest version. Nothing about such an
     address is diffed -- a diff would print the removed text back out."""
+    if item['header_version'] is not None:
+        item['legacy'] = False
+        return _judge_by_header(item, text, versions, stored, pending, working_copy)
+    item['legacy'] = True
     newest = versions[0] if versions else None
     if newest is None:
         item['class'] = 'absent'
@@ -821,7 +900,8 @@ def classify(store, config, ticket, logical, sources, decision, pending, fetch_s
     def new_item(copies, **fields):
         item = {'ticket': ticket, 'logical': logical, 'name': name, 'sources': copies,
                 'source': copies[0], 'sha256': None, 'class': None, 'reason': None,
-                'newest_version': None, 'base_version': None, 'diff': None}
+                'newest_version': None, 'base_version': None, 'diff': None,
+                'header_version': None, 'legacy': None, 'merge_file': None}
         item.update(fields)
         items.append(item)
         return item
@@ -844,7 +924,8 @@ def classify(store, config, ticket, logical, sources, decision, pending, fetch_s
         if digest in groups:
             groups[digest]['sources'].append(source)
         else:
-            groups[digest], texts[digest] = new_item([source], sha256=digest), text
+            groups[digest], texts[digest] = new_item(
+                [source], sha256=digest, header_version=dh.version(text)), text
     versions = store.versions(ticket_key, stage, name)
     newest = versions[0] if versions else None
     for item in items:

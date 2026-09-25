@@ -179,6 +179,52 @@ mirror rows are the same objects. The rule's one implementation is
 
 Images are addressed by path instead, in kartoteka's attachment store (§4.6).
 
+### 3.2 The document header
+
+Every spec-trail document (§1) opens with a YAML block, on both storage paths:
+
+```yaml
+---
+type: tasklist
+ticket: AW-3270
+version: 7
+title: Update deep-link dialogs in Ramps
+status: TASKLIST_READY
+summary: Nine tasks, two HITL, one parallel wave of three.
+schema: 1
+produced_by: artel:task-planner
+---
+```
+
+`---` on the first line, LF line endings, flat `key: value` lines in exactly this order, and a
+closing `---` line. No comments, quotes, nesting or YAML aliases.
+
+| Field | Required | Value |
+|---|---|---|
+| `type` | yes | the document's stage, §3's table: the filename stem, `tasks` → `tasklist` |
+| `ticket` | yes | the canonical ticket key; for a release-scope document, the release id |
+| `version` | yes | the kartoteka version this body is, or descends from (§4.1 says what to write); `0` = never stored, and always `0` on the files path for a new document or a release-scope one |
+| `title` | no | one line |
+| `status` | gate documents only | `PRD_READY`; `DRAFT` / `VISION_READY`; `PLAN_DRAFTED` / `PLAN_APPROVED`; `DRAFT` / `TASKLIST_READY`; `DESIGN_ANALYZED` / `DESIGN_BLOCKED` |
+| `summary` | no | one line |
+| `schema` | no | `1` — the template version, never the document version |
+| `produced_by` | no | `artel:<agent or skill>` |
+
+- **What stays out:** the creator, the creation time and hashes. kartoteka records them per
+  version.
+- **What stays in the body:** a `## Metadata` section keeps inputs and scope, with no `Status:`
+  line. `**Review round:**` and `**Plan-check bounces:**` stay in the body.
+- **Reading a status:** `spec_store.py status` (§8). It reads the header first, then, for a
+  document written before artel 0.21.0, its old `Status:` line. The old line is read for one
+  release.
+- **What kartoteka checks** (0.45.0 and later): it refuses a write whose `version` is not the
+  version the write creates, whose `type` is not the stage, or whose `ticket` is not the ticket
+  key. The refusal names the numbers to use: re-read, re-apply, and write once more (§4.1).
+- **Documents written before the header** have none. Nothing migrates them. A document gains its
+  header the next time it is rewritten (a put), not when it is patched.
+- **On the files path** a new document says `version: 0`, and an edit never changes the line.
+  `/artel:migrate-specs` reads it to tell a successor from a copy the store has moved past (§7).
+
 ## 4. Operations
 
 ### 4.1 Agents and inline-writing skills
@@ -188,14 +234,14 @@ Read and write it with kartoteka's MCP tools, never with Read/Write/Edit:
 
 | On the files path | On the kartoteka path |
 |---|---|
-| Read `<path>` | `artifact_get(project=<project>, ticket_key, stage, name)`. `No such artifact.` means the file does not exist. Note the `vN` in the header if you may rewrite the document. |
+| Read `<path>` | `artifact_get(project=<project>, ticket_key, stage, name)`. `No such artifact.` means the file does not exist. Note the `vN` on the answer's first line: every write needs it. |
 | Does `<path>` exist? | `artifact_list(project=<project>, ticket_key)` once; its names answer every existence check in this step. |
 | `Glob <specs.dir>/<T>/phase-*/` | Any name in that listing that starts `phase-`. |
-| Write a new `<path>` | `artifact_put(project=<project>, ticket_key, stage, name, content, author_agent="artel:<you>", expected_version=0)`. `Conflict` means it appeared meanwhile: read it and continue as if it had existed. |
-| Rewrite an existing `<path>` | `artifact_put(project=<project>, …, expected_version=<the version you read>)`. On `Conflict`, re-read, re-apply your change once, and put again. A second conflict is reported, never forced. |
-| Edit `<path>` | `artifact_patch(project=<project>, ticket_key, stage, name, edits=[{old_string, new_string}, …])`. Atomic on the newest version: no `expected_version` unless the edit depends on text outside its `old_string`s. |
-| Append to `<path>` | `artifact_patch(project=<project>, …, edits=[{append: "<text>"}])`. |
-| Insert at the end of a `## ` section | A replace edit whose `old_string` is the next `## ` heading line, or `append` when the section is last. |
+| Write a new `<path>` | `artifact_put(project=<project>, ticket_key, stage, name, content, author_agent="artel:<you>", expected_version=0)`, the content opening with the header (§3.2) at `version: 1`. `Conflict` means it appeared meanwhile: read it and continue as if it had existed. |
+| Rewrite an existing `<path>` | `artifact_put(project=<project>, …, expected_version=<N, the version you read>)`, the header at `version: <N+1>`. A document without a header gains one here. On `Conflict`, or a refusal naming the header, re-read, re-apply your change once, and put again with the new numbers. A second conflict is reported, never forced. |
+| Edit `<path>` | `artifact_patch(project=<project>, ticket_key, stage, name, expected_version=<N>, edits=[{old_string: "ticket: <T>\nversion: <N>\n", new_string: "ticket: <T>\nversion: <N+1>\n"}, {old_string, new_string}, …])` — the version bump first, always, then your edits. A document without a header takes no bump edit, but still `expected_version`. On `Conflict`, re-read and re-apply once. |
+| Append to `<path>` | `artifact_patch(project=<project>, …, expected_version=<N>, edits=[<the version bump>, {append: "<text>"}])`. |
+| Insert at the end of a `## ` section | A replace edit whose `old_string` is the next `## ` heading line, or `append` when the section is last. It follows the version bump, like every edit. |
 | Delete `<path>` | Not an operation. The one deletion artel performs is §4.4. |
 
 `author_agent` is `artel:<agent or skill name>`, self-reported. Writes answer with a receipt —
@@ -216,9 +262,13 @@ model's context:
 | `plan_check.py --plan <path> --strict` | `set -o pipefail; spec_store.py get <path> \| plan_check.py --plan - --strict` |
 | `grep -q <pattern> <path>` | `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" \| grep -q <pattern>` |
 | `test -f <path>` | `spec_store.py exists <path>` |
-| `gh pr … --body-file <path>` | `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" \| gh pr … --body-file -` |
+| `spec_store.py status < <path>` | `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" \| spec_store.py status` |
+| `doc=$(spec_store.py body < <path>) && printf '%s\n' "$doc" \| gh pr … --body-file -` | `set -o pipefail; doc=$(spec_store.py get <path> \| spec_store.py body) && printf '%s\n' "$doc" \| gh pr … --body-file -` |
 
-`spec_store.py` is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py`.
+`spec_store.py` is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py`. A status is always read with
+`status`, never `grep`: the header's `status:` is lower-case, and `status` falls back to the old
+`Status:` line for documents written before 0.21.0. A document leaves for a pull request only
+through `body`, which drops the header.
 
 **A failed `get` must never reach a consumer as an empty document.** It prints nothing on
 stdout, and `pipefail` alone does not stop that: a pipe's status under `pipefail` is its
@@ -240,12 +290,12 @@ successful read into a failure.
 
 The tasklist stays one document with today's shape; its writers change verb, not logic:
 
-- **Tick a task** (implementer Step 5) — one `artifact_patch` with two replace edits: the
-  checkbox and the Progress Report row.
+- **Tick a task** (implementer Step 5) — one `artifact_patch` with the version bump and two
+  replace edits: the checkbox and the Progress Report row.
 - **Append a fix batch** under `## Code Review Fixes`, `## Runtime Fixes` or `## Verify Fixes`
   — `artifact_patch`, inserting before the next `## ` heading, or `append` when the section
   is last or missing.
-- **`sync-phases`** — one `artifact_patch` with an edit per changed line. It creates
+- **`sync-phases`** — one `artifact_patch` with the version bump and an edit per changed line. It creates
   `phase-<N>/tasks.md` with `artifact_put(project=<project>, …, expected_version=0)`.
 - **File scan** (`docs/task-queue.md` §4 and §6) — `artifact_get`, then the same scan.
 - **The queue mirror** (`docs/task-queue.md` §2) — reads the document through §4.2's pipe.
@@ -256,6 +306,14 @@ Where the files path deletes `review.md` to reset `**Review round:**` (at a phas
 cap guidance), the kartoteka path puts a new version:
 
 ```markdown
+---
+type: review
+ticket: <TICKET_ID>
+version: <N+1>
+title: Review
+schema: 1
+produced_by: artel:<orchestrator>
+---
 # Review
 
 **Review round:** 0
@@ -263,6 +321,8 @@ cap guidance), the kartoteka path puts a new version:
 _Reset by <orchestrator> at <phase N boundary | cap guidance>, <UTC time>. Earlier rounds are
 this document's previous versions in kartoteka._
 ```
+
+It is put with `expected_version=<N>`, N being the version you read.
 
 ### 4.5 When kartoteka fails
 
@@ -591,6 +651,8 @@ skipped are never deleted.
 | `list <ticket-id>` | JSON `[{name, stage, version, created_at, redacted}]` | `0` |
 | `versions <path>` | JSON `[{version, content_hash, author_agent, created_at, redacted}]`, newest first | `0`; `3` none |
 | `put <path> [--expected-version N] [--author A]` (stdin) | JSON `{version, content_hash}`; a document with a header is sent with its version line stamped `version: <expected>+1` (<expected> is --expected-version, else the stored newest), and content that is already the stored newest is that version's receipt | `0`; `4` conflict, printing `{current_version}`; `2` kind `no_version_line` for a header block without one |
+| `status` (stdin) | the document's status: its header's `status:`, else — for a document written before 0.21.0 — the value on its first `Status:` line | `0`; `1` none declared; `2` kind `empty_input` |
+| `body` (stdin) | the document without its leading header block, verbatim otherwise | `0`; `2` kind `empty_input` |
 | `decide <ticket-id> --decided-by S [--local \| --files R]` | the decision, `local_trail` | `0`; `5` unavailable, printing `{store: null, reason, versions}` |
 | `decision <ticket-id>` | the decision and `fresh` | `0`; `3` none |
 | `pending add <path> --base-version N` | the pending list | `0` |
@@ -611,4 +673,5 @@ reports those as errors (exit `2`). `image put --file` defaults to the logical p
 bytes are read and written in
 binary and never printed. It never prints the token. It uses `knowledge.baseUrl`, and
 `knowledge.tokenEnv` when the daemon has `[auth]` on — a CLI-minted token is needed even
-where the MCP session signs in with GitHub.
+where the MCP session signs in with GitHub. `status` and `body` read stdin only; they need no
+`.artel/config.json`.

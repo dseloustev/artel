@@ -30,6 +30,18 @@ Allowed forms:
 - Citation forms: `src/auth/session.ts:47`, `src/auth/session.ts:47-48`,
   `src/auth/session.ts:71–79`
 - Code-fenced or backticked paths in the same repo-relative form
+- A spec document on the kartoteka path, cited by its reference
+  `workspace:<TICKET_KEY>/<stage>/<name>[@v<N>]` as a Markdown link
+  ([spec-storage.md](spec-storage.md) §3.1).
+
+Also forbidden, whatever the prefix:
+
+- `.artel/…` paths: run state (`open-questions.md`, `run-state.json`, `verify-baseline.json`) and
+  host configuration (`sensitive-paths.json`) exist on one machine and are never committed.
+  Record the substance instead: "open question Q2 (resolved: …)", "the host's sensitive-path
+  categories (auth, crypto)".
+- On the kartoteka path, a `<specs.dir>/…` path to a spec document: the document is not on disk.
+  Cite its reference ([spec-storage.md](spec-storage.md) §3.1).
 
 ---
 
@@ -53,7 +65,7 @@ The rule applies to **every** section of every artifact, including:
 
 - Inline citations in prose ("see `src/auth/session.ts:47`")
 - Tables of references
-- Footers/appendices such as "Files referenced", "Reviewed artifacts", "Inputs", "Reviewed
+- Footers/appendices such as "Files referenced", "Reviewed artifacts", **Inputs:** lines, "Reviewed
   subjects"
 - Comments embedded in YAML/JSON/Markdown front-matter
 
@@ -82,7 +94,11 @@ repository name (e.g., `example-repo`) rather than the local checkout path.
 Before finishing any write to a `<specs.dir>` artifact, the agent should mentally run:
 
 ```
-grep -E '(^|[^A-Za-z])(/Users/|/home/|[A-Z]:\\\\)' <artifact>
+grep -nE '(^|[^A-Za-z])(/Users/|/home/|[A-Z]:\\\\)|\.artel/' <artifact>
 ```
+
+On the kartoteka path, also look for the configured `<specs.dir>/` prefix; a spec document found
+there becomes its reference (§1). You write through `artifact_put`, so run the check on the
+content before sending it.
 
 If any match is found, rewrite those lines as repo-relative paths before saving.

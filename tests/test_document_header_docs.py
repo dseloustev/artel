@@ -54,5 +54,20 @@ class TestHeaderContract(unittest.TestCase):
         self.assertIn('| `body` (stdin) |', verbs)
 
 
+class TestReferencesContract(unittest.TestCase):
+    def test_spec_storage_defines_the_reference_and_its_rules(self):
+        cite = flat(section(read(STORAGE), '### 3.1 Citing a document'))
+        for phrase in ('workspace:<TICKET_KEY>/<stage>/<name>[@v<N>]', '- ref:',
+                       'Copy it, never compose it', '**Inputs:**', 'named in prose'):
+            self.assertIn(phrase, cite)
+
+    def test_path_conventions_bans_run_state_and_allows_references(self):
+        text = flat(read('docs/path-conventions.md'))
+        self.assertIn('`.artel/…`', text)
+        self.assertIn('workspace:<TICKET_KEY>/<stage>/<name>[@v<N>]', text)
+        self.assertIn('spec-storage.md) §3.1', text)
+        self.assertIn(r'\.artel/', read('docs/path-conventions.md'))
+
+
 if __name__ == '__main__':
     unittest.main()

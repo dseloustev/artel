@@ -179,6 +179,40 @@ mirror rows are the same objects. The rule's one implementation is
 
 Images are addressed by path instead, in kartoteka's attachment store (§4.6).
 
+### 3.1 Citing a document
+
+How one spec document names another in its content. The form follows **Spec store:** (§2.3):
+
+| **Spec store:** | Cite another trail document as |
+|---|---|
+| `kartoteka` | a Markdown link to its **reference**: `[prd.md v2](workspace:AW-3088/prd/prd.md@v2)` |
+| `files (…)` | its repo-relative logical path, as before: the files are committed |
+
+A reference is `workspace:<TICKET_KEY>/<stage>/<name>[@v<N>]`, kartoteka's own id for the
+document, with the version when it is pinned. kartoteka's dashboard renders it as a link to the
+document (kartoteka 0.46.0). An agent reads it with `artifact_get(project=<project>, ticket_key,
+stage, name)`, adding `version=N` when it is pinned. The project is always `<project>`: a
+reference never crosses projects.
+
+On the kartoteka path:
+
+- **Copy it, never compose it.** Every kartoteka answer about one version carries a `- ref:`
+  line, the reference pinned to that version. That covers `artifact_get` and the receipt of your
+  own `artifact_put` or `artifact_patch`. A document you have neither read nor written in this
+  dispatch is named in prose, not linked.
+- **Pin the inputs.** The **Inputs:** line lists what you read, each pinned to the version on its
+  `ref:` line. A rewrite keeps the pins of what it actually read.
+- **Unpinned elsewhere.** A later mention of a document listed in **Inputs:** may be short
+  (`plan §2.3`). Any other mention links the `ref:` line without its `@vN`, meaning the newest
+  version.
+- **Sections go in the link text** (`[plan.md v2 §2.3](workspace:…@v2)`); references carry no
+  anchors.
+- **Never a `<specs.dir>/` path** in the content, and never a reference inside the header
+  block.
+
+A logical path found in an older or files-path document still resolves through §3's table.
+Nothing rewrites a stored document's references.
+
 ### 3.2 The document header
 
 Every spec-trail document (§1) opens with a YAML block, on both storage paths:

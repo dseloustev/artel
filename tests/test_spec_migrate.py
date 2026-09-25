@@ -1035,6 +1035,16 @@ class TestKeepMerged(MergeCase):
         self.assertFalse((self.repo / PRD).exists())
         self.assertFalse(merge.exists())
 
+    def test_delete_keeps_the_merge_file_while_its_address_is_open(self):
+        merge = self.conflicted()
+        context = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md',
+                             self.stored()['content'])
+        proc = self.cli('migrate', 'delete', 'AW-12')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse((self.repo / context).exists())
+        self.assertTrue((self.repo / PRD).exists())
+        self.assertTrue(merge.exists())
+
 
 class TestDelete(MigrateCase):
     def delete(self, *args):

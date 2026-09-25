@@ -1781,6 +1781,7 @@ def cmd_migrate_delete(args, config):
     _validate_resolutions(items, resolutions)
     deletable, kept = deletion_sets(items, resolutions)
     removed, committed_paths, committed_tickets = [], [], set()
+    removed_logicals = set()
     for entry in deletable:
         path, ticket = entry['path'], entry['ticket']
 
@@ -1810,8 +1811,14 @@ def cmd_migrate_delete(args, config):
                 continue
         removed.append(path)
         if not entry.get('kind'):
-            _discard(_merge_path(entry['logical']))
+            removed_logicals.add(entry['logical'])
         _prune_empty_parents(path, config, ticket)
+    # A `.merge` belongs to its address, not to any one copy: drop it only once every
+    # copy of that document is gone -- an address still `kept` (an open merge/conflict
+    # elsewhere, or a copy that failed to delete) keeps its `.merge` file too.
+    kept_logicals = {entry['logical'] for entry in kept if not entry.get('kind')}
+    for logical in removed_logicals - kept_logicals:
+        _discard(_merge_path(logical))
     pending_left = tidy_decisions(tickets, config)
     commit = None
     if args.commit and committed_paths:

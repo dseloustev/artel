@@ -175,5 +175,36 @@ class TestWhatLeaves(unittest.TestCase):
         self.assertIn('no `workspace:` reference and no spec-trail path', text)
 
 
+def since_0_20_0():
+    # Everything since 0.20.0: [Unreleased] before the release is cut, [0.21.0] after.
+    return read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [0.20.0]', 1)[0]
+
+
+class TestReleaseDocs(unittest.TestCase):
+    def test_the_changelog_names_the_floor_and_the_new_surface(self):
+        text = since_0_20_0()
+        for phrase in ('**Requires kartoteka 0.46.0**', 'docs/spec-storage.md` §3.2',
+                       'workspace:', 'keep-merged', 'spec_store.py status', 'spec_store.py body',
+                       '`.artel/', '### Upgrading'):
+            self.assertIn(phrase, text)
+
+    def test_no_prompt_or_doc_still_spells_a_status_line(self):
+        for path in PROMPTS:
+            if path.name in ('design.md', 'porting-plan.md'):
+                continue  # history, quoted as it was
+            with self.subTest(path.name):
+                self.assertIsNone(re.search(r'`Status: [A-Z_]+`', path.read_text(encoding='utf-8')))
+
+    def test_the_requirements_record_the_two_kartoteka_releases(self):
+        text = read('docs/kartoteka-requirements.md')
+        self.assertIn('**Shipped 0.45.0**', text)
+        self.assertIn('**Shipped 0.46.0**', text)
+
+    def test_the_design_log_records_the_decisions(self):
+        text = read('docs/design.md')
+        for phrase in ('2026-09-25', 'workspace:', 'document header'):
+            self.assertIn(phrase, text)
+
+
 if __name__ == '__main__':
     unittest.main()

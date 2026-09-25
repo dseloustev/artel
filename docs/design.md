@@ -165,20 +165,22 @@ move to the decision log.
 
   Evidence files (`findings.json`, `observation.md`) moving into the store, and `.active_ticket`
   moving to `.artel/run/`, stay parked (2026-09-22 design, §16).
-- **Spec-trail frontmatter is unblocked on kartoteka's side, not adopted** (from the 2026-09-15
-  OKF review, decision log below). kartoteka 0.35.0 indexes a workspace artifact without its
-  leading YAML frontmatter block, while the store and `artifact_get` keep it verbatim. That opens
-  three ideas borrowed from OKF: frontmatter in place of the `## Metadata` / `- **Status:**`
-  header bullets, a `verified` entry recording the plan-approval pause, and keyed `sources`
-  citing kartoteka doc ids, which would make
-  [knowledge-consultation.md](knowledge-consultation.md)'s ⚠ NON-CURRENT citation rule
-  mechanically checkable. Any adoption inherits two constraints: the host's daemon must run
-  0.35.0 or later before the mirror hook posts the first block (an older one indexes it as
-  prose), and the block needs LF line endings and a closing `---` on its own line (anything else
-  is indexed as prose, and nothing warns). The larger payoff is kartoteka's and waits on artel:
-  once artifacts cite `sources`, kartoteka could flag one whose cited decision has since become
-  `rejected` or `superseded_by` (§8.3 of
-  `../kartoteka/docs/superpowers/specs/2026-09-15-artifact-frontmatter-design.md`).
+- **Spec-trail frontmatter: adopted in 0.21.0 as the document header** (decision log, 2026-09-25).
+  `type`, `ticket`, `version`, `title`, `status`, `summary`, `schema` and `produced_by` replace
+  the `## Metadata` status bullet (`docs/spec-storage.md` §3.2), and documents cite each other by
+  `workspace:` reference (§3.1). Still open from the 2026-09-15 OKF review: a `verified` entry for
+  the plan-approval pause, and keyed `sources` in the header, which would let kartoteka flag a
+  document whose cited decision was since refuted. Status-only patches bump the version, so
+  version-pinned `sources` would need a staleness rule that ignores them.
+- **Document header and references: the live smoke test has not been run** (0.21.0). Run one
+  ticket end to end on a host with kartoteka 0.46.0 and check:
+  - every document written carries a valid header;
+  - its **Inputs:** links open the pinned versions on the dashboard;
+  - no document contains `.artel/` or a `<specs.dir>/` path;
+  - the PR body has neither the header nor a reference;
+  - `/artel:migrate-specs` merges a document saved during a simulated outage.
+
+  Record the result here.
 - **`issue-draft` operator smoke test** (from the 0.10.0 redesign, 2026-09-04). The templates
   were calibrated on 2026-09-24 against ten real adguard-wallet tickets pulled from kartoteka
   (decision log, same date), but those runs were `--local` and non-interactive. The 0.20.0 evaluation ran kartoteka, Figma and code
@@ -926,3 +928,15 @@ move to the decision log.
     pass — source labels win, facts that change how the issue reads rank before code, a report
     heads-up for done or superseded work — removed the invented facts; the operator accepted
     noise at 3.5 on 2026-09-24 rather than trade away context.
+- **2026-09-25 — Spec documents carry a document header, written by artel and validated by
+  kartoteka.** `version:` is mandatory: it names the store version a body descends from, the one
+  record an outage-era copy has of its base; `/artel:migrate-specs` three-way-merges a copy made
+  from an older version. A `.artel/context` snapshot is never merged, a kept merge file answers
+  for the version it was merged against, and a verified upload aligns the local copy to the bytes
+  kartoteka holds. Design: `docs/superpowers/specs/2026-09-24-document-header-design.md`.
+- **2026-09-25 — Documents cite each other by `workspace:` reference**, copied from kartoteka's
+  `ref:` line and resolved by its dashboard at render time; the files path keeps logical paths,
+  and no document cites `.artel/`. Rejected: daemon URLs in stored text, ticket-relative links, a
+  `sources:` header list.
+- **2026-09-25 — The kartoteka 0.46.0 floor is documented, not probed**: kartoteka exposes no
+  version, and an older daemon only loses validation and `ref:` lines, which degrade to prose.

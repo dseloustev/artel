@@ -293,7 +293,7 @@ and ensures the ticket directory exists.
 - *Gate 1 — `PRD_READY`.* [`analysis`](skills-reference.md#analysis) runs the upfront interview
   — this is the pipeline's designated chatty stage (`autonomous-run.md §1`), asking in batches
   of up to four questions until the requirements are complete. You see `prd.md` marked
-  `Status: PRD_READY`.
+  status `PRD_READY`.
 - *Gate 2 — `VISION_READY`.* [`generate-vision`](skills-reference.md#generate-vision) drafts
   `vision.md` and ends with its one wholesale Approve / Request-changes checkpoint.
 - *Gate 3 — plan drafted.* [`researcher`](skills-reference.md#researcher) then
@@ -308,14 +308,14 @@ and ensures the ticket directory exists.
   environment error, a stop-and-ask pointing at setup, never a bounce.
 - *Gate 4 — `TASKLIST_READY`.* [`tasklist`](skills-reference.md#tasklist) breaks the plan into
   small checkbox tasks and tags any that need a human `[HITL: …]`. You get `tasklist.md` marked
-  `Status: TASKLIST_READY`. (For a phase run, `sync-phases` extracts `phase-<N>/tasks.md` here.)
+  status `TASKLIST_READY`. (For a phase run, `sync-phases` extracts `phase-<N>/tasks.md` here.)
 
 **THE ONE PAUSE.** In a single `AskUserQuestion`, the orchestrator presents: the plan summary,
 the task list with its `[HITL: …]` tags called out, every still-open `open-questions.md` entry
 with its proposed default pre-selected as the "(Recommended)" option, and a note that approval
 also authorizes the run's checkpoint commits & pushes to `origin`. You **Approve** or
 **Request changes**. On approve, any answer that overrides a default is folded back into the
-plan/tasklist, the questions flip to resolved, and the plan becomes `Status: PLAN_APPROVED`.
+plan/tasklist, the questions flip to resolved, and the plan becomes status `PLAN_APPROVED`.
 This is the only mid-pipeline approval — after it, the run goes silent.
 
 **Arm the run.** The classifier runs over plan + tasklist (`autonomous-run.md §10`). A
@@ -432,19 +432,19 @@ what to run next. Run all of these from the host repo root.
    [generate-idea](skills-reference.md#generate-idea).
 
 2. **PRD only.** *Pre:* `idea.md` exists (or a description file). *Run:*
-   `/artel:analysis PROJ-XXXX`. *Produces:* `prd.md` (`Status: PRD_READY`) after the interview
+   `/artel:analysis PROJ-XXXX`. *Produces:* `prd.md` (status `PRD_READY`) after the interview
    batches. *Next:* `/artel:generate-vision PROJ-XXXX`. See
    [analysis](skills-reference.md#analysis).
 
 3. **Vision only.** *Pre:* `idea.md` exists; `prd.md` recommended (it warns and drafts from the
    idea alone if absent). *Run:* `/artel:generate-vision PROJ-XXXX`. *Produces:* `vision.md`
-   (`Status: VISION_READY`) after one Approve/Request-changes checkpoint. *Next:*
+   (status `VISION_READY`) after one Approve/Request-changes checkpoint. *Next:*
    `/artel:researcher PROJ-XXXX` or `/artel:generate-tasklist PROJ-XXXX`. See
    [generate-vision](skills-reference.md#generate-vision).
 
 4. **Research + plan.** *Pre:* `prd.md` (and ideally `vision.md`) exist. *Run:*
    `/artel:researcher PROJ-XXXX` then `/artel:planner PROJ-XXXX`. *Produces:* `research.md`,
-   then `plan.md` (`Status: PLAN_DRAFTED`/`PLAN_APPROVED`); unresolved questions go to
+   then `plan.md` (status `PLAN_DRAFTED`/`PLAN_APPROVED`); unresolved questions go to
    `.artel/run/PROJ-XXXX/open-questions.md`, neither skill pauses. *Next:* ground the plan
    (recipe 5), then `/artel:tasklist PROJ-XXXX`. See
    [researcher](skills-reference.md#researcher) and [planner](skills-reference.md#planner).
@@ -460,7 +460,7 @@ what to run next. Run all of these from the host repo root.
 6. **Tasklist.** *Pre:* full PRD/plan chain (`/artel:tasklist`) **or** just `idea.md` +
    `vision.md` (`/artel:generate-tasklist`). *Run:* `/artel:tasklist PROJ-XXXX` from a plan, or
    `/artel:generate-tasklist PROJ-XXXX` from idea+vision. *Produces:* `tasklist.md`
-   (`Status: TASKLIST_READY`) with HITL tags. *Next:* `/artel:implementer PROJ-XXXX`, or arm a
+   (status `TASKLIST_READY`) with HITL tags. *Next:* `/artel:implementer PROJ-XXXX`, or arm a
    run with `/artel:dev PROJ-XXXX`. See [tasklist](skills-reference.md#tasklist) and
    [generate-tasklist](skills-reference.md#generate-tasklist).
 

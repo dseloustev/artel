@@ -173,7 +173,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Reads:** `design.figma` (must be `true`); `idea.md` (design URLs auto-extracted; an explicit
   URL argument wins); the Figma file via the connected Figma MCP; the codebase.
 - **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/design-analysis.md`
-  (`Status: DESIGN_ANALYZED`, or `Status: DESIGN_BLOCKED` when findings are parked) and
+  (status `DESIGN_ANALYZED`, or status `DESIGN_BLOCKED` when findings are parked) and
   `<specs.dir>/<TICKET_ID>/design/` screenshots (kartoteka path: swept into kartoteka, viewed
   with `image fetch`; files path: files, as before). Never `.active_ticket`.
 - **Pauses:** on Major findings (the discrepancy handshake: apply correction / proceed as
@@ -195,7 +195,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `kartoteka` and its MCP tools are in the session (config.md; `--local` forces this off for
   one run). Answers found there close Resolved Questions with a citation instead of being asked.
 - **Writes:** (via the agent) the PRD at the phase-aware path (ticket-parsing.md §4) with
-  `Status: PRD_READY`; `<specs.dir>/.active_ticket`.
+  status `PRD_READY`; `<specs.dir>/.active_ticket`.
 - **Pauses:** repeatedly, via `AskUserQuestion`, in batches of up to 4 questions until the agent
   returns `INTERVIEW_COMPLETE` — this is the pipeline's designated chatty stage
   (autonomous-run.md §1); the input gate stops and asks (never guesses) when neither `idea.md`
@@ -211,7 +211,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Reads:** `idea.md` (`$1` override; must exist), `prd.md` (warns and continues, drafting from
   the idea alone, if missing) — never re-asking anything the PRD's Resolved Questions already
   answer.
-- **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/vision.md` with `Status: VISION_READY`.
+- **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/vision.md` with status `VISION_READY`.
 - **Pauses:** at most one clarifying-question round (≤4 questions, only where idea+PRD are
   silent) plus one wholesale Approve/Request-changes checkpoint on the finished document; on
   manual invocation, an Overwrite/Abort prompt when `vision.md` already exists (pipeline runs
@@ -246,7 +246,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Reads:** PRD, `research.md`, the host project's conventions docs (its CLAUDE.md and whatever
   it points to), `idea.md`, `vision.md`, and the phase tasks file when one exists.
 - **Writes:** (via the agent) `plan.md` (or `phase-<N>/plan.md`) with
-  `Status: PLAN_APPROVED`/`PLAN_DRAFTED`; optionally `adr.md`; unresolved questions to
+  status `PLAN_APPROVED`/`PLAN_DRAFTED`; optionally `adr.md`; unresolved questions to
   `.artel/run/<TICKET_ID>/open-questions.md` (`from: planner`), with affected plan decisions
   marked `(provisional — Q<n>)`.
 - **Pauses:** never — proceeds on proposed defaults, marking affected decisions provisional
@@ -262,7 +262,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Invocation:** `/artel:tasklist [ticket-id] or [ticket-id]-[phase] [--local]`
 - **Reads:** the plan and its upstream inputs, resolved internally by the `task-planner` agent.
 - **Writes:** (via the agent) `tasklist.md` (or the phase tasks file) with
-  `Status: TASKLIST_READY` and HITL tags (autonomous-run.md §4); unresolved questions to
+  status `TASKLIST_READY` and HITL tags (autonomous-run.md §4); unresolved questions to
   `.artel/run/<TICKET_ID>/open-questions.md` (`from: tasklist`).
 - **Pauses:** never.
 - **Notes:** thin orchestrator — the `task-planner` agent owns input/output paths, format, and

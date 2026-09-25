@@ -1,3 +1,12 @@
+---
+type: design-analysis
+ticket: $TICKET_ID
+version: $VERSION
+title: Design analysis for $TICKET_ID
+status: $STATUS
+schema: 1
+produced_by: artel:figma-analyst
+---
 # Design Analysis: $TICKET_ID
 
 ## Metadata
@@ -7,9 +16,8 @@
 - **File key / root node:** $FILE_KEY / $ROOT_NODE_ID
 - **Sections found:** $SECTIONS
 - **Captured:** $CAPTURE_DATE
-- **Status:** $STATUS
 
-_(Status values: `DESIGN_ANALYZED`, or `DESIGN_BLOCKED` when a Major finding was parked for the designer.)_
+_(`status:` values: `DESIGN_ANALYZED`, or `DESIGN_BLOCKED` when a Major finding was parked for the designer.)_
 
 ## 1. Workflow Map
 

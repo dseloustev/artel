@@ -49,7 +49,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 
 `<specs.dir>/<TICKET_ID>/vision.md` — written in one pass on finalize (Workflow Step 2).
 
-- Header: `# Vision: {Feature Title} (<TICKET_ID>)`, then `Status: DRAFT` (flipped to `Status: VISION_READY` on finalize), a one-line blockquote pointing at `./idea.md` and `./prd.md`, a `---` separator, then the seven sections from the section contract.
+- Header: the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2) — `type: vision`, `status: DRAFT` (set to `VISION_READY` on finalize), `produced_by: artel:vision-writer` — then `# Vision: {Feature Title} (<TICKET_ID>)`, a one-line **Sources:** line citing `idea.md` and `prd.md` (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.1), a `---` separator, then the seven sections from the section contract.
 - After Section 7: `## Out of scope` (bulleted, sourced from the PRD's Out of Scope and the idea file) and `## References` (tracker link from the idea file, when `tracker.adapter` is not `"none"` — else omitted; related tickets). These two blocks are not numbered sections.
 
 ## Section contract
@@ -76,7 +76,9 @@ Section 7.
 5. **Security & privacy** — key material, credential/secret storage, database schema or migration
    changes, and any other surface matched by the host's sensitive-paths policy (the plugin's
    `hooks/sensitive-paths.json` defaults, replaced wholesale by a host
-   `.artel/sensitive-paths.json` when present). **This section feeds HITL tagging**
+   `.artel/sensitive-paths.json` when present).
+   Name the categories matched, never the policy file's path
+   (`${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md` §1). **This section feeds HITL tagging**
    (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4): name every touched sensitive surface
    explicitly. If none: the mandatory line `No sensitive surface touched.` — an omission is not an
    answer.
@@ -98,16 +100,15 @@ After Section 7, append `## Out of scope` (from PRD + idea) and `## References` 
 1. Read the idea file, the PRD, and the codebase as needed. Cite real repo paths and confirm
    every one of them — the host's optional code-symbol index first, else Grep, per
    `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §5.
-2. Draft the complete document (all seven sections) in memory. Header: `# Vision: {Feature Title}
-   (<TICKET_ID>)`, then `Status: DRAFT`, a one-line blockquote pointing at `./idea.md` and `./prd.md`,
-   `---`, then the sections.
+2. Draft the complete document (all seven sections) in memory. Header: the document header (`status: DRAFT`),
+   `# Vision: {Feature Title} (<TICKET_ID>)`, the **Sources:** line, `---`, then the sections.
 3. Return: the full draft; a numbered question list (or `NO_QUESTIONS`) — strictly items where
    idea+PRD are silent and the answer changes the design; an optional KISS trade-offs note. Do not
    write the file. Stop and wait for resume.
 
 ### Step 2 — Finalize on resume
 
-Incorporate the answers, set `Status: VISION_READY`, write the whole file in one pass, and return a
+Incorporate the answers, set the header's `status:` to `VISION_READY`, write the whole file in one pass, and return a
 per-section one-line summary. On checkpoint feedback (revision request): revise, rewrite the file,
 return the updated summary.
 

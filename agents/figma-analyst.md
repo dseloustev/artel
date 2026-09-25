@@ -113,6 +113,8 @@ the flow would attach to, per those same conventions.
 ### 7. Write the artifact + evidence
 
 Fill `${CLAUDE_PLUGIN_ROOT}/skills/figma-analysis/assets/templates/design-analysis.template.md`.
+`$VERSION` follows `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2 and §4.1: `1` for a new document on the
+kartoteka path, `N+1` over a version N you read, `0` on the files path.
 Save screenshots (section overviews + every frame cited in a Major finding) via the screenshot
 tool's curl instructions into `<specs.dir>/<TICKET_ID>/design/` with kebab-case names
 (`desktop-accounts-overview.png`); reference them with relative links (`design/<name>.png`). On rate
@@ -132,7 +134,7 @@ End your report with exactly one of:
 Or, on preflight failure: `ENV_ERROR: <detail>` (nothing written).
 
 On resume with user resolutions: record each in artifact §5 under its finding as
-`**Resolution:** <decision>`, set `Status:` to `DESIGN_ANALYZED` — or to `DESIGN_BLOCKED` when any
+`**Resolution:** <decision>`, set the header's `status:` to `DESIGN_ANALYZED` — or to `DESIGN_BLOCKED` when any
 resolution is Park for designer — and return `DESIGN_ANALYSIS_COMPLETE` plus summary counts
 (screens exists/modify/new, transitions, Major/Minor, evidence files).
 

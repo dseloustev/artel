@@ -59,6 +59,10 @@ Always read for context:
 ## Output
 
 A plan file at the path determined by `ticket-parsing.md` §4, containing:
+- the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: plan`,
+  `status: PLAN_DRAFTED` or `PLAN_APPROVED`, `produced_by: artel:planner`; an ADR carries
+  `type: adr` and no status
+- an **Inputs:** line citing the documents read (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.1)
 - components and modules
 - target interfaces and contracts
 - data flows

@@ -91,5 +91,39 @@ class TestGates(unittest.TestCase):
                 self.assertIsNone(re.search(r'`Status: [A-Z_]+`', read(rel)))
 
 
+GATE_WRITERS = {
+    'agents/analyst.md': 'type: prd', 'skills/analysis/SKILL.md': 'status: PRD_READY',
+    'agents/vision-writer.md': 'type: vision', 'skills/generate-vision/SKILL.md': 'VISION_READY',
+    'agents/planner.md': 'type: plan', 'skills/planner/SKILL.md': 'status: PLAN_APPROVED',
+    'agents/task-planner.md': 'type: tasklist', 'skills/tasklist/SKILL.md': 'status: TASKLIST_READY',
+    'agents/figma-analyst.md': 'status:', 'skills/figma-analysis/SKILL.md': 'status: DESIGN_ANALYZED',
+}
+
+
+class TestGateWriters(unittest.TestCase):
+    def test_every_gate_writer_cites_the_header_and_names_its_fields(self):
+        for rel, field in GATE_WRITERS.items():
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertIn('spec-storage.md` §3.2', text)
+                self.assertIn(field, text)
+                self.assertIsNone(re.search(r'`Status: [A-Z_]+`', text))
+
+    def test_the_inputs_lines_cite_by_reference(self):
+        for rel in ('agents/analyst.md', 'agents/planner.md', 'agents/task-planner.md',
+                    'agents/vision-writer.md'):
+            with self.subTest(rel):
+                self.assertIn('spec-storage.md` §3.1', read(rel))
+        self.assertNotIn('pointing at `./idea.md`', read('agents/vision-writer.md'))
+
+    def test_the_design_analysis_template_opens_with_the_header(self):
+        template = read('skills/figma-analysis/assets/templates/design-analysis.template.md')
+        self.assertTrue(template.startswith('---\ntype: design-analysis\nticket: $TICKET_ID\n'))
+        self.assertNotIn('- **Status:**', template)
+
+    def test_the_vision_names_sensitive_categories_not_the_policy_path(self):
+        self.assertIn('never the policy file', read('agents/vision-writer.md'))
+
+
 if __name__ == '__main__':
     unittest.main()

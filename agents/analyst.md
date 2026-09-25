@@ -88,6 +88,10 @@ Always read for context:
 ## Output
 
 A PRD file at the path determined by `ticket-parsing.md` §4, containing:
+- the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: prd`, `status:
+  PRD_READY` once open questions are empty, `produced_by: artel:analyst`
+- a `## Metadata` section whose **Inputs:** line cites the documents read
+  (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.1) — no `Status:` line
 - goal and context
 - user stories and scenarios
 - metrics and success criteria

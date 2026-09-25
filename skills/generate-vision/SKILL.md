@@ -81,9 +81,9 @@ and collect answers. If `NO_QUESTIONS`, proceed with `answers = "NO_CHANGES"`.
 
 ### Phase 3: Finalize + checkpoint
 
-`SendMessage`: `User's answers: [answers]. Finalize the document, set Status: VISION_READY in the
+`SendMessage`: `User's answers: [answers]. Finalize the document, set status: VISION_READY in its
 header, write it to <specs.dir>/<TICKET_ID>/vision.md, and return a per-section one-line
-summary.`
+summary.` The header is defined in `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2.
 
 Then the **wholesale checkpoint** — `AskUserQuestion`: `Vision written — approve?` with options
 **Approve** / **Request changes** (changes via "Other"). On Request changes: `SendMessage` the
@@ -92,7 +92,7 @@ feedback, the agent revises and rewrites the file, repeat the checkpoint. On App
 ### Completion
 
 Print the vision path, the seven section titles each marked `written` or `standard (no
-deviations)`, and `Status: VISION_READY`.
+deviations)`, and status `VISION_READY`.
 
 ## Important Rules
 

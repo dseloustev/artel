@@ -597,3 +597,37 @@ class TestFakeHeaderValidation(StoreCase):
             'project': PROJECT, 'edits': [edit, {'append': 'more\n'}]})
         self.assertEqual(status, 200)
         self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['version'], 2)
+
+
+class TestStatusAndBody(StoreCase):
+    def test_status_prints_the_header_status(self):
+        proc = self.run_cli('status', stdin=header(1).replace('version: 1\n', 'version: 1\nstatus: PLAN_APPROVED\n'))
+        self.assertEqual((proc.returncode, proc.stdout), (0, 'PLAN_APPROVED\n'))
+
+    def test_status_reads_an_old_document(self):
+        proc = self.run_cli('status', stdin='# PRD\n\n- **Status:** PRD_READY\n')
+        self.assertEqual((proc.returncode, proc.stdout), (0, 'PRD_READY\n'))
+
+    def test_status_exits_1_when_none_is_declared(self):
+        proc = self.run_cli('status', stdin='# Research\n')
+        self.assertEqual((proc.returncode, proc.stdout), (1, ''))
+
+    def test_body_drops_the_header(self):
+        proc = self.run_cli('body', stdin=header(3, body='**Summary**\nText\n'))
+        self.assertEqual((proc.returncode, proc.stdout), (0, '**Summary**\nText\n'))
+
+    def test_body_keeps_a_legacy_document_verbatim(self):
+        proc = self.run_cli('body', stdin='**Summary**\n')
+        self.assertEqual(proc.stdout, '**Summary**\n')
+
+    def test_empty_input_is_refused_by_both(self):
+        for verb in ('status', 'body'):
+            with self.subTest(verb=verb):
+                proc = self.run_cli(verb, stdin=' \n')
+                self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'empty_input'))
+
+    def test_neither_needs_a_config(self):
+        with tempfile.TemporaryDirectory() as bare:
+            proc = subprocess.run([sys.executable, str(SCRIPT), 'status'], cwd=bare,
+                                  input='Status: DRAFT\n', capture_output=True, text=True)
+        self.assertEqual((proc.returncode, proc.stdout), (0, 'DRAFT\n'))

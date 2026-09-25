@@ -16,7 +16,7 @@ its attachment store (kartoteka_http.image_identity). Their bytes move script
 to HTTP and are never printed: an agent Reads the local path `image fetch`
 prints.
 
-Exit codes: 0 ok · 2 error (JSON envelope on stderr) · 3 absent ·
+Exit codes: 0 ok · 1 no status declared (`status`) · 2 error (JSON envelope on stderr) · 3 absent ·
 4 version conflict · 5 kartoteka unavailable (`decide`, the `migrate` verbs and
 `image sync` -- wherever in a migration or a sweep the store goes down).
 Contract: docs/spec-storage.md
@@ -43,6 +43,7 @@ import doc_header as dh  # noqa: E402
 
 VERB = 'spec-store'
 OK, ERROR, ABSENT, CONFLICT, UNAVAILABLE = 0, 2, 3, 4, 5
+NO_STATUS = 1  # `status` only, like grep's "no match"
 
 
 class Failure(Exception):
@@ -230,6 +231,45 @@ def _redacted(row):
     return row.get('redacted_at') is not None
 
 
+EMPTY_INPUT = ('no document on stdin; if it was piped from spec_store.py get, that command '
+               'failed')
+
+
+def _print_document(text):
+    """Write a document to stdout. A reader that stops early (`grep -q` on its
+    first match) is success: the document was delivered, and under `set -o
+    pipefail` (docs/spec-storage.md §4.2) the pipe answers with the reader's
+    status. stdout then goes to devnull so the interpreter's exit flush cannot
+    raise again."""
+    try:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+    except BrokenPipeError:
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+
+
+def _stdin_document():
+    """A document piped in, refused when empty: a failed `get` upstream prints
+    nothing, and read as a document it would pass every check."""
+    text = sys.stdin.buffer.read().decode('utf-8')
+    if not text.strip():
+        raise Failure('empty_input', EMPTY_INPUT)
+    return text
+
+
+def cmd_status(args, config):
+    found = dh.status(_stdin_document())
+    if found is None:
+        return NO_STATUS
+    print(found)
+    return OK
+
+
+def cmd_body(args, config):
+    _print_document(dh.body(_stdin_document()))
+    return OK
+
+
 def cmd_get(args, config):
     ticket_key, stage, name = address(args.path, config)
     found = Store(config).get(ticket_key, stage, name, args.version)
@@ -239,15 +279,7 @@ def cmd_get(args, config):
         # The content is kartoteka's marker; printed, a pipe would read it as the document.
         raise Failure('redacted', '{} v{} is redacted: kartoteka keeps a marker in place of the '
                                   'document'.format(args.path, found.get('version')))
-    try:
-        sys.stdout.write(found['content'])
-        sys.stdout.flush()
-    except BrokenPipeError:
-        # The reader stopped early: `grep -q` exits on its first match. The
-        # document was fetched, so this is success -- under `set -o pipefail`
-        # (docs/spec-storage.md §4.2) the pipe answers with the reader's status.
-        # stdout goes to devnull so the interpreter's exit flush cannot raise again.
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    _print_document(found['content'])
     return OK
 
 
@@ -2259,6 +2291,10 @@ def build_parser():
     put.add_argument('--expected-version', type=int)
     put.add_argument('--author')
     put.set_defaults(run=cmd_put)
+    status = verbs.add_parser('status')
+    status.set_defaults(run=cmd_status, needs_config=False)
+    body = verbs.add_parser('body')
+    body.set_defaults(run=cmd_body, needs_config=False)
     decide = verbs.add_parser('decide')
     decide.add_argument('ticket')
     decide.add_argument('--decided-by', required=True)
@@ -2316,7 +2352,8 @@ def main(argv):
             stream.reconfigure(encoding='utf-8')
     args = build_parser().parse_args(argv)
     try:
-        return args.run(args, load_config())
+        config = load_config() if getattr(args, 'needs_config', True) else None
+        return args.run(args, config)
     except Failure as exc:
         print(json.dumps({'ok': False, 'verb': VERB,
                           'error': {'kind': exc.kind, 'message': str(exc)}}), file=sys.stderr)

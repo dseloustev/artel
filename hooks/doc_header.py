@@ -68,3 +68,28 @@ def set_version(text, number):
     for i in hits:
         lines[i] = 'version: {}'.format(number)
     return OPEN + '\n'.join(lines) + CLOSE + body
+
+
+# `grep -m1 'Status:'`, the read the gates used before the header: the first line
+# carrying `Status:`, its value the first upper-case token after it.
+_LEGACY_STATUS = re.compile(r'Status:\**[ \t]*([A-Z][A-Z0-9_]*)')
+
+
+def status(text):
+    """The document's gate state: the header's `status:` when it names one, else --
+    for a document written before the header, read for one release (design §1.3)
+    -- the value on its first `Status:` line. None when neither declares one."""
+    declared = (fields(text) or {}).get('status')
+    if declared:
+        return declared
+    for line in body(text).split('\n'):
+        if 'Status:' in line:
+            match = _LEGACY_STATUS.search(line)
+            return match.group(1) if match else None
+    return None
+
+
+def body(text):
+    """The document without its leading header block: what leaves artel for a pull
+    request. A document without one is returned whole."""
+    return split(text)[1]

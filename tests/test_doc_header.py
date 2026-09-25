@@ -95,5 +95,41 @@ class TestSetVersion(unittest.TestCase):
                 dh.set_version(text, 1)
 
 
+class TestStatus(unittest.TestCase):
+    def test_the_header_status(self):
+        self.assertEqual(dh.status(HEADER + '# PRD\n'), 'PRD_READY')
+
+    def test_the_header_wins_over_an_old_line(self):
+        self.assertEqual(dh.status(HEADER + '- **Status:** DRAFT\n'), 'PRD_READY')
+
+    def test_old_documents_fall_back_to_their_status_line(self):
+        for line in ('- Status: PRD_READY', 'Status: PRD_READY', '- **Status:** PRD_READY',
+                     '**Status:** PRD_READY'):
+            with self.subTest(line=line):
+                self.assertEqual(dh.status('# PRD\n\n## Metadata\n\n{}\n'.format(line)),
+                                 'PRD_READY')
+
+    def test_an_empty_header_status_falls_back_too(self):
+        text = '---\ntype: prd\nversion: 1\nstatus:\n---\nStatus: PLAN_DRAFTED\n'
+        self.assertEqual(dh.status(text), 'PLAN_DRAFTED')
+
+    def test_only_the_first_status_line_counts_as_grep_m1_did(self):
+        self.assertIsNone(dh.status('Status: open question\nStatus: PRD_READY\n'))
+        self.assertEqual(dh.status('Status: DRAFT\nStatus: PRD_READY\n'), 'DRAFT')
+
+    def test_none_when_nothing_is_declared(self):
+        self.assertIsNone(dh.status('# Research\n\nNo status here.\n'))
+
+
+class TestBody(unittest.TestCase):
+    def test_the_body_after_the_block(self):
+        self.assertEqual(dh.body(HEADER + '**Summary**\n'), '**Summary**\n')
+
+    def test_a_document_without_a_block_is_unchanged(self):
+        for text in ('**Summary**\n', '---\nnot a header, no closing rule\n'):
+            with self.subTest(text=text):
+                self.assertEqual(dh.body(text), text)
+
+
 if __name__ == '__main__':
     unittest.main()

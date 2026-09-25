@@ -1015,6 +1015,21 @@ class TestApplyMerge(MergeCase):
         self.assertEqual(out['deletable'], [])
         self.assertEqual(self.plan('AW-12')[PRD]['merge_file'], PRD + '.merge')
 
+    def test_apply_never_overwrites_an_existing_merge_file(self):
+        self.history(self.BODY.replace('first', 'first, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'first, local')))
+        self.apply('AW-12')
+        merge_path = self.repo / (PRD + '.merge')
+        edited = merge_path.read_text(encoding='utf-8') + '\nUSER WORK IN PROGRESS\n'
+        merge_path.write_text(edited, encoding='utf-8')
+        out = self.apply('AW-12')
+        self.assertEqual(merge_path.read_text(encoding='utf-8'), edited)
+        self.assertEqual(out['merged'], [])
+        entry = out['conflicted'][0]
+        self.assertEqual((entry['logical'], entry['merge_file']), (PRD, PRD + '.merge'))
+        self.assertIn('an earlier merge file is kept', entry['note'])
+        self.assertEqual(self.stored()['version'], 2)
+
 
 class TestKeepMerged(MergeCase):
     def conflicted(self):
@@ -1051,6 +1066,35 @@ class TestKeepMerged(MergeCase):
         self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'y')))
         proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@2')
         self.assertEqual(proc.returncode, 2)
+        self.assertIn('is not readable', json.loads(proc.stderr)['error']['message'])
+
+    def test_keep_merged_is_already_satisfied_once_the_address_settles(self):
+        # F2: after a successful keep-merged the address has nothing left open --
+        # a re-run of apply, and delete with the same --resolve args, must not
+        # refuse "there is nothing to merge".
+        merge = self.conflicted()
+        self.resolve_markers(merge)
+        self.apply('AW-12', '--resolve', PRD + '=keep-merged@2')
+        proc = self.cli('migrate', 'delete', 'AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse((self.repo / PRD).exists())
+        again = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertEqual(json.loads(again.stdout)['uploaded'], [])
+
+    def test_keep_merged_refuses_a_merge_file_symlinked_outside_the_trail(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local\n')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored\n', author_agent='a')
+        secret = self.repo.parent / ('secret-{}.txt'.format(os.getpid()))
+        secret.write_text('PRIVATE KEY\n', encoding='utf-8')
+        self.addCleanup(secret.unlink)
+        os.symlink(str(secret), str(self.repo / (PRD + '.merge')))
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@1')
+        self.assertEqual(proc.returncode, 2, proc.stdout)
+        self.assertIn(spec_store.OUTSIDE_THE_TRAIL, json.loads(proc.stderr)['error']['message'])
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'], 'stored\n')
+        self.assertTrue(secret.exists())
+        self.assertEqual(secret.read_text(encoding='utf-8'), 'PRIVATE KEY\n')
 
     def test_keep_merged_takes_no_source(self):
         proc = self.cli('migrate', 'plan', 'AW-12')  # a valid run first

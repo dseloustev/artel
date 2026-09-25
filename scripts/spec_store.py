@@ -1243,7 +1243,7 @@ def _upload_source(item, resolutions):
     return None
 
 
-def _validate_resolutions(items, resolutions):
+def _validate_resolutions(items, resolutions, config):
     """Raise before anything is uploaded or deleted when a resolution cannot be
     carried out safely against this plan -- apply and delete both run it:
 
@@ -1255,8 +1255,11 @@ def _validate_resolutions(items, resolutions):
       which copy to keep;
     - keep-stored for an address kartoteka holds no version of: there is no
       stored copy to keep, and discarding the local ones would lose the document;
-    - keep-merged for an address with no single open item, or whose .merge file
-      is missing, unreadable or still marked.
+    - keep-merged for an address with more than one open item, or whose .merge
+      file sits outside the ticket's trail, is missing, unreadable or still
+      marked. An address with no open item at all is already settled -- by an
+      earlier keep-merged run, most often -- so keep-merged is accepted there
+      as a no-op rather than refused for "nothing to merge" (F2).
     """
     by_logical = _by_logical(items)
     for logical, (action, source, _) in sorted(resolutions.items()):
@@ -1268,11 +1271,16 @@ def _validate_resolutions(items, resolutions):
                                               'of it'.format(logical))
         if action == 'keep-merged':
             open_items = [i for i in copies if i['class'] in ('conflict', 'mergeable')]
+            if not open_items:
+                continue
             if len(open_items) != 1:
-                raise Failure('invalid_argument', 'keep-merged for {}: {}'.format(
-                    logical, 'there is nothing to merge' if not open_items else
-                    'its local copies differ; keep one with keep-local:<source>'))
+                raise Failure('invalid_argument', 'keep-merged for {}: its local copies differ; '
+                                                  'keep one with keep-local:<source>'.format(
+                                                      logical))
             target = _merge_path(logical)
+            if _outside_the_trail(str(target), open_items[0]['ticket'], config):
+                raise Failure('invalid_argument', 'keep-merged for {}: {} is {}'.format(
+                    logical, target, OUTSIDE_THE_TRAIL))
             try:
                 merged = target.read_bytes().decode('utf-8')
             except (OSError, UnicodeDecodeError) as exc:
@@ -1564,7 +1572,18 @@ def _merge_item(store, config, item, resolutions):
     design 2026-09-24 §2.5 says: clean -> upload as vS+1; every local change
     already in vS -> nothing to upload; conflicts -> the marked text goes to
     `<logical>.merge` for the user. ('merged' | 'conflicted', entry) or
-    ('failed', reason)."""
+    ('failed', reason).
+
+    An existing `<logical>.merge` is never overwritten (F3): a re-run of apply
+    with the item still unresolved would otherwise replace a file the user may
+    be mid-edit on. Its presence alone is reported back as `conflicted`, before
+    anything else about this item is even read."""
+    target = _merge_path(item['logical'])
+    if target.exists():
+        return 'conflicted', {'logical': item['logical'], 'merge_file': str(target),
+                              'newest_version': item['newest_version'],
+                              'note': 'an earlier merge file is kept; resolve it with '
+                                      'keep-merged, or delete it to merge again'}
     ticket_key, stage, name = address(item['logical'], config)
     base, current = item['base_version'], item['newest_version']
     try:
@@ -1592,7 +1611,8 @@ def _merge_item(store, config, item, resolutions):
         return 'failed', conflicts
     counts = {'local_changes': _changes(common, mine), 'stored_changes': _changes(common, theirs)}
     if conflicts:
-        target = _merge_path(item['logical'])
+        if _outside_the_trail(str(target), item['ticket'], config):
+            return 'failed', OUTSIDE_THE_TRAIL
         try:
             _write_atomically(target, merged.encode('utf-8'))
         except OSError as exc:
@@ -1619,7 +1639,7 @@ def cmd_migrate_apply(args, config):
     store = migration_store(config, tickets)
     resolutions = parse_resolutions(args.resolve)
     items = plan_items(store, config, tickets, args.pending_only)
-    _validate_resolutions(items, resolutions)
+    _validate_resolutions(items, resolutions, config)
     uploaded, failed, merged, conflicted = [], [], [], []
     for item in items:
         if item['class'] == 'mergeable' and _resolution(resolutions, item['logical'])[0] is None:
@@ -1666,6 +1686,9 @@ def cmd_migrate_apply(args, config):
             # CRLF document would go up as LF and be verified against the translated
             # text, while the plan hashed -- and the deletion re-checks -- the raw bytes.
             merging = _resolution(resolutions, item['logical'])[0] == 'keep-merged'
+            if merging and _outside_the_trail(source, item['ticket'], config):
+                fail(OUTSIDE_THE_TRAIL)
+                continue
             text = Path(source).read_bytes().decode('utf-8')
             if merging and MERGE_MARKER.search(text):
                 fail('{} still has conflict markers; edit them out first'.format(source))
@@ -1781,7 +1804,7 @@ def cmd_migrate_delete(args, config):
     store = migration_store(config, tickets)
     resolutions = parse_resolutions(args.resolve)
     items = plan_items(store, config, tickets, args.pending_only)
-    _validate_resolutions(items, resolutions)
+    _validate_resolutions(items, resolutions, config)
     deletable, kept = deletion_sets(items, resolutions)
     removed, committed_paths, committed_tickets = [], [], set()
     removed_logicals = set()

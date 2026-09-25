@@ -282,7 +282,8 @@ external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)
   `pause_reason: "store-unavailable"` and ask Retry (resume the agent) / Save it locally and pause
   (only when a produced document is unsaved: first
   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py pending add <path> --base-version <N>`,
-  then `SendMessage` the agent to write it to its logical path) / Pause without saving. Clear
+  then `SendMessage` the agent to write it to its logical path with its header's `version:`
+  set to `<N>`) / Pause without saving. Clear
   `pause_reason` only after a Retry succeeds. There is no "continue locally" mid-run. Headless:
   `specs.onUnavailable` (§5.4).
 

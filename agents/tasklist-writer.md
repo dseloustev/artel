@@ -58,8 +58,8 @@ The orchestrator passes the exact paths of the idea and vision files. If either 
 ---
 type: tasklist
 ticket: <TICKET_ID>
-version: <per spec-storage.md §4.1>
-title: {Feature Title}
+version: <per spec-storage.md §3.2 and §4.1>
+title: "{Feature Title}"
 schema: 1
 produced_by: artel:tasklist-writer
 ---

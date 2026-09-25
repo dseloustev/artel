@@ -222,16 +222,18 @@ Every spec-trail document (§1) opens with a YAML block, on both storage paths:
 type: tasklist
 ticket: AW-3270
 version: 7
-title: Update deep-link dialogs in Ramps
+title: "Ramps: update deep-link dialogs"
 status: TASKLIST_READY
-summary: Nine tasks, two HITL, one parallel wave of three.
+summary: "Nine tasks, two HITL, one parallel wave of three."
 schema: 1
 produced_by: artel:task-planner
 ---
 ```
 
 `---` on the first line, LF line endings, flat `key: value` lines in exactly this order, and a
-closing `---` line. No comments, quotes, nesting or YAML aliases.
+closing `---` line. No comments, nesting or YAML aliases. `title` and `summary` are double-quoted
+(a `"` inside becomes `\"`): a plain value with `: `, ` #` or a leading `[` is not valid YAML to
+kartoteka, which then stores the block unread and checks nothing.
 
 | Field | Required | Value |
 |---|---|---|
@@ -273,8 +275,8 @@ Read and write it with kartoteka's MCP tools, never with Read/Write/Edit:
 | `Glob <specs.dir>/<T>/phase-*/` | Any name in that listing that starts `phase-`. |
 | Write a new `<path>` | `artifact_put(project=<project>, ticket_key, stage, name, content, author_agent="artel:<you>", expected_version=0)`, the content opening with the header (§3.2) at `version: 1`. `Conflict` means it appeared meanwhile: read it and continue as if it had existed. |
 | Rewrite an existing `<path>` | `artifact_put(project=<project>, …, expected_version=<N, the version you read>)`, the header at `version: <N+1>`. A document without a header gains one here. On `Conflict`, or a refusal naming the header, re-read, re-apply your change once, and put again with the new numbers. A second conflict is reported, never forced. |
-| Edit `<path>` | `artifact_patch(project=<project>, ticket_key, stage, name, expected_version=<N>, edits=[{old_string: "ticket: <T>\nversion: <N>\n", new_string: "ticket: <T>\nversion: <N+1>\n"}, {old_string, new_string}, …])` — the version bump first, always, then your edits. A document without a header takes no bump edit, but still `expected_version`. On `Conflict`, re-read and re-apply once. |
-| Append to `<path>` | `artifact_patch(project=<project>, …, expected_version=<N>, edits=[<the version bump>, {append: "<text>"}])`. |
+| Edit `<path>` | `artifact_patch(project=<project>, ticket_key, stage, name, expected_version=<N>, edits=[{old_string: "ticket: <T>\nversion: <N>\n", new_string: "ticket: <T>\nversion: <N+1>\n"}, {old_string, new_string}, …])` — the version bump first, always, then your edits. A document without a header takes no bump edit, but still `expected_version`. On `Conflict`, or a refusal naming the header, re-read and re-apply once. |
+| Append to `<path>` | `artifact_patch(project=<project>, …, expected_version=<N>, edits=[<the version bump>, {append: "<text>"}])`. On `Conflict`, or a refusal naming the header, re-read and re-apply once. |
 | Insert at the end of a `## ` section | A replace edit whose `old_string` is the next `## ` heading line, or `append` when the section is last. It follows the version bump, like every edit. |
 | Delete `<path>` | Not an operation. The one deletion artel performs is §4.4. |
 
@@ -344,7 +346,7 @@ cap guidance), the kartoteka path puts a new version:
 type: review
 ticket: <TICKET_ID>
 version: <N+1>
-title: Review
+title: "Review"
 schema: 1
 produced_by: artel:<orchestrator>
 ---
@@ -493,8 +495,9 @@ A `STORE_UNAVAILABLE` return, or a failing call of your own, is the environment 
 - **Retry** — resume the agent (`SendMessage`) to try again.
 - **Save it locally and pause** — offered only when a produced document is unsaved. First run
   `spec_store.py pending add <path> --base-version <the version it was based on, 0 for new>` so
-  the guard (§6) admits the write, then resume the agent to write it to its logical path, then
-  pause.
+  the guard (§6) admits the write, then resume the agent to write it to its logical path, with its
+  header's `version:` set to that same base (0 for new) — not the `N+1` it composed for the put —
+  so the migration uploads it without asking (§7), then pause.
 - **Pause without saving** — resuming re-runs the stage that produced it.
 
 There is no "continue locally" mid-run: every later gate reads documents that live in kartoteka.

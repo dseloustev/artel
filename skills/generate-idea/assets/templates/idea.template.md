@@ -2,7 +2,7 @@
 type: idea
 ticket: $TICKET_ID
 version: $VERSION
-title: $TITLE
+title: "$TITLE"
 schema: 1
 produced_by: artel:generate-idea
 ---

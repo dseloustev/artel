@@ -95,7 +95,7 @@ If `<specs.dir>/<TICKET_ID>/phase-<N>/tasks.md` does NOT exist for the target ph
    type: tasklist
    ticket: <TICKET_ID>
    version: <1 on the kartoteka path, 0 on the files path>
-   title: Phase N: Title
+   title: "Phase N: Title"
    status: <the ticket-wide tasklist's status>
    schema: 1
    produced_by: artel:sync-phases

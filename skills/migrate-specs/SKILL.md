@@ -119,13 +119,14 @@ is there (`<logical>.merge`, beside the document's path), with `local` / `kartot
 `kartoteka v<S>` sections. Ask:
 
 - **Keep merged** → the user edits the markers out of `merge_file` first, then
-  `--resolve <logical>=keep-merged@<S>`. Refused while any marker line remains.
-- **Keep local** → `--resolve <logical>=keep-local@<S>`: the local copy wins whole.
+  `--resolve <logical>=keep-merged@<merged_against>`. Refused while any marker line remains.
+- **Keep local** → `--resolve <logical>=keep-local@<newest_version>`: the local copy wins whole.
 - **Keep stored** → `--resolve <logical>=keep-stored`.
 - **Skip** → `--resolve <logical>=skip`.
 
-`<S>` is the entry's `newest_version` — for a merge file kept from an earlier run, the version it
-was merged against. Never edit `merge_file` for the user unless they ask.
+`newest_version` is the version kartoteka holds now; `merged_against` is the version the merge file
+was made against (the same, unless the entry is `stale`). Never edit `merge_file` for the user
+unless they ask.
 Under `--no-prompt` the entry stays unresolved: nothing with markers is ever uploaded.
 
 A `conflicted` entry with `merge_file: null` means git itself could not merge the three copies —
@@ -140,7 +141,7 @@ An entry with `stale: true` was merged against an older stored version than kart
 A plan item already showing a `merge_file` while still `mergeable` means an earlier `apply` wrote
 it and a later one left it alone rather than overwrite it: treat it as already `conflicted`, go
 straight to this section, and either resolve the existing file (edit its markers out, then
-`keep-merged@<S>`) or delete it and run `apply` again to have it remerged from scratch. Once an
+`keep-merged@<merged_against>`) or delete it and run `apply` again to have it remerged from scratch. Once an
 address has nothing left open, a repeated `keep-merged` with the same arguments is accepted as a
 no-op — safe to re-run `delete` or `apply` after a resume.
 

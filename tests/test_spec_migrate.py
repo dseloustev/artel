@@ -1173,9 +1173,30 @@ class TestKeepMerged(MergeCase):
         self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md',
                        doc(3, self.BODY.replace('second', 'second, v3')), author_agent='a')
         entry = self.apply('AW-12')['conflicted'][0]
-        self.assertEqual((entry['newest_version'], entry['stale']), (2, True))
+        self.assertEqual((entry['newest_version'], entry['merged_against'], entry['stale']),
+                         (3, 2, True))
         self.assertIn('v2', entry['note'])
         self.assertIn('v3', entry['note'])
+
+    def test_keep_local_on_a_stale_merge_uploads_over_the_newest(self):
+        merge = self.conflicted()
+        self.resolve_markers(merge)
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md',
+                       doc(3, self.BODY.replace('second', 'second, v3')), author_agent='a')
+        entry = self.apply('AW-12')['conflicted'][0]
+        out = self.apply('AW-12', '--resolve',
+                         PRD + '=keep-local@{}'.format(entry['newest_version']))
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 4}])
+        self.assertFalse(merge.exists())
+
+    def test_a_fresh_conflict_names_the_version_it_merged_against(self):
+        self.conflicted()
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md',
+                       doc(3, self.BODY.replace('first', 'first, stored')
+                           .replace('second', 'second, v3')), author_agent='a')
+        (self.repo / (PRD + '.merge')).unlink()
+        entry = self.apply('AW-12')['conflicted'][0]
+        self.assertEqual((entry['newest_version'], entry['merged_against']), (3, 3))
 
     def test_keep_merged_refuses_a_version_the_merge_was_not_made_against(self):
         merge = self.conflicted()

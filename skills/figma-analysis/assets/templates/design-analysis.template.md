@@ -2,7 +2,7 @@
 type: design-analysis
 ticket: $TICKET_ID
 version: $VERSION
-title: Design analysis for $TICKET_ID
+title: "Design analysis for $TICKET_ID"
 status: $STATUS
 schema: 1
 produced_by: artel:figma-analyst

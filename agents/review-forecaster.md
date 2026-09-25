@@ -105,8 +105,8 @@ missing rather than deriving it yourself:
 ---
 type: deep-review
 ticket: <TICKET_ID>
-version: <per spec-storage.md §4.1>
-title: Deep review
+version: <per spec-storage.md §3.2 and §4.1>
+title: "Deep review"
 schema: 1
 produced_by: artel:review-forecaster
 ---

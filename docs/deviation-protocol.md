@@ -47,7 +47,7 @@ Format:
 ---
 type: implementation-notes
 ticket: <TICKET_ID>
-version: <per spec-storage.md §4.1>
+version: <per spec-storage.md §3.2 and §4.1>
 schema: 1
 produced_by: artel:implementer
 ---
@@ -62,8 +62,8 @@ produced_by: artel:implementer
 - **Decision:** conservative default | user decision: "<answer>" | task aborted for re-planning
 ```
 
-The header is [spec-storage.md](spec-storage.md) §3.2's; every append is a patch that bumps its
-version line first (§4.1).
+The header is [spec-storage.md](spec-storage.md) §3.2's. On the kartoteka path every append is a patch that
+bumps its version line first (§4.1); on the files path the line never changes.
 
 ## 4. Escalation handshake (major deviations)
 

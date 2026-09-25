@@ -206,5 +206,50 @@ class TestReleaseDocs(unittest.TestCase):
             self.assertIn(phrase, text)
 
 
+HEADER_TEMPLATES = ('skills/generate-idea/assets/templates/idea.template.md',
+                    'skills/figma-analysis/assets/templates/design-analysis.template.md',
+                    'skills/sync-phases/SKILL.md', 'agents/tasklist-writer.md',
+                    'agents/review-forecaster.md', STORAGE)
+
+
+class TestFinalReviewFixes(unittest.TestCase):
+    """A2's final review: outage saves, YAML-safe titles, patch refusals, files-path appends."""
+
+    def test_an_outage_save_keeps_its_base_version_in_the_header(self):
+        self.assertIn("with its header's `version:` set to that same base",
+                      flat(section(read(STORAGE), '### 5.2 Mid-run')))
+        for rel in ('skills/feature-development/SKILL.md', 'skills/dev/SKILL.md'):
+            with self.subTest(rel):
+                self.assertIn("with its header's `version:` set to `<N>`", flat(read(rel)))
+
+    def test_titles_and_summaries_are_double_quoted(self):
+        self.assertIn('`title` and `summary` are double-quoted',
+                      flat(section(read(STORAGE), '### 3.2 The document header')))
+        for rel in HEADER_TEMPLATES:
+            for line in read(rel).splitlines():
+                match = re.match(r'\s*(title|summary): (.*)$', line)
+                if match:
+                    with self.subTest(rel=rel, line=line):
+                        self.assertTrue(match.group(2).startswith('"'))
+
+    def test_a_patch_refused_over_its_header_is_retried_once(self):
+        ops = flat(section(read(STORAGE), '### 4.1 Agents'))
+        self.assertEqual(ops.count('or a refusal naming the header'), 3)  # rewrite, edit, append
+
+    def test_files_path_appends_never_touch_the_version_line(self):
+        text = flat(read('docs/deviation-protocol.md'))
+        self.assertIn('On the kartoteka path every append is a patch that bumps its version line',
+                      text)
+        for rel in ('agents/tasklist-writer.md', 'agents/review-forecaster.md',
+                    'docs/deviation-protocol.md'):
+            with self.subTest(rel):
+                self.assertNotIn('version: <per spec-storage.md §4.1>', read(rel))
+
+    def test_the_skill_answers_keep_merged_with_merged_against(self):
+        skill = read('skills/migrate-specs/SKILL.md')
+        self.assertIn('keep-merged@<merged_against>', skill)
+        self.assertIn('keep-local@<newest_version>', skill)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1650,8 +1650,11 @@ def _merge_item(store, config, item, resolutions):
         except (OSError, UnicodeDecodeError):
             made = None
         current = item['newest_version']
+        # newest_version stays the store's newest (what keep-local answers for);
+        # merged_against is what a keep-merged answers for.
         entry = {'logical': item['logical'], 'merge_file': str(target),
-                 'newest_version': made if made is not None else current, 'stale': False,
+                 'newest_version': current,
+                 'merged_against': made if made is not None else current, 'stale': False,
                  'note': 'an earlier merge file is kept; resolve it with keep-merged, or '
                          'delete it to merge again'}
         if made is not None and made != current:
@@ -1699,7 +1702,8 @@ def _merge_item(store, config, item, resolutions):
             return 'failed', 'the merge has conflicts and {} could not be written: {}'.format(
                 target, exc)
         return 'conflicted', dict({'logical': item['logical'], 'merge_file': str(target),
-                                   'conflicts': conflicts, 'newest_version': current}, **counts)
+                                   'conflicts': conflicts, 'newest_version': current,
+                                   'merged_against': current}, **counts)
     if merged == theirs:
         entry = dict({'logical': item['logical'], 'version': current, 'unchanged': True}, **counts)
         problems = _align_local_copies(item, theirs)

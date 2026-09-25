@@ -649,5 +649,20 @@ class TestCli(unittest.TestCase):
         self.assertEqual((code, out['error']['kind']), (2, 'tasklist_malformed'))
 
 
+class TestHeaderIsSkipped(unittest.TestCase):
+    def test_a_header_changes_nothing_the_parser_reports(self):
+        import subprocess
+        headed = ('---\ntype: tasklist\nticket: AW-1234\nversion: 3\n'
+                  'status: TASKLIST_READY\n---\n') + TASKLIST
+        runs = []
+        for text in (TASKLIST, headed):
+            proc = subprocess.run([sys.executable, str(SCRIPT), '--tasklist', '-',
+                                   '--ticket-key', 'AW-1234'],
+                                  input=text, capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stdout)
+            runs.append(json.loads(proc.stdout)['data'])
+        self.assertEqual(runs[0], runs[1])
+
+
 if __name__ == '__main__':
     unittest.main()

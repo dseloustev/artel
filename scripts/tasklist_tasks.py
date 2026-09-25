@@ -22,6 +22,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
+import doc_header  # noqa: E402
+
 # kartoteka's tasks.MAX_TITLE_CHARS. A second copy of a constant is acceptable
 # here for the same reason knowledge_mirror.py's MAX_BYTES is: this is a guard,
 # never the authority. kartoteka enforces the real limit, and the two disagreeing
@@ -415,6 +418,7 @@ def main(argv):
         if not tasklist_file.is_file():
             return fail('tasklist_not_found', 'tasklist not found: {}'.format(tasklist_path))
         text = tasklist_file.read_text(encoding='utf-8')
+    text = doc_header.body(text)  # the header (docs/spec-storage.md §3.2) holds no task
     iterations, warnings = parse_tasklist(text)
     sections = parse_sections(text)
     reason = malformed_reason(text, iterations, sections)

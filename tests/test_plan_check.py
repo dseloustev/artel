@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -163,6 +164,16 @@ class TestCliStdin(unittest.TestCase):
     def test_an_empty_plan_file_keeps_todays_behaviour(self):
         code, out = self.run_file('')
         self.assertEqual((code, out['ok'], out['data']['checked']), (0, True, 0))
+
+
+class TestHeaderIsSkipped(unittest.TestCase):
+    def test_a_path_in_the_header_is_not_an_anchor(self):
+        plan = ('---\ntype: plan\nticket: AW-12\nversion: 2\n'
+                'summary: replaces `lib/nowhere/gone.dart`\n---\n# Plan\n\nNothing to check.\n')
+        with tempfile.TemporaryDirectory() as repo:
+            proc = subprocess.run([sys.executable, str(SCRIPT), '--plan', '-', '--strict'],
+                                  cwd=repo, input=plan, capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stdout)
 
 
 if __name__ == '__main__':

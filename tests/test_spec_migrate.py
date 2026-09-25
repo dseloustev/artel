@@ -833,6 +833,68 @@ class TestApply(MigrateCase):
         self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'invalid_argument')
 
 
+class TestApplyByHeader(MigrateCase):
+    def apply(self, *args):
+        proc = self.cli('migrate', 'apply', *args)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def stored(self):
+        return self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')
+
+    def test_a_new_document_goes_up_as_v1_and_its_copy_follows(self):
+        self.local(SPECS / 'AW-12/prd.md', doc(0))
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 1}])
+        self.assertEqual(self.stored()['content'], doc(1))
+        self.assertEqual((self.repo / PRD).read_text(encoding='utf-8'), doc(1))
+        self.assertEqual(out['deletable'], [PRD])
+
+    def test_a_successor_goes_up_as_the_next_version(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'one\n'), author_agent='a')
+        self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 2}])
+        put = [r for r in self.fake.requests if r[0] == 'POST'][-1]
+        self.assertEqual(put[3]['expected_version'], 1)
+        self.assertEqual(self.stored()['content'], doc(2, 'one, edited\n'))
+        self.assertEqual(out['deletable'], [PRD])
+
+    def test_a_second_apply_uploads_nothing(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'one\n'), author_agent='a')
+        self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
+        first = self.apply('AW-12')
+        second = self.apply('AW-12')
+        self.assertEqual((second['uploaded'], second['deletable']), ([], first['deletable']))
+        self.assertEqual(self.stored()['version'], 2)
+
+    def test_a_context_twin_with_the_same_bytes_is_aligned_too(self):
+        self.local(SPECS / 'AW-12/prd.md', doc(0))
+        twin = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', doc(0))
+        out = self.apply('AW-12')
+        self.assertEqual((self.repo / twin).read_text(encoding='utf-8'), doc(1))
+        self.assertEqual(sorted(out['deletable']), sorted([PRD, twin]))
+
+    def test_keep_local_on_created_twice_goes_up_over_the_version_seen(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'kartoteka\n'), author_agent='a')
+        self.local(SPECS / 'AW-12/prd.md', doc(0, 'local\n'))
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-local@1')
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 2}])
+        self.assertEqual(self.stored()['content'], doc(2, 'local\n'))
+
+    def test_a_refused_header_fails_this_item_and_keeps_the_copy(self):
+        self.local(SPECS / 'AW-12/prd.md', doc(0).replace('type: prd', 'type: plan'))
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [])
+        self.assertIn("does not match the stage 'prd'", out['failed'][0]['reason'])
+        self.assertEqual(out['deletable'], [])
+
+    def test_a_legacy_document_still_goes_up_byte_for_byte(self):
+        self.local(SPECS / 'AW-12/prd.md', 'no header\n')
+        self.apply('AW-12')
+        self.assertEqual(self.stored()['content'], 'no header\n')
+
+
 class TestDelete(MigrateCase):
     def delete(self, *args):
         proc = self.cli('migrate', 'delete', *args)

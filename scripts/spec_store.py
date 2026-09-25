@@ -1434,6 +1434,64 @@ def tidy_decisions(tickets, config):
     return left
 
 
+def _stamped(text, number):
+    """`text` with its header's version line set to `number`. A legacy document --
+    no block, or a block without a version line -- goes as it is."""
+    try:
+        return dh.set_version(text, number)
+    except ValueError:
+        return text
+
+
+def _align_local_copies(item, text):
+    """Bring each local copy of this item to `text`, the bytes kartoteka now holds,
+    so a fresh plan finds it `current` and `delete` may take it -- the stamped
+    version line (and a merge) would otherwise leave it matching no stored
+    version, and never deletable. A copy that changed since it was classified is
+    newer work: it is left alone and named. Returns the problems, empty when
+    every copy matches."""
+    problems, data = [], text.encode('utf-8')
+    for source in item['sources']:
+        path = Path(source)
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            problems.append('{} is unreadable: {}'.format(source, exc))
+            continue
+        if raw == data:
+            continue
+        if hashlib.sha256(raw).hexdigest() != item['sha256']:
+            problems.append('{} changed since it was classified'.format(source))
+            continue
+        try:
+            _write_atomically(path, data)
+        except OSError as exc:
+            problems.append('{} could not be rewritten: {}'.format(source, exc))
+    return problems
+
+
+def _upload_document(store, config, item, text, expected, resolutions):
+    """Put `text` as version expected+1 -- its header's version line set to match,
+    the one number kartoteka 0.45.0 accepts -- and verify kartoteka holds exactly
+    those bytes. Then align the local copies and drop a stale `.merge`.
+    (entry, None) on success, (None, reason) otherwise."""
+    ticket_key, stage, name = address(item['logical'], config)
+    text = _stamped(text, expected + 1)
+    status, payload = store.put(ticket_key, stage, name, text, expected, MIGRATION_AUTHOR)
+    if status == 409:
+        return None, _moved_reason(resolutions, item, payload)
+    versions = store.versions(ticket_key, stage, name)
+    if not (versions and not _redacted(versions[0])
+            and versions[0]['content_hash'] == _sha(text)):
+        return None, 'the upload could not be verified; the local copy is kept'
+    entry = {'logical': item['logical'], 'version': versions[0]['version']}
+    problems = _align_local_copies(item, text)
+    if problems:
+        entry['unaligned'] = problems
+    _discard(_merge_path(item['logical']))
+    return entry, None
+
+
 @migrating
 def cmd_migrate_apply(args, config):
     tickets = migration_tickets(args, config)
@@ -1468,7 +1526,6 @@ def cmd_migrate_apply(args, config):
             else:
                 fail(reason)
             continue
-        ticket_key, stage, name = address(item['logical'], config)
         try:
             # read_bytes().decode, never read_text: read_text translates newlines, so a
             # CRLF document would go up as LF and be verified against the translated
@@ -1477,16 +1534,11 @@ def cmd_migrate_apply(args, config):
             if _sha(text) != item['sha256']:
                 fail('it changed since it was classified; run migrate-specs again')
                 continue
-            status, payload = store.put(ticket_key, stage, name, text, expected, MIGRATION_AUTHOR)
-            if status == 409:
-                fail(_moved_reason(resolutions, item, payload))
-                continue
-            versions = store.versions(ticket_key, stage, name)
-            if versions and not _redacted(versions[0]) \
-                    and versions[0]['content_hash'] == item['sha256']:
-                uploaded.append({'logical': item['logical'], 'version': versions[0]['version']})
+            entry, reason = _upload_document(store, config, item, text, expected, resolutions)
+            if entry:
+                uploaded.append(entry)
             else:
-                fail('the upload could not be verified; the local copy is kept')
+                fail(reason)
         except Failure as exc:
             # One document kartoteka refuses -- too large for its limit, a body it will
             # not take -- is this item's failure, not the run's: every other document

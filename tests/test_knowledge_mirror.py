@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
 import knowledge_mirror as km  # noqa: E402
+from fake_kartoteka import FakeKartoteka  # noqa: E402
 
 CONFIG = {'ticket': {'projectKey': 'AW'}, 'specs': {'dir': 'specs/.current'}}
 
@@ -697,6 +698,60 @@ class TestTokenNeverLoggedOnFailure(unittest.TestCase):
         self.assertIn('fail', text)
         self.assertNotIn(TOKEN, text)
         self.assertEqual(result.stderr, '')
+
+
+HEADED = '---\ntype: prd\nticket: AW-1234\nversion: {}\nstatus: PRD_READY\n---\n# PRD\n'
+
+
+class TestHeaderGate(unittest.TestCase):
+    def setUp(self):
+        self.fake = FakeKartoteka().start()
+        self.addCleanup(self.fake.stop)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.repo = _host_repo(self._tmp.name, {'adapter': 'kartoteka',
+                                                'baseUrl': self.fake.base_url,
+                                                'project': 'adguard-wallet'})
+        self.doc = self.repo / 'specs' / '.current' / 'AW-1234' / 'prd.md'
+
+    def mirror(self, text):
+        self.doc.write_text(text, encoding='utf-8')
+        result = _run_hook(self.repo, HOOK_INPUT)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def log(self):
+        path = self.repo / '.artel' / 'run' / '.hooks' / 'knowledge-mirror.log'
+        return path.read_text(encoding='utf-8') if path.exists() else ''
+
+    def posts(self):
+        return [r for r in self.fake.requests if r[0] == 'POST']
+
+    def test_a_new_document_goes_up_as_version_1_and_the_file_keeps_0(self):
+        self.mirror(HEADED.format(0))
+        stored = self.fake.newest('adguard-wallet', 'AW-1234', 'prd', 'prd.md')
+        self.assertEqual(stored['content'], HEADED.format(1))
+        self.assertEqual(self.doc.read_text(encoding='utf-8'), HEADED.format(0))
+
+    def test_an_edit_after_that_is_skipped_as_stale(self):
+        self.fake.seed('adguard-wallet', 'AW-1234', 'prd', 'prd.md', HEADED.format(1))
+        self.mirror(HEADED.format(0) + 'edited\n')
+        self.assertEqual(self.posts(), [])
+        self.assertIn('skip AW-1234 prd prd.md -- stale header', self.log())
+
+    def test_the_next_version_is_posted(self):
+        self.fake.seed('adguard-wallet', 'AW-1234', 'prd', 'prd.md', HEADED.format(1))
+        self.mirror(HEADED.format(2))
+        self.assertEqual(self.fake.newest('adguard-wallet', 'AW-1234', 'prd', 'prd.md')['version'], 2)
+
+    def test_a_legacy_document_is_posted_without_a_lookup(self):
+        self.mirror('# PRD\n\nNo header.\n')
+        self.assertEqual([r[0] for r in self.fake.requests], ['POST'])
+
+    def test_a_failed_lookup_sends_nothing_and_logs_fail(self):
+        self.fake.forced['GET'] = (500, {'error': 'boom'})
+        self.mirror(HEADED.format(0))
+        self.assertEqual(self.posts(), [])
+        self.assertIn('fail AW-1234 prd.md', self.log())
 
 
 if __name__ == '__main__':

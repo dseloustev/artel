@@ -44,6 +44,13 @@ and numbered sequentially (`D1`, `D2`, …).
 Format:
 
 ```markdown
+---
+type: implementation-notes
+ticket: <TICKET_ID>
+version: <per spec-storage.md §3.2 and §4.1>
+schema: 1
+produced_by: artel:implementer
+---
 # Implementation Notes — <TICKET_ID>[ — Phase <PHASE_NUM>]
 
 ## Deviations
@@ -54,6 +61,9 @@ Format:
 - **Why:** <the edge case that forced the deviation>
 - **Decision:** conservative default | user decision: "<answer>" | task aborted for re-planning
 ```
+
+The header is [spec-storage.md](spec-storage.md) §3.2's. On the kartoteka path every append is a patch that
+bumps its version line first (§4.1); on the files path the line never changes.
 
 ## 4. Escalation handshake (major deviations)
 

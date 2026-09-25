@@ -55,9 +55,17 @@ The orchestrator passes the exact paths of the idea and vision files. If either 
 ### Required structure
 
 ```markdown
+---
+type: tasklist
+ticket: <TICKET_ID>
+version: <per spec-storage.md §3.2 and §4.1>
+title: "{Feature Title}"
+schema: 1
+produced_by: artel:tasklist-writer
+---
 # Development Tasklist: {Feature Title} (<TICKET_ID>)
 
-Based on [vision.md](./vision.md).
+Based on [vision.md vN](workspace:<TICKET_ID>/vision/vision.md@vN) — kartoteka path, copied from the `ref:` line; files path: `<specs.dir>/<TICKET_ID>/vision.md`.
 
 ---
 
@@ -97,6 +105,8 @@ Based on [vision.md](./vision.md).
 ## Iteration 2: {Title}
 ...
 ```
+
+The header and the citation follow `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2 and §3.1.
 
 ### Rules for the Progress Report table
 

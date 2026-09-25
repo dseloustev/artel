@@ -65,7 +65,9 @@ Path resolution follows `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. In summa
 ### Output
 
 1. `<specs.dir>/<TICKET_ID>/review.md` (phase runs: `phase-<PHASE_NUM>/review.md` does not exist —
-   review is ticket-level per the artifact table): write/update the review report. The report header
+   review is ticket-level per the artifact table): write/update the review report. It opens
+   with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: review`,
+   `produced_by: artel:reviewer`, no status. The report header
    carries the file-persisted loop counter `**Review round:** N` — read the existing value and write
    N+1 (first run: 1). Never reset it yourself; the counter resets only when the user resumes with
    guidance after a cap escalation (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §5), which the

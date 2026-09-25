@@ -67,6 +67,9 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 
 ## Output
 
+A `summary.md` opens with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: summary`,
+`produced_by: artel:tech-writer`.
+
 ### Ticket-wide
 - Updated:
   - `<specs.dir>/<TICKET_ID>/summary.md` — Summary of work done and decisions made

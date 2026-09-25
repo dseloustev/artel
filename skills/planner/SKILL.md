@@ -101,7 +101,7 @@ Answers/defaults to proceed on:
 2. For every unresolved question, append an open-questions.md entry (format: ${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md §3, from: planner) with your proposed default, and mark the affected plan decisions "(provisional — Q<n>)".
 3. Save the finalized plan to the path you determined in Phase 1.
 4. If there are architectural alternatives, create the ADR document alongside the plan.
-5. Set "Status: PLAN_APPROVED" when no provisional markers remain, else "Status: PLAN_DRAFTED".
+5. Set the plan header's `status:` (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2) to `PLAN_APPROVED` when no provisional markers remain, else `PLAN_DRAFTED`.
 ```
 
 **If no questions (NO_QUESTIONS):**
@@ -112,7 +112,7 @@ No open questions — the plan is approved.
 
 1. Save the finalized plan to the path you determined in Phase 1.
 2. If there are architectural alternatives, create the ADR document alongside the plan.
-3. Set `Status: PLAN_APPROVED` in the plan document.
+3. Set the plan header's `status: PLAN_APPROVED`.
 ```
 
 ### Completion

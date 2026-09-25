@@ -140,6 +140,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/generate-idea/assets/templates/idea.template.
 | Placeholder | Source |
 |---|---|
 | `$TITLE` | translated title |
+| `$VERSION` | `1` on the kartoteka path (a new document, put with `expected_version=0`); `0` on the files path (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2) |
 | `$TICKET_ID` | parsed `TICKET_ID` |
 | `$METADATA` | see below |
 | `$SUMMARY` | first paragraph of the translated description, or the translated title if none |

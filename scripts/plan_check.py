@@ -23,6 +23,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
+import doc_header  # noqa: E402
+
 REF_NEW_RE = re.compile(r'\b(ref|new):([A-Za-z0-9_$./-]+)')
 BACKTICKED_PATH_RE = re.compile(r'`([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.[A-Za-z0-9]+)`')
 TRAILING_PUNCT_RE = re.compile(r'[.,;:]+$')
@@ -192,6 +195,9 @@ def main(argv):
             return 2
         markdown = plan_file.read_text(encoding='utf-8')
 
+    # The document header (docs/spec-storage.md §3.2) is metadata, not plan: a
+    # path in its summary is no claim about the code.
+    markdown = doc_header.body(markdown)
     anchors = extract_anchors(markdown)
     new_declared = [v for k, v in anchors if k == 'new']
     to_resolve = [(k, v) for k, v in anchors if k != 'new']

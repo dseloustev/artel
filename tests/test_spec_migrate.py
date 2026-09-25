@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -452,6 +453,120 @@ class TestFilesBase(MigrateCase):
         self.assertNotIn('files_base', self.stored_decision())
 
 
+def doc(version, body='body\n', stage='prd', ticket='AW-12', title='T'):
+    """A spec document with artel's header, as a writer produces it."""
+    return ('---\ntype: {}\nticket: {}\nversion: {}\ntitle: {}\nstatus: PRD_READY\nschema: 1\n'
+            'produced_by: artel:analyst\n---\n{}').format(stage, ticket, version, title, body)
+
+
+PRD = 'specs/.current/AW-12/prd.md'
+
+
+class TestClassifyByHeader(MigrateCase):
+    def seed(self, version, body, author='artel:analyst', redacted=False):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(version, body),
+                       author_agent=author, redacted=redacted)
+
+    def test_made_from_the_newest_is_a_successor(self):
+        self.seed(1, 'one\n')
+        self.seed(2, 'two\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(2, 'two, edited\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['header_version'], item['legacy']),
+                         ('successor', 2, False))
+        self.assertEqual(item['reason'], 'made from v2')
+
+    def test_made_from_an_older_version_is_mergeable(self):
+        self.seed(1, 'one\n')
+        self.seed(2, 'two\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['base_version'], item['newest_version']),
+                         ('mergeable', 1, 2))
+        self.assertIn('+one, edited', item['diff'])
+        self.assertIsNone(item['merge_file'])
+
+    def test_a_redaction_since_the_base_is_a_conflict_without_a_diff(self):
+        self.seed(1, 'one\n')
+        self.seed(2, 'secret\n', redacted=True)
+        self.seed(3, 'three\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['diff']), ('conflict', None))
+        self.assertIn('v2', item['reason'])
+
+    def test_never_stored_is_absent(self):
+        self.local(SPECS / 'AW-12/prd.md', doc(0))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['legacy']), ('absent', False))
+
+    def test_never_stored_but_kartoteka_holds_it_is_created_twice(self):
+        self.seed(1, 'written in kartoteka\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(0, 'written locally\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual(item['class'], 'conflict')
+        self.assertIn('created twice', item['reason'])
+
+    def test_never_stored_over_a_mirror_only_history_is_a_successor(self):
+        self.seed(1, 'mirrored\n', author=None)
+        self.local(SPECS / 'AW-12/prd.md', doc(0, 'edited after the mirror\n'))
+        self.assertEqual(self.plan('AW-12')[PRD]['class'], 'successor')
+
+    def test_a_base_newer_than_the_store_is_a_conflict(self):
+        self.seed(1, 'one\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(4))
+        self.assertEqual(self.plan('AW-12')[PRD]['class'], 'conflict')
+
+    def test_a_base_with_nothing_stored_is_a_conflict(self):
+        self.local(SPECS / 'AW-12/prd.md', doc(2))
+        self.assertEqual(self.plan('AW-12')[PRD]['class'], 'conflict')
+
+    def test_a_redacted_newest_is_a_conflict(self):
+        self.seed(1, 'one\n')
+        self.seed(2, 'secret\n', redacted=True)
+        self.local(SPECS / 'AW-12/prd.md', doc(2, 'edited\n'))
+        self.assertEqual(self.plan('AW-12')[PRD]['class'], 'conflict')
+
+    def test_the_header_wins_over_a_pending_record(self):
+        self.seed(1, 'one\n')
+        self.seed(2, 'two\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(2, 'saved in the outage\n'))
+        self.decision('AW-12', pending=[{'path': PRD, 'base_version': 1}])
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual(item['class'], 'successor')
+        self.assertIn('the pending record said v1', item['reason'])
+
+    def test_an_unreadable_version_line_is_legacy(self):
+        self.seed(1, 'one\n')
+        self.local(SPECS / 'AW-12/prd.md', doc('"1"', 'edited\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['legacy'], item['header_version'], item['class']),
+                         (True, None, 'conflict'))
+
+    def test_no_header_is_legacy_under_todays_rules(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'v1')  # the mirror
+        self.local(SPECS / 'AW-12/prd.md', 'edited after the last mirror')
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['legacy']), ('successor', True))
+
+    def test_a_fetched_copy_is_current_and_reports_its_header(self):
+        self.seed(1, 'one\n')
+        self.local(SPECS / 'AW-12/prd.md', doc(1, 'one\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual((item['class'], item['header_version']), ('current', 1))
+
+    def test_a_context_only_snapshot_older_than_the_store_is_a_conflict_not_mergeable(self):
+        # design 2026-09-24 §2.5: a .artel/context snapshot is never merged; its
+        # working-tree twin is the one that carries the work -- and here there is none.
+        self.seed(1, 'one\n')
+        self.seed(2, 'two\n')
+        self.local('.artel/context/tickets/AW-12/spec-trail/prd.md',
+                  doc(1, 'one, abandoned draft\n'))
+        item = self.plan('AW-12')[PRD]
+        self.assertEqual(item['class'], 'conflict')
+        self.assertIn('a snapshot is never merged', item['reason'])
+
+
 class TestApply(MigrateCase):
     def apply(self, *args):
         proc = self.cli('migrate', 'apply', *args)
@@ -728,6 +843,384 @@ class TestApply(MigrateCase):
         proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', 'foo=bogus')
         self.assertEqual(proc.returncode, 2)
         self.assertEqual(json.loads(proc.stderr)['error']['kind'], 'invalid_argument')
+
+
+class TestApplyByHeader(MigrateCase):
+    def apply(self, *args):
+        proc = self.cli('migrate', 'apply', *args)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def stored(self):
+        return self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')
+
+    def test_a_new_document_goes_up_as_v1_and_its_copy_follows(self):
+        self.local(SPECS / 'AW-12/prd.md', doc(0))
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 1}])
+        self.assertEqual(self.stored()['content'], doc(1))
+        self.assertEqual((self.repo / PRD).read_text(encoding='utf-8'), doc(1))
+        self.assertEqual(out['deletable'], [PRD])
+
+    def test_a_successor_goes_up_as_the_next_version(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'one\n'), author_agent='a')
+        self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 2}])
+        put = [r for r in self.fake.requests if r[0] == 'POST'][-1]
+        self.assertEqual(put[3]['expected_version'], 1)
+        self.assertEqual(self.stored()['content'], doc(2, 'one, edited\n'))
+        self.assertEqual(out['deletable'], [PRD])
+
+    def test_the_aligned_copys_mode_survives_the_rewrite(self):
+        # F9: _write_atomically's mkstemp defaults to 0600 -- aligning a copy to the
+        # newly stamped bytes must not silently tighten its permissions.
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'one\n'), author_agent='a')
+        path = self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
+        os.chmod(str(self.repo / path), 0o644)
+        self.apply('AW-12')
+        self.assertEqual(stat.S_IMODE(os.stat(str(self.repo / path)).st_mode), 0o644)
+
+    def test_a_second_apply_uploads_nothing(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'one\n'), author_agent='a')
+        self.local(SPECS / 'AW-12/prd.md', doc(1, 'one, edited\n'))
+        first = self.apply('AW-12')
+        second = self.apply('AW-12')
+        self.assertEqual((second['uploaded'], second['deletable']), ([], first['deletable']))
+        self.assertEqual(self.stored()['version'], 2)
+
+    def test_a_context_twin_with_the_same_bytes_is_aligned_too(self):
+        self.local(SPECS / 'AW-12/prd.md', doc(0))
+        twin = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md', doc(0))
+        out = self.apply('AW-12')
+        self.assertEqual((self.repo / twin).read_text(encoding='utf-8'), doc(1))
+        self.assertEqual(sorted(out['deletable']), sorted([PRD, twin]))
+
+    def test_keep_local_on_created_twice_goes_up_over_the_version_seen(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'kartoteka\n'), author_agent='a')
+        self.local(SPECS / 'AW-12/prd.md', doc(0, 'local\n'))
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-local@1')
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 2}])
+        self.assertEqual(self.stored()['content'], doc(2, 'local\n'))
+
+    def test_a_refused_header_fails_this_item_and_keeps_the_copy(self):
+        self.local(SPECS / 'AW-12/prd.md', doc(0).replace('type: prd', 'type: plan'))
+        out = self.apply('AW-12')
+        self.assertEqual(out['uploaded'], [])
+        self.assertIn("does not match the stage 'prd'", out['failed'][0]['reason'])
+        self.assertEqual(out['deletable'], [])
+
+    def test_a_legacy_document_still_goes_up_byte_for_byte(self):
+        self.local(SPECS / 'AW-12/prd.md', 'no header\n')
+        self.apply('AW-12')
+        self.assertEqual(self.stored()['content'], 'no header\n')
+
+    def test_a_context_only_snapshot_is_never_auto_merged(self):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, 'one\n'), author_agent='a')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(2, 'two\n'), author_agent='a')
+        self.local('.artel/context/tickets/AW-12/spec-trail/prd.md',
+                  doc(1, 'one, abandoned draft\n'))
+        out = self.apply('AW-12')
+        self.assertEqual((out['uploaded'], out['merged']), ([], []))
+        self.assertEqual(out['kept'][0]['class'], 'conflict')
+        self.assertEqual(self.stored()['version'], 2)
+
+    def test_a_context_snapshot_beside_a_current_working_copy_is_never_auto_merged(self):
+        # Unlike the lone-context case above, this snapshot's edit does not conflict
+        # with kartoteka's own edit -- were it ever judged `mergeable`, the merge
+        # would go up clean as v3. It must stay a conflict instead: a snapshot is
+        # never merged, whether or not a working-tree twin sits beside it.
+        body = 'intro\n\n## One\nfirst\n\n## Two\nsecond\n'
+        stored_body = body.replace('second', 'second, stored')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, body), author_agent='a')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(2, stored_body), author_agent='a')
+        self.local(SPECS / 'AW-12/prd.md', doc(2, stored_body))
+        self.local('.artel/context/tickets/AW-12/spec-trail/prd.md',
+                  doc(1, body.replace('first', 'first, abandoned draft')))
+        out = self.apply('AW-12')
+        self.assertEqual((out['uploaded'], out['merged']), ([], []))
+        self.assertEqual(self.stored()['version'], 2)
+        self.assertIn('a snapshot is never merged',
+                      next(k for k in out['kept'] if k['class'] == 'conflict')['reason'])
+
+
+class TestThreeWayMerge(unittest.TestCase):
+    def test_a_clean_merge(self):
+        text, conflicts = spec_store.three_way_merge('A\nb\nc\nd\n', 'a\nb\nc\nd\n',
+                                                     'a\nb\nc\nD\n', ['l', 'b', 's'])
+        self.assertEqual((text, conflicts), ('A\nb\nc\nD\n', 0))
+
+    def test_a_conflict_is_marked(self):
+        text, conflicts = spec_store.three_way_merge('X\n', 'a\n', 'Y\n', ['local', 'b', 's'])
+        self.assertEqual(conflicts, 1)
+        self.assertTrue(spec_store.MERGE_MARKER.search(text))
+        self.assertIn('<<<<<<< local', text)
+
+    def test_git_missing_is_a_reason_not_a_crash(self):
+        with mock.patch('subprocess.run', side_effect=FileNotFoundError('git')):
+            text, reason = spec_store.three_way_merge('a\n', 'a\n', 'a\n', ['l', 'b', 's'])
+        self.assertIsNone(text)
+        self.assertIn('git merge-file could not run', reason)
+
+
+class MergeCase(MigrateCase):
+    """Helpers for the merge tests: a two-version history and apply."""
+    BODY = 'intro\n\n## One\nfirst\n\n## Two\nsecond\n'
+
+    def apply(self, *args):
+        proc = self.cli('migrate', 'apply', *args)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def history(self, newest_body, newest_title='T'):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, self.BODY), author_agent='a')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(2, newest_body, title=newest_title),
+                       author_agent='a')
+
+    def stored(self):
+        return self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')
+
+
+class TestApplyMerge(MergeCase):
+    def test_a_clean_merge_goes_up_as_the_next_version(self):
+        self.history(self.BODY.replace('second', 'second, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'first, local')))
+        out = self.apply('AW-12')
+        self.assertEqual([(m['logical'], m['version']) for m in out['merged']], [(PRD, 3)])
+        self.assertEqual((out['merged'][0]['local_changes'], out['merged'][0]['stored_changes']),
+                         (1, 1))
+        merged = self.BODY.replace('first', 'first, local').replace('second', 'second, stored')
+        self.assertEqual(self.stored()['content'], doc(3, merged))
+        self.assertEqual((self.repo / PRD).read_text(encoding='utf-8'), doc(3, merged))
+        self.assertEqual(out['deletable'], [PRD])
+
+    def test_a_title_edit_beside_the_version_line_still_merges(self):
+        self.history(self.BODY.replace('second', 'second, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY, title='Retitled locally'))
+        out = self.apply('AW-12')
+        self.assertEqual(out['conflicted'], [])
+        self.assertIn('title: Retitled locally\n', self.stored()['content'])
+
+    def test_local_changes_kartoteka_already_holds_upload_nothing(self):
+        changed = self.BODY.replace('first', 'first, both')
+        self.history(changed)
+        self.local(SPECS / 'AW-12/prd.md', doc(1, changed))
+        out = self.apply('AW-12')
+        self.assertEqual((out['merged'][0]['version'], out['merged'][0]['unchanged']), (2, True))
+        self.assertEqual(self.stored()['version'], 2)
+        self.assertEqual(out['deletable'], [PRD])
+
+    def test_conflicting_edits_write_a_merge_file_and_upload_nothing(self):
+        self.history(self.BODY.replace('first', 'first, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'first, local')))
+        out = self.apply('AW-12')
+        self.assertEqual(out['merged'], [])
+        entry = out['conflicted'][0]
+        self.assertEqual((entry['logical'], entry['merge_file'], entry['conflicts']),
+                         (PRD, PRD + '.merge', 1))
+        text = (self.repo / (PRD + '.merge')).read_text(encoding='utf-8')
+        self.assertIn('<<<<<<< local', text)
+        self.assertIn('\nversion: 2\n', text)
+        self.assertEqual(self.stored()['version'], 2)
+        self.assertEqual(out['deletable'], [])
+        self.assertEqual(self.plan('AW-12')[PRD]['merge_file'], PRD + '.merge')
+
+    def test_apply_never_overwrites_an_existing_merge_file(self):
+        self.history(self.BODY.replace('first', 'first, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'first, local')))
+        self.apply('AW-12')
+        merge_path = self.repo / (PRD + '.merge')
+        edited = merge_path.read_text(encoding='utf-8') + '\nUSER WORK IN PROGRESS\n'
+        merge_path.write_text(edited, encoding='utf-8')
+        out = self.apply('AW-12')
+        self.assertEqual(merge_path.read_text(encoding='utf-8'), edited)
+        self.assertEqual(out['merged'], [])
+        entry = out['conflicted'][0]
+        self.assertEqual((entry['logical'], entry['merge_file']), (PRD, PRD + '.merge'))
+        self.assertIn('an earlier merge file is kept', entry['note'])
+        self.assertEqual(self.stored()['version'], 2)
+
+    def test_a_git_failure_degrades_the_item_to_a_conflict(self):
+        self.history(self.BODY.replace('second', 'second, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'first, local')))
+        cwd = os.getcwd()
+        os.chdir(str(self.repo))
+        self.addCleanup(os.chdir, cwd)
+        config = spec_store.load_config()
+        store = spec_store.Store(config)
+        item = spec_store.plan_items(store, config, ['AW-12'], False)[0]
+        self.assertEqual(item['class'], 'mergeable')
+        with mock.patch.object(spec_store, 'three_way_merge',
+                              return_value=(None, 'git merge-file could not run: x')):
+            kind, result = spec_store._merge_item(store, config, item, {})
+        self.assertEqual(kind, 'conflicted')
+        self.assertEqual(result, {'logical': PRD, 'merge_file': None,
+                                  'reason': 'git merge-file could not run: x',
+                                  'newest_version': 2})
+        self.assertFalse((self.repo / (PRD + '.merge')).exists())
+        self.assertEqual(self.stored()['version'], 2)
+
+
+class TestKeepMerged(MergeCase):
+    def conflicted(self):
+        self.history(self.BODY.replace('first', 'first, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'first, local')))
+        self.apply('AW-12')
+        return self.repo / (PRD + '.merge')
+
+    def resolve_markers(self, path):
+        text = path.read_text(encoding='utf-8')
+        start, end = text.index('<<<<<<< local'), text.index('>>>>>>> kartoteka v2\n')
+        path.write_text(text[:start] + 'first, both\n' + text[end + len('>>>>>>> kartoteka v2\n'):],
+                        encoding='utf-8')
+
+    def test_keep_merged_uploads_the_edited_merge(self):
+        merge = self.conflicted()
+        self.resolve_markers(merge)
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 3}])
+        self.assertIn('first, both', self.stored()['content'])
+        self.assertIn('\nversion: 3\n', self.stored()['content'])
+        self.assertFalse(merge.exists())
+        self.assertEqual(out['deletable'], [PRD])
+
+    def test_keep_merged_is_refused_while_markers_remain(self):
+        self.conflicted()
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('still has conflict markers', json.loads(proc.stderr)['error']['message'])
+        self.assertEqual(self.stored()['version'], 2)
+
+    def test_keep_merged_without_a_merge_file_is_refused(self):
+        self.history(self.BODY.replace('second', 'x'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'y')))
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('is not readable', json.loads(proc.stderr)['error']['message'])
+
+    def test_keep_merged_is_already_satisfied_once_the_address_settles(self):
+        # F2: after a successful keep-merged the address has nothing left open --
+        # a re-run of apply, and delete with the same --resolve args, must not
+        # refuse "there is nothing to merge".
+        merge = self.conflicted()
+        self.resolve_markers(merge)
+        self.apply('AW-12', '--resolve', PRD + '=keep-merged@2')
+        proc = self.cli('migrate', 'delete', 'AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse((self.repo / PRD).exists())
+        again = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertEqual(json.loads(again.stdout)['uploaded'], [])
+
+    def test_keep_merged_refuses_a_merge_file_symlinked_outside_the_trail(self):
+        self.local(SPECS / 'AW-12/prd.md', 'local\n')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', 'stored\n', author_agent='a')
+        secret = self.repo.parent / ('secret-{}.txt'.format(os.getpid()))
+        secret.write_text('PRIVATE KEY\n', encoding='utf-8')
+        self.addCleanup(secret.unlink)
+        os.symlink(str(secret), str(self.repo / (PRD + '.merge')))
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@1')
+        self.assertEqual(proc.returncode, 2, proc.stdout)
+        self.assertIn(spec_store.OUTSIDE_THE_TRAIL, json.loads(proc.stderr)['error']['message'])
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')['content'], 'stored\n')
+        self.assertTrue(secret.exists())
+        self.assertEqual(secret.read_text(encoding='utf-8'), 'PRIVATE KEY\n')
+
+    def test_keep_merged_takes_no_source(self):
+        proc = self.cli('migrate', 'plan', 'AW-12')  # a valid run first
+        self.assertEqual(proc.returncode, 0)
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged:x@2')
+        self.assertEqual(proc.returncode, 2)
+
+    def test_keep_local_overrides_the_merge(self):
+        self.conflicted()
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-local@2')
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 3}])
+        self.assertIn('first, local', self.stored()['content'])
+        self.assertFalse((self.repo / (PRD + '.merge')).exists())
+
+    def test_keep_stored_discards_the_copy_and_delete_takes_the_merge_file(self):
+        merge = self.conflicted()
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-stored')
+        self.assertEqual((out['uploaded'], out['deletable']), ([], [PRD]))
+        proc = self.cli('migrate', 'delete', 'AW-12', '--resolve', PRD + '=keep-stored')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse((self.repo / PRD).exists())
+        self.assertFalse(merge.exists())
+
+    def test_delete_of_the_only_copy_prunes_the_now_empty_ticket_directory(self):
+        # F6: the document and its .merge were the only entries left in the ticket
+        # directory -- pruning ran before the .merge was discarded and left it behind.
+        self.conflicted()
+        self.apply('AW-12', '--resolve', PRD + '=keep-stored')
+        proc = self.cli('migrate', 'delete', 'AW-12', '--resolve', PRD + '=keep-stored')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse((self.repo / SPECS / 'AW-12').exists())
+
+    def test_delete_keeps_the_merge_file_while_its_address_is_open(self):
+        merge = self.conflicted()
+        context = self.local('.artel/context/tickets/AW-12/spec-trail/prd.md',
+                             self.stored()['content'])
+        proc = self.cli('migrate', 'delete', 'AW-12')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse((self.repo / context).exists())
+        self.assertTrue((self.repo / PRD).exists())
+        self.assertTrue(merge.exists())
+
+    def test_a_kept_merge_file_is_reported_against_its_own_version(self):
+        merge = self.conflicted()                       # merged against v2
+        self.resolve_markers(merge)
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md',
+                       doc(3, self.BODY.replace('second', 'second, v3')), author_agent='a')
+        entry = self.apply('AW-12')['conflicted'][0]
+        self.assertEqual((entry['newest_version'], entry['merged_against'], entry['stale']),
+                         (3, 2, True))
+        self.assertIn('v2', entry['note'])
+        self.assertIn('v3', entry['note'])
+
+    def test_keep_local_on_a_stale_merge_uploads_over_the_newest(self):
+        merge = self.conflicted()
+        self.resolve_markers(merge)
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md',
+                       doc(3, self.BODY.replace('second', 'second, v3')), author_agent='a')
+        entry = self.apply('AW-12')['conflicted'][0]
+        out = self.apply('AW-12', '--resolve',
+                         PRD + '=keep-local@{}'.format(entry['newest_version']))
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 4}])
+        self.assertFalse(merge.exists())
+
+    def test_a_fresh_conflict_names_the_version_it_merged_against(self):
+        self.conflicted()
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md',
+                       doc(3, self.BODY.replace('first', 'first, stored')
+                           .replace('second', 'second, v3')), author_agent='a')
+        (self.repo / (PRD + '.merge')).unlink()
+        entry = self.apply('AW-12')['conflicted'][0]
+        self.assertEqual((entry['newest_version'], entry['merged_against']), (3, 3))
+
+    def test_keep_merged_refuses_a_version_the_merge_was_not_made_against(self):
+        merge = self.conflicted()
+        self.resolve_markers(merge)
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md',
+                       doc(3, self.BODY.replace('second', 'second, v3')), author_agent='a')
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@3')
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('merged against v2', json.loads(proc.stderr)['error']['message'])
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertIn('moved from v2 to v3', out['failed'][0]['reason'])
+        self.assertIn('second, v3', self.stored()['content'])
+
+    def test_keep_merged_on_a_settled_address_uploads_a_later_edit_normally(self):
+        merge = self.conflicted()
+        self.resolve_markers(merge)
+        self.apply('AW-12', '--resolve', PRD + '=keep-merged@2')        # now v3, copy aligned
+        path = self.repo / PRD
+        # A setext heading underlined with exactly seven '=' reads as a merge marker: only
+        # a merge file is checked for markers, never the document itself (N2).
+        path.write_text(path.read_text(encoding='utf-8') + 'Later\n=======\n', encoding='utf-8')
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-merged@2')  # same answer, re-used
+        self.assertEqual(out['failed'], [])
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 4}])
 
 
 class TestDelete(MigrateCase):
@@ -1176,8 +1669,8 @@ class TestClassifyImages(ImageCase):
         self.assertEqual((out['summary'], out['image_summary']), ({'absent': 1}, {'absent': 1}))
         by_logical = {i['logical']: i for i in out['items']}
         self.assertEqual(sorted(by_logical['specs/.current/AW-12/prd.md']), [
-            'base_version', 'class', 'diff', 'logical', 'name', 'newest_version', 'reason',
-            'sha256', 'source', 'sources', 'ticket'])
+            'base_version', 'class', 'diff', 'header_version', 'legacy', 'logical', 'merge_file',
+            'name', 'newest_version', 'reason', 'sha256', 'source', 'sources', 'ticket'])
         self.assertEqual(sorted(by_logical[IMG]), [
             'base_version', 'byte_size', 'class', 'diff', 'kind', 'logical', 'name',
             'newest_version', 'reason', 'sha256', 'source', 'sources', 'stored', 'ticket'])

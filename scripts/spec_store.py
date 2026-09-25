@@ -16,7 +16,7 @@ its attachment store (kartoteka_http.image_identity). Their bytes move script
 to HTTP and are never printed: an agent Reads the local path `image fetch`
 prints.
 
-Exit codes: 0 ok · 2 error (JSON envelope on stderr) · 3 absent ·
+Exit codes: 0 ok · 1 no status declared (`status`) · 2 error (JSON envelope on stderr) · 3 absent ·
 4 version conflict · 5 kartoteka unavailable (`decide`, the `migrate` verbs and
 `image sync` -- wherever in a migration or a sweep the store goes down).
 Contract: docs/spec-storage.md
@@ -28,6 +28,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -38,9 +39,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
 import hook_common as h  # noqa: E402
 import kartoteka_http as kh  # noqa: E402
 import spec_decision as sd  # noqa: E402
+import doc_header as dh  # noqa: E402
 
 VERB = 'spec-store'
 OK, ERROR, ABSENT, CONFLICT, UNAVAILABLE = 0, 2, 3, 4, 5
+NO_STATUS = 1  # `status` only, like grep's "no match"
 
 
 class Failure(Exception):
@@ -228,6 +231,45 @@ def _redacted(row):
     return row.get('redacted_at') is not None
 
 
+EMPTY_INPUT = ('no document on stdin; if it was piped from spec_store.py get, that command '
+               'failed')
+
+
+def _print_document(text):
+    """Write a document to stdout. A reader that stops early (`grep -q` on its
+    first match) is success: the document was delivered, and under `set -o
+    pipefail` (docs/spec-storage.md §4.2) the pipe answers with the reader's
+    status. stdout then goes to devnull so the interpreter's exit flush cannot
+    raise again."""
+    try:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+    except BrokenPipeError:
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+
+
+def _stdin_document():
+    """A document piped in, refused when empty: a failed `get` upstream prints
+    nothing, and read as a document it would pass every check."""
+    text = sys.stdin.buffer.read().decode('utf-8')
+    if not text.strip():
+        raise Failure('empty_input', EMPTY_INPUT)
+    return text
+
+
+def cmd_status(args, config):
+    found = dh.status(_stdin_document())
+    if found is None:
+        return NO_STATUS
+    print(found)
+    return OK
+
+
+def cmd_body(args, config):
+    _print_document(dh.body(_stdin_document()))
+    return OK
+
+
 def cmd_get(args, config):
     ticket_key, stage, name = address(args.path, config)
     found = Store(config).get(ticket_key, stage, name, args.version)
@@ -237,15 +279,7 @@ def cmd_get(args, config):
         # The content is kartoteka's marker; printed, a pipe would read it as the document.
         raise Failure('redacted', '{} v{} is redacted: kartoteka keeps a marker in place of the '
                                   'document'.format(args.path, found.get('version')))
-    try:
-        sys.stdout.write(found['content'])
-        sys.stdout.flush()
-    except BrokenPipeError:
-        # The reader stopped early: `grep -q` exits on its first match. The
-        # document was fetched, so this is success -- under `set -o pipefail`
-        # (docs/spec-storage.md §4.2) the pipe answers with the reader's status.
-        # stdout goes to devnull so the interpreter's exit flush cannot raise again.
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    _print_document(found['content'])
     return OK
 
 
@@ -274,16 +308,47 @@ def cmd_versions(args, config):
 
 
 def cmd_put(args, config):
+    """A document with a header goes up stamped `version: <expected>+1`, where
+    <expected> is --expected-version or, without it, the stored newest (design
+    2026-09-24 §2.2): kartoteka 0.45.0 refuses any other number. Content that is
+    already the stored newest is that version's receipt -- a version whose only
+    change is its version line is never produced (§2.3). A legacy document goes
+    as it is."""
     ticket_key, stage, name = address(args.path, config)
     content = sys.stdin.buffer.read().decode('utf-8')
+    store = Store(config)
+    expected = args.expected_version
+    # A block is a header only once it has a `key: value` field (F7): kartoteka
+    # itself reads a non-mapping opening block -- prose, say -- as no block at all,
+    # and a document like that must go up legacy, not be refused for lacking a
+    # version line it was never going to have.
+    if dh.fields(content):
+        rows = store.versions(ticket_key, stage, name)
+        newest = rows[0] if rows else None
+        if newest is not None and not _redacted(newest) and (
+                newest['content_hash'] == _sha(content)
+                or newest['content_hash'] == _sha(_stamped(content, newest['version']))):
+            # Either byte-exact, or differing only in its own version line (F8,
+            # plan decision 7): a version whose only change is that line is never
+            # produced, so this put is that version's receipt, not a new upload.
+            print(json.dumps({'version': newest['version'],
+                              'content_hash': newest['content_hash']}))
+            return OK
+        if expected is None:
+            expected = newest['version'] if newest else 0
+        try:
+            content = dh.set_version(content, expected + 1)
+        except ValueError:
+            raise Failure('no_version_line', (
+                '{} opens with a header block that has no `version:` line; artel\'s header '
+                'needs one (docs/spec-storage.md §3.2)').format(args.path))
     if len(content.encode('utf-8')) > kh.MAX_BYTES:
         raise Failure('too_large', '{} is over {} bytes'.format(args.path, kh.MAX_BYTES))
-    status, payload = Store(config).put(ticket_key, stage, name, content,
-                                        args.expected_version, args.author)
+    status, payload = store.put(ticket_key, stage, name, content, expected, args.author)
     if status == 409:
         print(json.dumps({'current_version': payload.get('current_version')}))
         raise Failure('conflict', 'kartoteka holds {} at version {}, not {}'.format(
-            name, payload.get('current_version'), args.expected_version), CONFLICT)
+            name, payload.get('current_version'), expected), CONFLICT)
     print(json.dumps({'version': payload['version'], 'content_hash': payload['content_hash']}))
     return OK
 
@@ -725,15 +790,97 @@ def _known_base(sources, name, decision, pending):
     return base if isinstance(base, int) and not isinstance(base, bool) else None
 
 
+def _merge_path(logical):
+    """Where an unresolved merge of this document is written for the user to edit:
+    beside its working-tree path. `*.md.merge` is no trail name, so nothing scans,
+    mirrors or guards it."""
+    return Path(logical + '.merge')
+
+
+def _pending_base(sources, pending):
+    """The base_version a pending save recorded for one of these copies, or None."""
+    for source in sources:
+        base = pending.get(source)
+        if isinstance(base, int) and not isinstance(base, bool):
+            return base
+    return None
+
+
+def _judge_by_header(item, text, versions, stored, pending, working_copy):
+    """Classify a copy whose header names its base B (design 2026-09-24 §2.4).
+
+    The header is the document's own record of what it descends from, so it wins
+    over a pending entry that disagrees (the reason says so). A redaction anywhere
+    in B..S blocks the merge -- the removed text cannot be ruled out -- and any
+    redaction in the history withholds the diff, as for every other class."""
+    base = item['header_version']
+    newest = versions[0] if versions else None
+    current = newest['version'] if newest else 0
+    item['base_version'] = base
+    recorded = _pending_base(item['sources'], pending)
+    note = '' if recorded in (None, base) else (
+        ' (the header says v{}; the pending record said v{} -- the header wins)'.format(
+            base, recorded))
+    withheld = any(_redacted(v) for v in versions)
+    merge_file = _merge_path(item['logical'])
+    item['merge_file'] = str(merge_file) if merge_file.exists() else None
+
+    def diff():
+        if withheld or newest is None:
+            return None
+        return _diff(stored().get('content', ''), text, 'kartoteka v{}'.format(current),
+                     item['source'])
+
+    def conflict(reason):
+        item.update({'class': 'conflict', 'reason': reason + note, 'diff': diff()})
+
+    if newest is None:
+        if base == 0:
+            item.update({'class': 'absent', 'reason': note.strip() or None})
+            return
+        return conflict('the header says v{} but kartoteka holds no version of it'.format(base))
+    if _redacted(newest):
+        return conflict('the stored newest version (v{}) is redacted'.format(current))
+    if base == current:
+        item.update({'class': 'successor', 'reason': 'made from v{}'.format(base) + note})
+        return
+    if base == 0:
+        if all(v.get('author_agent') is None for v in versions) and working_copy is not None \
+                and not _older_than(working_copy, newest):
+            item.update({'class': 'successor', 'reason': (
+                'new here, and kartoteka holds only mirror copies of it, which can only lag'
+                + note)})
+            return
+        return conflict('the header says it was never stored (v0), but kartoteka holds v{}: '
+                        'created twice'.format(current))
+    if base > current:
+        return conflict('the header says v{}, newer than kartoteka\'s v{}'.format(base, current))
+    removed = [v['version'] for v in versions if _redacted(v) and v['version'] >= base]
+    if removed:
+        return conflict('kartoteka redacted {} since v{}; a merge could carry the removed text '
+                        'back -- review this copy before choosing'.format(
+                            ', '.join('v{}'.format(n) for n in sorted(removed)), base))
+    if working_copy is None:
+        return conflict('a saved context copy made from v{}; kartoteka moved to v{} -- a '
+                        'snapshot is never merged'.format(base, current))
+    item.update({'class': 'mergeable', 'diff': diff(),
+                 'reason': 'made from v{}; kartoteka moved to v{}'.format(base, current) + note})
+
+
 def _judge(item, text, versions, stored, decision, pending, working_copy):
     """Classify the one local copy of an address kartoteka does not hold:
-    absent, successor, or conflict (docs/spec-storage.md §7).
+    absent, successor, or conflict (docs/spec-storage.md §7) -- or, for a copy
+    whose header names its base, _judge_by_header's classes.
 
     A redaction blocks every automatic upload of a copy that has no known base:
     a redacted version keeps the marker and the marker's hash, so the removed
     text can never read as current or stale, and a copy that still carries it
     would otherwise be uploaded as the newest version. Nothing about such an
     address is diffed -- a diff would print the removed text back out."""
+    if item['header_version'] is not None:
+        item['legacy'] = False
+        return _judge_by_header(item, text, versions, stored, pending, working_copy)
+    item['legacy'] = True
     newest = versions[0] if versions else None
     if newest is None:
         item['class'] = 'absent'
@@ -797,7 +944,8 @@ def classify(store, config, ticket, logical, sources, decision, pending, fetch_s
     def new_item(copies, **fields):
         item = {'ticket': ticket, 'logical': logical, 'name': name, 'sources': copies,
                 'source': copies[0], 'sha256': None, 'class': None, 'reason': None,
-                'newest_version': None, 'base_version': None, 'diff': None}
+                'newest_version': None, 'base_version': None, 'diff': None,
+                'header_version': None, 'legacy': None, 'merge_file': None}
         item.update(fields)
         items.append(item)
         return item
@@ -820,7 +968,8 @@ def classify(store, config, ticket, logical, sources, decision, pending, fetch_s
         if digest in groups:
             groups[digest]['sources'].append(source)
         else:
-            groups[digest], texts[digest] = new_item([source], sha256=digest), text
+            groups[digest], texts[digest] = new_item(
+                [source], sha256=digest, header_version=dh.version(text)), text
     versions = store.versions(ticket_key, stage, name)
     newest = versions[0] if versions else None
     for item in items:
@@ -1060,11 +1209,12 @@ def cmd_migrate_plan(args, config):
     return OK
 
 
-RESOLUTIONS = ('keep-local', 'keep-stored', 'skip')
+RESOLUTIONS = ('keep-local', 'keep-stored', 'keep-merged', 'skip')
 
 
 def parse_resolutions(values):
-    """--resolve <logical>=keep-local[:<source>][@<N>] | keep-stored | skip, repeatable.
+    """--resolve <logical>=keep-local[:<source>][@<N>] | keep-merged[@<N>] | keep-stored | skip,
+    repeatable.
 
     `@<N>` is the stored newest version the conflict was shown against -- the
     answer belongs to the version the user saw, and the upload carries it as
@@ -1079,9 +1229,12 @@ def parse_resolutions(values):
         if at and re.match(r'^[0-9]+$', tail):
             answer, seen = head, int(tail)
         action, _, source = answer.partition(':')
-        if not eq or action not in RESOLUTIONS or (seen is not None and action != 'keep-local'):
-            raise Failure('invalid_argument', 'bad --resolve {!r}: expected <path>={}, and '
-                                              '@<version> only on keep-local'.format(
+        if not eq or action not in RESOLUTIONS \
+                or (seen is not None and action not in ('keep-local', 'keep-merged')) \
+                or (source and action != 'keep-local'):
+            raise Failure('invalid_argument', 'bad --resolve {!r}: expected <path>={}, a '
+                                              ':<source> only on keep-local, and @<version> '
+                                              'only on keep-local or keep-merged'.format(
                                                   value, '|'.join(RESOLUTIONS)))
         resolved[os.path.normpath(logical)] = (action, source or None, seen)
     return resolved
@@ -1122,12 +1275,16 @@ def _upload_source(item, resolutions):
         return item['source'], 0
     if item['class'] == 'successor':
         return item['source'], item['newest_version']
-    if item['class'] == 'conflict' and action == 'keep-local':
+    open_item = item['class'] in ('conflict', 'mergeable')
+    if open_item and action == 'keep-local':
         return item['source'], seen if seen is not None else (item['newest_version'] or 0)
+    if open_item and action == 'keep-merged':
+        return str(_merge_path(item['logical'])), \
+            seen if seen is not None else (item['newest_version'] or 0)
     return None
 
 
-def _validate_resolutions(items, resolutions):
+def _validate_resolutions(items, resolutions, config):
     """Raise before anything is uploaded or deleted when a resolution cannot be
     carried out safely against this plan -- apply and delete both run it:
 
@@ -1138,16 +1295,48 @@ def _validate_resolutions(items, resolutions):
     - a plain keep-local for an address whose local copies differ: it must say
       which copy to keep;
     - keep-stored for an address kartoteka holds no version of: there is no
-      stored copy to keep, and discarding the local ones would lose the document.
+      stored copy to keep, and discarding the local ones would lose the document;
+    - keep-merged for an address with more than one open item, or whose .merge
+      file sits outside the ticket's trail, is missing, unreadable or still
+      marked. An address with no open item at all is already settled -- by an
+      earlier keep-merged run, most often -- so keep-merged is accepted there
+      as a no-op rather than refused for "nothing to merge" (F2).
     """
     by_logical = _by_logical(items)
-    for logical, (action, source, _) in sorted(resolutions.items()):
+    for logical, (action, source, seen) in sorted(resolutions.items()):
         copies = by_logical.get(logical)
         if not copies:
             continue
         if action == 'keep-stored' and any(i['newest_version'] is None for i in copies):
             raise Failure('invalid_argument', 'keep-stored for {}: kartoteka holds no version '
                                               'of it'.format(logical))
+        if action == 'keep-merged':
+            open_items = [i for i in copies if i['class'] in ('conflict', 'mergeable')]
+            if not open_items:
+                continue
+            if len(open_items) != 1:
+                raise Failure('invalid_argument', 'keep-merged for {}: its local copies differ; '
+                                                  'keep one with keep-local:<source>'.format(
+                                                      logical))
+            target = _merge_path(logical)
+            if _outside_the_trail(str(target), open_items[0]['ticket'], config):
+                raise Failure('invalid_argument', 'keep-merged for {}: {} is {}'.format(
+                    logical, target, OUTSIDE_THE_TRAIL))
+            try:
+                merged = target.read_bytes().decode('utf-8')
+            except (OSError, UnicodeDecodeError) as exc:
+                raise Failure('invalid_argument', 'keep-merged for {}: {} is not readable: '
+                                                  '{}'.format(logical, target, exc))
+            if MERGE_MARKER.search(merged):
+                raise Failure('invalid_argument', 'keep-merged for {}: {} still has conflict '
+                                                  'markers; edit them out first'.format(
+                                                      logical, target))
+            made = dh.version(merged)
+            if seen is not None and made is not None and made != seen:
+                raise Failure('invalid_argument', (
+                    'keep-merged for {}: {} was merged against v{}, not v{}; delete it and '
+                    'run migrate-specs again').format(logical, target, made, seen))
+            continue
         if action != 'keep-local':
             continue
         if source is None:
@@ -1179,7 +1368,7 @@ def _settled(item, resolutions, by_logical):
         return False
     action, source, _ = _resolution(resolutions, item['logical'])
     if action == 'keep-stored':
-        return item['class'] == 'conflict' and item['newest_version'] is not None
+        return item['class'] in ('conflict', 'mergeable') and item['newest_version'] is not None
     if action == 'keep-local' and source is not None:
         chosen = next((i for i in by_logical[item['logical']] if _holds(i, source)), None)
         return chosen is not None and chosen is not item and chosen['class'] == 'current'
@@ -1329,15 +1518,228 @@ def tidy_decisions(tickets, config):
     return left
 
 
+def _stamped(text, number):
+    """`text` with its header's version line set to `number`. A legacy document --
+    no block, or a block without a version line -- goes as it is."""
+    try:
+        return dh.set_version(text, number)
+    except ValueError:
+        return text
+
+
+def _align_local_copies(item, text):
+    """Bring each local copy of this item to `text`, the bytes kartoteka now holds,
+    so a fresh plan finds it `current` and `delete` may take it -- the stamped
+    version line (and a merge) would otherwise leave it matching no stored
+    version, and never deletable. A copy that changed since it was classified is
+    newer work: it is left alone and named. Returns the problems, empty when
+    every copy matches."""
+    problems, data = [], text.encode('utf-8')
+    for source in item['sources']:
+        path = Path(source)
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            problems.append('{} is unreadable: {}'.format(source, exc))
+            continue
+        if raw == data:
+            continue
+        if hashlib.sha256(raw).hexdigest() != item['sha256']:
+            problems.append('{} changed since it was classified'.format(source))
+            continue
+        try:
+            mode = stat.S_IMODE(os.stat(path).st_mode)
+        except OSError:
+            mode = None
+        try:
+            _write_atomically(path, data)
+        except OSError as exc:
+            problems.append('{} could not be rewritten: {}'.format(source, exc))
+            continue
+        if mode is not None:
+            # _write_atomically's mkstemp defaults to 0600 (it is shared with the
+            # image cache, so it is not changed there): put the copy's own mode back
+            # rather than silently tightening it on every aligned successor (F9).
+            try:
+                os.chmod(path, mode)
+            except OSError:
+                pass
+    return problems
+
+
+def _upload_document(store, config, item, text, expected, resolutions):
+    """Put `text` as version expected+1 -- its header's version line set to match,
+    the one number kartoteka 0.45.0 accepts -- and verify kartoteka holds exactly
+    those bytes. Then align the local copies and drop a stale `.merge`.
+    (entry, None) on success, (None, reason) otherwise."""
+    ticket_key, stage, name = address(item['logical'], config)
+    text = _stamped(text, expected + 1)
+    status, payload = store.put(ticket_key, stage, name, text, expected, MIGRATION_AUTHOR)
+    if status == 409:
+        return None, _moved_reason(resolutions, item, payload)
+    versions = store.versions(ticket_key, stage, name)
+    if not (versions and not _redacted(versions[0])
+            and versions[0]['content_hash'] == _sha(text)):
+        return None, 'the upload could not be verified; the local copy is kept'
+    entry = {'logical': item['logical'], 'version': versions[0]['version']}
+    problems = _align_local_copies(item, text)
+    if problems:
+        entry['unaligned'] = problems
+    _discard(_merge_path(item['logical']))
+    return entry, None
+
+
+MERGE_MARKER = re.compile(r'^(?:<{7}|\|{7}|={7}|>{7})(?: |$)', re.M)
+
+
+def three_way_merge(local, ancestor, newest, labels):
+    """`git merge-file -p --diff3` over three texts: (merged text, conflict count),
+    or (None, reason) when git cannot merge them at all. git is already a hard
+    requirement of every artel host; a missing one degrades the item, never the
+    run. Its exit status is the conflict count (capped at 127), negative on error."""
+    with tempfile.TemporaryDirectory(prefix='artel-merge-') as tmp:
+        paths = []
+        for name, text in (('local', local), ('ancestor', ancestor), ('newest', newest)):
+            path = Path(tmp) / name
+            path.write_bytes(text.encode('utf-8'))
+            paths.append(str(path))
+        command = ['git', 'merge-file', '-p', '--diff3']
+        for label in labels:
+            command += ['-L', label]
+        try:
+            proc = subprocess.run(command + paths, capture_output=True)
+        except OSError as exc:
+            return None, 'git merge-file could not run: {}'.format(exc)
+    if not 0 <= proc.returncode <= 127:
+        detail = proc.stderr.decode('utf-8', 'replace').strip()
+        return None, 'git merge-file failed: {}'.format(detail or 'exit {}'.format(proc.returncode))
+    try:
+        return proc.stdout.decode('utf-8'), proc.returncode
+    except UnicodeDecodeError:
+        return None, 'git merge-file printed text that is not UTF-8'
+
+
+def _changes(old, new):
+    """How many separate places `new` differs from `old`, by line."""
+    matcher = difflib.SequenceMatcher(None, old.splitlines(True), new.splitlines(True),
+                                      autojunk=False)
+    return sum(1 for opcode in matcher.get_opcodes() if opcode[0] != 'equal')
+
+
+def _merge_item(store, config, item, resolutions):
+    """Merge a `mergeable` copy (made from vB) with kartoteka's newest vS, the way
+    design 2026-09-24 §2.5 says: clean -> upload as vS+1; every local change
+    already in vS -> nothing to upload; conflicts -> the marked text goes to
+    `<logical>.merge` for the user. ('merged' | 'conflicted', entry) or
+    ('failed', reason).
+
+    An existing `<logical>.merge` is never overwritten (F3): a re-run of apply
+    with the item still unresolved would otherwise replace a file the user may
+    be mid-edit on. Its presence alone is reported back as `conflicted`, before
+    anything else about this item is even read."""
+    target = _merge_path(item['logical'])
+    if target.exists():
+        if _outside_the_trail(str(target), item['ticket'], config):
+            return 'failed', '{} is {}'.format(target, OUTSIDE_THE_TRAIL)
+        # The merge file's own version line is the S it was merged against (all
+        # three sides are stamped vS before merging), so that is the version a
+        # keep-merged answers for -- never the store's newest now, which would
+        # let a merge made against v2 go up over a v3 nobody merged (N1).
+        try:
+            made = dh.version(target.read_bytes().decode('utf-8'))
+        except (OSError, UnicodeDecodeError):
+            made = None
+        current = item['newest_version']
+        # newest_version stays the store's newest (what keep-local answers for);
+        # merged_against is what a keep-merged answers for.
+        entry = {'logical': item['logical'], 'merge_file': str(target),
+                 'newest_version': current,
+                 'merged_against': made if made is not None else current, 'stale': False,
+                 'note': 'an earlier merge file is kept; resolve it with keep-merged, or '
+                         'delete it to merge again'}
+        if made is not None and made != current:
+            entry.update({'stale': True, 'note': (
+                'this merge file was made against v{}; kartoteka has moved to v{} since -- '
+                'delete it and run migrate-specs again to merge afresh').format(made, current)})
+        return 'conflicted', entry
+    ticket_key, stage, name = address(item['logical'], config)
+    base, current = item['base_version'], item['newest_version']
+    try:
+        local = Path(item['source']).read_bytes().decode('utf-8')
+    except (OSError, UnicodeDecodeError) as exc:
+        return 'failed', 'unreadable: {}'.format(exc)
+    if _sha(local) != item['sha256']:
+        return 'failed', 'it changed since it was classified; run migrate-specs again'
+    newest = store.get(ticket_key, stage, name)
+    if newest is None or newest.get('version') != current:
+        return 'failed', 'kartoteka moved to v{} during the migration; run it again'.format(
+            newest.get('version') if newest else None)
+    ancestor = store.get(ticket_key, stage, name, base)
+    if ancestor is None or _redacted(ancestor) or _redacted(newest):
+        return 'failed', 'kartoteka no longer holds v{} and v{} readable; run it again'.format(
+            base, current)
+    # Every side's version line differs by construction; left in, an edit to the
+    # line beside it (`title:`) would conflict with it. All three read vS here,
+    # and the upload stamps vS+1.
+    mine, theirs = _stamped(local, current), newest['content']
+    common = _stamped(ancestor['content'], current)
+    merged, conflicts = three_way_merge(mine, common, theirs, [
+        'local', 'kartoteka v{}'.format(base), 'kartoteka v{}'.format(current)])
+    if merged is None:
+        # git itself could not merge the three copies -- a missing `git`, most often
+        # (design 2026-09-24 §2.5): the item degrades to a conflict, never a bare
+        # failure, so the skill still offers keep local/stored/skip and the ticket can
+        # still be resolved. There is nothing to edit, so no merge file is written.
+        return 'conflicted', {'logical': item['logical'], 'merge_file': None,
+                              'reason': conflicts, 'newest_version': current}
+    counts = {'local_changes': _changes(common, mine), 'stored_changes': _changes(common, theirs)}
+    if conflicts:
+        if _outside_the_trail(str(target), item['ticket'], config):
+            return 'failed', OUTSIDE_THE_TRAIL
+        try:
+            _write_atomically(target, merged.encode('utf-8'))
+        except OSError as exc:
+            return 'failed', 'the merge has conflicts and {} could not be written: {}'.format(
+                target, exc)
+        return 'conflicted', dict({'logical': item['logical'], 'merge_file': str(target),
+                                   'conflicts': conflicts, 'newest_version': current,
+                                   'merged_against': current}, **counts)
+    if merged == theirs:
+        entry = dict({'logical': item['logical'], 'version': current, 'unchanged': True}, **counts)
+        problems = _align_local_copies(item, theirs)
+        if problems:
+            entry['unaligned'] = problems
+        return 'merged', entry
+    entry, reason = _upload_document(store, config, item, merged, current, resolutions)
+    if entry is None:
+        return 'failed', reason
+    entry.update(counts)
+    return 'merged', entry
+
+
 @migrating
 def cmd_migrate_apply(args, config):
     tickets = migration_tickets(args, config)
     store = migration_store(config, tickets)
     resolutions = parse_resolutions(args.resolve)
     items = plan_items(store, config, tickets, args.pending_only)
-    _validate_resolutions(items, resolutions)
-    uploaded, failed = [], []
+    _validate_resolutions(items, resolutions, config)
+    uploaded, failed, merged, conflicted = [], [], [], []
     for item in items:
+        if item['class'] == 'mergeable' and _resolution(resolutions, item['logical'])[0] is None:
+            try:
+                kind, result = _merge_item(store, config, item, resolutions)
+            except Failure as exc:
+                if exc.kind not in ('rejected', 'too_large'):
+                    raise
+                kind, result = 'failed', str(exc)
+            if kind == 'merged':
+                merged.append(result)
+            elif kind == 'conflicted':
+                conflicted.append(result)
+            else:
+                failed.append({'logical': item['logical'], 'reason': result})
+            continue
         chosen = _upload_source(item, resolutions)
         if chosen is None:
             continue
@@ -1363,25 +1765,29 @@ def cmd_migrate_apply(args, config):
             else:
                 fail(reason)
             continue
-        ticket_key, stage, name = address(item['logical'], config)
         try:
             # read_bytes().decode, never read_text: read_text translates newlines, so a
             # CRLF document would go up as LF and be verified against the translated
             # text, while the plan hashed -- and the deletion re-checks -- the raw bytes.
+            # Only an open item's source is its merge file; once the address has
+            # settled, a re-used keep-merged answer uploads the document itself (N2).
+            merging = (_resolution(resolutions, item['logical'])[0] == 'keep-merged'
+                       and item['class'] in ('conflict', 'mergeable'))
+            if merging and _outside_the_trail(source, item['ticket'], config):
+                fail(OUTSIDE_THE_TRAIL)
+                continue
             text = Path(source).read_bytes().decode('utf-8')
-            if _sha(text) != item['sha256']:
+            if merging and MERGE_MARKER.search(text):
+                fail('{} still has conflict markers; edit them out first'.format(source))
+                continue
+            if not merging and _sha(text) != item['sha256']:
                 fail('it changed since it was classified; run migrate-specs again')
                 continue
-            status, payload = store.put(ticket_key, stage, name, text, expected, MIGRATION_AUTHOR)
-            if status == 409:
-                fail(_moved_reason(resolutions, item, payload))
-                continue
-            versions = store.versions(ticket_key, stage, name)
-            if versions and not _redacted(versions[0]) \
-                    and versions[0]['content_hash'] == item['sha256']:
-                uploaded.append({'logical': item['logical'], 'version': versions[0]['version']})
+            entry, reason = _upload_document(store, config, item, text, expected, resolutions)
+            if entry:
+                uploaded.append(entry)
             else:
-                fail('the upload could not be verified; the local copy is kept')
+                fail(reason)
         except Failure as exc:
             # One document kartoteka refuses -- too large for its limit, a body it will
             # not take -- is this item's failure, not the run's: every other document
@@ -1395,7 +1801,8 @@ def cmd_migrate_apply(args, config):
     pending_left = tidy_decisions(tickets, config)
     deletable, kept = deletion_sets(plan_items(store, config, tickets, args.pending_only),
                                     resolutions)
-    print(json.dumps({'uploaded': uploaded, 'failed': failed,
+    print(json.dumps({'uploaded': uploaded, 'failed': failed, 'merged': merged,
+                      'conflicted': conflicted,
                       'deletable': [entry['path'] for entry in deletable],
                       'kept': kept, 'flipped': flipped, 'pending_left': pending_left}))
     return OK
@@ -1484,9 +1891,10 @@ def cmd_migrate_delete(args, config):
     store = migration_store(config, tickets)
     resolutions = parse_resolutions(args.resolve)
     items = plan_items(store, config, tickets, args.pending_only)
-    _validate_resolutions(items, resolutions)
+    _validate_resolutions(items, resolutions, config)
     deletable, kept = deletion_sets(items, resolutions)
     removed, committed_paths, committed_tickets = [], [], set()
+    removed_logicals, logical_tickets = set(), {}
     for entry in deletable:
         path, ticket = entry['path'], entry['ticket']
 
@@ -1515,7 +1923,21 @@ def cmd_migrate_delete(args, config):
                 keep(str(exc))
                 continue
         removed.append(path)
+        if not entry.get('kind'):
+            removed_logicals.add(entry['logical'])
+            logical_tickets[entry['logical']] = ticket
         _prune_empty_parents(path, config, ticket)
+    # A `.merge` belongs to its address, not to any one copy: drop it only once every
+    # copy of that document is gone -- an address still `kept` (an open merge/conflict
+    # elsewhere, or a copy that failed to delete) keeps its `.merge` file too. Pruning
+    # runs again after this discard (F6): a ticket directory holding only the deleted
+    # copy and its `.merge` was left non-empty by the per-entry prune above, which ran
+    # before the `.merge` itself was gone.
+    kept_logicals = {entry['logical'] for entry in kept if not entry.get('kind')}
+    for logical in removed_logicals - kept_logicals:
+        merge_path = _merge_path(logical)
+        _discard(merge_path)
+        _prune_empty_parents(str(merge_path), config, logical_tickets.get(logical))
     pending_left = tidy_decisions(tickets, config)
     commit = None
     if args.commit and committed_paths:
@@ -1873,6 +2295,10 @@ def build_parser():
     put.add_argument('--expected-version', type=int)
     put.add_argument('--author')
     put.set_defaults(run=cmd_put)
+    status = verbs.add_parser('status')
+    status.set_defaults(run=cmd_status, needs_config=False)
+    body = verbs.add_parser('body')
+    body.set_defaults(run=cmd_body, needs_config=False)
     decide = verbs.add_parser('decide')
     decide.add_argument('ticket')
     decide.add_argument('--decided-by', required=True)
@@ -1930,7 +2356,8 @@ def main(argv):
             stream.reconfigure(encoding='utf-8')
     args = build_parser().parse_args(argv)
     try:
-        return args.run(args, load_config())
+        config = load_config() if getattr(args, 'needs_config', True) else None
+        return args.run(args, config)
     except Failure as exc:
         print(json.dumps({'ok': False, 'verb': VERB,
                           'error': {'kind': exc.kind, 'message': str(exc)}}), file=sys.stderr)

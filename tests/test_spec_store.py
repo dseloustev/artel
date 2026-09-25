@@ -169,6 +169,60 @@ class TestPut(StoreCase):
         self.assertEqual(proc.returncode, 4)
         self.assertEqual(json.loads(proc.stdout), {'current_version': 1})
 
+    def sent(self):
+        return [r[3] for r in self.fake.requests if r[0] == 'POST']
+
+    def test_a_new_document_goes_up_as_version_1(self):
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', stdin=header(0))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)['version'], 1)
+        self.assertEqual(self.sent()[-1]['expected_version'], 0)
+        self.assertIn('\nversion: 1\n', self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['content'])
+
+    def test_a_rewrite_is_stamped_against_the_newest_version(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(2, body='two\n'))
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', stdin=header(2, body='three\n'))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual((self.sent()[-1]['expected_version'], json.loads(proc.stdout)['version']),
+                         (2, 3))
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['content'],
+                         header(3, body='three\n'))
+
+    def test_an_explicit_expected_version_is_what_the_line_follows(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(2, body='two\n'))
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', '--expected-version', '1',
+                            stdin=header(1, body='from v1\n'))
+        self.assertEqual(proc.returncode, 4)
+        self.assertIn('\nversion: 2\n', self.sent()[-1]['content'])
+
+    def test_an_unchanged_fetched_document_is_a_no_op(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', stdin=header(1))
+        self.assertEqual((proc.returncode, json.loads(proc.stdout)['version']), (0, 1))
+        self.assertEqual(self.sent(), [])
+
+    def test_a_block_without_a_version_line_is_refused(self):
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md',
+                            stdin='---\ntype: plan\nticket: AW-12\n---\nbody')
+        self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'no_version_line'))
+        self.assertEqual(self.sent(), [])
+
+    def test_a_prose_block_is_legacy_not_a_header(self):
+        # F7: kartoteka treats a non-mapping opening block as no block at all;
+        # put must not refuse it as a header missing its version line.
+        text = '---\nA short intro paragraph.\n---\n# Plan\n'
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', stdin=text)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['content'], text)
+
+    def test_a_put_with_only_the_version_line_changed_is_a_no_op(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        proc = self.run_cli('put', 'specs/.current/AW-12/plan.md', stdin=header(7))
+        self.assertEqual((proc.returncode, json.loads(proc.stdout)['version']), (0, 1))
+        self.assertEqual(self.sent(), [])
+
 
 class TestTokenHandling(StoreCase):
     knowledge_extra = {'tokenEnv': 'ARTEL_TEST_TOKEN'}
@@ -490,3 +544,90 @@ class TestDecisionAndPending(StoreCase):
     def test_pending_without_a_decision_is_an_error(self):
         proc = self.run_cli('pending', 'add', 'specs/.current/AW-12/plan.md', '--base-version', '2')
         self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'no_decision'))
+
+
+def header(version, stage='plan', ticket='AW-12', body='# Plan\n'):
+    return '---\ntype: {}\nticket: {}\nversion: {}\n---\n{}'.format(stage, ticket, version, body)
+
+
+class TestFakeHeaderValidation(StoreCase):
+    """The fake refuses what kartoteka 0.45.0 refuses, so a wrong version line fails here."""
+
+    def post(self, content, expected=None):
+        body = {'project': PROJECT, 'ticket_key': 'AW-12', 'stage': 'plan', 'name': 'plan.md',
+                'content': content}
+        if expected is not None:
+            body['expected_version'] = expected
+        return kh.call(self.fake.base_url, 'POST', '/api/artifacts', body=body)
+
+    def test_the_version_the_write_creates_is_accepted(self):
+        self.assertEqual(self.post(header(1))[0], 200)
+        self.assertEqual(self.post(header(2), expected=1)[0], 200)
+
+    def test_a_wrong_version_is_refused_and_nothing_is_stored(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        status, payload = self.post(header(1, body='changed\n'))
+        self.assertEqual(status, 400)
+        self.assertIn('set `version: 2` and pass expected_version=1', payload['error'])
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['version'], 1)
+
+    def test_type_and_ticket_must_match_the_address(self):
+        self.assertIn("does not match the stage 'plan'",
+                      self.post(header(1, stage='prd'))[1]['error'])
+        self.assertIn("does not match the ticket_key 'AW-12'",
+                      self.post(header(1, ticket='AW-13'))[1]['error'])
+
+    def test_a_block_without_those_fields_and_a_legacy_document_pass(self):
+        self.assertEqual(self.post('---\ntitle: only a title\n---\nbody')[0], 200)
+        self.assertEqual(self.post('no header', expected=1)[0], 200)
+
+    def test_an_unchanged_repush_is_a_no_op_before_the_header_is_read(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        self.assertEqual(self.post(header(1))[0], 200)
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['version'], 1)
+
+    def test_a_patch_is_checked_after_its_edits(self):
+        self.fake.seed(PROJECT, 'AW-12', 'plan', 'plan.md', header(1))
+        path = '/api/artifacts/AW-12/plan/plan.md'
+        edit = {'old_string': 'ticket: AW-12\nversion: 1\n', 'new_string': 'ticket: AW-12\nversion: 2\n'}
+        status, _ = kh.call(self.fake.base_url, 'PATCH', path, body={
+            'project': PROJECT, 'edits': [{'append': 'more\n'}]})
+        self.assertEqual(status, 400)
+        status, _ = kh.call(self.fake.base_url, 'PATCH', path, body={
+            'project': PROJECT, 'edits': [edit, {'append': 'more\n'}]})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.fake.newest(PROJECT, 'AW-12', 'plan', 'plan.md')['version'], 2)
+
+
+class TestStatusAndBody(StoreCase):
+    def test_status_prints_the_header_status(self):
+        proc = self.run_cli('status', stdin=header(1).replace('version: 1\n', 'version: 1\nstatus: PLAN_APPROVED\n'))
+        self.assertEqual((proc.returncode, proc.stdout), (0, 'PLAN_APPROVED\n'))
+
+    def test_status_reads_an_old_document(self):
+        proc = self.run_cli('status', stdin='# PRD\n\n- **Status:** PRD_READY\n')
+        self.assertEqual((proc.returncode, proc.stdout), (0, 'PRD_READY\n'))
+
+    def test_status_exits_1_when_none_is_declared(self):
+        proc = self.run_cli('status', stdin='# Research\n')
+        self.assertEqual((proc.returncode, proc.stdout), (1, ''))
+
+    def test_body_drops_the_header(self):
+        proc = self.run_cli('body', stdin=header(3, body='**Summary**\nText\n'))
+        self.assertEqual((proc.returncode, proc.stdout), (0, '**Summary**\nText\n'))
+
+    def test_body_keeps_a_legacy_document_verbatim(self):
+        proc = self.run_cli('body', stdin='**Summary**\n')
+        self.assertEqual(proc.stdout, '**Summary**\n')
+
+    def test_empty_input_is_refused_by_both(self):
+        for verb in ('status', 'body'):
+            with self.subTest(verb=verb):
+                proc = self.run_cli(verb, stdin=' \n')
+                self.assertEqual((proc.returncode, self.error_of(proc)['kind']), (2, 'empty_input'))
+
+    def test_neither_needs_a_config(self):
+        with tempfile.TemporaryDirectory() as bare:
+            proc = subprocess.run([sys.executable, str(SCRIPT), 'status'], cwd=bare,
+                                  input='Status: DRAFT\n', capture_output=True, text=True)
+        self.assertEqual((proc.returncode, proc.stdout), (0, 'DRAFT\n'))

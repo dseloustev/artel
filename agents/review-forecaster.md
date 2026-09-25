@@ -102,6 +102,14 @@ missing rather than deriving it yourself:
 ## Output format
 
 ```markdown
+---
+type: deep-review
+ticket: <TICKET_ID>
+version: <per spec-storage.md §3.2 and §4.1>
+title: "Deep review"
+schema: 1
+produced_by: artel:review-forecaster
+---
 # Deep review — <TICKET_ID>
 
 Branch: <branch, or "current"> · Base: <default-branch> · PR: <title and link, or none>
@@ -156,6 +164,8 @@ Threshold: <t>% · Reviewers weighted: <names, or "none (all equal)">
 - Not searched: <units with reason, or "none">
 - Grouped coarser: <yes | no>
 ```
+
+The header follows `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2.
 
 Task numbering inside each `### Tasks` block starts at 1; `deep-review` renumbers on copy.
 With no table-1 rows, the block reads `- none`. With no at-risk rows, section 3 reads

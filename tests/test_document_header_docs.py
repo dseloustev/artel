@@ -1,0 +1,255 @@
+"""The document header and references reach every contract, gate and writer
+(design 2026-09-24, §4 and §7). Spellings only, not prose."""
+import re
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+STORAGE = 'docs/spec-storage.md'
+
+
+def read(rel):
+    return (ROOT / rel).read_text(encoding='utf-8')
+
+
+def flat(text):
+    return ' '.join(text.split())
+
+
+def section(text, heading):
+    start = text.index(heading)
+    ends = [i for i in (text.find('\n### ', start + len(heading)),
+                        text.find('\n## ', start + len(heading))) if i != -1]
+    return text[start:min(ends) if ends else None]
+
+
+class TestHeaderContract(unittest.TestCase):
+    def setUp(self):
+        self.text = read(STORAGE)
+
+    def test_the_header_section_gives_the_field_order(self):
+        header = section(self.text, '### 3.2 The document header')
+        order = [m.group(1) for m in re.finditer(r'^([a-z_]+): ', header, re.M)]
+        self.assertEqual(order[:8], ['type', 'ticket', 'version', 'title', 'status', 'summary',
+                                     'schema', 'produced_by'])
+
+    def test_every_write_carries_the_version_and_its_guard(self):
+        ops = flat(section(self.text, '### 4.1 Agents'))
+        for phrase in ('`version: 1`', 'expected_version=0', '`version: <N+1>`',
+                       'ticket: <T>\\nversion: <N>\\n', 'the version bump first'):
+            self.assertIn(phrase, ops)
+        self.assertNotIn('no `expected_version` unless', ops)
+
+    def test_scripts_read_status_and_post_bodies_through_the_verbs(self):
+        scripts = section(self.text, '### 4.2 Scripts')
+        self.assertIn('spec_store.py status', scripts)
+        self.assertIn('spec_store.py body', scripts)
+
+    def test_the_review_reset_carries_a_header(self):
+        self.assertIn('type: review', section(self.text, '### 4.4 The review-round reset'))
+
+    def test_the_verb_table_has_status_and_body(self):
+        verbs = section(self.text, '## 8. spec_store.py')
+        self.assertIn('| `status` (stdin) |', verbs)
+        self.assertIn('| `body` (stdin) |', verbs)
+
+
+class TestReferencesContract(unittest.TestCase):
+    def test_spec_storage_defines_the_reference_and_its_rules(self):
+        cite = flat(section(read(STORAGE), '### 3.1 Citing a document'))
+        for phrase in ('workspace:<TICKET_KEY>/<stage>/<name>[@v<N>]', '- ref:',
+                       'Copy it, never compose it', '**Inputs:**', 'named in prose'):
+            self.assertIn(phrase, cite)
+
+    def test_path_conventions_bans_run_state_and_allows_references(self):
+        text = flat(read('docs/path-conventions.md'))
+        self.assertIn('`.artel/…`', text)
+        self.assertIn('workspace:<TICKET_KEY>/<stage>/<name>[@v<N>]', text)
+        self.assertIn('spec-storage.md) §3.1', text)
+        self.assertIn(r'\.artel/', read('docs/path-conventions.md'))
+
+
+PROMPTS = sorted([*(ROOT / 'agents').glob('*.md'), *(ROOT / 'skills').glob('*/SKILL.md'),
+                  *(p for p in (ROOT / 'docs').glob('*.md'))])
+
+
+class TestGates(unittest.TestCase):
+    def test_no_prompt_or_doc_greps_for_a_status_line(self):
+        for path in PROMPTS:
+            with self.subTest(path.name):
+                self.assertNotIn("grep -m1 'Status:'", path.read_text(encoding='utf-8'))
+
+    def test_the_gates_read_status_through_the_verb(self):
+        for rel in ('skills/feature-development/SKILL.md', 'skills/figma-analysis/SKILL.md'):
+            with self.subTest(rel):
+                self.assertIn('spec_store.py status', read(rel))
+
+    def test_no_gate_names_a_capitalised_status_line(self):
+        for rel in ('skills/feature-development/SKILL.md', 'skills/figma-analysis/SKILL.md',
+                    'agents/validator.md', 'docs/autonomous-run.md'):
+            with self.subTest(rel):
+                self.assertIsNone(re.search(r'`Status: [A-Z_]+`', read(rel)))
+
+
+GATE_WRITERS = {
+    'agents/analyst.md': 'type: prd', 'skills/analysis/SKILL.md': 'status: PRD_READY',
+    'agents/vision-writer.md': 'type: vision', 'skills/generate-vision/SKILL.md': 'VISION_READY',
+    'agents/planner.md': 'type: plan', 'skills/planner/SKILL.md': 'status: PLAN_APPROVED',
+    'agents/task-planner.md': 'type: tasklist', 'skills/tasklist/SKILL.md': 'status: TASKLIST_READY',
+    'agents/figma-analyst.md': 'status:', 'skills/figma-analysis/SKILL.md': 'status: DESIGN_ANALYZED',
+}
+
+
+class TestGateWriters(unittest.TestCase):
+    def test_every_gate_writer_cites_the_header_and_names_its_fields(self):
+        for rel, field in GATE_WRITERS.items():
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertIn('spec-storage.md` §3.2', text)
+                self.assertIn(field, text)
+                self.assertIsNone(re.search(r'`Status: [A-Z_]+`', text))
+
+    def test_the_inputs_lines_cite_by_reference(self):
+        for rel in ('agents/analyst.md', 'agents/planner.md', 'agents/task-planner.md',
+                    'agents/vision-writer.md'):
+            with self.subTest(rel):
+                self.assertIn('spec-storage.md` §3.1', read(rel))
+        self.assertNotIn('pointing at `./idea.md`', read('agents/vision-writer.md'))
+
+    def test_the_design_analysis_template_opens_with_the_header(self):
+        template = read('skills/figma-analysis/assets/templates/design-analysis.template.md')
+        self.assertTrue(template.startswith('---\ntype: design-analysis\nticket: $TICKET_ID\n'))
+        self.assertNotIn('- **Status:**', template)
+
+    def test_the_vision_names_sensitive_categories_not_the_policy_path(self):
+        self.assertIn('never the policy file', read('agents/vision-writer.md'))
+
+
+OTHER_WRITERS = {
+    'skills/generate-idea/SKILL.md': '$VERSION', 'agents/researcher.md': 'type: research',
+    'agents/reviewer.md': 'type: review', 'agents/review-forecaster.md': 'type: deep-review',
+    'agents/qa.md': 'type: qa', 'agents/tech-writer.md': 'type: summary',
+    'skills/pr-description/SKILL.md': 'type: pr-description',
+    'docs/deviation-protocol.md': 'type: implementation-notes',
+    'skills/sync-phases/SKILL.md': 'type: tasklist', 'skills/deep-review/SKILL.md': 'type: tasklist',
+    'agents/tasklist-writer.md': 'type: tasklist',
+}
+
+
+class TestOtherWriters(unittest.TestCase):
+    def test_every_writer_cites_the_header_and_names_its_type(self):
+        for rel, field in OTHER_WRITERS.items():
+            with self.subTest(rel):
+                text = read(rel)
+                self.assertIn('spec-storage.md` §3.2' if rel != 'docs/deviation-protocol.md'
+                              else 'spec-storage.md) §3.2', text)
+                self.assertIn(field, text)
+
+    def test_the_idea_template_opens_with_the_header(self):
+        self.assertTrue(read('skills/generate-idea/assets/templates/idea.template.md')
+                        .startswith('---\ntype: idea\nticket: $TICKET_ID\nversion: $VERSION\n'))
+
+    def test_patches_name_the_version_bump(self):
+        for rel in ('agents/implementer.md', 'skills/sync-phases/SKILL.md'):
+            with self.subTest(rel):
+                self.assertIn('version bump', read(rel))
+
+    def test_the_tasklist_template_cites_the_vision_by_reference(self):
+        text = read('agents/tasklist-writer.md')
+        self.assertNotIn('[vision.md](./vision.md)', text)
+        self.assertIn('workspace:<TICKET_ID>/vision/vision.md', text)
+
+
+class TestWhatLeaves(unittest.TestCase):
+    def test_every_posting_path_drops_the_header(self):
+        text = read('skills/pr-create/SKILL.md')
+        files = 'spec_store.py body < <specs.dir>/<TICKET_ID>/pr-description.md) && printf'
+        store = ('pr-description.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py body) '
+                 '&& printf')
+        self.assertEqual((text.count(files), text.count(store)), (2, 2))  # gh edit, gh create
+        self.assertIn('spec_store.py body < <path>', text)                # Bitbucket
+        self.assertNotIn('--body-file <specs.dir>/<TICKET_ID>/pr-description.md', text)
+
+    def test_the_pr_description_cites_no_trail_document(self):
+        text = flat(read('skills/pr-description/SKILL.md'))
+        self.assertIn('no `workspace:` reference and no spec-trail path', text)
+
+
+def since_0_20_0():
+    # Everything since 0.20.0: [Unreleased] before the release is cut, [0.21.0] after.
+    return read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [0.20.0]', 1)[0]
+
+
+class TestReleaseDocs(unittest.TestCase):
+    def test_the_changelog_names_the_floor_and_the_new_surface(self):
+        text = since_0_20_0()
+        for phrase in ('**Requires kartoteka 0.46.0**', 'docs/spec-storage.md` §3.2',
+                       'workspace:', 'keep-merged', 'spec_store.py status', 'spec_store.py body',
+                       '`.artel/', '### Upgrading'):
+            self.assertIn(phrase, text)
+
+    def test_no_prompt_or_doc_still_spells_a_status_line(self):
+        for path in PROMPTS:
+            if path.name in ('design.md', 'porting-plan.md'):
+                continue  # history, quoted as it was
+            with self.subTest(path.name):
+                self.assertIsNone(re.search(r'`Status: [A-Z_]+`', path.read_text(encoding='utf-8')))
+
+    def test_the_requirements_record_the_two_kartoteka_releases(self):
+        text = read('docs/kartoteka-requirements.md')
+        self.assertIn('**Shipped 0.45.0**', text)
+        self.assertIn('**Shipped 0.46.0**', text)
+
+    def test_the_design_log_records_the_decisions(self):
+        text = read('docs/design.md')
+        for phrase in ('2026-09-25', 'workspace:', 'document header'):
+            self.assertIn(phrase, text)
+
+
+HEADER_TEMPLATES = ('skills/generate-idea/assets/templates/idea.template.md',
+                    'skills/figma-analysis/assets/templates/design-analysis.template.md',
+                    'skills/sync-phases/SKILL.md', 'agents/tasklist-writer.md',
+                    'agents/review-forecaster.md', STORAGE)
+
+
+class TestFinalReviewFixes(unittest.TestCase):
+    """A2's final review: outage saves, YAML-safe titles, patch refusals, files-path appends."""
+
+    def test_an_outage_save_keeps_its_base_version_in_the_header(self):
+        self.assertIn("with its header's `version:` set to that same base",
+                      flat(section(read(STORAGE), '### 5.2 Mid-run')))
+        for rel in ('skills/feature-development/SKILL.md', 'skills/dev/SKILL.md'):
+            with self.subTest(rel):
+                self.assertIn("with its header's `version:` set to `<N>`", flat(read(rel)))
+
+    def test_titles_and_summaries_are_double_quoted(self):
+        self.assertIn('`title` and `summary` are double-quoted',
+                      flat(section(read(STORAGE), '### 3.2 The document header')))
+        for rel in HEADER_TEMPLATES:
+            for line in read(rel).splitlines():
+                match = re.match(r'\s*(title|summary): (.*)$', line)
+                if match:
+                    with self.subTest(rel=rel, line=line):
+                        self.assertTrue(match.group(2).startswith('"'))
+
+    def test_a_patch_refused_over_its_header_is_retried_once(self):
+        ops = flat(section(read(STORAGE), '### 4.1 Agents'))
+        self.assertEqual(ops.count('or a refusal naming the header'), 3)  # rewrite, edit, append
+
+    def test_files_path_appends_never_touch_the_version_line(self):
+        text = flat(read('docs/deviation-protocol.md'))
+        self.assertIn('On the kartoteka path every append is a patch that bumps its version line',
+                      text)
+        for rel in ('agents/tasklist-writer.md', 'agents/review-forecaster.md',
+                    'docs/deviation-protocol.md'):
+            with self.subTest(rel):
+                self.assertNotIn('version: <per spec-storage.md §4.1>', read(rel))
+
+    def test_the_skill_answers_keep_merged_with_merged_against(self):
+        skill = read('skills/migrate-specs/SKILL.md')
+        self.assertIn('keep-merged@<merged_against>', skill)
+        self.assertIn('keep-local@<newest_version>', skill)
+
+
+if __name__ == '__main__':
+    unittest.main()

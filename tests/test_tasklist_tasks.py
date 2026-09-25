@@ -9,7 +9,7 @@ import tasklist_tasks  # noqa: E402
 
 TASKLIST = '''# Development Tasklist: Wallet adapter (AW-1234)
 
-Based on [vision.md](./vision.md).
+Based on specs/.current/AW-1234/vision.md.
 
 ---
 
@@ -647,6 +647,21 @@ class TestCli(unittest.TestCase):
     def test_an_empty_tasklist_file_keeps_todays_behaviour(self):
         code, out = run_cli('--tasklist', self._write(''), '--ticket-key', 'AW-1234')
         self.assertEqual((code, out['error']['kind']), (2, 'tasklist_malformed'))
+
+
+class TestHeaderIsSkipped(unittest.TestCase):
+    def test_a_header_changes_nothing_the_parser_reports(self):
+        import subprocess
+        headed = ('---\ntype: tasklist\nticket: AW-1234\nversion: 3\n'
+                  'status: TASKLIST_READY\n---\n') + TASKLIST
+        runs = []
+        for text in (TASKLIST, headed):
+            proc = subprocess.run([sys.executable, str(SCRIPT), '--tasklist', '-',
+                                   '--ticket-key', 'AW-1234'],
+                                  input=text, capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stdout)
+            runs.append(json.loads(proc.stdout)['data'])
+        self.assertEqual(runs[0], runs[1])
 
 
 if __name__ == '__main__':

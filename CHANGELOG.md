@@ -6,6 +6,51 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+**Requires kartoteka 0.46.0** when `knowledge.adapter` is `"kartoteka"`. Read **Upgrading**
+before the first run.
+
+### Added
+
+- **Spec documents open with a header.** Every spec-trail document starts with a thin YAML block:
+  `type`, `ticket`, `version`, `title`, `status`, `summary`, `schema`, `produced_by`
+  (`docs/spec-storage.md` §3.2).
+  - `version:` names the kartoteka version the body is, or descends from.
+  - Every write sets it: `version: N+1` with `expected_version=N`, now mandatory on every put and
+    patch, and a patch's first edit bumps the line. kartoteka 0.45.0 and later refuse a mismatch.
+- **Documents cite each other by kartoteka reference.** On the kartoteka path an input is a link
+  such as `[prd.md v2](workspace:AW-12/prd/prd.md@v2)`, copied from the `- ref:` line kartoteka
+  0.46.0 prints and rendered by its dashboard as a link (`docs/spec-storage.md` §3.1).
+- **`/artel:migrate-specs` merges.**
+  - A working-tree copy made from an older stored version is `mergeable`: `apply`
+    three-way-merges it with the store (`git merge-file`). A `.artel/context` snapshot is never
+    merged.
+  - A conflicting merge goes to `<logical>.merge`, is never overwritten by a later run, and is
+    resolved with `keep-merged`.
+  - Every upload is stamped with the version it creates, and the local copy is aligned to it.
+- `spec_store.py status` and `spec_store.py body`, both reading stdin.
+
+### Changed
+
+- Status gates read `spec_store.py status` instead of `grep -m1 'Status:'`, and the `Status:` line
+  leaves `## Metadata`.
+- `pr-create` posts the PR description without its header, and the description cites no trail
+  document.
+- No stored or committed document cites `.artel/…` (`docs/path-conventions.md`).
+- `spec_store.py put` stamps the header's version line.
+- The files-path mirror posts a headed document only as its next version: new documents once,
+  then `skip … stale header`.
+- `plan_check.py` and `tasklist_tasks.py` skip the header.
+
+### Upgrading
+
+- Upgrade the daemon to kartoteka 0.46.0 first. 0.45.0 brings migration 10: run
+  `kartoteka migrate`, then restart the daemon.
+- Documents written before this release have no header, and they keep working. Their status is
+  read from the old `Status:` line for one release, and they gain a header the next time they are
+  rewritten. Nothing migrates them.
+- On a daemon older than 0.46.0 nothing stops a run: headers go unvalidated, and without `ref:`
+  lines documents name each other in prose.
+
 ## [0.20.0] - 2026-09-24
 
 ### Added

@@ -65,7 +65,9 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   - a list of tasks with checkboxes (one section per phase / iteration)
   - optional subtasks
   - acceptance criteria for each task
-  - file status (DRAFT, TASKLIST_READY)
+  - the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: tasklist`,
+    `status: DRAFT` or `TASKLIST_READY`, `produced_by: artel:task-planner`, and an **Inputs:**
+    line citing the documents read (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.1)
   - no `## Final Verification` section and no task whose work is running a check — the
     end-of-feature gate is the orchestrator's (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1)
 
@@ -76,7 +78,9 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   - **Tasks** — A list of tasks with `- [ ]` checkboxes
   - **Acceptance criteria** — For each task, 1-2 verifiable criteria
   - **Test** — How to verify the phase is complete
-  - file status (DRAFT, TASKLIST_READY)
+  - the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: tasklist`,
+    `status: DRAFT` or `TASKLIST_READY`, `produced_by: artel:task-planner`, and an **Inputs:**
+    line citing the documents read (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.1)
 
 ## Rules
 

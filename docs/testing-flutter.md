@@ -137,7 +137,7 @@ Then seed the ticket and run the PRD interview:
 to `FLT-1`. Running it standalone here exercises the skill on its own; the pipeline's gate 0
 would seed the same file itself (4.5 covers that path).
 `analysis` then explores the project, interviews you in batches of ≤4 questions, and writes
-`specs/.current/FLT-1/prd.md` with `Status: PRD_READY`. Nothing outside `specs/.current/`
+`specs/.current/FLT-1/prd.md` with status `PRD_READY`. Nothing outside `specs/.current/`
 changes.
 
 ### 4.2 Dry run of the full pipeline

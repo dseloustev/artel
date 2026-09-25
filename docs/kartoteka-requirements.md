@@ -320,6 +320,22 @@ Checked while writing this, and recorded so it is not investigated twice.
   attachment. artel 0.17.0 sweeps images in with `spec_store.py image sync` and views them with
   `image fetch` (`docs/spec-storage.md` §4.6).
 
+### 6.4 Document header (K4)
+
+**Shipped 0.45.0.** A leading YAML block is read on every artifact put and patch, and never
+rewritten. A `version`, `type` or `ticket` that disagrees with the row the write creates is
+refused (HTTP 400, MCP `Rejected:`). `title`, `status`, `summary`, `schema`, `produced_by` and
+`type` are lifted into columns shown in listings, receipts and the dashboard; `status=` filters on
+them. artel writes the header from 0.21.0 (design 2026-09-24).
+
+### 6.5 References (K5)
+
+**Shipped 0.46.0.** `workspace:<TICKET_KEY>/<stage>/<name>[@v<N>]`, the workspace index id plus an
+optional version, renders on `/artifact` as a link to that artifact. Every answer about one
+version carries it on a `- ref:` line (a `ref` field in JSON). artel's writers copy it from there
+(`docs/spec-storage.md` §3.1). Not probed: kartoteka exposes no version, so artel's 0.46.0 floor is
+documented, not enforced.
+
 ## Summary
 
 | # | Change | Tier | Size | State |
@@ -333,6 +349,8 @@ Checked while writing this, and recorded so it is not investigated twice.
 | 4.x | `artifact_delete`, `artifact_versions` tool, `parent_id` in list output | Nice to have | Small | **Shipped** — 0.30.0 (as `artifact_redact`), 0.30.0, 0.28.0 |
 | 6 | `artifact_patch`, write receipts | Store mode | Small | **Shipped 0.43.0** |
 | 6.3 | Attachment store (K3) | Spec images | Medium | **Shipped 0.44.0** |
+| 6.4 | Document header: validation, lifted columns | Document header | Medium | **Shipped 0.45.0** |
+| 6.5 | `workspace:` references, `ref:` line | References | Small | **Shipped 0.46.0** |
 
 Only 1.1 and 1.2 stand between artel and a working store mode against a local daemon. Everything
 in §2 stands between that and deleting anyone's files.

@@ -123,22 +123,24 @@ You are writing a short, plain-language PR description for ticket <TICKET_ID>. A
 
 1. **Derive the structure and length from the style sample.** Read the sampled PR descriptions and identify the recurring elements: which section headings appear in most of them, in what order, what tone (terse vs. narrative), and how long they run. Reproduce that. Do **not** impose a template that isn't reflected in the sample. The longest PR in the sample is the ceiling for your draft — if the draft comes out longer, cut detail until it fits.
 
-2. **Markup.** Use bold-text headings on their own line, matching the sample's own heading set and phrasing — **not** markdown `#` / `##` headings. Do **not** include an H1 title in the body; the PR title is a separate field. Reproduce any recurring sub-bullet convention (e.g. italic major/minor-changes labels) exactly as the sample uses it.
+2. **Markup.** Use bold-text headings on their own line, matching the sample's own heading set and phrasing — **not** markdown `#` / `##` headings. Do **not** include an H1 title in the body; the PR title is a separate field. The file opens with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2) — `type: pr-description`, `produced_by: artel:tech-writer` — which `pr-create` drops before posting; the body starts after it. Reproduce any recurring sub-bullet convention (e.g. italic major/minor-changes labels) exactly as the sample uses it.
 
-3. **Title** (for the PR title field, not the body). Use the ticket summary as the source, translated to `<language.pr>` if it is in another language. If the sampled PRs prefix titles with `<TICKET_ID>` or similar, match that convention; otherwise omit the prefix. Keep the title under 80 characters. Do not put it inside the output `.md` file as an H1 — the file should start with the style sample's own first heading.
+3. **Title** (for the PR title field, not the body). Use the ticket summary as the source, translated to `<language.pr>` if it is in another language. If the sampled PRs prefix titles with `<TICKET_ID>` or similar, match that convention; otherwise omit the prefix. Keep the title under 80 characters. Do not put it inside the output `.md` file as an H1 — the body should start with the style sample's own first heading.
 
 4. **Language.** Body must be `<language.pr>`. Translate any content in another language (e.g. tracker fields, local docs, code comments paraphrased in prose) into it. Keep code identifiers, file paths, class/method names, branch names, and commit hashes verbatim — do not transliterate them.
 
-5. **Reader contract.** The description is written for a QA engineer and a reviewer who have not opened the code and will not read the ticket docs. Every sentence states visible behavior, user impact, or a check the reader can perform. A bullet may name the single class/package/model that is the subject of its change — that is the only place code identifiers appear. Everything about *how* the change works — measurements, constants, internal callbacks and lifecycle events, rejected alternatives, design rationale — lives in the diff; the description states what changed and why.
+5. **Cite no trail document.** A pull-request reader cannot open kartoteka: the body carries no `workspace:` reference and no spec-trail path. Describe what changed and why in the body's own words.
 
-6. **Section contract** — what each section is, using the style sample's own headings:
+6. **Reader contract.** The description is written for a QA engineer and a reviewer who have not opened the code and will not read the ticket docs. Every sentence states visible behavior, user impact, or a check the reader can perform. A bullet may name the single class/package/model that is the subject of its change — that is the only place code identifiers appear. Everything about *how* the change works — measurements, constants, internal callbacks and lifecycle events, rejected alternatives, design rationale — lives in the diff; the description states what changed and why.
+
+7. **Section contract** — what each section is, using the style sample's own headings:
    - **Summary** — 1–3 sentences: what was broken or missing, and how the app behaves now. If the PR targets a non-default base branch, one extra line names it.
    - **Major changes** — 0–2 one-line bullets: only changes a reviewer must know about before reading the diff (behavior change, schema bump, new dependency). State "None." when there are none.
    - **Minor changes** — 1–4 one-sentence bullets. State "None." when there are none.
    - **QA notes** — 1–6 numbered scenarios: where in the app + what to do + what should be visible; platform-specific caveats live here. A deliberate behavior change that QA might file as a bug gets one line starting "Not a bug: …". Every entry of `review.md`'s `## Manual checks outstanding` becomes one more numbered scenario, marked as not yet run.
    - **Platforms tested** — the checklist, or a single "any platform" line for platform-independent changes.
 
-7. **Accuracy.** Every factual claim must be verifiable from the inlined diff or the inlined docs. Do not invent rationale or behavior. If something cannot be verified, omit it.
+8. **Accuracy.** Every factual claim must be verifiable from the inlined diff or the inlined docs. Do not invent rationale or behavior. If something cannot be verified, omit it.
 
 ### Fallback structure (use ONLY if STYLE_SAMPLE_EMPTY or the sample is too short to derive a structure)
 

@@ -13,6 +13,8 @@ from kartoteka_http import (  # noqa: E402,F401 -- re-exported: tests and reader
     artifact_identity, bearer_token, knowledge_target, plaintext_off_loopback, post_artifact,
     redacted, rejection_body,
 )
+import doc_header as dh  # noqa: E402
+from kartoteka_http import call, quote  # noqa: E402
 
 TIMEOUT_SECONDS = 2
 
@@ -29,6 +31,34 @@ def log(line):
             handle.write('{} {}\n'.format(stamp, line))
     except OSError:
         pass  # the log is a convenience; failing to write it changes nothing
+
+
+def header_gate(content, base_url, project, identity, token):
+    """(content to post, None), or (None, why nothing is sent), for a document with
+    a header (design 2026-09-24 §4). kartoteka 0.45.0 takes a header only at the
+    version the write creates, and a files-path document keeps the version it was
+    made from -- 0 when new. So a new document goes up once, its line set to 1 in
+    the request only; after that it is behind the store, and the mirror stays out
+    of migration's way. A legacy document passes with no lookup. A lookup that
+    fails raises: main() logs it as `fail` and sends nothing."""
+    if dh.split(content)[0] is None:
+        return content, None
+    number = dh.version(content)
+    if number is None:
+        return None, 'the header has no usable version line'
+    ticket_key, stage, name = identity
+    status, payload = call(base_url, 'GET', '/api/artifacts/{}/{}/{}/versions'.format(
+        quote(ticket_key), quote(stage), quote(name)), token=token,
+        query={'project': project}, timeout=TIMEOUT_SECONDS)
+    if status != 200:
+        raise RuntimeError('the version lookup answered HTTP {}'.format(status))
+    versions = (payload or {}).get('versions') or []
+    newest = versions[0]['version'] if versions else 0
+    if number == newest + 1:
+        return content, None
+    if number == 0 and newest == 0:
+        return dh.set_version(content, 1), None
+    return None, 'stale header: version {} while kartoteka holds v{}'.format(number, newest)
 
 
 def main():
@@ -69,10 +99,14 @@ def main():
     if len(content.encode('utf-8')) > MAX_BYTES:
         log('skip {} {} -- over {} bytes'.format(ticket_key, name, MAX_BYTES))
         return 0
-    payload = {'project': project, 'ticket_key': ticket_key, 'stage': stage,
-               'name': name, 'content': content}
     try:
         import urllib.error  # deferred with urllib.request, same reasoning
+        content, why = header_gate(content, base_url, project, identity, token)
+        if content is None:
+            log('skip {} {} {} -- {}'.format(ticket_key, stage, name, why))
+            return 0
+        payload = {'project': project, 'ticket_key': ticket_key, 'stage': stage,
+                   'name': name, 'content': content}
         status = post_artifact(base_url, payload, token, timeout=TIMEOUT_SECONDS)
         log('ok {} {} {} {}'.format(ticket_key, stage, name, status))
     except urllib.error.HTTPError as exc:

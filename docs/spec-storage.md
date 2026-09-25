@@ -179,6 +179,88 @@ mirror rows are the same objects. The rule's one implementation is
 
 Images are addressed by path instead, in kartoteka's attachment store (§4.6).
 
+### 3.1 Citing a document
+
+How one spec document names another in its content. The form follows **Spec store:** (§2.3):
+
+| **Spec store:** | Cite another trail document as |
+|---|---|
+| `kartoteka` | a Markdown link to its **reference**: `[prd.md v2](workspace:AW-3088/prd/prd.md@v2)` |
+| `files (…)` | its repo-relative logical path, as before: the files are committed |
+
+A reference is `workspace:<TICKET_KEY>/<stage>/<name>[@v<N>]`, kartoteka's own id for the
+document, with the version when it is pinned. kartoteka's dashboard renders it as a link to the
+document (kartoteka 0.46.0). An agent reads it with `artifact_get(project=<project>, ticket_key,
+stage, name)`, adding `version=N` when it is pinned. The project is always `<project>`: a
+reference never crosses projects.
+
+On the kartoteka path:
+
+- **Copy it, never compose it.** Every kartoteka answer about one version carries a `- ref:`
+  line, the reference pinned to that version. That covers `artifact_get` and the receipt of your
+  own `artifact_put` or `artifact_patch`. A document you have neither read nor written in this
+  dispatch is named in prose, not linked.
+- **Pin the inputs.** The **Inputs:** line lists what you read, each pinned to the version on its
+  `ref:` line. A rewrite keeps the pins of what it actually read.
+- **Unpinned elsewhere.** A later mention of a document listed in **Inputs:** may be short
+  (`plan §2.3`). Any other mention links the `ref:` line without its `@vN`, meaning the newest
+  version.
+- **Sections go in the link text** (`[plan.md v2 §2.3](workspace:…@v2)`); references carry no
+  anchors.
+- **Never a `<specs.dir>/` path** in the content, and never a reference inside the header
+  block.
+
+A logical path found in an older or files-path document still resolves through §3's table.
+Nothing rewrites a stored document's references.
+
+### 3.2 The document header
+
+Every spec-trail document (§1) opens with a YAML block, on both storage paths:
+
+```yaml
+---
+type: tasklist
+ticket: AW-3270
+version: 7
+title: "Ramps: update deep-link dialogs"
+status: TASKLIST_READY
+summary: "Nine tasks, two HITL, one parallel wave of three."
+schema: 1
+produced_by: artel:task-planner
+---
+```
+
+`---` on the first line, LF line endings, flat `key: value` lines in exactly this order, and a
+closing `---` line. No comments, nesting or YAML aliases. `title` and `summary` are double-quoted
+(a `"` inside becomes `\"`): a plain value with `: `, ` #` or a leading `[` is not valid YAML to
+kartoteka, which then stores the block unread and checks nothing.
+
+| Field | Required | Value |
+|---|---|---|
+| `type` | yes | the document's stage, §3's table: the filename stem, `tasks` → `tasklist` |
+| `ticket` | yes | the canonical ticket key; for a release-scope document, the release id |
+| `version` | yes | the kartoteka version this body is, or descends from (§4.1 says what to write); `0` = never stored, and always `0` on the files path for a new document or a release-scope one |
+| `title` | no | one line |
+| `status` | gate documents only | `PRD_READY`; `DRAFT` / `VISION_READY`; `PLAN_DRAFTED` / `PLAN_APPROVED`; `DRAFT` / `TASKLIST_READY`; `DESIGN_ANALYZED` / `DESIGN_BLOCKED` |
+| `summary` | no | one line |
+| `schema` | no | `1` — the template version, never the document version |
+| `produced_by` | no | `artel:<agent or skill>` |
+
+- **What stays out:** the creator, the creation time and hashes. kartoteka records them per
+  version.
+- **What stays in the body:** a `## Metadata` section keeps inputs and scope, with no `Status:`
+  line. `**Review round:**` and `**Plan-check bounces:**` stay in the body.
+- **Reading a status:** `spec_store.py status` (§8). It reads the header first, then, for a
+  document written before artel 0.21.0, its old `Status:` line. The old line is read for one
+  release.
+- **What kartoteka checks** (0.45.0 and later): it refuses a write whose `version` is not the
+  version the write creates, whose `type` is not the stage, or whose `ticket` is not the ticket
+  key. The refusal names the numbers to use: re-read, re-apply, and write once more (§4.1).
+- **Documents written before the header** have none. Nothing migrates them. A document gains its
+  header the next time it is rewritten (a put), not when it is patched.
+- **On the files path** a new document says `version: 0`, and an edit never changes the line.
+  `/artel:migrate-specs` reads it to tell a successor from a copy the store has moved past (§7).
+
 ## 4. Operations
 
 ### 4.1 Agents and inline-writing skills
@@ -188,14 +270,14 @@ Read and write it with kartoteka's MCP tools, never with Read/Write/Edit:
 
 | On the files path | On the kartoteka path |
 |---|---|
-| Read `<path>` | `artifact_get(project=<project>, ticket_key, stage, name)`. `No such artifact.` means the file does not exist. Note the `vN` in the header if you may rewrite the document. |
+| Read `<path>` | `artifact_get(project=<project>, ticket_key, stage, name)`. `No such artifact.` means the file does not exist. Note the `vN` on the answer's first line: every write needs it. |
 | Does `<path>` exist? | `artifact_list(project=<project>, ticket_key)` once; its names answer every existence check in this step. |
 | `Glob <specs.dir>/<T>/phase-*/` | Any name in that listing that starts `phase-`. |
-| Write a new `<path>` | `artifact_put(project=<project>, ticket_key, stage, name, content, author_agent="artel:<you>", expected_version=0)`. `Conflict` means it appeared meanwhile: read it and continue as if it had existed. |
-| Rewrite an existing `<path>` | `artifact_put(project=<project>, …, expected_version=<the version you read>)`. On `Conflict`, re-read, re-apply your change once, and put again. A second conflict is reported, never forced. |
-| Edit `<path>` | `artifact_patch(project=<project>, ticket_key, stage, name, edits=[{old_string, new_string}, …])`. Atomic on the newest version: no `expected_version` unless the edit depends on text outside its `old_string`s. |
-| Append to `<path>` | `artifact_patch(project=<project>, …, edits=[{append: "<text>"}])`. |
-| Insert at the end of a `## ` section | A replace edit whose `old_string` is the next `## ` heading line, or `append` when the section is last. |
+| Write a new `<path>` | `artifact_put(project=<project>, ticket_key, stage, name, content, author_agent="artel:<you>", expected_version=0)`, the content opening with the header (§3.2) at `version: 1`. `Conflict` means it appeared meanwhile: read it and continue as if it had existed. |
+| Rewrite an existing `<path>` | `artifact_put(project=<project>, …, expected_version=<N, the version you read>)`, the header at `version: <N+1>`. A document without a header gains one here. On `Conflict`, or a refusal naming the header, re-read, re-apply your change once, and put again with the new numbers. A second conflict is reported, never forced. |
+| Edit `<path>` | `artifact_patch(project=<project>, ticket_key, stage, name, expected_version=<N>, edits=[{old_string: "ticket: <T>\nversion: <N>\n", new_string: "ticket: <T>\nversion: <N+1>\n"}, {old_string, new_string}, …])` — the version bump first, always, then your edits. A document without a header takes no bump edit, but still `expected_version`. On `Conflict`, or a refusal naming the header, re-read and re-apply once. |
+| Append to `<path>` | `artifact_patch(project=<project>, …, expected_version=<N>, edits=[<the version bump>, {append: "<text>"}])`. On `Conflict`, or a refusal naming the header, re-read and re-apply once. |
+| Insert at the end of a `## ` section | A replace edit whose `old_string` is the next `## ` heading line, or `append` when the section is last. It follows the version bump, like every edit. |
 | Delete `<path>` | Not an operation. The one deletion artel performs is §4.4. |
 
 `author_agent` is `artel:<agent or skill name>`, self-reported. Writes answer with a receipt —
@@ -216,9 +298,13 @@ model's context:
 | `plan_check.py --plan <path> --strict` | `set -o pipefail; spec_store.py get <path> \| plan_check.py --plan - --strict` |
 | `grep -q <pattern> <path>` | `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" \| grep -q <pattern>` |
 | `test -f <path>` | `spec_store.py exists <path>` |
-| `gh pr … --body-file <path>` | `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" \| gh pr … --body-file -` |
+| `spec_store.py status < <path>` | `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" \| spec_store.py status` |
+| `doc=$(spec_store.py body < <path>) && printf '%s\n' "$doc" \| gh pr … --body-file -` | `set -o pipefail; doc=$(spec_store.py get <path> \| spec_store.py body) && printf '%s\n' "$doc" \| gh pr … --body-file -` |
 
-`spec_store.py` is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py`.
+`spec_store.py` is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py`. A status is always read with
+`status`, never `grep`: the header's `status:` is lower-case, and `status` falls back to the old
+`Status:` line for documents written before 0.21.0. A document leaves for a pull request only
+through `body`, which drops the header.
 
 **A failed `get` must never reach a consumer as an empty document.** It prints nothing on
 stdout, and `pipefail` alone does not stop that: a pipe's status under `pipefail` is its
@@ -240,12 +326,12 @@ successful read into a failure.
 
 The tasklist stays one document with today's shape; its writers change verb, not logic:
 
-- **Tick a task** (implementer Step 5) — one `artifact_patch` with two replace edits: the
-  checkbox and the Progress Report row.
+- **Tick a task** (implementer Step 5) — one `artifact_patch` with the version bump and two
+  replace edits: the checkbox and the Progress Report row.
 - **Append a fix batch** under `## Code Review Fixes`, `## Runtime Fixes` or `## Verify Fixes`
   — `artifact_patch`, inserting before the next `## ` heading, or `append` when the section
   is last or missing.
-- **`sync-phases`** — one `artifact_patch` with an edit per changed line. It creates
+- **`sync-phases`** — one `artifact_patch` with the version bump and an edit per changed line. It creates
   `phase-<N>/tasks.md` with `artifact_put(project=<project>, …, expected_version=0)`.
 - **File scan** (`docs/task-queue.md` §4 and §6) — `artifact_get`, then the same scan.
 - **The queue mirror** (`docs/task-queue.md` §2) — reads the document through §4.2's pipe.
@@ -256,6 +342,14 @@ Where the files path deletes `review.md` to reset `**Review round:**` (at a phas
 cap guidance), the kartoteka path puts a new version:
 
 ```markdown
+---
+type: review
+ticket: <TICKET_ID>
+version: <N+1>
+title: "Review"
+schema: 1
+produced_by: artel:<orchestrator>
+---
 # Review
 
 **Review round:** 0
@@ -263,6 +357,8 @@ cap guidance), the kartoteka path puts a new version:
 _Reset by <orchestrator> at <phase N boundary | cap guidance>, <UTC time>. Earlier rounds are
 this document's previous versions in kartoteka._
 ```
+
+It is put with `expected_version=<N>`, N being the version you read.
 
 ### 4.5 When kartoteka fails
 
@@ -399,8 +495,9 @@ A `STORE_UNAVAILABLE` return, or a failing call of your own, is the environment 
 - **Retry** — resume the agent (`SendMessage`) to try again.
 - **Save it locally and pause** — offered only when a produced document is unsaved. First run
   `spec_store.py pending add <path> --base-version <the version it was based on, 0 for new>` so
-  the guard (§6) admits the write, then resume the agent to write it to its logical path, then
-  pause.
+  the guard (§6) admits the write, then resume the agent to write it to its logical path, with its
+  header's `version:` set to that same base (0 for new) — not the `N+1` it composed for the put —
+  so the migration uploads it without asking (§7), then pause.
 - **Pause without saving** — resuming re-runs the stage that produced it.
 
 There is no "continue locally" mid-run: every later gate reads documents that live in kartoteka.
@@ -518,19 +615,45 @@ Headless: stop (§5.4).
 version. **Each distinct local copy is one item**: where a document's working-tree copy and its
 `.artel/context` copy differ, each is classified, reported and settled on its own.
 
+A copy whose header carries a `version:` line (§3.2) is classified by it: the header's `version:`
+is the store version the copy descends from, B, and S is the stored newest. A hash match still
+comes first (`current`, `stale`). A copy with no header, or one whose `version:` is not a plain
+whole number, is **`legacy`** (`legacy: true` on the item) and classified by the rows below as
+before.
+
 | Class | Meaning | Action |
 |---|---|---|
 | `absent` | nothing stored at that address | upload |
 | `current` | equals the newest stored version | nothing to upload |
 | `stale` | equals an older stored version — a redacted version never counts as a match | nothing to upload; the store has moved on |
-| `successor` | new content, and the store has not moved since this copy's known base (`pending` → `files_base` → a standing files decision's `versions`); or, with no known base, a **working-tree** copy no older than a mirror-only history, which can only lag | upload |
-| `conflict` | anything else: two local copies of one document that differ, a redacted version with no known base (shown without a diff — the copy may carry the removed text), a redacted newest version, a `.artel/context` copy with no known base, a working-tree copy whose mtime predates the newest version, or versions written in kartoteka that this copy never saw | show the diff; keep local / keep stored / skip |
+| `successor` | new content, and the store has not moved since this copy's known base (`pending` → `files_base` → a standing files decision's `versions`); or, with no known base, a **working-tree** copy no older than a mirror-only history, which can only lag; with a header, B = S, or a **working-tree** copy with B = 0, no older than a mirror-only history, which can only lag | upload |
+| `mergeable` | the header says B < S, the copy is in the working tree, and no version from B to S is redacted | three-way merge with vB and vS on `apply`: clean → uploaded as vS+1 (`merged`); every local change already in vS → nothing uploaded; conflicting → the marked text goes to `<logical>.merge` (`conflicted`) and nothing is uploaded |
+| `conflict` | anything else: two local copies of one document that differ, a redacted version with no known base (shown without a diff — the copy may carry the removed text), a redacted newest version, a `.artel/context` copy with no known base, a working-tree copy whose mtime predates the newest version, or versions written in kartoteka that this copy never saw; with a header: B > S, B ≥ 1 with nothing stored, B = 0 with versions written in kartoteka (created twice), a redaction from B to S, or a `.artel/context`-only copy with B < S (a snapshot is never merged: its working-tree twin carries the work) | show the diff; keep local / keep stored / skip |
 | `skipped` | too large, unreadable, or a symbolic link or path outside the ticket's trail | reported, kept, never read |
 
-Answers are per document (`--resolve <logical>=…`): `keep-local[:<source>][@<N>]`, where
-`<source>` names which copy to keep — required when two copies differ — and `@<N>` is the stored
-version the user was shown, so a store that moved since is refused rather than overwritten;
-`keep-stored`, refused unless kartoteka holds a version; `skip`.
+Every upload is stamped: its header's `version:` is set to the version the upload creates, the
+only number kartoteka 0.45.0 accepts. Once kartoteka verifiably holds it, each local copy
+unchanged since the plan is rewritten to those exact bytes, so it is `current` and deletable. A
+`pending` base that disagrees with the header loses to it; the reason says so.
+
+Answers are per document (`--resolve <logical>=…`), for a `conflict` or a `mergeable` item:
+`keep-local[:<source>][@<N>]`, where `<source>` names which copy to keep — required when two
+copies differ — and `@<N>` is the stored version the user was shown, so a store that moved since
+is refused rather than overwritten; `keep-merged[@<N>]`, which uploads `<logical>.merge` once the
+user has edited its conflict markers out (refused while any remain, when the file is missing, or
+when the address's copies differ). When the address already has nothing open — an earlier
+`keep-merged` run already settled it — a repeated `keep-merged` is accepted as a no-op instead of
+refused for "nothing to merge", so a resumed `delete` or a re-run `apply` with the same
+`--resolve` arguments still succeeds. `keep-stored`, refused unless kartoteka holds a version;
+`skip`.
+
+`apply` never overwrites an existing `<logical>.merge`: a `mergeable` item whose merge file is
+already there from an earlier run comes back `conflicted` with that same file and a `note`,
+rather than replacing work the user may be mid-edit on — resolve it (`keep-merged`) or delete the
+file first to have it remerged from scratch. A `conflicted` entry with `merge_file: null` means
+git itself could not merge the three copies (its `reason` says why, most often a missing `git`);
+it offers no `keep-merged`, only keep local / keep stored / skip. A verified upload removes the
+address's `.merge` file, and so does `delete`, once none of the address's copies is kept.
 
 **Images** migrate the same way. Each distinct local copy is compared by sha256 with every stored
 version of its path, from the attachment listing:
@@ -564,12 +687,14 @@ skipped are never deleted.
 | `exists <path>` | nothing | `0` present; `3` absent |
 | `list <ticket-id>` | JSON `[{name, stage, version, created_at, redacted}]` | `0` |
 | `versions <path>` | JSON `[{version, content_hash, author_agent, created_at, redacted}]`, newest first | `0`; `3` none |
-| `put <path> [--expected-version N] [--author A]` (stdin) | JSON `{version, content_hash}` | `0`; `4` conflict, printing `{current_version}` |
+| `put <path> [--expected-version N] [--author A]` (stdin) | JSON `{version, content_hash}`; a document with a header is sent with its version line stamped `version: <expected>+1` (<expected> is --expected-version, else the stored newest), and content that is already the stored newest is that version's receipt | `0`; `4` conflict, printing `{current_version}`; `2` kind `no_version_line` for a header block without one |
+| `status` (stdin) | the document's status: its header's `status:`, else — for a document written before 0.21.0 — the value on its first `Status:` line | `0`; `1` none declared; `2` kind `empty_input` |
+| `body` (stdin) | the document without its leading header block, verbatim otherwise | `0`; `2` kind `empty_input` |
 | `decide <ticket-id> --decided-by S [--local \| --files R]` | the decision, `local_trail` | `0`; `5` unavailable, printing `{store: null, reason, versions}` |
 | `decision <ticket-id>` | the decision and `fresh` | `0`; `3` none |
 | `pending add <path> --base-version N` | the pending list | `0` |
 | `migrate plan (<ticket-id>… \| --all) [--pending-only]` | one item per distinct local copy, classified (§7) | `0`; `5` unavailable |
-| `migrate apply <plan's arguments> [--resolve <path>=keep-local[:<source>][@<N>]\|keep-stored\|skip]…` | `uploaded`, `failed`, `deletable`, `kept`, `flipped`, `pending_left` | `0`; `5` unavailable |
+| `migrate apply <plan's arguments> [--resolve <path>=keep-local[:<source>][@<N>]\|keep-merged[@<N>]\|keep-stored\|skip]…` | `uploaded`, `merged`, `conflicted`, `failed`, `deletable`, `kept`, `flipped`, `pending_left` | `0`; `5` unavailable |
 | `migrate delete <apply's arguments> [--commit]` | `removed`, `kept`, `commit`, `pending_left` | `0`; `5` unavailable |
 | `image put <path> [--file F] [--author A] [--expected-version N]` | the receipt, JSON `{project, ticket_key, path, version, content_hash, byte_size, content_type, unchanged}` | `0`; `4` conflict, printing `{current_version}` |
 | `image fetch <path> [--version N]` | one local path to Read (§4.6) | `0`; `3` absent; `2` kind `redacted` for a redacted version, or a store error |
@@ -585,4 +710,5 @@ reports those as errors (exit `2`). `image put --file` defaults to the logical p
 bytes are read and written in
 binary and never printed. It never prints the token. It uses `knowledge.baseUrl`, and
 `knowledge.tokenEnv` when the daemon has `[auth]` on — a CLI-minted token is needed even
-where the MCP session signs in with GitHub.
+where the MCP session signs in with GitHub. `status` and `body` read stdin only; they need no
+`.artel/config.json`.

@@ -115,13 +115,13 @@ Interview complete. Write the PRD now:
    `## Out of Scope`. `## Open Questions` must be empty. A question the institutional record
    answered is recorded there too, in the cited form your agent definition's Output section gives —
    status and ⚠ NON-CURRENT marker included.
-3. Set `Status: PRD_READY` and save to the path from Phase 1.
+3. Open the PRD with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2) — `type: prd`, `status: PRD_READY` — and save to the path from Phase 1.
 4. Return a summary: goals, key decisions, scope, count of resolved questions and assumptions.
 ```
 
 ### Completion
 
-Display the summary. Report `Status: PRD_READY` and the resolved-question count to the caller.
+Display the summary. Report status `PRD_READY` and the resolved-question count to the caller.
 
 ## Important Rules
 

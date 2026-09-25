@@ -31,7 +31,7 @@ Use the Agent tool with `subagent_type: "task-planner"`, description `"Create ta
 Wait for the agent to finish and then report the tasklist status back to the user.
 
 The prompt must also instruct: apply the HITL tagging rule from your agent definition
-(`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4) and set `Status: TASKLIST_READY` in the output file.
+(`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4) and set `status: TASKLIST_READY` in the output file's header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2).
 This skill never asks the user; any open question the breakdown surfaces goes to
 `.artel/run/<TICKET_ID>/open-questions.md` (§3 format, `from: tasklist`).
 

@@ -1271,7 +1271,7 @@ def _validate_resolutions(items, resolutions, config):
       as a no-op rather than refused for "nothing to merge" (F2).
     """
     by_logical = _by_logical(items)
-    for logical, (action, source, _) in sorted(resolutions.items()):
+    for logical, (action, source, seen) in sorted(resolutions.items()):
         copies = by_logical.get(logical)
         if not copies:
             continue
@@ -1299,6 +1299,11 @@ def _validate_resolutions(items, resolutions, config):
                 raise Failure('invalid_argument', 'keep-merged for {}: {} still has conflict '
                                                   'markers; edit them out first'.format(
                                                       logical, target))
+            made = dh.version(merged)
+            if seen is not None and made is not None and made != seen:
+                raise Failure('invalid_argument', (
+                    'keep-merged for {}: {} was merged against v{}, not v{}; delete it and '
+                    'run migrate-specs again').format(logical, target, made, seen))
             continue
         if action != 'keep-local':
             continue
@@ -1602,10 +1607,26 @@ def _merge_item(store, config, item, resolutions):
     anything else about this item is even read."""
     target = _merge_path(item['logical'])
     if target.exists():
-        return 'conflicted', {'logical': item['logical'], 'merge_file': str(target),
-                              'newest_version': item['newest_version'],
-                              'note': 'an earlier merge file is kept; resolve it with '
-                                      'keep-merged, or delete it to merge again'}
+        if _outside_the_trail(str(target), item['ticket'], config):
+            return 'failed', '{} is {}'.format(target, OUTSIDE_THE_TRAIL)
+        # The merge file's own version line is the S it was merged against (all
+        # three sides are stamped vS before merging), so that is the version a
+        # keep-merged answers for -- never the store's newest now, which would
+        # let a merge made against v2 go up over a v3 nobody merged (N1).
+        try:
+            made = dh.version(target.read_bytes().decode('utf-8'))
+        except (OSError, UnicodeDecodeError):
+            made = None
+        current = item['newest_version']
+        entry = {'logical': item['logical'], 'merge_file': str(target),
+                 'newest_version': made if made is not None else current, 'stale': False,
+                 'note': 'an earlier merge file is kept; resolve it with keep-merged, or '
+                         'delete it to merge again'}
+        if made is not None and made != current:
+            entry.update({'stale': True, 'note': (
+                'this merge file was made against v{}; kartoteka has moved to v{} since -- '
+                'delete it and run migrate-specs again to merge afresh').format(made, current)})
+        return 'conflicted', entry
     ticket_key, stage, name = address(item['logical'], config)
     base, current = item['base_version'], item['newest_version']
     try:
@@ -1712,7 +1733,10 @@ def cmd_migrate_apply(args, config):
             # read_bytes().decode, never read_text: read_text translates newlines, so a
             # CRLF document would go up as LF and be verified against the translated
             # text, while the plan hashed -- and the deletion re-checks -- the raw bytes.
-            merging = _resolution(resolutions, item['logical'])[0] == 'keep-merged'
+            # Only an open item's source is its merge file; once the address has
+            # settled, a re-used keep-merged answer uploads the document itself (N2).
+            merging = (_resolution(resolutions, item['logical'])[0] == 'keep-merged'
+                       and item['class'] in ('conflict', 'mergeable'))
             if merging and _outside_the_trail(source, item['ticket'], config):
                 fail(OUTSIDE_THE_TRAIL)
                 continue

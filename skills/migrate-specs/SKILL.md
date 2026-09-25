@@ -124,12 +124,18 @@ is there (`<logical>.merge`, beside the document's path), with `local` / `kartot
 - **Keep stored** → `--resolve <logical>=keep-stored`.
 - **Skip** → `--resolve <logical>=skip`.
 
-`<S>` is the entry's `newest_version`. Never edit `merge_file` for the user unless they ask.
+`<S>` is the entry's `newest_version` — for a merge file kept from an earlier run, the version it
+was merged against. Never edit `merge_file` for the user unless they ask.
 Under `--no-prompt` the entry stays unresolved: nothing with markers is ever uploaded.
 
 A `conflicted` entry with `merge_file: null` means git itself could not merge the three copies —
 most often a missing `git` — and names why in its `reason`. There is nothing to edit: offer keep
 local, keep stored or skip, never keep-merged.
+
+An entry with `stale: true` was merged against an older stored version than kartoteka now holds
+(its `note` names both). Its `keep-merged` would be refused. Say so, and offer: delete
+`merge_file` and run the skill again (a fresh merge against the newest version), **Keep local**,
+**Keep stored** or **Skip**.
 
 A plan item already showing a `merge_file` while still `mergeable` means an earlier `apply` wrote
 it and a later one left it alone rather than overwrite it: treat it as already `conflicted`, go

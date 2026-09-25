@@ -1167,6 +1167,40 @@ class TestKeepMerged(MergeCase):
         self.assertTrue((self.repo / PRD).exists())
         self.assertTrue(merge.exists())
 
+    def test_a_kept_merge_file_is_reported_against_its_own_version(self):
+        merge = self.conflicted()                       # merged against v2
+        self.resolve_markers(merge)
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md',
+                       doc(3, self.BODY.replace('second', 'second, v3')), author_agent='a')
+        entry = self.apply('AW-12')['conflicted'][0]
+        self.assertEqual((entry['newest_version'], entry['stale']), (2, True))
+        self.assertIn('v2', entry['note'])
+        self.assertIn('v3', entry['note'])
+
+    def test_keep_merged_refuses_a_version_the_merge_was_not_made_against(self):
+        merge = self.conflicted()
+        self.resolve_markers(merge)
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md',
+                       doc(3, self.BODY.replace('second', 'second, v3')), author_agent='a')
+        proc = self.cli('migrate', 'apply', 'AW-12', '--resolve', PRD + '=keep-merged@3')
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('merged against v2', json.loads(proc.stderr)['error']['message'])
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-merged@2')
+        self.assertIn('moved from v2 to v3', out['failed'][0]['reason'])
+        self.assertIn('second, v3', self.stored()['content'])
+
+    def test_keep_merged_on_a_settled_address_uploads_a_later_edit_normally(self):
+        merge = self.conflicted()
+        self.resolve_markers(merge)
+        self.apply('AW-12', '--resolve', PRD + '=keep-merged@2')        # now v3, copy aligned
+        path = self.repo / PRD
+        # A setext heading underlined with exactly seven '=' reads as a merge marker: only
+        # a merge file is checked for markers, never the document itself (N2).
+        path.write_text(path.read_text(encoding='utf-8') + 'Later\n=======\n', encoding='utf-8')
+        out = self.apply('AW-12', '--resolve', PRD + '=keep-merged@2')  # same answer, re-used
+        self.assertEqual(out['failed'], [])
+        self.assertEqual(out['uploaded'], [{'logical': PRD, 'version': 4}])
+
 
 class TestDelete(MigrateCase):
     def delete(self, *args):

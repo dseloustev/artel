@@ -334,3 +334,9 @@ class TestMigrationByHeaderDocs(unittest.TestCase):
 
     def test_put_stamps_the_version_line(self):
         self.assertIn('stamped `version: <expected>+1`', flat(section(self.storage, '## 8. spec_store.py')))
+
+    def test_the_class_table_keeps_snapshots_out_of_the_merge(self):
+        table = flat(section(self.storage, '## 7. Local trails and migration'))
+        self.assertIn('a snapshot is never merged', table)
+        self.assertIn('with B = 0, no older than a mirror-only history', table)
+        self.assertIn('`stale: true`', self.skill)

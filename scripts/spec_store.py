@@ -1492,6 +1492,97 @@ def _upload_document(store, config, item, text, expected, resolutions):
     return entry, None
 
 
+MERGE_MARKER = re.compile(r'^(?:<{7}|\|{7}|={7}|>{7})(?: |$)', re.M)
+
+
+def three_way_merge(local, ancestor, newest, labels):
+    """`git merge-file -p --diff3` over three texts: (merged text, conflict count),
+    or (None, reason) when git cannot merge them at all. git is already a hard
+    requirement of every artel host; a missing one degrades the item, never the
+    run. Its exit status is the conflict count (capped at 127), negative on error."""
+    with tempfile.TemporaryDirectory(prefix='artel-merge-') as tmp:
+        paths = []
+        for name, text in (('local', local), ('ancestor', ancestor), ('newest', newest)):
+            path = Path(tmp) / name
+            path.write_bytes(text.encode('utf-8'))
+            paths.append(str(path))
+        command = ['git', 'merge-file', '-p', '--diff3']
+        for label in labels:
+            command += ['-L', label]
+        try:
+            proc = subprocess.run(command + paths, capture_output=True)
+        except OSError as exc:
+            return None, 'git merge-file could not run: {}'.format(exc)
+    if not 0 <= proc.returncode <= 127:
+        detail = proc.stderr.decode('utf-8', 'replace').strip()
+        return None, 'git merge-file failed: {}'.format(detail or 'exit {}'.format(proc.returncode))
+    try:
+        return proc.stdout.decode('utf-8'), proc.returncode
+    except UnicodeDecodeError:
+        return None, 'git merge-file printed text that is not UTF-8'
+
+
+def _changes(old, new):
+    """How many separate places `new` differs from `old`, by line."""
+    matcher = difflib.SequenceMatcher(None, old.splitlines(True), new.splitlines(True),
+                                      autojunk=False)
+    return sum(1 for opcode in matcher.get_opcodes() if opcode[0] != 'equal')
+
+
+def _merge_item(store, config, item, resolutions):
+    """Merge a `mergeable` copy (made from vB) with kartoteka's newest vS, the way
+    design 2026-09-24 §2.5 says: clean -> upload as vS+1; every local change
+    already in vS -> nothing to upload; conflicts -> the marked text goes to
+    `<logical>.merge` for the user. ('merged' | 'conflicted', entry) or
+    ('failed', reason)."""
+    ticket_key, stage, name = address(item['logical'], config)
+    base, current = item['base_version'], item['newest_version']
+    try:
+        local = Path(item['source']).read_bytes().decode('utf-8')
+    except (OSError, UnicodeDecodeError) as exc:
+        return 'failed', 'unreadable: {}'.format(exc)
+    if _sha(local) != item['sha256']:
+        return 'failed', 'it changed since it was classified; run migrate-specs again'
+    newest = store.get(ticket_key, stage, name)
+    if newest is None or newest.get('version') != current:
+        return 'failed', 'kartoteka moved to v{} during the migration; run it again'.format(
+            newest.get('version') if newest else None)
+    ancestor = store.get(ticket_key, stage, name, base)
+    if ancestor is None or _redacted(ancestor) or _redacted(newest):
+        return 'failed', 'kartoteka no longer holds v{} and v{} readable; run it again'.format(
+            base, current)
+    # Every side's version line differs by construction; left in, an edit to the
+    # line beside it (`title:`) would conflict with it. All three read vS here,
+    # and the upload stamps vS+1.
+    mine, theirs = _stamped(local, current), newest['content']
+    common = _stamped(ancestor['content'], current)
+    merged, conflicts = three_way_merge(mine, common, theirs, [
+        'local', 'kartoteka v{}'.format(base), 'kartoteka v{}'.format(current)])
+    if merged is None:
+        return 'failed', conflicts
+    counts = {'local_changes': _changes(common, mine), 'stored_changes': _changes(common, theirs)}
+    if conflicts:
+        target = _merge_path(item['logical'])
+        try:
+            _write_atomically(target, merged.encode('utf-8'))
+        except OSError as exc:
+            return 'failed', 'the merge has conflicts and {} could not be written: {}'.format(
+                target, exc)
+        return 'conflicted', dict({'logical': item['logical'], 'merge_file': str(target),
+                                   'conflicts': conflicts, 'newest_version': current}, **counts)
+    if merged == theirs:
+        entry = dict({'logical': item['logical'], 'version': current, 'unchanged': True}, **counts)
+        problems = _align_local_copies(item, theirs)
+        if problems:
+            entry['unaligned'] = problems
+        return 'merged', entry
+    entry, reason = _upload_document(store, config, item, merged, current, resolutions)
+    if entry is None:
+        return 'failed', reason
+    entry.update(counts)
+    return 'merged', entry
+
+
 @migrating
 def cmd_migrate_apply(args, config):
     tickets = migration_tickets(args, config)
@@ -1499,8 +1590,22 @@ def cmd_migrate_apply(args, config):
     resolutions = parse_resolutions(args.resolve)
     items = plan_items(store, config, tickets, args.pending_only)
     _validate_resolutions(items, resolutions)
-    uploaded, failed = [], []
+    uploaded, failed, merged, conflicted = [], [], [], []
     for item in items:
+        if item['class'] == 'mergeable' and _resolution(resolutions, item['logical'])[0] is None:
+            try:
+                kind, result = _merge_item(store, config, item, resolutions)
+            except Failure as exc:
+                if exc.kind not in ('rejected', 'too_large'):
+                    raise
+                kind, result = 'failed', str(exc)
+            if kind == 'merged':
+                merged.append(result)
+            elif kind == 'conflicted':
+                conflicted.append(result)
+            else:
+                failed.append({'logical': item['logical'], 'reason': result})
+            continue
         chosen = _upload_source(item, resolutions)
         if chosen is None:
             continue
@@ -1552,7 +1657,8 @@ def cmd_migrate_apply(args, config):
     pending_left = tidy_decisions(tickets, config)
     deletable, kept = deletion_sets(plan_items(store, config, tickets, args.pending_only),
                                     resolutions)
-    print(json.dumps({'uploaded': uploaded, 'failed': failed,
+    print(json.dumps({'uploaded': uploaded, 'failed': failed, 'merged': merged,
+                      'conflicted': conflicted,
                       'deletable': [entry['path'] for entry in deletable],
                       'kept': kept, 'flipped': flipped, 'pending_left': pending_left}))
     return OK

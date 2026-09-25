@@ -895,6 +895,88 @@ class TestApplyByHeader(MigrateCase):
         self.assertEqual(self.stored()['content'], 'no header\n')
 
 
+class TestThreeWayMerge(unittest.TestCase):
+    def test_a_clean_merge(self):
+        text, conflicts = spec_store.three_way_merge('A\nb\nc\nd\n', 'a\nb\nc\nd\n',
+                                                     'a\nb\nc\nD\n', ['l', 'b', 's'])
+        self.assertEqual((text, conflicts), ('A\nb\nc\nD\n', 0))
+
+    def test_a_conflict_is_marked(self):
+        text, conflicts = spec_store.three_way_merge('X\n', 'a\n', 'Y\n', ['local', 'b', 's'])
+        self.assertEqual(conflicts, 1)
+        self.assertTrue(spec_store.MERGE_MARKER.search(text))
+        self.assertIn('<<<<<<< local', text)
+
+    def test_git_missing_is_a_reason_not_a_crash(self):
+        with mock.patch('subprocess.run', side_effect=FileNotFoundError('git')):
+            text, reason = spec_store.three_way_merge('a\n', 'a\n', 'a\n', ['l', 'b', 's'])
+        self.assertIsNone(text)
+        self.assertIn('git merge-file could not run', reason)
+
+
+class MergeCase(MigrateCase):
+    """Helpers for the merge tests: a two-version history and apply."""
+    BODY = 'intro\n\n## One\nfirst\n\n## Two\nsecond\n'
+
+    def apply(self, *args):
+        proc = self.cli('migrate', 'apply', *args)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def history(self, newest_body, newest_title='T'):
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(1, self.BODY), author_agent='a')
+        self.fake.seed(PROJECT, 'AW-12', 'prd', 'prd.md', doc(2, newest_body, title=newest_title),
+                       author_agent='a')
+
+    def stored(self):
+        return self.fake.newest(PROJECT, 'AW-12', 'prd', 'prd.md')
+
+
+class TestApplyMerge(MergeCase):
+    def test_a_clean_merge_goes_up_as_the_next_version(self):
+        self.history(self.BODY.replace('second', 'second, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'first, local')))
+        out = self.apply('AW-12')
+        self.assertEqual([(m['logical'], m['version']) for m in out['merged']], [(PRD, 3)])
+        self.assertEqual((out['merged'][0]['local_changes'], out['merged'][0]['stored_changes']),
+                         (1, 1))
+        merged = self.BODY.replace('first', 'first, local').replace('second', 'second, stored')
+        self.assertEqual(self.stored()['content'], doc(3, merged))
+        self.assertEqual((self.repo / PRD).read_text(encoding='utf-8'), doc(3, merged))
+        self.assertEqual(out['deletable'], [PRD])
+
+    def test_a_title_edit_beside_the_version_line_still_merges(self):
+        self.history(self.BODY.replace('second', 'second, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY, title='Retitled locally'))
+        out = self.apply('AW-12')
+        self.assertEqual(out['conflicted'], [])
+        self.assertIn('title: Retitled locally\n', self.stored()['content'])
+
+    def test_local_changes_kartoteka_already_holds_upload_nothing(self):
+        changed = self.BODY.replace('first', 'first, both')
+        self.history(changed)
+        self.local(SPECS / 'AW-12/prd.md', doc(1, changed))
+        out = self.apply('AW-12')
+        self.assertEqual((out['merged'][0]['version'], out['merged'][0]['unchanged']), (2, True))
+        self.assertEqual(self.stored()['version'], 2)
+        self.assertEqual(out['deletable'], [PRD])
+
+    def test_conflicting_edits_write_a_merge_file_and_upload_nothing(self):
+        self.history(self.BODY.replace('first', 'first, stored'))
+        self.local(SPECS / 'AW-12/prd.md', doc(1, self.BODY.replace('first', 'first, local')))
+        out = self.apply('AW-12')
+        self.assertEqual(out['merged'], [])
+        entry = out['conflicted'][0]
+        self.assertEqual((entry['logical'], entry['merge_file'], entry['conflicts']),
+                         (PRD, PRD + '.merge', 1))
+        text = (self.repo / (PRD + '.merge')).read_text(encoding='utf-8')
+        self.assertIn('<<<<<<< local', text)
+        self.assertIn('\nversion: 2\n', text)
+        self.assertEqual(self.stored()['version'], 2)
+        self.assertEqual(out['deletable'], [])
+        self.assertEqual(self.plan('AW-12')[PRD]['merge_file'], PRD + '.merge')
+
+
 class TestDelete(MigrateCase):
     def delete(self, *args):
         proc = self.cli('migrate', 'delete', *args)

@@ -69,5 +69,27 @@ class TestReferencesContract(unittest.TestCase):
         self.assertIn(r'\.artel/', read('docs/path-conventions.md'))
 
 
+PROMPTS = sorted([*(ROOT / 'agents').glob('*.md'), *(ROOT / 'skills').glob('*/SKILL.md'),
+                  *(p for p in (ROOT / 'docs').glob('*.md'))])
+
+
+class TestGates(unittest.TestCase):
+    def test_no_prompt_or_doc_greps_for_a_status_line(self):
+        for path in PROMPTS:
+            with self.subTest(path.name):
+                self.assertNotIn("grep -m1 'Status:'", path.read_text(encoding='utf-8'))
+
+    def test_the_gates_read_status_through_the_verb(self):
+        for rel in ('skills/feature-development/SKILL.md', 'skills/figma-analysis/SKILL.md'):
+            with self.subTest(rel):
+                self.assertIn('spec_store.py status', read(rel))
+
+    def test_no_gate_names_a_capitalised_status_line(self):
+        for rel in ('skills/feature-development/SKILL.md', 'skills/figma-analysis/SKILL.md',
+                    'agents/validator.md', 'docs/autonomous-run.md'):
+            with self.subTest(rel):
+                self.assertIsNone(re.search(r'`Status: [A-Z_]+`', read(rel)))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -86,17 +86,17 @@ working locally.
 
 ### 2. Chatty head — collect everything upfront
 
-On the kartoteka path "artifact exists" in every gate below is one `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py list <TICKET_ID>`, re-run after each sub-skill returns, and a gate's `Status:` line is read without the document entering this context: `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" | grep -m1 'Status:'`.
+On the kartoteka path "artifact exists" in every gate below is one `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py list <TICKET_ID>`, re-run after each sub-skill returns, and a gate's status is read without the document entering this context: `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" | spec_store.py status` (files path: `spec_store.py status < <path>`). `status` prints the header's `status:` (or, for a document written before 0.21.0, its `Status:` line's value) and exits `1` when none is declared (spec-storage.md §3.2, §8).
 
 | # | Gate | Action (skip if artifact exists) |
 |---|------|----------------------------------|
 | 0 | `IDEA_READY` — `idea.md` exists | `Skill: generate-idea` with `$0 $1`, under **every** adapter — it branches on `tracker.adapter` itself (config.md): a tracker imports the ticket; `"none"` (local-only) seeds `idea.md` from the `$1` description file, or runs the same input gate `analysis` does when `$1` is absent. Gate 2 hard-requires `idea.md`, so the pipeline seeds it here rather than letting a `"none"` run die at the vision gate. |
-| 0.5 | `DESIGN_ANALYZED` — `design-analysis.md` has `Status: DESIGN_ANALYZED`, or `idea.md` has no `figma.com/design` link | `design.figma` disabled (config.md) → skip silently. Enabled → Grep `idea.md` for `figma.com/design` (kartoteka path: `doc=$(spec_store.py get <specs.dir>/<TICKET_ID>/idea.md) && printf '%s\n' "$doc" | grep -q figma.com/design`). Link present → `Skill: figma-analysis` with `$0` (chatty head — its Major-findings handshake may ask; on `DESIGN_BLOCKED` — returned by the skill or already recorded in an existing artifact's `Status:` — stop the pipeline and report the parked findings). No link → skip silently. |
-| 1 | `PRD_READY` — PRD `Status: PRD_READY` | `Skill: analysis` with `$0 $1`, plus `--local` when this run was invoked with it — runs the upfront interview (chatty by design). |
-| 2 | `VISION_READY` — `vision.md` `Status: VISION_READY` | `Skill: generate-vision` with `$0` — consumes the PRD; ends with its one wholesale checkpoint. |
+| 0.5 | `DESIGN_ANALYZED` — `design-analysis.md` has status `DESIGN_ANALYZED`, or `idea.md` has no `figma.com/design` link | `design.figma` disabled (config.md) → skip silently. Enabled → Grep `idea.md` for `figma.com/design` (kartoteka path: `doc=$(spec_store.py get <specs.dir>/<TICKET_ID>/idea.md) && printf '%s\n' "$doc" | grep -q figma.com/design`). Link present → `Skill: figma-analysis` with `$0` (chatty head — its Major-findings handshake may ask; on `DESIGN_BLOCKED` — returned by the skill or already recorded in an existing artifact's status — stop the pipeline and report the parked findings). No link → skip silently. |
+| 1 | `PRD_READY` — PRD status `PRD_READY` | `Skill: analysis` with `$0 $1`, plus `--local` when this run was invoked with it — runs the upfront interview (chatty by design). |
+| 2 | `VISION_READY` — `vision.md` status `VISION_READY` | `Skill: generate-vision` with `$0` — consumes the PRD; ends with its one wholesale checkpoint. |
 | 3 | plan drafted — `plan.md` exists | `Skill: researcher` then `Skill: planner` (both `$0`; `researcher` also takes `--local` when this run was invoked with it) — **silent**: their questions land in `.artel/run/<TICKET_ID>/open-questions.md` (autonomous-run.md §3). |
 | 3.5 | `PLAN_GROUNDED` — plan-check green | Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan - --strict`), where `<plan-path>` is the phase-aware plan path per ticket-parsing.md §4. Exit 0 → proceed. Exit 1 → append/update `**Plan-check bounces:** N` at the bottom of `<plan-path>` (kartoteka path: `artifact_patch(project=<project>, …)` replacing the existing bounce line, or `append` it), and while `N <= MAX_PLAN_CHECK_BOUNCES = 2`: `SendMessage` the `data.unresolved` list to the `planner` agent ("resolve or declare `new:`"), regenerate, re-run the check. Planner regeneration rewrites `<plan-path>` and drops the bounce line with it; after each regeneration re-append `**Plan-check bounces:** N` (N = bounces performed so far) before re-running the check. Third failure → stop and ask (chatty head — plain `AskUserQuestion`, no `pause_reason`) without writing N=3 — the file shows `**Plan-check bounces:** 2` at the stop. Exit 2 → environment error: stop-and-ask pointing at setup, never a bounce. |
-| 4 | `TASKLIST_READY` — tasklist `Status: TASKLIST_READY` | `Skill: tasklist` with `$0`, plus `--local` when this run was invoked with it — silent, HITL-tagged; the flag keeps its task-queue mirror from writing rows. |
+| 4 | `TASKLIST_READY` — tasklist status `TASKLIST_READY` | `Skill: tasklist` with `$0`, plus `--local` when this run was invoked with it — silent, HITL-tagged; the flag keeps its task-queue mirror from writing rows. |
 | 4.5 | phase extraction (phase runs only) | `Skill: sync-phases` with `$0` — creates `phase-<N>/tasks.md` when missing. |
 
 ### 3. THE ONE PAUSE — plan+tasklist approval
@@ -110,13 +110,13 @@ per completed phase — see `## Checkpoint commits & pushes`).
 - **Approve** → `SendMessage`/re-invoke `planner` and `tasklist` agents to fold any answer that
   overrides a default back into `plan.md` / the tasklist, flip the
   `.artel/run/<TICKET_ID>/open-questions.md` entries to `resolved: "<answer>"`, and remove
-  `(provisional — Q<n>)` markers (plan becomes `Status: PLAN_APPROVED`). This write re-arms gate
+  `(provisional — Q<n>)` markers (plan becomes status `PLAN_APPROVED`). This write re-arms gate
   3.5 — if the fold-back touched `plan.md`, re-run the plan-check before proceeding. Proceed to
   step 4.
 - **Request changes** → route feedback to `planner`/`tasklist`, regenerate, repeat this pause.
 - **`yolo` only:** skip the `AskUserQuestion` — treat every
   `.artel/run/<TICKET_ID>/open-questions.md` default as the accepted answer, run the same
-  fold-back (planner/tasklist agents, `resolved: "<answer>"` flips, `Status: PLAN_APPROVED`), and
+  fold-back (planner/tasklist agents, `resolved: "<answer>"` flips, status `PLAN_APPROVED`), and
   proceed. The HITL tags remain armed — yolo removes this pause only.
 
 ### 4. Arm the run
@@ -206,8 +206,8 @@ dispatched here: `/artel:validate` stays à la carte.
 
 | Fact | How it is read |
 |---|---|
-| `PLAN_APPROVED` | the plan's `Status:` line (the same piped `grep -m1 'Status:'` the gates use) |
-| `TASKLIST_READY` | the tasklist's `Status:` line |
+| `PLAN_APPROVED` | the plan's status (the same `spec_store.py status` read the gates use) |
+| `TASKLIST_READY` | the tasklist's status (`spec_store.py status`) |
 | `IMPLEMENT_STEP_OK` | `tasklist_tasks.py` over the tasklist (and each `phase-<N>/tasks.md` on phased tickets) reports no unchecked box in any iteration or fix section — a `## Final Verification` section an older tasklist carries counts too |
 | `REVIEW_OK` | `review.md` exists with a `**Review round:**` line and the tasklist has no unchecked `## Code Review Fixes` box; a `**Verdict:**` line, when the reviewer wrote one, must not read *Needs fixes* |
 | `RUNTIME_OK` | the phase-aware `runtime/observation.md` is green or `skipped`, and no file matching `runtime.surface` changed after it |

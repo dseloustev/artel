@@ -81,9 +81,9 @@ report for a ticket someone else ran.
 
 | Gate | Description |
 |------|-------------|
-| PRD_READY | PRD exists and has `Status: PRD_READY` |
-| PLAN_APPROVED | Plan exists and has `Status: PLAN_APPROVED` |
-| TASKLIST_READY | Tasklist exists and has `Status: TASKLIST_READY` |
+| PRD_READY | PRD exists and its status is `PRD_READY` (`spec_store.py status`, spec-storage.md §8) |
+| PLAN_APPROVED | Plan exists and its status is `PLAN_APPROVED` |
+| TASKLIST_READY | Tasklist exists and its status is `TASKLIST_READY` |
 | IMPLEMENT_STEP_OK | All tasks are marked `[x]` — every iteration box and every fix-section box; a `## Final Verification` section, when an older tasklist carries one, counts too. The whole-tree gate itself is `CHECKPOINT_OK`. |
 | REVIEW_OK | No blocking review issues |
 | RUNTIME_OK | The host's runtime-gate evidence (produced by the `run-app` skill), phase-scoped when validating a phase with the ticket-wide file as read-only fallback. Green requires gate-mode evidence, not merely an interactive run, or a recorded skip. `runtime.run` (config.md) absent or empty ⇒ recorded `skipped`; missing runtime configuration never blocks a run. |

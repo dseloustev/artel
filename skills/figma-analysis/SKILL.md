@@ -42,8 +42,8 @@ If `$0` itself is a `figma.com` URL, treat it as `$1` and resolve the ticket fro
 ## Pre-flight
 
 If `<specs.dir>/<TICKET_ID>/design-analysis.md` exists (kartoteka path: `doc=$(spec_store.py get
-<specs.dir>/<TICKET_ID>/design-analysis.md) && printf '%s\n' "$doc" | grep -m1 'Status:'`; exit 3
-means absent):
+<specs.dir>/<TICKET_ID>/design-analysis.md) && printf '%s\n' "$doc" | spec_store.py status`; exit 3
+means absent; files path: `spec_store.py status < <specs.dir>/<TICKET_ID>/design-analysis.md`):
 
 - **Pipeline invocation** (from an orchestrator): skip — report `Design analysis exists — skipped`
   (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9).
@@ -51,7 +51,7 @@ means absent):
   from Figma?` Options: `Overwrite` / `Abort`. On Abort, report the file was left untouched and
   terminate.
 
-If the existing artifact's `Status:` is `DESIGN_BLOCKED`, the ticket is still parked: pipeline
+If the existing artifact's status is `DESIGN_BLOCKED`, the ticket is still parked: pipeline
 invocation → report `DESIGN_BLOCKED` (unchanged) and stop; manual invocation → say so in the
 Overwrite prompt (re-analyze only after the design is fixed).
 
@@ -123,8 +123,8 @@ Branch on the agent's return:
 
 ```
 User resolutions: [numbered list matching the findings, or "none"].
-Record each in §5 Major as **Resolution:** <decision>, finalize the artifact (`Status: DESIGN_ANALYZED`, or `Status: DESIGN_BLOCKED` if any resolution
-is Park for designer), and return DESIGN_ANALYSIS_COMPLETE with summary counts.
+Record each in §5 Major as **Resolution:** <decision>, finalize the artifact (header `status: DESIGN_ANALYZED`, or `status: DESIGN_BLOCKED` if any resolution
+is Park for designer — `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2), and return DESIGN_ANALYSIS_COMPLETE with summary counts.
 ```
 
 **Sweep the screenshots** (kartoteka path) once the agent has returned, whatever its outcome:

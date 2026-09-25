@@ -323,7 +323,7 @@ by `analysis`, `researcher`, and `planner`.
 - Minor findings never pause — they land in the artifact's minor-findings section and are bundled
   into the analysis interview.
 - A "Park for designer" resolution ⇒ `DESIGN_BLOCKED`: the artifact finalizes with
-  `Status: DESIGN_BLOCKED`, which gate 0.5 treats as still-blocking on re-entry; re-run after the
+  status `DESIGN_BLOCKED`, which gate 0.5 treats as still-blocking on re-entry; re-run after the
   design is fixed (manual re-run uses Overwrite).
 - Figma MCP unavailable/unauthenticated ⇒ the stage skips silently and the pipeline continues,
   per `design.figma`'s runtime-optional semantics (config.md) — including under headless

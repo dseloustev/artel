@@ -311,3 +311,26 @@ class TestMigrateSpecsImages(unittest.TestCase):
         self.assertNotIn('`design/`', never)
         self.assertIn('`runtime/*.md`', never)
         self.assertIn('untracked working-tree images', never)
+
+
+class TestMigrationByHeaderDocs(unittest.TestCase):
+    def setUp(self):
+        self.storage = DOC.read_text(encoding='utf-8')
+        self.skill = (ROOT / 'skills' / 'migrate-specs' / 'SKILL.md').read_text(encoding='utf-8')
+
+    def test_the_class_table_names_mergeable_and_the_header_base(self):
+        self.assertIn('| `mergeable` |', self.storage)
+        self.assertIn("the header's `version:`", self.storage)
+        self.assertIn('`legacy`', self.storage)
+
+    def test_keep_merged_is_a_resolution_in_the_contract_and_the_skill(self):
+        for text in (self.storage, self.skill):
+            self.assertIn('keep-merged', text)
+        self.assertIn('<logical>.merge', self.skill)
+
+    def test_the_skill_reports_merged_and_conflicted(self):
+        self.assertIn('`merged`', self.skill)
+        self.assertIn('`conflicted`', self.skill)
+
+    def test_put_stamps_the_version_line(self):
+        self.assertIn('stamped `version: <expected>+1`', flat(section(self.storage, '## 8. spec_store.py')))

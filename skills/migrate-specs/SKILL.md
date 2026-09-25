@@ -57,9 +57,15 @@ Otherwise present the summary per ticket. Document counts come from `summary`, i
 - **absent**: will upload;
 - **successor**: newer than the store, so will upload. For an image, that means a working-tree
   copy written after kartoteka's newest version;
+- **mergeable**: made from an older stored version (its header's `version:` is behind the
+  store). `apply` merges it with the store: a clean merge uploads, a conflicting one comes back
+  for a decision (step 4). Say how many, and that no conflict is resolved silently.
 - **current** / **stale**: the store already holds this or something newer, so nothing to upload;
 - **conflict**;
 - **skipped**, with the reason.
+
+An item with `legacy: true` has no usable header; it is classified as before the header existed.
+Mention the count, nothing more.
 
 An image skipped as `outside kartoteka's image path grammar` has a name kartoteka cannot store:
 a space or another character that is not a letter, digit, `.`, `_` or `-`, or more than four
@@ -76,7 +82,8 @@ Items are per local copy. When a document's or an image's working-tree copy and 
 `current` or `stale` whatever the other copy is.
 
 Unless `--no-prompt`, ask (`AskUserQuestion`) one question per document or image — per
-`logical` — that has a `conflict` item. For a document, show each conflicting copy's `sources`,
+`logical` — that has a `conflict` item, or a `mergeable` item that `apply` reported in
+`conflicted`. For a document, show each conflicting copy's `sources`,
 `reason` and `diff`; the script has already capped the diff. For an image, see
 **Image conflicts** below. Then offer:
 
@@ -104,6 +111,21 @@ skipped. Offer only the conflicting sources the plan listed for it.
 A document conflict whose `diff` is `null` touches a **redacted** version. kartoteka removed text
 from this document's history, so no diff is printed: the local copy may still carry it. Say so,
 give the `reason`, and let the user open the file themselves before answering.
+
+### Merge conflicts
+
+For each `conflicted` entry of `apply` (step 4), the marked text is in `merge_file`
+(`<logical>.merge`, beside the document's path), with `local` / `kartoteka v<B>` /
+`kartoteka v<S>` sections. Ask:
+
+- **Keep merged** → the user edits the markers out of `merge_file` first, then
+  `--resolve <logical>=keep-merged@<S>`. Refused while any marker line remains.
+- **Keep local** → `--resolve <logical>=keep-local@<S>`: the local copy wins whole.
+- **Keep stored** → `--resolve <logical>=keep-stored`.
+- **Skip** → `--resolve <logical>=skip`.
+
+`<S>` is the entry's `newest_version`. Never edit `merge_file` for the user unless they ask.
+Under `--no-prompt` the entry stays unresolved: nothing with markers is ever uploaded.
 
 ### Image conflicts
 
@@ -138,6 +160,11 @@ The answers are the ones above, per image `logical`:
 - Exit `2` → report the error and stop.
 
 Report `uploaded` (document or image → new version) and every `failed` entry with its reason.
+Report `merged` (document → new version, with `local_changes`/`stored_changes`; `unchanged: true`
+means every local change was already in kartoteka and nothing was uploaded) and `conflicted` (go
+to **Merge conflicts** in step 3, then run `apply` again with the answers). An `unaligned` list on
+an `uploaded` or `merged` entry names local copies that changed since the plan: they are kept, and
+the next run classifies them again.
 - A failure is never retried silently. `moved to v<N> during the migration` and
   `moved from v<N> to v<M> since you decided` both mean someone wrote meanwhile: say so and
   suggest running the skill again.
@@ -195,7 +222,7 @@ the report rather than leaving it to be inferred.
 ## 6. Report
 
 Per ticket, list with the reason for each:
-- uploaded, name → version (an image by its path);
+- uploaded or merged, name → version (an image by its path);
 - already stored;
 - deleted, and the commit if any;
 - kept.

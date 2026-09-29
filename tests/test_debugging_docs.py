@@ -103,5 +103,57 @@ class TestNotices(unittest.TestCase):
             self.assertIn(phrase, text)
 
 
+class TestInnerLoop(unittest.TestCase):
+    def setUp(self):
+        self.doc = flat(read(INNER_LOOP))
+
+    def test_budget_is_unchanged(self):
+        self.assertIn('MAX_VERIFY_ITERATIONS = 4', self.doc)
+
+    def test_fast_red_is_fixed_per_finding(self):
+        self.assertIn("red stage fast → fix minimally, targeting each finding's file:line", self.doc)
+
+    def test_test_red_is_debugged(self):
+        for phrase in ('red stage test → read its keys and tail in full', 'ONE hypothesis',
+                       '**A red `test` stage is debugged, not patched**',
+                       '${CLAUDE_PLUGIN_ROOT}/docs/debugging.md'):
+            self.assertIn(phrase, self.doc)
+
+    def test_structural_cause_stops_at_once(self):
+        self.assertIn('a structural cause (§4) → STOP as a Major deviation', self.doc)
+
+    def test_never_weaken_a_failing_test(self):
+        self.assertIn('**Never weaken a failing test.**', self.doc)
+
+
+class TestImplementer(unittest.TestCase):
+    def setUp(self):
+        self.doc = flat(read(IMPLEMENTER))
+
+    def test_behavioural_rows_are_defined(self):
+        for phrase in ('**A behavioural fix-section row is reproduced first.**',
+                       'a `## Code Review Fixes` row whose checkbox text carries `behavior`',
+                       'every `## Runtime Fixes` row',
+                       'a `## Verify Fixes` row whose finding is a failing test'):
+            self.assertIn(phrase, self.doc)
+
+    def test_reproduction_evidence(self):
+        for phrase in ('verify/repro-<code>-<source>-<N>.json',
+                       'verify/repro-<code>-<source>-<N>.txt',
+                       'a `skipped` stage is never red evidence', '.artel/run/repro/',
+                       '${CLAUDE_PLUGIN_ROOT}/docs/debugging.md'):
+            self.assertIn(phrase, self.doc)
+
+    def test_task_gate_red_test_stage(self):
+        self.assertIn('A red `test` stage is debugged, not patched', self.doc)
+
+    def test_report_lines(self):
+        for phrase in ('the `## Verify iterations` table', '`**Root cause:**`',
+                       '`**Reproduction:**`'):
+            self.assertIn(phrase, self.doc)
+
+    def test_never_weaken_a_failing_test(self):
+        self.assertIn('**Never weaken a failing test**', self.doc)
+
 if __name__ == '__main__':
     unittest.main()

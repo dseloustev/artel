@@ -982,6 +982,13 @@ move to the decision log.
   ticket); the iteration as the unit (no order inside it); a fenced YAML block per task (harder
   to edit, and YAML patched through `artifact_patch` is the failure class of 0.21.0's quoting
   bug); the queue owning the graph (it fails on the files path and on `--local`).
+  History replay (AW-3342, AW-3270): four of five criteria met — AW-3270's one-wave check not
+  met as specified, because the rewrite moved each ARB edit into the dialog task that uses it;
+  --check green at round 1 and after the approval fold-back (gate 4.2 holds already-met
+  questions for the pause); D2 declared; D4 simulation clean over 18 claims; plan review 3 of 44
+  findings judged plan-changing. The replay found two defects, fixed before scoring: the
+  `missing-file` rule ignored files an earlier task creates, and the task gate ran `verify.fast`
+  on paths outside `verify.surface`.
 - **2026-09-29 — Routes replace the run-wide per-task review.** Each task is `light` or `full`:
   declared by the planner, floored by the parser (a sensitive path, a HITL tag, more than
   `ROUTE_FULL_FILES = 5` files) and at runtime (an earlier deviation on its files, kept in

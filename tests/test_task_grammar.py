@@ -465,6 +465,25 @@ class TestCheck(unittest.TestCase):
         self.assertEqual([(f['severity'], f['rule'], f['task']) for f in findings],
                          [('Important', 'missing-file', '1.2')])
 
+    def test_a_file_an_earlier_task_creates_is_not_missing(self):
+        # Editing a file an earlier task creates is ordinary; the AW-3342 replay found a
+        # planner merging tasks only to dodge a false missing-file finding.
+        text = TASKS.replace('- **Files:** `lib/ramps/ramps_screen.dart`\n- **Depends on:** 2.1\n'
+                             '- **Route:** light\n- **Test:** `test/ramps/success_dialog_test.dart`',
+                             '- **Files:** `lib/ramps/ramps_screen.dart`, `lib/ramps/success_dialog.dart`\n'
+                             '- **Depends on:** 2.1\n- **Route:** light\n'
+                             '- **Test:** `test/ramps/success_dialog_test.dart`')
+        self.assertIn('`lib/ramps/success_dialog.dart`\n- **Depends on:** 2.1', text)
+        self.assertEqual(self.check(text), ([], {'uncovered': [], 'unknown': []}))
+
+    def test_a_file_only_a_later_iteration_creates_is_still_missing(self):
+        text = TASKS.replace('- **Files:** `lib/ramps/ramps_event.dart`',
+                             '- **Files:** `lib/ramps/ramps_event.dart`, `lib/ramps/later.dart`')
+        text = text.replace('- **Files:** `lib/ramps/ramps_bloc.dart`',
+                            '- **Files:** `lib/ramps/ramps_bloc.dart`, `lib/ramps/later.dart` (new)')
+        findings, _ = self.check(text)
+        self.assertEqual([(f['rule'], f['task']) for f in findings], [('missing-file', '1.2')])
+
     def test_a_test_file_created_by_an_earlier_iteration_is_found(self):
         findings, _ = self.check(TASKS)
         self.assertNotIn('missing-test', [f['rule'] for f in findings])

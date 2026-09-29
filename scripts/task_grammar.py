@@ -509,10 +509,14 @@ def check(iterations, problems, repo_root, requirement_ids):
             tid = task['number']
             files_field = task['fields'].get('Files')
             for entry in files_of(task):
-                if not entry['new'] and not (root / entry['path']).exists():
+                # A file a task of this or an earlier iteration creates is there by the
+                # time this task runs, exactly as for `Test:` paths below.
+                if (not entry['new'] and not (root / entry['path']).exists()
+                        and entry['path'] not in new_files):
                     findings.append(_finding(
                         'Important', tid, files_field['line'], 'missing-file',
-                        '`{}` does not exist and is not marked `(new)`'.format(entry['path'])))
+                        '`{}` does not exist, is not marked `(new)`, and no task of this or an'
+                        ' earlier iteration creates it'.format(entry['path'])))
             test_field = task['fields'].get('Test')
             for path in tests_of(task)[0]:
                 if not (root / path).exists() and path not in new_files:

@@ -156,7 +156,7 @@ above as Critical findings, plus the rules that need the repository and the PRD:
 | `uncovered-requirement` | Critical | an active PRD requirement has no task |
 | `unknown-requirement` | Important | a task cites an ID the PRD does not define |
 | `missing-implements` | Important | the PRD has requirements and some tasks cite them, but this one cites none |
-| `missing-file` | Important | a `Files:` path does not exist and is not `(new)` |
+| `missing-file` | Important | a `Files:` path does not exist, is not `(new)`, and no task of this or an earlier iteration creates it |
 | `missing-test` | Important | a `Test:` path does not exist and no task of this or an earlier iteration creates it |
 | `placeholder` | Important | a title, field or step holds `TBD`, `TODO`, `???`, a `<…>` template slot, "same as Task", or "etc." (backticked code is not scanned) |
 

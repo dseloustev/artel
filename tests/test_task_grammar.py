@@ -554,3 +554,159 @@ Buy things.
     def test_a_prd_without_the_section(self):
         self.assertEqual(task_grammar.parse_requirements('# PRD\n\n## Goal\n'), {
             'present': False, 'ids': [], 'withdrawn': [], 'already_met': []})
+
+
+class TestCli(unittest.TestCase):
+    def setUp(self):
+        self.repo = make_repo()
+        self.addCleanup(self.repo.cleanup)
+
+    def write(self, text, name='tasklist.md'):
+        path = Path(self.repo.name) / name
+        path.write_text(text, encoding='utf-8')
+        return str(path)
+
+    def test_mirror_run_emits_task_rows_waves_and_ready_now(self):
+        code, out = run_cli('--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name)
+        self.assertEqual(code, 0)
+        data = out['data']
+        self.assertEqual(data['format'], 'tasks')
+        self.assertEqual([row['title'] for row in data['iterations']],
+                         ['I1: Scaffold the dialog', 'I2: Wire the dialog'])
+        children = data['iterations'][1]['children']
+        self.assertEqual([c['title'] for c in children],
+                         ['I2 · 2.1 · Emit the event from the bloc',
+                          'I2 · 2.2 · Show the dialog on the event',
+                          'I2 · 2.3 · Keep the declined path unchanged'])
+        self.assertEqual([c['status'] for c in data['iterations'][0]['children']],
+                         ['ready', 'ready'])
+        self.assertEqual([c['status'] for c in children], ['backlog'] * 3)
+        self.assertEqual(children[1]['route_effective'], 'full')
+        self.assertEqual(children[1]['route_reasons'], ['HITL tag'])
+        self.assertEqual(data['waves'], {'1': [['1.1', '1.2']], '2': [['2.1'], ['2.2', '2.3']]})
+        self.assertEqual(data['ready_now'], [
+            {'task': '1.1', 'title': 'I1 · 1.1 · Add the success dialog widget'},
+            {'task': '1.2', 'title': 'I1 · 1.2 · Add the purchase-succeeded event'}])
+        self.assertEqual(data['sections'][0]['title'], 'CRF: Code Review Fixes')
+
+    def test_a_done_task_mirrors_done(self):
+        text = tick(TASKS, 'Add the widget test')
+        _, out = run_cli('--tasklist', self.write(text), '--ticket-key', 'AW-9',
+                         '--repo', self.repo.name)
+        self.assertEqual([c['status'] for c in out['data']['iterations'][0]['children']],
+                         ['done', 'ready'])
+
+    def test_a_long_title_is_capped_and_ready_now_uses_the_capped_title(self):
+        text = TASKS.replace('Add the success dialog widget', 'W' * 600)
+        _, out = run_cli('--tasklist', self.write(text), '--ticket-key', 'AW-9',
+                         '--repo', self.repo.name)
+        title = out['data']['iterations'][0]['children'][0]['title']
+        self.assertEqual(len(title), 500)
+        self.assertEqual(out['data']['ready_now'][0]['title'], title)
+
+    def test_grammar_problems_exit_2_with_every_problem(self):
+        text = TASKS.replace('- **Route:** full — money-movement path', '- **Route:** full')
+        text = text.replace('- **Depends on:** 2.1\n- **Route:** light\n- **Test:** `test/ramps/ramps_screen_test.dart`',
+                            '- **Depends on:** 2.9\n- **Route:** light\n- **Test:** `test/ramps/ramps_screen_test.dart`')
+        code, out = run_cli('--tasklist', self.write(text), '--ticket-key', 'AW-9')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'tasklist_malformed')
+        self.assertEqual([p['rule'] for p in out['error']['data']['problems']],
+                         ['route-reason', 'unknown-dependency'])
+        self.assertIn('2 problem(s) in the task grammar; first: line', out['error']['message'])
+
+    def test_lines_count_from_the_top_of_a_headed_document(self):
+        header = '---\ntype: tasklist\nticket: AW-9\nversion: 3\n---\n'
+        text = header + TASKS.replace('- **Route:** full — money-movement path',
+                                      '- **Route:** full')
+        _, out = run_cli('--tasklist', self.write(text), '--ticket-key', 'AW-9')
+        line = out['error']['data']['problems'][0]['line']
+        self.assertEqual(text.splitlines()[line - 1], '- **Route:** full')
+
+    def test_crlf_stdin_parses_like_the_file(self):
+        _, from_file = run_cli('--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                               '--repo', self.repo.name)
+        _, from_stdin = run_cli('--tasklist', '-', '--ticket-key', 'AW-9',
+                                '--repo', self.repo.name, stdin=TASKS.replace('\n', '\r\n'))
+        self.assertEqual(from_stdin['data'], from_file['data'])
+
+    def test_sensitive_paths_override(self):
+        policy = self.write(json.dumps({'categories': [
+            {'name': 'payments', 'floor': 'plan-gate', 'globs': ['lib/ramps/ramps_bloc.dart']}]}),
+            name='policy.json')
+        _, out = run_cli('--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                         '--repo', self.repo.name, '--sensitive-paths', policy)
+        task = out['data']['iterations'][1]['children'][0]
+        self.assertEqual(task['route_reasons'],
+                         ['sensitive path (payments): lib/ramps/ramps_bloc.dart'])
+
+    def test_check_passes_on_the_fixture(self):
+        code, out = run_cli('--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--check', '--requirements', 'R1,R2', '--repo', self.repo.name)
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data'], {'ticket_key': 'AW-9', 'format': 'tasks',
+                                       'findings': [],
+                                       'coverage': {'uncovered': [], 'unknown': []},
+                                       'warnings': []})
+
+    def test_check_exits_1_on_an_important_finding(self):
+        text = TASKS.replace('`lib/ramps/ramps_bloc.dart`', '`lib/ramps/bloc.dart`')
+        code, out = run_cli('--tasklist', self.write(text), '--ticket-key', 'AW-9',
+                            '--check', '--requirements', 'R1,R2', '--repo', self.repo.name)
+        self.assertEqual(code, 1)
+        self.assertEqual([f['rule'] for f in out['data']['findings']], ['missing-file'])
+
+    def test_check_reports_grammar_problems_as_findings_not_exit_2(self):
+        text = TASKS.replace('- **Route:** full — money-movement path', '- **Route:** full')
+        code, out = run_cli('--tasklist', self.write(text), '--ticket-key', 'AW-9',
+                            '--check', '--requirements', 'R1,R2', '--repo', self.repo.name)
+        self.assertEqual(code, 1)
+        self.assertEqual(out['data']['findings'][0]['severity'], 'Critical')
+
+    def test_check_requirements_none_and_absent(self):
+        code, out = run_cli('--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--check', '--requirements', 'none', '--repo', self.repo.name)
+        self.assertEqual(code, 1)
+        self.assertEqual(out['data']['coverage']['unknown'], ['R1', 'R2'])
+        code, out = run_cli('--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--check', '--requirements', 'absent', '--repo', self.repo.name)
+        self.assertEqual(code, 1)
+        self.assertIn('has no `## Requirements`', out['data']['findings'][0]['message'])
+
+    def test_check_on_an_old_format_tasklist_has_nothing_to_review(self):
+        old = '## Iteration 1: A\n\n### `lib/a.dart`\n- [ ] Do it\n'
+        code, out = run_cli('--tasklist', self.write(old), '--ticket-key', 'AW-9',
+                            '--check', '--requirements', 'absent')
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data']['format'], 'legacy')
+        self.assertEqual(out['data']['findings'], [])
+
+    def test_check_needs_requirements_and_requirements_needs_check(self):
+        code, out = run_cli('--tasklist', self.write(TASKS), '--ticket-key', 'AW-9', '--check')
+        self.assertEqual((code, out['error']['kind']), (2, 'invalid_argument'))
+        code, out = run_cli('--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--requirements', 'R1')
+        self.assertEqual((code, out['error']['kind']), (2, 'invalid_argument'))
+
+    def test_requirements_verb_from_a_file_and_from_stdin(self):
+        prd = TestRequirements.PRD
+        code, out = run_cli('requirements', '--prd', self.write(prd, name='prd.md'))
+        self.assertEqual(code, 0)
+        self.assertEqual(out['verb'], 'tasklist-requirements')
+        self.assertEqual(out['data']['ids'], ['R1', 'R4'])
+        _, piped = run_cli('requirements', '--prd', '-', stdin=prd)
+        self.assertEqual(piped['data'], out['data'])
+
+    def test_requirements_verb_skips_the_header(self):
+        prd = '---\ntype: prd\nticket: AW-9\nversion: 2\n---\n' + TestRequirements.PRD
+        _, out = run_cli('requirements', '--prd', self.write(prd, name='prd.md'))
+        self.assertEqual(out['data']['ids'], ['R1', 'R4'])
+
+    def test_requirements_verb_errors(self):
+        code, out = run_cli('requirements', '--prd', str(Path(self.repo.name) / 'nope.md'))
+        self.assertEqual((code, out['error']['kind']), (2, 'prd_not_found'))
+        code, out = run_cli('requirements', '--prd', '-', stdin='')
+        self.assertEqual((code, out['error']['kind']), (2, 'empty_input'))
+        code, out = run_cli('requirements')
+        self.assertEqual((code, out['error']['kind']), (2, 'invalid_argument'))

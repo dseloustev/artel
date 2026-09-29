@@ -94,7 +94,8 @@ When the user passes a description file as an argument:
 3. Read the completed tasklist from `<specs.dir>/<TICKET_ID>/`: phase-scoped
    `phase-<PHASE_NUM>/tasks.md`, or ticket-wide `tasklist.md`.
 4. Compare: for each task listed in the description file, verify it is marked `- [x]` in the
-   tasklist.
+   tasklist — in a task-format tasklist, that every step of the matching `### Task N.M:` block
+   is ticked.
 5. If any described task is not completed: report `Error: The following tasks from the
    description file were not completed: <list>` and terminate.
 6. If all are completed: flip every `- [ ]` in the description file to `- [x]` and report

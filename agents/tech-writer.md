@@ -87,7 +87,7 @@ Summary artifacts are written in `language.docs` (config.md).
 - Write in a way that's understandable to a new developer and incident commander without reading the code
 - Don't break the existing document structure without explicit user input
 - **Phase scope:** When working on a specific phase, focus documentation on that phase's work
-- **CHANGELOG:** Add concise, user-facing change descriptions
+- **CHANGELOG:** Add concise, user-facing change descriptions — never a task number (`2.3`) or a requirement ID (`R1`): they index the spec trail, not the product (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §5)
 - **Context files:** Always read idea and vision files for background
 - **Never overwrite a ticket-wide summary from a phase-scoped run.** Phase output goes inside `phase-<PHASE_NUM>/`.
 - **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.

@@ -46,7 +46,7 @@ missing. Each file answers a different question the report needs:
 | `vision.md`, `plan.md`, `adr.md` | Intended design, key decisions, **alternatives rejected** (prime quiz material) |
 | `research.md` | Constraints discovered |
 | `.artel/run/<TICKET_ID>/open-questions.md` | How open questions were resolved |
-| `tasklist.md` (phase run: `phase-<N>/tasks.md`) | What was actually done, per-section notes, ratified deviations |
+| `tasklist.md` (phase run: `phase-<N>/tasks.md`) | What was actually done, per-section notes, ratified deviations; in a task-format tasklist each `### Task N.M:` block is one unit of work — its `Files:`, `Implements:` (which PRD requirement it built) and `Route:` |
 | `implementation-notes.md`, `review.md`, `qa.md`, `summary.md` | Deviations from plan, review findings and their fixes, verification status |
 
 On a phase-scoped run, prefer `phase-<N>/` files and use ticket-wide files as context (read
@@ -73,7 +73,8 @@ is a summary of promises, not of the change.
 - **Stacked branches:** check the log for merge commits that pull in other tickets' branches
   (branches named after `<ticket.projectKey>-<N>`). When present, the diff vs the default branch
   contains other tickets' work. The core narrative covers *this ticket's* commits and files —
-  cross-check commit subjects and the file lists in `tasklist.md` — with one short "inherited from
+  cross-check commit subjects and the file lists in `tasklist.md` (each task's `Files:` field;
+  an older tasklist groups its boxes under file headings, `` ### `path` ``) — with one short "inherited from
   stacked branches" subsection for the rest. Never silently blend them; the reader must know which
   changes this ticket owns.
 - For large diffs, work module-by-module (`git diff <default-branch>...HEAD -- <path>/`): read

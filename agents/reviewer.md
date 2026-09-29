@@ -173,7 +173,13 @@ substituting the phase diff:
 - **The task** — its title, and the section it sits under in the phase-aware tasklist
   (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`). Read the task's own text there — the body,
   subtasks and acceptance criteria — that text is the requirement; `vision.md` / `plan.md` are
-  context for judging it, never a second requirement to grade against.
+  context for judging it, never a second requirement to grade against. On a task-format
+  tasklist (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4) the task is its whole
+  `### Task <N.M>:` block, not one checkbox line: every step, its `Files:`, its `Test:` and its
+  `Implements:`. Each requirement `Implements:` names — its entry in the PRD's
+  `## Requirements`, with the `*Accepts when:*` line as the check — is part of the requirement
+  too. A file changed outside `Files:` is not a finding by itself: the implementer's report
+  lists them under `**Outside Files:**`; judge what the change did there.
 - **The implementer's report** — `.artel/run/<TICKET_ID>/reports/NNN-<slug>.md`. Unverified
   claims about the code: check every one against the diff. A rationale in the report ("kept it
   simple", "left per YAGNI") is the implementer grading its own work and never downgrades a
@@ -223,7 +229,9 @@ Calibration: Important means the task cannot be trusted until it is fixed — a 
 criterion, incorrect or fragile behaviour, a swallowed error, a test that asserts nothing.
 "Coverage could be broader" and polish are Nice-to-have. Judge the diff against *this task's*
 acceptance criteria: a requirement that belongs to a later task in the same tasklist is not
-missing here.
+missing here. On a task-format tasklist that is the block's steps and the requirements its
+`Implements:` names; a requirement another task also implements may be only partly met here,
+and the report says which part is this task's.
 
 ---
 

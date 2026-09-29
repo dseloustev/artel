@@ -129,7 +129,7 @@ You are writing a short, plain-language PR description for ticket <TICKET_ID>. A
 
 4. **Language.** Body must be `<language.pr>`. Translate any content in another language (e.g. tracker fields, local docs, code comments paraphrased in prose) into it. Keep code identifiers, file paths, class/method names, branch names, and commit hashes verbatim — do not transliterate them.
 
-5. **Cite no trail document.** A pull-request reader cannot open kartoteka: the body carries no `workspace:` reference and no spec-trail path. Describe what changed and why in the body's own words.
+5. **Cite no trail document.** A pull-request reader cannot open kartoteka: the body carries no `workspace:` reference and no spec-trail path — and no task number (`2.3`) or requirement ID (`R1`) either, which index documents the reader cannot open (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §5). Describe what changed and why in the body's own words.
 
 6. **Reader contract.** The description is written for a QA engineer and a reviewer who have not opened the code and will not read the ticket docs. Every sentence states visible behavior, user impact, or a check the reader can perform. A bullet may name the single class/package/model that is the subject of its change — that is the only place code identifiers appear. Everything about *how* the change works — measurements, constants, internal callbacks and lifecycle events, rejected alternatives, design rationale — lives in the diff; the description states what changed and why.
 

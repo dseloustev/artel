@@ -290,7 +290,9 @@ Otherwise ask via `AskUserQuestion` which fixes to work. Offer only the options 
      display `Created <specs.dir>/<TICKET_ID>/tasklist.md with only a ## Code Review Fixes section.`
    - The section is missing → append `## Code Review Fixes` at the end of the file.
    - The source heading goes at the end of the section, before the next `## ` heading.
-   - Renumber the copied tasks to continue from the highest `Task N` already in the file.
+   - Renumber the copied tasks to continue from the highest `Task N` already in the file — on
+     a task-format tasklist, the highest under `## Code Review Fixes`: its `### Task N.M:`
+     headings number iteration tasks and never count.
      Renumbering changes the number only: a `(behavior)` marker stays in place
      (`${CLAUDE_PLUGIN_ROOT}/agents/review-forecaster.md`).
    - A block reading `- none` copies nothing, and no heading.

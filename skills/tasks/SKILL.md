@@ -78,7 +78,9 @@ operation — never with Read/Write/Edit or a shell file command.
      none) and how long since `updated_at`;
    - iteration children in `backlog`, none `ready`, and some iteration still has an unfinished
      child → **promotion pending** — name the lowest-numbered such iteration; the implementer's
-     next claim repairs it;
+     next claim repairs it. On a task-format ticket (children titled `I<N> · <N.M> · …`) a child
+     `in_progress` or `blocked` holds its dependents in `backlog` by design, so report this
+     line only when none is;
    - every iteration child `done` → **drained** — iteration work complete (a parent still
      `backlog` is §5's known leftover, not a stall);
    - any fix child not `done` → **fix work open** — per section, how many are `backlog`,
@@ -266,6 +268,10 @@ with any of them → print the argument hint and stop.
    been cut at that cap (`docs/task-queue.md` §6): flip the unchecked box whose text
    starts with the title's third segment. Not found → warn: "queue
    updated; no matching checkbox in tasklist.md — the file is now behind the queue".
+   A task-format row — `I<N> · <N.M> · <title>`, its middle segment a task number
+   (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §7) — names a task block, not a box: tick
+   every unticked step under its `### Task <N.M>:` heading instead, in the same documents, and
+   warn the same way when no such heading is found.
 3. Do **not** promote the iteration; report whether its siblings are all done and leave the
    promotion to the implementer's loop. A fix-section row has no promotion; when it was its
    section's last open child (`task_list`: no sibling under the same parent left `backlog`,

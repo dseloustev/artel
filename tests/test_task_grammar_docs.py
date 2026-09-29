@@ -906,5 +906,83 @@ class TestRoutes(unittest.TestCase):
         self.assertIn("its heading's text after `### `", reviewer)
 
 
+class TestReadersAudit(unittest.TestCase):
+    """Plan 3, Task 4: every reader of a tasklist treats a task block as the unit (spec §7)."""
+
+    # `grep -rlE 'tasklist\.md|tasks\.md|checkbox|- \[ \]|first incomplete' agents skills/*/SKILL.md
+    # docs/*.md README.md`, each hit read and ruled on in plan 3, Task 4.
+    AUDITED = {
+        'README.md', 'agents/implementer.md', 'agents/planner.md', 'agents/qa.md',
+        'agents/researcher.md', 'agents/review-forecaster.md', 'agents/reviewer.md',
+        'agents/task-planner.md', 'agents/tasklist-writer.md', 'agents/tech-writer.md',
+        'agents/validator.md', 'docs/autonomous-run.md', 'docs/config.md', 'docs/design.md',
+        'docs/deviation-protocol.md', 'docs/kartoteka-requirements.md',
+        'docs/orchestrator-common.md', 'docs/porting-plan.md', 'docs/review-forecast.md',
+        'docs/skills-reference.md', 'docs/source-inventory-workflow.md', 'docs/spec-storage.md',
+        'docs/task-grammar.md', 'docs/task-queue.md', 'docs/ticket-parsing.md',
+        'docs/workflow-guide.md', 'skills/address-pr-comment/SKILL.md',
+        'skills/change-digest/SKILL.md', 'skills/deep-review/SKILL.md', 'skills/dev/SKILL.md',
+        'skills/feature-development/SKILL.md', 'skills/generate-tasklist/SKILL.md',
+        'skills/implementer/SKILL.md', 'skills/issue-draft/SKILL.md', 'skills/planner/SKILL.md',
+        'skills/pr-description/SKILL.md', 'skills/researcher/SKILL.md',
+        'skills/run-reviewer/SKILL.md', 'skills/sync-phases/SKILL.md', 'skills/tasklist/SKILL.md',
+        'skills/tasks/SKILL.md', 'skills/using-artel/SKILL.md',
+    }
+
+    def test_every_tasklist_reader_was_audited(self):
+        pattern = _re.compile(r'tasklist\.md|tasks\.md|checkbox|- \[ \]|first incomplete')
+        live = (sorted(_ROOT.glob('agents/*.md')) + sorted(_ROOT.glob('skills/*/SKILL.md'))
+                + sorted(_ROOT.glob('docs/*.md')) + [_ROOT / 'README.md'])
+        readers = {str(p.relative_to(_ROOT)) for p in live
+                   if pattern.search(p.read_text(encoding='utf-8'))}
+        self.assertEqual(set(), readers - self.AUDITED,
+                         'a new tasklist reader: read it, fix any one-checkbox-per-task '
+                         'assumption, then add it to AUDITED')
+
+    def test_reviewer_task_mode_scopes_the_task_block(self):
+        task_mode = _between(flat(read('agents/reviewer.md')), '## Task mode', '## Review focus')
+        for phrase in ('the task is its whole `### Task <N.M>:` block, not one checkbox line',
+                       'every step, its `Files:`, its `Test:` and its `Implements:`',
+                       'with the `*Accepts when:*` line as the check',
+                       '`**Outside Files:**`',
+                       'a requirement another task also implements may be only partly met here'):
+            self.assertIn(phrase, task_mode)
+
+    def test_fix_task_numbers_ignore_task_headings(self):
+        self.assertIn("its `### Task N.M:` headings number iteration tasks and never count",
+                      flat(read('skills/deep-review/SKILL.md')))
+
+    def test_change_digest_reads_task_blocks(self):
+        digest = flat(read('skills/change-digest/SKILL.md'))
+        self.assertIn('each `### Task N.M:` block is one unit of work', digest)
+        self.assertIn("(each task's `Files:` field; an older tasklist groups its boxes under file "
+                      "headings, `` ### `path` ``)", digest)
+
+    def test_product_text_carries_no_ids(self):
+        pr = _between(flat(read('skills/pr-description/SKILL.md')), '5. **Cite no trail document.**',
+                      '6. **Reader contract.**')
+        self.assertIn('no task number (`2.3`) or requirement ID (`R1`) either', pr)
+        self.assertIn('never a task number (`2.3`) or a requirement ID (`R1`)',
+                      flat(read('agents/tech-writer.md')))
+
+    def test_qa_and_validator(self):
+        self.assertIn('every active requirement gets at least one scenario',
+                      flat(read('agents/qa.md')))
+        self.assertIn('every step of every `### Task N.M:` block',
+                      flat(read('agents/validator.md')))
+
+    def test_tasks_done_and_list(self):
+        tasks = flat(read('skills/tasks/SKILL.md'))
+        done = _between(tasks, '### `done <task-id>`', '### `block')
+        self.assertIn('names a task block, not a box', done)
+        self.assertIn('tick every unticked step under its `### Task <N.M>:` heading', done)
+        listing = _between(tasks, '### `list', '### `add')
+        self.assertIn('holds its dependents in `backlog` by design', listing)
+
+    def test_description_file_sync(self):
+        self.assertIn('every step of the matching `### Task N.M:` block is ticked',
+                      flat(read('docs/orchestrator-common.md')))
+
+
 if __name__ == '__main__':
     unittest.main()

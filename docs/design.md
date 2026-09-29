@@ -983,7 +983,11 @@ move to the decision log.
   `docs/superpowers/specs/2026-09-29-debugging-design.md`. Fixture eval (3 bugs × no skill /
   superpowers / artel): passed — all nine runs named the cause, fixed it at the origin and went red
   first, so the fixture saturates; blind rankings put superpowers (mean rank 1.50) and artel (1.83)
-  ahead of no skill (2.67), and the unguided arm was the one that widened its fix.
+  ahead of no skill (2.67), and the unguided arm was the one that widened its fix. History replay
+  (2 bug tickets, 2 AW-3187 review-fix rows, replayed on `adguard-wallet`): passed — the new arm
+  never scored below the old, and both new implementer runs left a red `repro-…txt` before their
+  first behaviour edit, which the v0.21.0 brief never produced; on the bug tickets both arms reached
+  the same diagnosis, so the skill changed the evidence and the report, not where the model looked.
 - **2026-09-29 — No whiteboard.** SDD v2's `using-whiteboard` (a local browser tab the agent
   draws mockups into) was assessed and not adopted. Few of artel's questions are visual — the
   analysis interview's UX branch without Figma, an occasional architecture choice in the vision —

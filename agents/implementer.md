@@ -155,9 +155,12 @@ per `${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §2, in this order:
    gate — `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify.py task --files <the test file>` — into
    `verify/repro-<code>-<source>-<N>.json` in the ticket's evidence dir (the id is
    `docs/debugging.md` §3's: the `<code>` and `<source>` you matched the row by in Step 1, `<N>`
-   the row's position under that heading). Its `test` stage must be red. With `verify.test`
-   empty the stage is `skipped`, and a `skipped` stage is never red evidence: run the host's own
-   single-file test command (its conventions docs name it) and save
+   the row's position under that heading). Its `test` stage must be red. The new test file must
+   pass `fast` first: a red `fast` stage stops the chain before `test` runs
+   (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §4, rule 3), so clear its analyzer findings and run
+   again. A `test` stage `skipped` for any reason — `verify.test` empty, or the file outside
+   `verify.testSurface` — takes the `.txt` route, because a `skipped` stage is never red
+   evidence: run the host's own single-file test command (its conventions docs name it) and save
    `verify/repro-<code>-<source>-<N>.txt` — line 1 `$ <command>`, line 2 `exit <code>`, then the
    output's tail. A `## Verify Fixes` row needs no new test: its failing test is the
    reproduction and the checkpoint's envelope is the evidence. A fault no test can reach (a

@@ -144,6 +144,11 @@ class TestImplementer(unittest.TestCase):
                        '${CLAUDE_PLUGIN_ROOT}/docs/debugging.md'):
             self.assertIn(phrase, self.doc)
 
+    def test_red_evidence_needs_a_red_test_stage(self):
+        for phrase in ('The new test file must pass `fast` first',
+                       'A `test` stage `skipped` for any reason'):
+            self.assertIn(phrase, self.doc)
+
     def test_task_gate_red_test_stage(self):
         self.assertIn('A red `test` stage is debugged, not patched', self.doc)
 
@@ -187,8 +192,16 @@ class TestReviewer(unittest.TestCase):
             self.assertIn(phrase, self.doc)
 
     def test_only_marked_rows_are_checked(self):
-        self.assertIn('whose priority carries `behavior`', self.doc)
+        # The implementer's own grammar: priority rows, forecaster rows and manual rows alike.
+        self.assertIn('whose checkbox text carries `behavior` in its parenthetical', self.doc)
         self.assertIn('this check does not read them', self.doc)
+
+    def test_every_round_checks_and_flags_a_row_once(self):
+        self.assertNotIn('2 or higher', self.doc)
+        self.assertIn('A row already flagged in an earlier round is not flagged again', self.doc)
+
+    def test_a_skipped_envelope_is_not_evidence(self):
+        self.assertIn('one whose `test` stage is not red (green or `skipped`)', self.doc)
 
 class TestSkill(unittest.TestCase):
     def setUp(self):
@@ -241,6 +254,20 @@ class TestReleaseDocs(unittest.TestCase):
                        '**The gate diet: the live smoke test has not been run**',
                        '**The debugging discipline: the live check is owed**'):
             self.assertIn(phrase, doc)
+
+    def test_skills_reference_has_an_entry(self):
+        doc = flat(read('docs/skills-reference.md'))
+        self.assertIn('### debugging', doc)
+        entry = doc.split('### debugging', 1)[1].split('### ', 1)[0]
+        for field in ('**Purpose:**',
+                      '**Invocation:** `/artel:debugging [symptom | failing test | error text]`',
+                      '**Reads:**', '**Writes:**', '**Pauses:**', '**Notes:**'):
+            self.assertIn(field, entry)
+
+    def test_changelog_is_accurate_about_tickets_in_flight(self):
+        since = flat(read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [0.21.0]', 1)[0])
+        self.assertIn('open `## Runtime Fixes` and failing-test `## Verify Fixes` rows are reproduced '
+                      'first from this release on', since)
 
     def test_changelog_announces_it(self):
         # Everything since 0.21.0: [Unreleased] before the release is cut, [0.22.0] after.

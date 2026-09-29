@@ -110,15 +110,18 @@ Per `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §6: verify each `## Devi
 
 ### Behavioural-fix check
 
-On a round after a fix round (`**Review round:**` 2 or higher), take every checked `- [x]` row
-under `## Code Review Fixes` whose priority carries `behavior`, and look in the ticket's
-phase-aware `verify/` directory (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4) for its
-reproduction, `repro-crf-<source>-<N>` (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §3): a `.json`
-whose `test` stage has `"ok": false`, or a `.txt` whose second line is a non-zero `exit`. No
-such file, or one that is green, is an **Important** finding — unless the implementer's report
-for that row names a `.artel/run/repro/` script and why no test reaches the fault. The evidence
-is the file, not the report's wording. `## Runtime Fixes` and `## Verify Fixes` rows are proven
-by their own gates re-running; this check does not read them.
+In every ticket-mode round, take every checked `- [x]` row under `## Code Review Fixes` whose
+checkbox text carries `behavior` in its parenthetical — `(Blocking, behavior)`, `(behavior)`, a
+manual `(behavior) …` — and look in the ticket's phase-aware `verify/` directory
+(`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4) for its reproduction,
+`repro-crf-<source>-<N>` (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §3): a `.json` whose `test`
+stage has `"ok": false`, or a `.txt` whose second line is a non-zero `exit`. No such file, or one
+whose `test` stage is not red (green or `skipped`), is an **Important** finding — unless the
+implementer's report for that row names a `.artel/run/repro/` script and why no test reaches
+the fault. The evidence is the file, not the report's wording. A row already flagged in an
+earlier round is not flagged again: evidence cannot be produced after the fix, so the first
+finding is the record. `## Runtime Fixes` and `## Verify Fixes` rows are proven by their own
+gates re-running; this check does not read them.
 
 ---
 

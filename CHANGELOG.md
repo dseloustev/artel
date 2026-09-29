@@ -40,8 +40,9 @@ All notable changes to this project are documented here. The format follows
 - No configuration change. Setting `verify.test` (a scoped test command with `{files}`) lets a
   reproduction land as a gate envelope; without it the implementer captures the host's own
   single-file test command to `repro-<id>.txt`.
-- A ticket in flight keeps working: rows written before this release carry no `behavior`
-  marker, so they are worked and reviewed as before.
+- A ticket in flight keeps working. `## Code Review Fixes` rows written before this release
+  carry no `behavior` marker, so they are worked and reviewed as before; open `## Runtime Fixes`
+  and failing-test `## Verify Fixes` rows are reproduced first from this release on.
 - **Owed from 0.18.0** (its release shipped without this block):
   - add `verify.test` to `.artel/config.json`, or accept task gates that run `verify.fast` only;
   - a ticket in flight keeps working — a `## Final Verification` section in an older tasklist is

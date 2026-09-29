@@ -89,12 +89,14 @@ Always read for context:
 
 A PRD file at the path determined by `ticket-parsing.md` §4, containing:
 - the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: prd`, `status:
-  PRD_READY` once open questions are empty, `produced_by: artel:analyst`
+  PRD_READY` once open questions are empty and `## Requirements` is written, `produced_by: artel:analyst`
 - a `## Metadata` section whose **Inputs:** line cites the documents read
   (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.1) — no `Status:` line
 - goal and context
 - user stories and scenarios
 - metrics and success criteria
+- `## Requirements` — the numbered list every task traces to (Requirements in the PRD, below);
+  required for PRD_READY
 - limitations and risks
 - out of scope, assumptions, resolved questions (the interview record); open questions must be empty for PRD_READY
 
@@ -120,9 +122,47 @@ asking, so the record of it belongs in the sections that already exist:
 
 For phase-scoped runs, the PRD covers **only that phase's requirements**. It may reference the ticket-wide PRD for shared context but must not duplicate it.
 
+## Requirements in the PRD
+
+`## Requirements` is the list the rest of the pipeline traces to: every task in the tasklist
+names the requirements it delivers on its `Implements:` line
+(`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §2), the plan review fails a requirement that no
+task names, and the reviewer grades the finished work one requirement at a time.
+`PRD_READY` requires the section.
+
+- **One behaviour per entry**, numbered from `R1`, with the check that proves it on an indented
+  line:
+
+      - **R1** — A completed checkout shows a receipt with the order total.
+        *Accepts when:* checking out with the test card shows the receipt with the total.
+
+  The entry's first line — ID, dash, statement — is one line, never wrapped.
+- **Drawn from what the PRD already says** — the user stories, the scenarios, the success
+  criteria, and every Resolved Question that binds scope. A requirement none of them supports
+  is invented scope, which the first of the Rules below forbids.
+- **A check a person or a test can observe.** *Accepts when:* names what is seen — "the receipt
+  shows the total" — never how it is built.
+- **IDs are stable.** From `PRD_READY` on, an ID is never renumbered and never reused. A
+  requirement added later takes the next free number. A requirement dropped later keeps its
+  entry, with `(withdrawn — <reason>)` at the end of its first line; a requirement the current
+  code already meets carries `(already met — <evidence>)` there instead. The plan review's
+  coverage skips both.
+- **IDs belong to the PRD that defines them.** A phase PRD (`phase-<PHASE_NUM>/prd.md`) numbers
+  its own requirements from `R1` and never repeats the ticket-wide PRD's; a tasklist cites the
+  PRD at its own phase-aware path.
+- **IDs stay in the spec trail** — the PRD, the tasklist, the reviews — never in code, tests,
+  identifiers, comments or commit subjects (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §5).
+
+**After `PRD_READY`.** The orchestrator sends you back to a `PRD_READY` PRD for one reason
+only: at the approval pause the person confirmed that the current code already meets a
+requirement. Add `(already met — <evidence>)` to the end of that requirement's first line and
+change nothing else — no renumbering, no other entry touched, and the status stays `PRD_READY`.
+
 ## Rules
 
 - Do not invent business requirements that do not follow from the context.
+- **Requirement IDs carry over.** Rewriting a PRD that already has `## Requirements` keeps every
+  ID it has: the stability rules above bind a draft you start from as much as a finished PRD.
 - Insufficient information is resolved through the interview, not deferred: PRD_READY requires an empty "Open Questions" section.
 - Always refer to `idea.md` for context; the vision document is generated after the PRD and must not be an input here.
 - **Phase scope:** When working on a specific phase, focus only on that phase's requirements.

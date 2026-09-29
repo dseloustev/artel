@@ -110,7 +110,9 @@ Repeat until the agent returns `INTERVIEW_COMPLETE`:
 ```
 Interview complete. Write the PRD now:
 1. Follow the PRD structure from your agent definition's Output section (goal/context, user
-   stories, metrics, risks, out of scope, assumptions, resolved questions).
+   stories, metrics, requirements, risks, out of scope, assumptions, resolved questions).
+   Write `## Requirements` as your agent definition's "Requirements in the PRD" section
+   prescribes — `R<n>` entries, each with its *Accepts when:* line; `PRD_READY` requires it.
 2. Record every Q&A pair in `## Resolved Questions`, parked items in `## Assumptions`, exclusions in
    `## Out of Scope`. `## Open Questions` must be empty. A question the institutional record
    answered is recorded there too, in the cited form your agent definition's Output section gives —

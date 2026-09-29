@@ -106,5 +106,93 @@ class TestGrammarContract(unittest.TestCase):
         self.assertIn('The fix sections are outside this grammar.', doc)
 
 
+# ---------------------------------------------------------------------------
+# Plan 2 of sub-project 2a: the analyst's requirements, the writers, the
+# reviewer's plan mode, gate 4.2, the dev-path check, sync-phases and
+# /artel:tasks add. Prompts have no code path, so a phrase dropped here fails a
+# test instead of a run nobody is watching. Helpers carry a `_w_` prefix so they
+# never shadow a helper of plan 1's class above.
+# ---------------------------------------------------------------------------
+import re as _w_re
+import unittest
+from pathlib import Path as _W_Path
+
+_W_ROOT = _W_Path(__file__).resolve().parent.parent
+
+
+def _w_raw(rel):
+    return (_W_ROOT / rel).read_text(encoding='utf-8')
+
+
+def _w_flat(rel):
+    """`rel` with whitespace runs collapsed, so re-wrapping a paragraph never breaks a pin."""
+    return _w_re.sub(r'\s+', ' ', _w_raw(rel))
+
+
+def _w_between(text, start, end=None):
+    """The text after the first `start`, up to the first `end` after it (the rest when None)."""
+    body = text.split(start, 1)[1]
+    return body.split(end, 1)[0] if end else body
+
+
+class TestAnalystRequirements(unittest.TestCase):
+    """Spec §2: the PRD's `## Requirements` section, required for PRD_READY."""
+
+    def setUp(self):
+        self.analyst = _w_flat('agents/analyst.md')
+        self.section = _w_between(self.analyst, '## Requirements in the PRD', '## Rules')
+
+    def test_the_section_is_listed_and_required_for_prd_ready(self):
+        output = _w_between(self.analyst, '## Output', '## Requirements in the PRD')
+        self.assertIn('`## Requirements` — the numbered list every task traces to', output)
+        self.assertIn('once open questions are empty and `## Requirements` is written', output)
+        self.assertIn('`PRD_READY` requires the section', self.section)
+
+    def test_an_entry_is_an_id_a_statement_and_an_accepts_when_line(self):
+        for phrase in ('- **R1** — A completed checkout shows a receipt with the order total.',
+                       '*Accepts when:* checking out with the test card shows the receipt'
+                       ' with the total.',
+                       'is one line, never wrapped'):
+            self.assertIn(phrase, self.section)
+
+    def test_entries_come_from_what_the_prd_already_says(self):
+        for phrase in ('the user stories, the scenarios, the success criteria',
+                       'every Resolved Question that binds scope'):
+            self.assertIn(phrase, self.section)
+
+    def test_ids_are_stable_and_the_markers_are_spelled_once(self):
+        for phrase in ('never renumbered and never reused', 'takes the next free number',
+                       '`(withdrawn — <reason>)` at the end of its first line',
+                       '`(already met — <evidence>)` there instead',
+                       "The plan review's coverage skips both"):
+            self.assertIn(phrase, self.section)
+
+    def test_a_phase_prd_owns_its_ids(self):
+        self.assertIn('numbers its own requirements from `R1`', self.section)
+        self.assertIn('`phase-<PHASE_NUM>/prd.md`', self.section)
+
+    def test_ids_stay_out_of_the_product(self):
+        self.assertIn('never in code, tests, identifiers, comments or commit subjects',
+                      self.section)
+        self.assertIn('docs/task-grammar.md` §5', self.section)
+
+    def test_the_only_amendment_after_prd_ready_is_the_already_met_marker(self):
+        after = _w_between(self.section, '**After `PRD_READY`.**')
+        self.assertIn("to the end of that requirement's first line and change nothing else",
+                      after)
+        self.assertIn('the status stays `PRD_READY`', after)
+
+    def test_rewriting_a_prd_keeps_its_ids(self):
+        rules = _w_between(self.analyst, '## Rules')
+        self.assertIn('**Requirement IDs carry over.**', rules)
+
+    def test_the_analysis_skill_asks_for_the_section(self):
+        finalize = _w_between(_w_flat('skills/analysis/SKILL.md'),
+                              '### Phase 3: Finalize the PRD', '### Completion')
+        for phrase in ('metrics, requirements, risks', 'Write `## Requirements`',
+                       '`PRD_READY` requires it'):
+            self.assertIn(phrase, finalize)
+
+
 if __name__ == '__main__':
     unittest.main()

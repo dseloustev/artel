@@ -74,16 +74,36 @@ On phase-scoped runs (`PHASE_NUM` set), first invoke `Skill: sync-phases` with `
 `phase-<N>/tasks.md` from `tasklist.md` when it is missing.
 
 1. **Tasklist with incomplete `- [ ]` tasks exists** (phase-scoped `phase-<N>/tasks.md` or
-   ticket-wide `tasklist.md`) → it is the work list. Present a one-screen summary (tasks + any
-   `[HITL: …]` tags) via `AskUserQuestion` — **Confirm** / **Adjust** (feedback via "Other"). This
-   is dev's one pause.
+   ticket-wide `tasklist.md`) → it is the work list. First run the plan check on it
+   (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §6): `<tasklist-path>` is that tasklist,
+   `<prd-path>` the phase-aware PRD with its read fallback
+   (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5). No PRD there (kartoteka path:
+   `spec_store.py exists <prd-path>` exits 3) → `<requirements>` is `absent`; otherwise read its
+   active IDs and turn `data` into `<requirements>` — `present: false` → `absent`,
+   `present: true` with an empty `ids` → `none`, otherwise the `ids` joined by `,`. Then check
+   the tasklist. Files path first, kartoteka path (`docs/spec-storage.md` §4.2) second, for each
+   command:
+
+       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd <prd-path>
+       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -
+       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <requirements>
+       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
+
+   Then present a one-screen summary (tasks + any `[HITL: …]` tags + the check's findings,
+   Critical and Important first, each as `<task> <severity> <rule>: <message>`) via
+   `AskUserQuestion` — **Confirm** / **Adjust** (feedback via "Other"). This is dev's one pause.
+   There is no automatic fix round here: the person reads the findings and decides. An
+   old-format tasklist (`data.format` `legacy`) has no findings to show; an exit `2` from either
+   command shows `plan check: not run (<error.kind>)` instead.
 2. **Else `idea.md` + `vision.md` exist** → `Skill: generate-tasklist` with `$0`. Its
    questions+approval round IS the mini-interview and the one pause — do not add another.
 3. **Else** → mini-interview: if `$1` (description file) or the user's inline description is
    unambiguous, zero questions; otherwise ask only what is genuinely ambiguous (≤4 per
    `AskUserQuestion`, max two rounds, grounded in the codebase). Then present your understanding +
    proposed work list — **Confirm** / **Adjust**. On confirm, write the work items as checkbox
-   tasks into the phase-aware tasklist path so progress is trackable.
+   tasks into the phase-aware tasklist path so progress is trackable. This work list stays in
+   the old checkbox format (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4), so it gets no plan
+   check.
 
 On the kartoteka path these existence checks are one `spec_store.py list <TICKET_ID>`, and branch 3's work list is written with `artifact_put(project=<project>, …, expected_version=0)` (spec-storage.md §4.1).
 
@@ -93,7 +113,9 @@ commit+push per completed phase — procedure: `feature-development` `## Checkpo
 pushes`).
 
 **`yolo` only:** present nothing — the derived work list stands. In ladder branch 3, an ambiguous
-description still asks (unresolved ambiguity is a guardrail, not a pause preference).
+description still asks (unresolved ambiguity is a guardrail, not a pause preference). In ladder
+branch 1, a Critical or Important plan-check finding still presents the confirmation, findings
+first — the same guardrail.
 
 ### 3. Arm the run
 

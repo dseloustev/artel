@@ -462,5 +462,79 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
         self.assertIn("the plan review's outcome", arm)
 
 
+class TestDevPathPlanCheck(unittest.TestCase):
+    """Spec §6.1: the mechanical half on the dev path — generate-tasklist's draft and ladder
+    branch 1's existing tasklist; branch 3 stays in the old format."""
+
+    def setUp(self):
+        self.gen = _w_flat('skills/generate-tasklist/SKILL.md')
+        self.check = _w_between(self.gen, '### Phase 1b: Check the draft', '### Phase 2:')
+        self.ladder = _w_between(_w_flat('skills/dev/SKILL.md'), '### 2. Input ladder',
+                                 '### 3. Arm the run')
+
+    def test_the_draft_is_checked_before_the_approval_round(self):
+        raw = _w_raw('skills/generate-tasklist/SKILL.md')
+        self.assertLess(raw.index('### Phase 1b: Check the draft'),
+                        raw.index('### Phase 2: Ask User Questions'))
+        for phrase in ('tasklist_tasks.py --tasklist .artel/run/<TICKET_ID>/tasklist-draft.md'
+                       ' --ticket-key <TICKET_ID> --check --requirements <requirements>',
+                       'tasklist_tasks.py requirements --prd <specs.dir>/<TICKET_ID>/prd.md',
+                       '`present: false` → `absent`'):
+            self.assertIn(phrase, self.check)
+
+    def test_no_prd_means_absent_without_a_read(self):
+        self.assertIn('No PRD (the **PRD.** check in Phase 1) → `<requirements>` is `absent`',
+                      self.check)
+        self.assertIn('`spec_store.py exists <specs.dir>/<TICKET_ID>/prd.md`', self.gen)
+        self.assertIn('No PRD there', self.ladder)
+
+    def test_at_most_two_fix_rounds_to_the_same_writer(self):
+        self.assertIn('`MAX_PLAN_REVIEW_ROUNDS = 2`', self.check)
+        self.assertIn('Minor findings never start a round', self.check)
+        rules = _w_between(self.gen, '## Important Rules')
+        self.assertIn('at most `MAX_PLAN_REVIEW_ROUNDS` fix-round `SendMessage`s in Phase 1b',
+                      rules)
+
+    def test_the_writer_is_asked_for_task_blocks_and_given_the_prd(self):
+        for phrase in ('**PRD (input, requirement IDs only):**', 'task blocks in the task grammar',
+                       'Write the draft to .artel/run/<TICKET_ID>/tasklist-draft.md'):
+            self.assertIn(phrase, self.gen)
+        for retired in ('file-grouped checkbox tasks', 'checkbox tasks grouped by file'):
+            self.assertNotIn(retired, self.gen)
+
+    def test_the_written_tasklist_is_checked_once_more(self):
+        phase3 = _w_between(self.gen, '### Phase 3:', '### Phase 4:')
+        self.assertIn('no round this time', phase3)
+        self.assertIn('tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>'
+                      ' --check --requirements <requirements>', phase3)
+
+    def test_branch_one_checks_and_shows_without_a_round(self):
+        for phrase in ('tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID>'
+                       ' --check --requirements <requirements>',
+                       'There is no automatic fix round here',
+                       '`plan check: not run (<error.kind>)`'):
+            self.assertIn(phrase, self.ladder)
+
+    def test_branch_three_stays_in_the_old_format(self):
+        self.assertIn('This work list stays in the old checkbox format', self.ladder)
+
+    def test_yolo_still_presents_a_critical_or_important_finding(self):
+        self.assertIn('a Critical or Important plan-check finding still presents the'
+                      ' confirmation', self.ladder)
+
+    def test_the_approval_round_shows_routes_and_a_change_is_set_at_approval(self):
+        # Spec §5.3 on the dev path's branch 2: generate-tasklist's approval round is the
+        # pause, so it shows the routes, and the writer records a change.
+        phase2 = _w_between(self.gen, '### Phase 2:', '### Phase 3:')
+        for phrase in ("lists every task's effective route with its reasons",
+                       'tasklist_tasks.py --tasklist .artel/run/<TICKET_ID>/tasklist-draft.md'
+                       ' --ticket-key <TICKET_ID>',
+                       'down as well as up', '`Route: <light|full> — set at approval`'):
+            self.assertIn(phrase, phase2)
+        self.assertIn('A route the person changed is written'
+                      ' `Route: <light|full> — set at approval`',
+                      _w_flat('agents/tasklist-writer.md'))
+
+
 if __name__ == '__main__':
     unittest.main()

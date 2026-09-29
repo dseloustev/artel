@@ -98,6 +98,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   commit+push closes each phase; `pr-create` then finds a clean tree and only opens the PR. The
   run records the checkpoint gate's baseline once at arm time and confirms the completion
   checklist itself (autonomous-run.md §7); QA and validate are not pipeline stages since 0.18.0.
+  On a task-format tasklist the approval pause also lists every task's route, which the person
+  may change, and a task's own review runs when its route is `full` (autonomous-run.md §16).
 
 ### dev
 
@@ -120,7 +122,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `--step` is the legacy per-gate mode (alias `--mode=full-gates`, §6). **No `--dry-run` flag**
   — that is a `feature-development`-only capability. No PRD/plan/docs gates exist on this path.
   Multi-phase tasklists are traversed phase-by-phase in one run (autonomous-run.md §15)
-  with a checkpoint commit+push per phase.
+  with a checkpoint commit+push per phase. On a task-format tasklist the work-list confirmation
+  lists every task's route, and a task's own review runs when its route is `full`
+  (autonomous-run.md §16).
 
 ### setup
 
@@ -288,11 +292,14 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 ### implementer
 
-- **Purpose:** Implement the next incomplete tasklist task, verify it, and flip its checkbox.
+- **Purpose:** Implement the next incomplete tasklist task, verify it, and flip its checkbox —
+  on a task-format tasklist one whole `### Task N.M:` block per dispatch, every step ticked.
 - **Invocation:** `/artel:implementer [ticket-id] or [ticket-id]-[phase] [--local]`
 - **Reads:** on the queue path a `task_ready` claim from kartoteka, else the phase tasks
-  file or `tasklist.md` (first `- [ ]` task in scope) — `--local` forces the file
-  ([task-queue.md](task-queue.md) §1); `idea.md`, `vision.md`.
+  file or `tasklist.md` (first `- [ ]` task in scope; on a task-format tasklist the first task
+  of the parser's `ready_now`) — `--local` forces the file
+  ([task-queue.md](task-queue.md) §1, §4); the `Produces:` lines of the task's dependencies;
+  `idea.md`, `vision.md`.
 - **Writes:** (via the agent) the source changes for the task; the tasklist checkbox and
   Progress Report; on the queue path, a fix-section task's row moved by `task_update` alone —
   never claimed ([task-queue.md](task-queue.md) §3); deviation records per
@@ -306,9 +313,13 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `pause_reason` set/clear.
 - **Notes:** single-phase autonomous model — implements directly, no proposal/approval
   round-trip. The verify loop is the composed `inner-loop` procedure over the task gate —
-  `verify.fast` on the changed paths, `verify.test` on the changed tests ([gates.md](gates.md)
+  `verify.fast` on the changed paths, `verify.test` on the changed tests and on the task's
+  `Test:` files ([gates.md](gates.md)
   §1) — capped at `MAX_VERIFY_ITERATIONS` (autonomous-run.md §5); the whole-tree gate is the
-  orchestrator's checkpoint. A task tagged `[HITL: …]` is never
+  orchestrator's checkpoint. On a task-format tasklist, on the queue path, a completion promotes
+  every task whose dependencies are now done ([task-queue.md](task-queue.md) §3); a dependency
+  the task needs but does not declare is a Major deviation, and the completion's `Deviations:`
+  line names the files each deviation changed. A task tagged `[HITL: …]` is never
   implemented directly — the skill stops and returns control instead. When a change's effect
   isn't obvious from tests alone the agent may launch the app via the `run-app` flow
   (`runtime.run` configured) — an on-demand check, not the `RUNTIME_OK` gate.
@@ -359,9 +370,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Pauses:** never.
 - **Notes:** orchestrator (dispatches the `reviewer` agent). Capped at `MAX_REVIEW_ROUNDS`
   (autonomous-run.md §5) — the cap is enforced by the calling orchestrators, which loop it
-  against implementer fix rounds until clean or capped. Task mode is the `review.perTask`
-  gate of autonomous-run.md §16 (off by default; one fix round, `MAX_TASK_REVIEW_ROUNDS = 1`,
-  no per-task re-review — open fix tasks are handed to the phase review). `deep-review` drives
+  against implementer fix rounds until clean or capped. Task mode is the `full` route's review
+  of autonomous-run.md §16 (every task with `review.perTask: true`; one fix round,
+  `MAX_TASK_REVIEW_ROUNDS = 1`, no per-task re-review — open fix tasks are handed to the phase
+  review); on a task-format tasklist it grades the whole task block and the requirements its
+  `Implements:` names. `deep-review` drives
   the same `reviewer` agent in standalone mode once, then the `review-forecaster` agent, for a
   separate, non-pipeline review-and-forecast workflow.
 

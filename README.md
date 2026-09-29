@@ -48,6 +48,10 @@ Core design properties:
   for a green light; then runs implement → review → docs → PR unattended.
 - **Gates, not vibes** — hooks enforce verification before "done": analyzer/tests must pass,
   the stop gate latches until evidence exists, sensitive paths are guarded in autonomous mode.
+- **Tasks with dependencies and routes** — a tasklist task is a block with its files,
+  dependencies, tests and the PRD requirements it implements ([docs/task-grammar.md](docs/task-grammar.md));
+  a task runs once its dependencies are done, and the risky ones — declared by the planner or
+  raised by a sensitive path — get their own review before the next task starts.
 - **Resumable** — re-invoking the same entry-point command resumes an interrupted run.
 
 ## Install

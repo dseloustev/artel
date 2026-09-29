@@ -984,5 +984,63 @@ class TestReadersAudit(unittest.TestCase):
                       flat(read('docs/orchestrator-common.md')))
 
 
+class TestTaskGrammarReleaseDocs(unittest.TestCase):
+    """Plan 3, Task 5: the operator docs, the design log and the changelog (spec §10)."""
+
+    def test_workflow_guide(self):
+        guide = flat(read('docs/workflow-guide.md'))
+        self.assertIn('One dispatch works one whole task', guide)
+        self.assertIn('**Routes at the pause.**', guide)
+        self.assertIn('The journal says which route each task took and why', guide)
+        self.assertIn('the task taken is the first whose dependencies are done', guide)
+
+    def test_skills_reference(self):
+        ref = flat(read('docs/skills-reference.md'))
+        implementer = _between(ref, '### implementer', '### inner-loop')
+        self.assertIn('one whole `### Task N.M:` block per dispatch', implementer)
+        self.assertIn("the first task of the parser's `ready_now`", implementer)
+        self.assertIn("and on the task's `Test:` files", implementer)
+        self.assertIn("Task mode is the `full` route's review",
+                      _between(ref, '### run-reviewer', '### run-app'))
+        for entry, end in (('### feature-development', '### dev'), ('### dev', '### setup')):
+            with self.subTest(entry):
+                self.assertIn("a task's own review runs when its route is `full`",
+                              _between(ref, entry, end))
+
+    def test_readme(self):
+        self.assertIn('**Tasks with dependencies and routes**', flat(read('README.md')))
+
+    def test_design_log(self):
+        design = flat(read('docs/design.md'))
+        for phrase in ('**2026-09-29 — Sub-project 2 is split into 2a, 2b and 2c, 2a first.**',
+                       '**2026-09-29 — A task is a block, and the parser is its only reader.**',
+                       'a task-format tasklist is first mirrored only after approval',
+                       '**2026-09-29 — Routes replace the run-wide per-task review.**',
+                       '**2026-09-29 — Requirement IDs live in the PRD, and the plan is reviewed '
+                       'before the pause.**',
+                       '**2026-09-29 — Old-format tasklists keep working until 2b.**',
+                       '**Sub-project 2b: one orchestrator**', '**Sub-project 2c: parallel seats.**',
+                       '**Old-format tasklists are still read** (0.23.0).'):
+            self.assertIn(phrase, design)
+        follow_ups = _between(design, '## Open follow-ups', '## Decision log')
+        sdd = _between(follow_ups, '**SDD v2 inputs for sub-project 2**', '**Sub-project 2b')
+        self.assertIn('Sub-project 2b still owes', sdd)
+        self.assertNotIn('an `Implements` line per task', sdd)
+        self.assertNotIn('a plan-review rubric', sdd)
+
+    def test_changelog(self):
+        # Everything since 0.22.0: [Unreleased] before the release is cut, [0.23.0] after.
+        since = flat(_between(read('CHANGELOG.md'), '## [Unreleased]', '\n## [0.22.0]'))
+        for phrase in ('docs/task-grammar.md', '## Requirements', 'gate 4.2', '`PLAN_REVIEWED`',
+                       '**Routes.**', '**One dispatch works one whole task**',
+                       '**Tasks run in dependency order.**',
+                       'mirrored into the task queue after approval, not at gate 4',
+                       '`deviation_files`',
+                       '**`review.perTask: true` now raises every task to `full`**',
+                       '### Upgrading', '**A ticket in flight keeps working.**',
+                       '**New tickets get the grammar**', '**PRDs gain `## Requirements`.**'):
+            self.assertIn(phrase, since)
+
+
 if __name__ == '__main__':
     unittest.main()

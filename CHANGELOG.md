@@ -6,6 +6,57 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **The task grammar** (`docs/task-grammar.md`). A tasklist task is a block —
+  `### Task N.M: <title>` with `Files:`, `Depends on:`, `Route:`, `Test:`, `Produces:` and
+  `Implements:` bullets and its checkboxes as steps — written the same way by `task-planner` and
+  `tasklist-writer`. `scripts/tasklist_tasks.py` validates it (every problem at once, with line
+  numbers), and emits the dependency waves, the tasks ready now and each task's route floor.
+- **Requirement IDs in the PRD.** The analyst writes a `## Requirements` section (`R1`, `R2`, …,
+  stable after `PRD_READY`, with `withdrawn` and `already met` markers), and every task names the
+  requirements it builds in `Implements:`. IDs never appear in code, tests or commit subjects.
+- **The plan review before the pause.** `tasklist_tasks.py --check` proves the grammar,
+  requirement coverage, the tasks' file and test paths and the absence of placeholders; on
+  `feature-development` the reviewer's new plan mode grades the rest (gate 4.2
+  `PLAN_REVIEWED`, at most two fix rounds). `dev` runs the check before its confirmation.
+- **Routes.** Each task runs `light` or `full`: declared by the planner, raised to `full` by a
+  sensitive path, a HITL tag, more than five files or an earlier deviation on its files, and
+  shown at the pause, where it can be changed. A `full` task gets its own review before the next
+  task starts. The journal records every task's route and why.
+
+### Changed
+
+- **One dispatch works one whole task**, every step, then the task gate — which now also runs
+  the task's `Test:` files, touched or not. The implementer ticks every step and the Progress
+  Report in one write.
+- **Tasks run in dependency order.** A task becomes claimable once every task it depends on is
+  done, on the queue and on the fallback path alike; readiness is read from the document, so a
+  retitled row can no longer run ahead of its dependencies. A task-format tasklist is mirrored
+  into the task queue after approval, not at gate 4. A dependency a task needs but does not
+  declare is a Major deviation.
+- **The completion's `Deviations:` line names the files each deviation changed**
+  (`D1 (minor: lib/a.dart)`); the orchestrators keep them in `run-state.json`
+  `deviation_files` to route later tasks on those files `full`.
+- **`review.perTask: true` now raises every task to `full`** instead of wrapping every dispatch.
+- The reviewer's task mode grades the whole task block and the requirements it implements;
+  `deep-review`, `change-digest`, `pr-description`, `tech-writer`, `qa`, `validator` and
+  `/artel:tasks done` read task blocks.
+
+### Upgrading
+
+- No configuration change. `review.perTask: true` keeps every task reviewed; `false` now still
+  reviews the tasks whose route is `full`.
+- **A ticket in flight keeps working.** A tasklist with no `### Task N.M:` heading is read as
+  before everywhere: one row per checkbox, promotion by iteration, `review.perTask` as the only
+  per-task review, no plan review.
+- **New tickets get the grammar**: tasklists written from this release on use task blocks, and
+  their routes are shown at the approval pause.
+- **PRDs gain `## Requirements`.** A PRD written before this release has none: its tasks carry
+  no `Implements:`, coverage is skipped, and the pause says the PRD predates requirement IDs.
+- A run armed before this release has no `deviation_files` in `run-state.json`; it is read as
+  empty.
+
 ## [0.22.0] - 2026-09-29
 
 ### Added

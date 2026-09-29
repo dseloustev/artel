@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-09-29
+
 ### Added
 
 - **`/artel:debugging` — root cause before a fix.** For a bug, a failing test or unexpected

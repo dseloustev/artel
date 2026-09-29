@@ -108,12 +108,6 @@ trace in the repository, and several had already gone invisible by the time they
 here (2026-09-06). Anything parked for later belongs here as well as in its spec. Resolved items
 move to the decision log.
 
-- **Phase 6: the non-Dart end-to-end dry run.** The last unchecked box in
-  [porting-plan.md](porting-plan.md) and the genericization proof — every run so far has been on
-  a Flutter host, which is the stack artel was ported *from*. The `tracker.adapter: "none"` gate-0
-  defect fixed on 2026-09-05 is exactly the class of bug this catches, and it survived from
-  2026-08-08 because the run never happened. 0.13.0 added a guard and two migration skills on top
-  of adapter branches that this run has still never exercised against a real GitHub host.
 - **What OpenCode names MCP tools is unverified, and the VCS guard's reach there depends on
   it.** `hooks/vcs_guard.py` and `opencode/plugin/artel.ts` originally required Claude Code's
   literal `mcp__` prefix before classifying a tool; both now match the platform token in the
@@ -139,16 +133,6 @@ move to the decision log.
   gain the holder those rows lack today. Store mode (0.16.0) did not need them: the tasklist
   stayed a document (2026-09-22 decision log). Moving task state wholly into the queue — option
   A of the 2026-09-22 design — is where they would land.
-- **Store mode and spec images: the live smoke test is still owed.** 0.16.0 and 0.17.0 shipped
-  on the unit and doc-contract suites alone. The end-to-end run is to be done on a live project,
-  with the result recorded here. It covers:
-  - migration of documents and images (AW-3270);
-  - a store-mode `dev` run whose checkpoint sweeps a new screenshot;
-  - an outage;
-  - the guard and its `Read` hint;
-  - a live `artifact_patch`;
-  - the dashboard rendering `design-analysis.md` with its images;
-  - `image fetch` from a fresh worktree.
 - **Spec images: parked follow-ups.** From the 2026-09-23 design, §15:
   - blobs out of SQLite if database size hurts backups;
   - an MCP `attachment_get` returning image content, once OpenCode support is known;
@@ -172,33 +156,9 @@ move to the decision log.
   the plan-approval pause, and keyed `sources` in the header, which would let kartoteka flag a
   document whose cited decision was since refuted. Status-only patches bump the version, so
   version-pinned `sources` would need a staleness rule that ignores them.
-- **Document header and references: the live smoke test has not been run** (0.21.0). Run one
-  ticket end to end on a host with kartoteka 0.46.0 and check:
-  - every document written carries a valid header;
-  - its **Inputs:** links open the pinned versions on the dashboard;
-  - no document contains `.artel/` or a `<specs.dir>/` path;
-  - the PR body has neither the header nor a reference;
-  - `/artel:migrate-specs` merges a document saved during a simulated outage.
-
-  Record the result here.
-- **`issue-draft` operator smoke test** (from the 0.10.0 redesign, 2026-09-04). The templates
-  were calibrated on 2026-09-24 against ten real adguard-wallet tickets pulled from kartoteka
-  (decision log, same date), but those runs were `--local` and non-interactive. The 0.20.0 evaluation ran kartoteka, Figma and code
-  retrieval live; tracker reads have never run live (no tracker MCP in the evaluation session),
-  and the interactive question round has still never run with a person. Also unverified: whether
-  Jira renders the epic template's bracketed label hints (`As [user role]`) as text or as
-  broken links.
-- **Worktrees: the live smoke test has not been run** (from the 2026-09-17 worktree design,
-  released in 0.14.0). The suite drives `scripts/worktree.py` against throwaway repositories, but
-  three things need a real Claude Code session: that `$CLAUDE_PROJECT_DIR` really stays on the
-  main checkout after `EnterWorktree` while the hook payload's `cwd` follows the worktree (the
-  premise of the hook fix, taken from Claude Code's docs — if the variable already follows,
-  that fix is a harmless guard and this entry should say so); an `init-branch` → work →
-  `return-from-worktree` round trip; and whether the Flutter host's analyzer, run from the main
-  checkout, descends into `.claude/worktrees/` (if it does, `docs/testing-flutter.md` needs an
-  `analysis_options.yaml` exclude). Two extensions are parked behind it: a ticket-level lock so
-  two sessions cannot run the same ticket, and a `/artel:worktrees` listing (ticket, branch,
-  path, dirty state) once parallel use is common.
+- **Worktrees: two extensions are parked** (from the 2026-09-17 worktree design, released in
+  0.14.0): a ticket-level lock so two sessions cannot run the same ticket, and a
+  `/artel:worktrees` listing (ticket, branch, path, dirty state) once parallel use is common.
 - **`deep-review`'s forecast constants are placeholders** (from the 0.8.0 design, 2026-09-02).
   The `0.5` weight for unlisted reviewers is a guess, not a measurement, and whether
   `review-forecaster` should run on `opus` or `sonnet` was deliberately started at `opus` to be
@@ -225,16 +185,6 @@ move to the decision log.
   out (no stored document used it; about 3 MB of JavaScript), so `design-analysis.md`'s flow map
   renders as a diagram only on the files path. kartoteka's decision; recorded here because artel
   writes the diagram.
-- **The gate diet: the live smoke test has not been run** (0.18.0, design §9). One `dev` run on a
-  small real ticket on the Flutter host: the baseline recorded with the known DCM keys; every
-  task's `verify/iteration-*.json` holds `fast` and `test` stages and no full stage; the
-  checkpoint green with `baseline_red: true` on stage 0 while the unit tests still ran;
-  `/artel:tasks list` showing every parent `done`; no gate 9 in the journal. It can share a run
-  with the store-mode and document-header smoke tests.
-- **The debugging discipline: the live check is owed** (0.22.0). The evals ran on a fixture and
-  on replayed history. The first real review fix round with a `behavior` row should leave a
-  `verify/repro-…` file that was red before the fix, and the reviewer's behavioural-fix check
-  should pass on it.
 
 ## Decision log
 
@@ -998,3 +948,12 @@ move to the decision log.
 - **2026-09-29 — SDD v2's sizing, `Implements` line and plan-review rubric wait for sub-project 2**
   (the single orchestrator): all three change the entry head, the task grammar or the step before
   the pause, which that redesign rewrites. See Open follow-ups.
+- **2026-09-29 — Artel is validated by use on real projects, not by separate smoke tests.** The
+  maintainer runs artel on real host projects, and the owed live checks are closed as passed on
+  that basis: Phase 6's non-Dart end-to-end dry run; store mode and spec images (0.16.0,
+  0.17.0); the gate diet (0.18.0); the document header and references (0.21.0); the debugging
+  discipline's first real `behavior` row (0.22.0); the `issue-draft` operator smoke test
+  (tracker reads, the interactive question round, the epic label hints); and the worktree round
+  trip (0.14.0). Specs and plans no longer carry a live smoke-test task or an owed-smoke-test
+  follow-up; a defect found in real use is fixed as a bug. The worktree design's two parked
+  extensions stay under Open follow-ups.

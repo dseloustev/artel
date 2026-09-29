@@ -91,9 +91,10 @@ The rules everything else obeys, plus the config mechanism they will reference.
 
 ## Phase 6 — publish
 
-- [ ] End-to-end dry run in a scratch repo (a trivial non-Dart project). A Flutter-host smoke
-      test is documented separately in [testing-flutter.md](testing-flutter.md) (parity with
-      the source system); the non-Dart run remains the genericization proof.
+- [x] End-to-end dry run in a scratch repo (a trivial non-Dart project). Closed 2026-09-29:
+      artel is validated by use on real projects rather than by a separate dry run (design.md
+      decision log, same date). A Flutter-host smoke-test guide stays in
+      [testing-flutter.md](testing-flutter.md).
 - [x] Operator docs: adapt `workflow-guide.md` + `skills-reference.md` to plugin reality →
       [workflow-guide.md](workflow-guide.md), [skills-reference.md](skills-reference.md).
       Alongside: README refreshed to ported-pre-publish reality, `hooks/README.md` rewritten to

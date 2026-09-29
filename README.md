@@ -20,9 +20,8 @@ idea → PRD → vision → plan → tasklist → ⏸ approval → implement →
 [CHANGELOG.md](CHANGELOG.md) for the release history and [Install](#install) below.
 
 The port from the private production setup ([docs/porting-plan.md](docs/porting-plan.md)) has
-landed in full, with one item outstanding: Phase 6's end-to-end dry run on a **non-Dart** scratch
-repo, which is the genericization proof. The Flutter smoke test is documented separately in
-[docs/testing-flutter.md](docs/testing-flutter.md).
+landed in full, and artel is validated by use on real projects. A hands-on smoke-test guide for a
+Flutter host is in [docs/testing-flutter.md](docs/testing-flutter.md).
 
 ## What ships in the plugin
 

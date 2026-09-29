@@ -251,8 +251,7 @@ class TestReleaseDocs(unittest.TestCase):
                        "**2026-09-29 — SDD v2's sizing, `Implements` line and plan-review rubric wait for sub-project 2**",
                        '**SDD v2 inputs for sub-project 2**',
                        "**kartoteka's dashboard shows Mermaid as source.**",
-                       '**The gate diet: the live smoke test has not been run**',
-                       '**The debugging discipline: the live check is owed**'):
+                       '**2026-09-29 — Artel is validated by use on real projects, not by separate smoke tests.**'):
             self.assertIn(phrase, doc)
 
     def test_skills_reference_has_an_entry(self):

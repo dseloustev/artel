@@ -139,7 +139,6 @@ class TestDocs(unittest.TestCase):
         self.assertNotIn('neither the source nor kartoteka closed', entry)
         self.assertNotIn('no Related section, every gap asked', unwrapped('docs/config.md'))
         design = unwrapped('docs/design.md')
-        self.assertIn('tracker reads have never run live', design)
         self.assertNotIn('ran retrieval live (kartoteka, tracker, Figma, code)', design)
         self.assertIn('noise at 3.5', design)
         # Everything since 0.19.0: [Unreleased] before the release is cut, [0.20.0] after.

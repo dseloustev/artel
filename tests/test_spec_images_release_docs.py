@@ -46,10 +46,10 @@ class TestDesignHistory(unittest.TestCase):
                         '2026-09-23 — An unrecoverable sweep is surfaced whole'):
             self.assertIn(heading, text)
 
-    def test_follow_ups_name_the_owed_smoke_test_and_the_parked_items(self):
+    def test_follow_ups_keep_the_parked_items_and_close_the_smoke_test(self):
         text = read('docs/design.md')
-        self.assertIn('**Store mode and spec images: the live smoke test is still owed.**', text)
-        self.assertNotIn("**Store mode's live smoke test is still owed.**", text)
+        self.assertNotIn('**Store mode and spec images: the live smoke test is still owed.**', text)
+        self.assertIn('store mode and spec images (0.16.0,\n  0.17.0)', text)
         self.assertIn('**Spec images: parked follow-ups.**', text)
 
 

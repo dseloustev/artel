@@ -444,3 +444,113 @@ class TestStructuredAndDescription(unittest.TestCase):
                          'Steps:\n'
                          '- Listen for `PurchaseSucceeded`\n'
                          '- Call `SuccessDialog.show`')
+
+
+class TestCheck(unittest.TestCase):
+    def setUp(self):
+        self.repo = make_repo()
+        self.addCleanup(self.repo.cleanup)
+
+    def check(self, text, ids=('R1', 'R2')):
+        iterations, problems, _ = task_grammar.parse(text)
+        return task_grammar.check(iterations, problems, self.repo.name,
+                                  None if ids is None else list(ids))
+
+    def test_the_fixture_passes(self):
+        self.assertEqual(self.check(TASKS), ([], {'uncovered': [], 'unknown': []}))
+
+    def test_a_missing_file_is_important(self):
+        findings, _ = self.check(TASKS.replace('`lib/ramps/ramps_event.dart`',
+                                               '`lib/ramps/ramps_events.dart`'))
+        self.assertEqual([(f['severity'], f['rule'], f['task']) for f in findings],
+                         [('Important', 'missing-file', '1.2')])
+
+    def test_a_test_file_created_by_an_earlier_iteration_is_found(self):
+        findings, _ = self.check(TASKS)
+        self.assertNotIn('missing-test', [f['rule'] for f in findings])
+
+    def test_a_test_file_nobody_creates_is_important(self):
+        findings, _ = self.check(TASKS.replace('`test/ramps/ramps_bloc_test.dart`',
+                                               '`test/ramps/bloc_test.dart`'))
+        self.assertEqual([f['rule'] for f in findings], ['missing-test'])
+
+    def test_an_uncovered_requirement_is_critical(self):
+        findings, coverage = self.check(TASKS, ids=('R1', 'R2', 'R3'))
+        self.assertEqual([(f['severity'], f['rule']) for f in findings],
+                         [('Critical', 'uncovered-requirement')])
+        self.assertEqual(coverage['uncovered'], ['R3'])
+
+    def test_an_unknown_requirement_is_important_per_citing_task(self):
+        findings, coverage = self.check(TASKS, ids=('R1',))
+        self.assertEqual([(f['rule'], f['task']) for f in findings],
+                         [('unknown-requirement', '2.1'), ('unknown-requirement', '2.3')])
+        self.assertEqual(coverage['unknown'], ['R2'])
+
+    def test_implements_on_some_tasks_only(self):
+        text = TASKS.replace('- **Implements:** R1\n- [ ] Add `PurchaseSucceeded`',
+                             '- [ ] Add `PurchaseSucceeded`')
+        findings, _ = self.check(text)
+        self.assertEqual([(f['rule'], f['task']) for f in findings],
+                         [('missing-implements', '1.2')])
+
+    def test_absent_requirements_make_every_cited_id_unknown(self):
+        findings, coverage = self.check(TASKS, ids=None)
+        self.assertEqual(set(f['rule'] for f in findings), {'unknown-requirement'})
+        self.assertIn('has no `## Requirements`', findings[0]['message'])
+        self.assertEqual(coverage['uncovered'], [])
+
+    def test_absent_requirements_without_implements_pass(self):
+        text = '\n'.join(line for line in TASKS.splitlines()
+                         if not line.startswith('- **Implements:**')) + '\n'
+        self.assertEqual(self.check(text, ids=None), ([], {'uncovered': [], 'unknown': []}))
+
+    def test_placeholders(self):
+        text = TASKS.replace('Assert the error dialog still shows on a declined card',
+                             'Handle the other cases, etc.')
+        text = text.replace('Add the purchase-succeeded event', 'TBD')
+        findings, _ = self.check(text)
+        self.assertEqual([(f['rule'], f['task']) for f in findings],
+                         [('placeholder', '1.2'), ('placeholder', '2.3')])
+
+    def test_a_template_slot_outside_backticks_is_a_placeholder_and_inside_is_code(self):
+        findings, _ = self.check(TASKS.replace('Call `SuccessDialog.show`', 'Call <method>'))
+        self.assertEqual([f['rule'] for f in findings], ['placeholder'])
+        findings, _ = self.check(TASKS.replace('Call `SuccessDialog.show`',
+                                               'Call `show<void>()`'))
+        self.assertEqual(findings, [])
+
+    def test_grammar_problems_become_critical_findings(self):
+        findings, _ = self.check(TASKS.replace('- **Route:** light\n- **Test:** none',
+                                               '- **Route:** fast\n- **Test:** none'))
+        self.assertEqual([(f['severity'], f['rule']) for f in findings],
+                         [('Critical', 'bad-route')])
+
+
+class TestRequirements(unittest.TestCase):
+    PRD = '''# PRD
+
+## Goal
+
+Buy things.
+
+## Requirements
+
+- **R1** — A completed purchase shows a success dialog.
+  *Accepts when:* the test card shows it.
+- **R2** — A declined card shows the existing error. (withdrawn — out of scope now)
+- **R3** — The amount is formatted. (already met — `AmountFormatter` does it)
+- **R4** — The dialog closes on tap.
+
+## Out of Scope
+
+- **R9** — not a requirement, a stray bold in another section
+'''
+
+    def test_ids_markers_and_section_scope(self):
+        self.assertEqual(task_grammar.parse_requirements(self.PRD), {
+            'present': True, 'ids': ['R1', 'R4'], 'withdrawn': ['R2'],
+            'already_met': ['R3']})
+
+    def test_a_prd_without_the_section(self):
+        self.assertEqual(task_grammar.parse_requirements('# PRD\n\n## Goal\n'), {
+            'present': False, 'ids': [], 'withdrawn': [], 'already_met': []})

@@ -480,3 +480,111 @@ def description(task):
     lines.append('Steps:')
     lines.extend('- ' + step['text'] for step in task['steps'])
     return '\n'.join(lines)
+
+
+def _finding(severity, task, line, rule, message):
+    return {'severity': severity, 'task': task, 'line': line, 'rule': rule, 'message': message}
+
+
+def _placeholder_hits(text):
+    bare = BACKTICK_SPAN_RE.sub('', text)
+    return [label for pattern, label in PLACEHOLDERS if pattern.search(bare)]
+
+
+def check(iterations, problems, repo_root, requirement_ids):
+    """(findings, coverage): the mechanical plan review (docs/task-grammar.md §6).
+
+    `requirement_ids` is the PRD's active IDs, or None when the PRD has no
+    `## Requirements` section (or there is no PRD).
+    """
+    root = Path(repo_root)
+    findings = [_finding('Critical', p['task'], p['line'], p['rule'], p['message'])
+                for p in problems]
+    new_files = set()
+    for iteration in iterations:
+        # `(new)` files of this iteration count for its own tests, earlier ones too.
+        for task in iteration['tasks']:
+            new_files.update(entry['path'] for entry in files_of(task) if entry['new'])
+        for task in iteration['tasks']:
+            tid = task['number']
+            files_field = task['fields'].get('Files')
+            for entry in files_of(task):
+                if not entry['new'] and not (root / entry['path']).exists():
+                    findings.append(_finding(
+                        'Important', tid, files_field['line'], 'missing-file',
+                        '`{}` does not exist and is not marked `(new)`'.format(entry['path'])))
+            test_field = task['fields'].get('Test')
+            for path in tests_of(task)[0]:
+                if not (root / path).exists() and path not in new_files:
+                    findings.append(_finding(
+                        'Important', tid, test_field['line'], 'missing-test',
+                        '`{}` does not exist and no task of this or an earlier iteration'
+                        ' creates it'.format(path)))
+            places = [('title', task['line'], task['title'])]
+            places.extend((name, field['line'], field['value'])
+                          for name, field in task['fields'].items())
+            places.extend(('step', step['line'], step['text']) for step in task['steps'])
+            for where, line, text in places:
+                for label in _placeholder_hits(text):
+                    findings.append(_finding('Important', tid, line, 'placeholder',
+                                             '{} holds a placeholder ({})'.format(where, label)))
+    all_tasks = [task for iteration in iterations for task in iteration['tasks']]
+    cited = []
+    for task in all_tasks:
+        for rid in implements_of(task):
+            if rid not in cited:
+                cited.append(rid)
+    known = set(requirement_ids or [])
+    unknown = [rid for rid in cited if rid not in known]
+    for task in all_tasks:
+        for rid in implements_of(task):
+            if rid not in known:
+                findings.append(_finding(
+                    'Important', task['number'], task['fields']['Implements']['line'],
+                    'unknown-requirement',
+                    '{} is not a requirement of the PRD'.format(rid) if requirement_ids is not None
+                    else '{} is cited but the PRD has no `## Requirements`'.format(rid)))
+    uncovered = []
+    if requirement_ids:
+        uncovered = [rid for rid in requirement_ids if rid not in cited]
+        for rid in uncovered:
+            findings.append(_finding('Critical', None, None, 'uncovered-requirement',
+                                     '{} has no task that implements it'.format(rid)))
+        with_field = [task for task in all_tasks if 'Implements' in task['fields']]
+        if with_field:
+            for task in all_tasks:
+                if 'Implements' not in task['fields']:
+                    findings.append(_finding('Important', task['number'], task['line'],
+                                             'missing-implements',
+                                             'the PRD has requirements; the task names none'
+                                             ' in `Implements:`'))
+    return findings, {'uncovered': uncovered, 'unknown': unknown}
+
+
+def parse_requirements(text):
+    """{present, ids, withdrawn, already_met} for a PRD body's `## Requirements`."""
+    present = False
+    inside = False
+    ids, withdrawn, already_met = [], [], []
+    for line in text.splitlines():
+        if REQUIREMENTS_RE.match(line):
+            present, inside = True, True
+            continue
+        if HEADING_2_RE.match(line):
+            inside = False
+            continue
+        if not inside:
+            continue
+        match = REQUIREMENT_ENTRY_RE.match(line)
+        if not match:
+            continue
+        rid, rest = match.group(1), match.group(2)
+        if rid in ids or rid in withdrawn or rid in already_met:
+            continue
+        if WITHDRAWN_RE.search(rest):
+            withdrawn.append(rid)
+        elif ALREADY_MET_RE.search(rest):
+            already_met.append(rid)
+        else:
+            ids.append(rid)
+    return {'present': present, 'ids': ids, 'withdrawn': withdrawn, 'already_met': already_met}

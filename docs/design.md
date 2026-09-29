@@ -208,6 +208,33 @@ move to the decision log.
   Fine if deliberate — but then it should be a decision here rather than a standing omission.
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
   the plugin (decision of 2026-07-27, below). No record that the review has been requested.
+- **SDD v2 inputs for sub-project 2** (from the 2026-09-29 debugging design, §8). The
+  single-orchestrator redesign (2026-09-24 evaluation §5.2–5.5, open questions §6) starts from
+  these as well:
+  - sizing in the entry point — spike, bounded or architectural, said aloud, heavier when in
+    doubt, ratcheting one way;
+  - an `Implements` line per task beside `Depends on:`, `Route:`, `Test:` and `Produces:` — it
+    needs requirement IDs the analyst does not write today, and the IDs must stay out of code,
+    tests and commit subjects;
+  - a plan-review rubric between gate 3.5 and the pause — every requirement has a task, no
+    placeholder steps, no transcript of code (`plan_check.py` only proves anchors exist);
+  - ASCII `preview` on the analyst's and vision-writer's visual questions;
+  - a "debug it here first" option when a run halts on a red gate;
+  - a bug-ticket head that reproduces before any PRD.
+- **kartoteka's dashboard shows Mermaid as source.** Its 2026-09-17 dashboard design left Mermaid
+  out (no stored document used it; about 3 MB of JavaScript), so `design-analysis.md`'s flow map
+  renders as a diagram only on the files path. kartoteka's decision; recorded here because artel
+  writes the diagram.
+- **The gate diet: the live smoke test has not been run** (0.18.0, design §9). One `dev` run on a
+  small real ticket on the Flutter host: the baseline recorded with the known DCM keys; every
+  task's `verify/iteration-*.json` holds `fast` and `test` stages and no full stage; the
+  checkpoint green with `baseline_red: true` on stage 0 while the unit tests still ran;
+  `/artel:tasks list` showing every parent `done`; no gate 9 in the journal. It can share a run
+  with the store-mode and document-header smoke tests.
+- **The debugging discipline: the live check is owed** (0.22.0). The evals ran on a fixture and
+  on replayed history. The first real review fix round with a `behavior` row should leave a
+  `verify/repro-…` file that was red before the fix, and the reviewer's behavioural-fix check
+  should pass on it.
 
 ## Decision log
 
@@ -940,3 +967,27 @@ move to the decision log.
   `sources:` header list.
 - **2026-09-25 — The kartoteka 0.46.0 floor is documented, not probed**: kartoteka exposes no
   version, and an older daemon only loses validation and `ref:` lines, which degrade to prose.
+- **2026-09-29 — Debugging is a contract, a pipeline rule and an inline skill.**
+  `docs/debugging.md` holds the discipline: no fix before the cause is understood; investigate,
+  compare, hypothesise, fix; a failing test first; a structural fix escalates. The inner loop's
+  red `test` stage follows it (one hypothesis per iteration), the implementer follows it on a
+  behavioural fix-section row (red evidence in `verify/repro-…` before the fix), and the reviewer
+  flags a `behavior` row closed without that evidence. `/artel:debugging` is an inline worker like
+  `knowledge`: debugging needs the person and the session, so no agent. The rule aims at the fix
+  sections because that is where bugs surface: 66 implementer reports across AW-3187, AW-3270 and
+  AW-3342 never needed more than two verify iterations, while the review gate found something in
+  7 of AW-3187's 8 phases. The text is adapted from superpowers' `systematic-debugging` (MIT;
+  `THIRD_PARTY_NOTICES.md`); AdGuard's SDD v2 `debugging` contributed ideas only — the structural
+  criteria, the handoff to the invoker, the CI, dependency and secrets cases — because its
+  repository carries no licence. Rejected: contract and pipeline only; skill only. Design:
+  `docs/superpowers/specs/2026-09-29-debugging-design.md`.
+- **2026-09-29 — No whiteboard.** SDD v2's `using-whiteboard` (a local browser tab the agent
+  draws mockups into) was assessed and not adopted. Few of artel's questions are visual — the
+  analysis interview's UX branch without Figma, an occasional architecture choice in the vision —
+  and after the pause the run is unattended. `AskUserQuestion` previews and Mermaid in spec
+  documents cover them. A port would be about 2,600 lines rewritten clean-room (SDD v2 is
+  unlicensed), artel's first long-running listener and its first CDN dependency. Revisit if artel
+  gains a pre-ticket design entry point.
+- **2026-09-29 — SDD v2's sizing, `Implements` line and plan-review rubric wait for sub-project 2**
+  (the single orchestrator): all three change the entry head, the task grammar or the step before
+  the pause, which that redesign rewrites. See Open follow-ups.

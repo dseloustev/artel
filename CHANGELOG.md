@@ -6,6 +6,50 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`/artel:debugging` — root cause before a fix.** For a bug, a failing test or unexpected
+  behaviour in an artel-configured repo: reproduce through the repo's gate (`verify.py task`),
+  one hypothesis at a time, a failing test before the fix, one fix at the origin. With
+  kartoteka, the investigation asks the institutional record for prior work on the same area. A
+  structural cause is not patched: the skill offers `/artel:issue-draft --type bug|task`
+  instead. It runs in the session and never commits.
+- **`docs/debugging.md`**, the discipline the skill, the implementer and the reviewer share.
+- **`THIRD_PARTY_NOTICES.md`**: `docs/debugging.md` adapts superpowers' `systematic-debugging`
+  (MIT).
+
+### Changed
+
+- **A red `test` stage is debugged, not patched.** The inner loop states one hypothesis per
+  iteration, the task report lists them (`## Verify iterations`), and a structural cause halts as
+  a Major deviation at once. The budget stays four iterations; a red `fast` stage is fixed per
+  finding as before.
+- **Behavioural fix-section rows are reproduced first.** A `## Code Review Fixes` row marked
+  `behavior`, every `## Runtime Fixes` row, and a `## Verify Fixes` row whose finding is a failing
+  test get a failing test before the fix. Its red result is kept as
+  `verify/repro-<code>-<source>-<N>.json`, or `.txt` when `verify.test` is empty, and the report
+  adds `**Root cause:**` and `**Reproduction:**`.
+- **The reviewer and `review-forecaster` mark behaviour findings** with `behavior` in the task's
+  priority (`**Task N (Blocking, behavior): …**`); `/artel:tasks add --fix` accepts the marker in
+  a title. On a re-review, the reviewer flags a marked row closed without red-first evidence as
+  Important.
+- **The router sends bugs to `/artel:debugging`**, ahead of generic debugging skills.
+
+### Upgrading
+
+- No configuration change. Setting `verify.test` (a scoped test command with `{files}`) lets a
+  reproduction land as a gate envelope; without it the implementer captures the host's own
+  single-file test command to `repro-<id>.txt`.
+- A ticket in flight keeps working: rows written before this release carry no `behavior`
+  marker, so they are worked and reviewed as before.
+- **Owed from 0.18.0** (its release shipped without this block):
+  - add `verify.test` to `.artel/config.json`, or accept task gates that run `verify.fast` only;
+  - a ticket in flight keeps working — a `## Final Verification` section in an older tasklist is
+    still parsed and worked;
+  - a run armed under 0.17 has no baseline (resume never records one), so its checkpoint gate
+    reports `baseline: absent` and treats any red as red, as 0.17 did;
+  - QA is no longer a pipeline gate; run `/artel:qa` by hand when a QA report is wanted.
+
 ## [0.21.0] - 2026-09-25
 
 **Requires kartoteka 0.46.0** when `knowledge.adapter` is `"kartoteka"`. Read **Upgrading**

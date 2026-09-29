@@ -227,5 +227,28 @@ class TestSkill(unittest.TestCase):
         self.assertIn('**Never touches the spec trail**', self.doc)
         self.assertNotIn('subagent_type', self.doc)
 
+class TestReleaseDocs(unittest.TestCase):
+    def test_readme_lists_the_skill(self):
+        self.assertIn('`debugging` (root cause before a fix)', read('README.md'))
+
+    def test_design_records_the_decisions(self):
+        doc = flat(read('docs/design.md'))
+        for phrase in ('**2026-09-29 — Debugging is a contract, a pipeline rule and an inline skill.**',
+                       '**2026-09-29 — No whiteboard.**',
+                       "**2026-09-29 — SDD v2's sizing, `Implements` line and plan-review rubric wait for sub-project 2**",
+                       '**SDD v2 inputs for sub-project 2**',
+                       "**kartoteka's dashboard shows Mermaid as source.**",
+                       '**The gate diet: the live smoke test has not been run**',
+                       '**The debugging discipline: the live check is owed**'):
+            self.assertIn(phrase, doc)
+
+    def test_changelog_announces_it(self):
+        # Everything since 0.21.0: [Unreleased] before the release is cut, [0.22.0] after.
+        since = flat(read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [0.21.0]', 1)[0])
+        for phrase in ('/artel:debugging', 'docs/debugging.md', 'THIRD_PARTY_NOTICES.md',
+                       '`behavior`', 'verify/repro-<code>-<source>-<N>.json', 'repro-<id>.txt',
+                       '**Owed from 0.18.0**', 'baseline: absent'):
+            self.assertIn(phrase, since)
+
 if __name__ == '__main__':
     unittest.main()

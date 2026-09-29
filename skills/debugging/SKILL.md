@@ -1,6 +1,6 @@
 ---
 name: debugging
-description: "Use in an artel-configured repo when a bug, test failure, build failure, performance problem or unexpected behaviour needs fixing — before proposing any fix, and when an earlier fix did not work. Finds the root cause first, reproduces it with a failing test through the repo's configured gate, makes one fix at the origin, and turns a structural cause into a ticket draft instead of patching it. Runs in the session; never commits."
+description: "Use in an artel-configured repo when something is broken and needs fixing — a failing test or build, a wrong result, a slowdown, anything that does not behave as it should — before proposing any fix, and when an earlier fix did not work. Finds the root cause first, reproduces it with a failing test through the repo's configured gate, makes one fix at the origin, and turns a structural cause into a ticket draft instead of patching it. Runs in the session; never commits."
 argument-hint: "[symptom | failing test | error text]"
 ---
 
@@ -44,8 +44,8 @@ apply. With the adapter off or absent, skip this step and say nothing about it.
 ## 4. Structural cause
 
 When `docs/debugging.md` §4 says the fix is structural — an interface change, a design
-reversal, scope growth, or three failed fixes — stop without fixing. Report the cause and why the
-fix is structural, then ask via `AskUserQuestion`:
+reversal, scope growth, or three failed fixes — stop without fixing. Report the cause and what
+makes the proper fix structural, then ask via `AskUserQuestion`:
 
 - **Draft a bug ticket** — `/artel:issue-draft <the report> --type bug`, when the fault is a
   defect whose right fix is larger than this session;

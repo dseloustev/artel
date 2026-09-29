@@ -9,71 +9,73 @@ once. Three readers follow it — the `/artel:debugging` skill in a person's ses
 
 ## 1. The rule
 
-**No fix before the cause is understood.** A change that makes the symptom go away without
-explaining it is not a fix: the cause is still there, and the next symptom it produces will be
-harder to trace. Understood means you can say what is wrong and why — not only where it
-surfaced.
+**No fix before the cause is understood.** Making a symptom disappear is not the same as fixing
+it: if you cannot explain the failure, the defect behind it is still in the code and will surface
+again somewhere harder to trace. Understanding means you can say what is wrong and why it
+happens — not just the line where it showed up.
 
-The rule is for broken behaviour: a bug, a failing test, a failing build, a performance problem,
-anything that does not do what it should. It is not for an expected red — a test written first
-that fails because the code does not exist yet, or a stub not yet implemented. That is work in
-progress, not a defect.
+Apply it to anything that does not behave as it should: a bug, a red test, a broken build, a
+slowdown. It is not for an expected red — a test you wrote first, failing because the code it
+exercises is not written yet, or a stub still waiting for its task. Those are work in progress,
+not defects.
 
 ## 2. The four phases
 
-Run them in order. Jumping to a fix is the failure this document exists to prevent.
+Take them in order. Reaching for a fix before the first phase is finished is exactly the failure
+this document guards against.
 
 ### 2.1 Investigate
 
-1. **Read the whole failure.** Every error, warning and stack trace, to the end: file paths,
-   line numbers, codes. The answer is often in the line that was skimmed.
-2. **Reproduce it.** The exact steps, what happened, what should have happened — and it happens
-   every time. A failure you cannot trigger is not yet a failure you can fix: gather more (§6).
-3. **Check what changed.** The diff, recent commits, new dependencies, configuration and
-   environment.
-4. **Find the boundary.** Where several components are involved, record what enters and what
-   leaves each one, run once, and see where the good value turns bad. Then investigate that
-   component only.
-5. **Trace the bad value backwards.** From where it surfaced, ask what called this with that
-   value, and keep going up until you reach the place it was first produced. The fix belongs
-   there, not where the value surfaced.
+1. **Read the failure to the end.** Every message, warning and stack frame, with its file, line
+   and code. Answers hide in the part that was skimmed.
+2. **Make it happen on demand.** Pin down the steps, the actual outcome and the expected one, and
+   confirm the failure repeats. One you cannot trigger is not ready to be fixed yet (§6).
+3. **Look at what moved.** Recent commits, the working diff, new or upgraded dependencies,
+   changed settings or environment.
+4. **Locate the boundary.** When the path crosses several components, log what goes into and
+   comes out of each one, run once, and find the first place a good value turns bad. Investigate
+   only that component.
+5. **Follow the bad value upstream.** Starting where it surfaced, ask which caller handed it
+   over, and repeat until you reach the code that first produced it. That is where the fix goes.
 
-Investigation is done when the failure reproduces reliably and you can state its cause.
+The investigation is complete when the failure repeats on demand and you can name its cause.
 
 ### 2.2 Compare
 
-1. Find the closest working analogue in the same codebase.
-2. Read the reference you are following — a pattern, a library, a standard — end to end, not
-   skimmed.
-3. List every difference between the working case and the broken one, however small.
-4. Note what the broken code depends on: other components, configuration, environment, and the
-   assumptions it makes about them.
+1. Find the nearest code in this repository that does the same kind of thing and works.
+2. Read the pattern, library or standard you rely on in full — skimming a reference is how
+   half-understood code gets written.
+3. Write down every way the working case and the broken one differ, including the ones that look
+   irrelevant.
+4. Note what the broken code relies on — other components, settings, the environment — and what
+   it takes for granted about each.
 
 ### 2.3 Hypothesise
 
-1. **One hypothesis, one sentence:** "X is the cause because Y." One cause, not a list.
-2. **Test it with the smallest change** that would tell you whether it is right — one variable
-   at a time.
-3. **A probe is not the fix.** Revert it before the real change; it never ships.
-4. **Replace, never stack.** A wrong hypothesis is replaced by a new one built on what you
-   learned; a second change is never piled on a failed one.
-5. **Say what you do not understand.** "I don't understand X yet" is the right answer when it is
-   true. Read more, or ask; do not guess.
+1. **One hypothesis, written as one sentence:** "X is the cause because Y." A single cause, not a
+   shortlist.
+2. **Probe it with the least change that could prove it wrong** — vary one thing at a time.
+3. **A probe is throwaway.** Undo it before making the real change; it is never part of the fix.
+4. **Replace, never stack.** When a hypothesis fails, form the next one from what the failure
+   taught you; do not add a second change on top of the first.
+5. **Admit the gap.** "I don't understand X yet" is the right statement when it is true. Read
+   further or ask; do not guess.
 
 ### 2.4 Fix
 
-1. **A failing test first.** The simplest test that reproduces the reported symptom — an
+1. **A failing test comes first.** Write the smallest test that shows the reported symptom — an
    automated test where the project has a framework, a reproduction script where it has none
-   (§3). It must exist and fail **before** any fix is applied. A test written in the same change
-   as the fix and run only afterwards proves nothing.
-2. **One minimal fix, at the origin** §2.1 found. No while-I'm-here improvements, no bundled
-   refactoring.
-3. **Never weaken the failing test.** A test that has to change to pass says the fix is wrong,
-   not the test (§6 names the one exception).
-4. **Verify three things:** the new test passes, nothing else broke, and the reported symptom is
-   gone.
-5. **A failed fix goes back to §2.1** with what it taught you — never to another fix from where
-   you stand. Three failed fixes are structural (§4).
+   (§3) — and watch it fail. It has to be written and seen failing **before** any fix is
+   applied: a test added together with the fix and first run afterwards proves nothing about
+   the fix.
+2. **Make one minimal change at the origin** §2.1 found. Leave unrelated improvements and
+   refactoring for another task.
+3. **Never weaken the failing test.** If the test has to change for the fix to pass, the fix is
+   what is wrong (§6 names the one exception).
+4. **Check all three:** the new test passes, the rest of the suite still passes, and the symptom
+   from the report is gone.
+5. **A fix that fails sends you back to §2.1** with what it revealed, never on to another attempt
+   from the same spot. Three failed fixes are structural (§4).
 
 ## 3. Evidence
 
@@ -108,52 +110,58 @@ wording.
 
 ## 4. When the fix is structural
 
-Stop and escalate instead of fixing when the correct fix needs any of:
+Stop and escalate instead of fixing when doing it properly needs any of:
 
-- **an interface change** — callers, consumers or contracts would have to change;
-- **a design reversal** — the decision the code implements is itself wrong;
-- **scope growth** — the right fix is materially larger than the reported fault.
+- **an interface change** — code that calls or depends on this contract would have to change
+  with it;
+- **a design reversal** — the decision this code carries out is itself the mistake;
+- **scope growth** — the proper fix is clearly bigger than the fault that was reported.
 
-**Three failed fixes are structural too**: each failure is evidence that the problem is not
+**Three failed fixes are structural too**: each miss is evidence that the problem does not sit
 where the fixes were aimed.
 
 These are `deviation-protocol.md` §2 **Major**. Where you are decides the handoff:
 
 - **Inside a run** — halt before the change and return a `DEVIATION` report
-  ([deviation-protocol.md](deviation-protocol.md) §4) naming the cause and why its fix is
-  structural. The orchestrator asks the person.
-- **In `/artel:debugging`** — report the cause and why the fix is structural, make no fix, and
-  offer `/artel:issue-draft` to turn the report into a ticket.
+  ([deviation-protocol.md](deviation-protocol.md) §4) that names the cause and says why fixing it
+  properly is structural. The orchestrator asks the person.
+- **In `/artel:debugging`** — report the cause, explain what makes the proper fix structural,
+  leave the code as it is, and offer `/artel:issue-draft` to turn the report into a ticket.
 
-Never widen the scope silently.
+Never widen the scope quietly.
 
 ## 5. No root cause found
 
-Conclude this only after every phase in §2 ran and the evidence supports it. Most such
-conclusions are an investigation that stopped early: go back to §2.1. When it does hold:
+Draw this conclusion only once every phase in §2 has run and the evidence points there. Far more
+often it means the investigation stopped too soon, so go back to §2.1 first. When it genuinely
+holds:
 
-1. Record what was examined and what the evidence showed.
-2. Add handling for the condition: a retry, a timeout, a clear error message.
-3. Add instrumentation so the next occurrence leaves evidence.
+1. Write down what you examined and what it showed.
+2. Handle the condition gracefully: retry it, bound it with a timeout, or fail with a message
+   that says what happened.
+3. Leave logging in place so that the next occurrence produces something to read.
 
 ## 6. Special cases
 
-- **Cannot reproduce.** Gather more: instrumentation, environment details, exact steps,
-  versions. Never guess at a fix for a failure you cannot trigger.
-- **Fails only in CI.** The difference between CI and local — versions, configuration,
-  environment variables, ordering, parallelism — is the evidence. Instrument the CI run to see
-  it.
-- **No test framework.** A reproduction script is acceptable; it must fail before the fix and
-  pass after.
-- **The test is wrong.** It can be the cause, but only once you have shown it is wrong. The one
-  legitimate reason to change a failing test is a task whose own acceptance criteria change the
-  behaviour that test pins. Anything else — weakening, skipping, deleting — is a Major deviation.
-- **The cause is in a dependency.** Pin the version, change the configuration, or apply a
-  documented workaround. If the dependency's interface is itself wrong, that is structural (§4).
-- **Timing and flaky tests.** Wait for the condition you need — poll until it holds, with a
-  timeout — never for a fixed delay that happened to be long enough once.
-- **Secrets.** Logs, configuration and instrumentation can carry them. Never copy a secret value
-  into chat, a report, an evidence file, a test or a kartoteka document, and never log one.
+- **Cannot reproduce.** Collect more before touching code: logging at the suspect boundaries,
+  the environment, the precise steps, the versions involved. Guessing at a fix for something you
+  cannot trigger only adds a change nobody can verify.
+- **Fails only in CI.** Whatever differs between CI and your machine — versions, settings,
+  environment variables, test order, parallelism — is the evidence. Add logging to the CI run
+  until the difference shows.
+- **No test framework.** A reproduction script will do, as long as it goes red without the fix
+  and green with it.
+- **The test is wrong.** A test can be the culprit, but only once you have shown that it is. The
+  one legitimate reason to change a failing test is a task whose own acceptance criteria change
+  the behaviour that test pins. Anything else — weakening, skipping, deleting — is a Major
+  deviation.
+- **The cause is in a dependency.** Hold it at a known-good version, adjust how it is set up, or
+  work around it and document the workaround. When the dependency's interface itself is wrong,
+  that is structural (§4).
+- **Timing and flaky tests.** Poll for the condition you need, with an upper bound, instead of
+  sleeping for a delay that happened to be long enough once.
+- **Secrets.** Logs, settings and debug output can contain them. Never copy a secret value into
+  chat, a report, an evidence file, a test or a kartoteka document, and never log one.
 
 ## 7. Where this applies in artel
 

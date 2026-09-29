@@ -168,6 +168,10 @@ Threshold: <t>% · Reviewers weighted: <names, or "none (all equal)">
 The header follows `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2.
 
 Task numbering inside each `### Tasks` block starts at 1; `deep-review` renumbers on copy.
+A task whose finding is about what the code does — a missed acceptance criterion, incorrect or
+fragile behaviour, a swallowed error — is written `**Task N (behavior): …**`; the implementer
+reproduces it before fixing it (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §3). Convention and
+style findings carry no marker.
 With no table-1 rows, the block reads `- none`. With no at-risk rows, section 3 reads
 `No proposed fixes: every forecast row is at or above <t>%.`
 

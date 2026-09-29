@@ -76,7 +76,7 @@ Path resolution follows `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. In summa
    and you write round N+1 as a new version: `artifact_put(project=<project>, …,
    expected_version=<the version you read>)`.
 2. Findings categorized **Blocking** (must fix before merge), **Important** (recommended), **Nice-to-have** (cosmetic).
-3. For every blocking or important finding, append a task to the tasklist under `## Code Review Fixes` (in the phase-scoped `phase-<PHASE_NUM>/tasks.md` when phase is set, otherwise the ticket-wide `tasklist.md`). Open this round's batch with a source heading — `### review-r<R>`, R the `**Review round:**` you just wrote, or `### review-p<PHASE_NUM>-r<R>` when phase is set; when that heading is already in the section, append `-2` (then `-3`, …) — and put every task of the round under it. No other `###` heading inside the batch: the nearest `###` above a task is its source, so a `### Blocking` or `### Important` grouping would replace the round. Put the priority in the task text (`**Task N (Blocking): …**`) or under a `####` heading, which the parser ignores as a source. The batch goes at the end of the section, before the next `## ` heading; a missing section is appended at the end of the file. On the kartoteka path the batch is one `artifact_patch`: a replace edit inserting it before the next `## ` heading, or `append` when the section is last or missing (spec-storage.md §4.3). The heading is how the task queue tells this round's tasks from an earlier round's with the same text (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); you never write to the queue yourself — `run-reviewer` records the batch after you return:
+3. For every blocking or important finding, append a task to the tasklist under `## Code Review Fixes` (in the phase-scoped `phase-<PHASE_NUM>/tasks.md` when phase is set, otherwise the ticket-wide `tasklist.md`). Open this round's batch with a source heading — `### review-r<R>`, R the `**Review round:**` you just wrote, or `### review-p<PHASE_NUM>-r<R>` when phase is set; when that heading is already in the section, append `-2` (then `-3`, …) — and put every task of the round under it. No other `###` heading inside the batch: the nearest `###` above a task is its source, so a `### Blocking` or `### Important` grouping would replace the round. Put the priority in the task text (`**Task N (Blocking): …**`) or under a `####` heading, which the parser ignores as a source. Add `behavior` to the priority — `**Task N (Blocking, behavior): …**` — when the finding is about what the code does: a missed acceptance criterion, incorrect or fragile behaviour, a swallowed error. Convention, architecture and test-quality findings (a test that asserts nothing) carry no marker: there is no bug to reproduce. The implementer reproduces a marked row before fixing it (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §3). The batch goes at the end of the section, before the next `## ` heading; a missing section is appended at the end of the file. On the kartoteka path the batch is one `artifact_patch`: a replace edit inserting it before the next `## ` heading, or `append` when the section is last or missing (spec-storage.md §4.3). The heading is how the task queue tells this round's tasks from an earlier round's with the same text (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); you never write to the queue yourself — `run-reviewer` records the batch after you return:
 
 ```markdown
 ## Code Review Fixes
@@ -107,6 +107,18 @@ Phase scope: only add review fixes to the active phase's tasklist.
 ### Deviation check
 
 Per `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §6: verify each `## Deviations` entry in `implementation-notes.md` is justified and matches the actual diff; flag **undocumented** deviations — the diff diverges from the plan/proposal with no corresponding entry — as **Important**.
+
+### Behavioural-fix check
+
+On a round after a fix round (`**Review round:**` 2 or higher), take every checked `- [x]` row
+under `## Code Review Fixes` whose priority carries `behavior`, and look in the ticket's
+phase-aware `verify/` directory (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4) for its
+reproduction, `repro-crf-<source>-<N>` (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §3): a `.json`
+whose `test` stage has `"ok": false`, or a `.txt` whose second line is a non-zero `exit`. No
+such file, or one that is green, is an **Important** finding — unless the implementer's report
+for that row names a `.artel/run/repro/` script and why no test reaches the fault. The evidence
+is the file, not the report's wording. `## Runtime Fixes` and `## Verify Fixes` rows are proven
+by their own gates re-running; this check does not read them.
 
 ---
 
@@ -191,6 +203,7 @@ index, index-first per `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §3 (`usa
    never `review-r<R>`: task mode does not touch the round. No other `###` heading inside
    the batch, as in ticket mode: the priority goes in the task text
    (`**Task N (Blocking): …**`) or under a `####` heading, which the parser ignores as a source.
+   The `behavior` marker applies as in ticket mode.
    Nice-to-have findings stay in the review file only. On the kartoteka path the batch is
    appended exactly as in ticket mode's Output 3 (§4.3).
 3. Nothing else: task mode does not write `review.md`, does not touch `**Review round:**`,

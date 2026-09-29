@@ -155,5 +155,40 @@ class TestImplementer(unittest.TestCase):
     def test_never_weaken_a_failing_test(self):
         self.assertIn('**Never weaken a failing test**', self.doc)
 
+class TestFixWriters(unittest.TestCase):
+    def test_reviewer_marks_behavior_in_both_modes(self):
+        doc = flat(read(REVIEWER))
+        for phrase in ('`**Task N (Blocking, behavior): …**`', 'carry no marker',
+                       'The `behavior` marker applies as in ticket mode'):
+            self.assertIn(phrase, doc)
+
+    def test_forecaster_marks_behavior(self):
+        doc = flat(read(FORECASTER))
+        self.assertIn('`**Task N (behavior): …**`', doc)
+        self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/debugging.md', doc)
+
+    def test_deep_review_keeps_the_marker_on_renumbering(self):
+        self.assertIn('a `(behavior)` marker stays in place', flat(read(DEEP_REVIEW)))
+
+    def test_tasks_add_fix_documents_the_marker(self):
+        doc = flat(read(TASKS))
+        self.assertIn('`(behavior)`', doc)
+        self.assertIn('docs/debugging.md', doc)
+
+
+class TestReviewer(unittest.TestCase):
+    def setUp(self):
+        self.doc = flat(read(REVIEWER))
+
+    def test_behavioural_fix_check(self):
+        for phrase in ('### Behavioural-fix check', 'repro-crf-<source>-<N>',
+                       '`"ok": false`', 'a non-zero `exit`', 'an **Important** finding',
+                       'The evidence is the file, not the report', 'docs/debugging.md'):
+            self.assertIn(phrase, self.doc)
+
+    def test_only_marked_rows_are_checked(self):
+        self.assertIn('whose priority carries `behavior`', self.doc)
+        self.assertIn('this check does not read them', self.doc)
+
 if __name__ == '__main__':
     unittest.main()

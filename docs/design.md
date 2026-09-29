@@ -168,19 +168,26 @@ move to the decision log.
   Fine if deliberate — but then it should be a decision here rather than a standing omission.
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
   the plugin (decision of 2026-07-27, below). No record that the review has been requested.
-- **SDD v2 inputs for sub-project 2** (from the 2026-09-29 debugging design, §8). The
-  single-orchestrator redesign (2026-09-24 evaluation §5.2–5.5, open questions §6) starts from
-  these as well:
+- **SDD v2 inputs for sub-project 2** (from the 2026-09-29 debugging design, §8). Sub-project
+  2a (0.23.0) delivered two of them — the `Implements:` field over PRD requirement IDs, and the
+  plan review before the pause. Sub-project 2b still owes:
   - sizing in the entry point — spike, bounded or architectural, said aloud, heavier when in
     doubt, ratcheting one way;
-  - an `Implements` line per task beside `Depends on:`, `Route:`, `Test:` and `Produces:` — it
-    needs requirement IDs the analyst does not write today, and the IDs must stay out of code,
-    tests and commit subjects;
-  - a plan-review rubric between gate 3.5 and the pause — every requirement has a task, no
-    placeholder steps, no transcript of code (`plan_check.py` only proves anchors exist);
   - ASCII `preview` on the analyst's and vision-writer's visual questions;
   - a "debug it here first" option when a run halts on a red gate;
   - a bug-ticket head that reproduces before any PRD.
+- **Sub-project 2b: one orchestrator** (roadmap: the 2026-09-29 task-grammar design, §0). `dev`
+  folds into `feature-development`; the head's depth comes from sizing and the classifier; the
+  SDD v2 inputs above land there; and `dev`'s mini-interview work list gets the task grammar — it
+  is the last writer of the old tasklist format.
+- **Sub-project 2c: parallel seats.** `parallel.seats` and dispatch by the parser's
+  `data.waves`, after six shared-state collisions are fixed: the `NNN-` report counter, one actor
+  name, the whole-tree review snapshot, every task patching one tasklist, the shared
+  `implementation-notes.md`, and whole-tree codegen.
+- **Old-format tasklists are still read** (0.23.0). A tasklist with no `### Task N.M:` heading
+  keeps one row per checkbox, promotion by iteration, `review.perTask` as its only per-task
+  review and no plan review, in every reader. The support goes when 2b converts `dev`'s
+  mini-interview work list, the format's last writer.
 - **kartoteka's dashboard shows Mermaid as source.** Its 2026-09-17 dashboard design left Mermaid
   out (no stored document used it; about 3 MB of JavaScript), so `design-analysis.md`'s flow map
   renders as a diagram only on the files path. kartoteka's decision; recorded here because artel
@@ -957,3 +964,48 @@ move to the decision log.
   trip (0.14.0). Specs and plans no longer carry a live smoke-test task or an owed-smoke-test
   follow-up; a defect found in real use is fixed as a bug. The worktree design's two parked
   extensions stay under Open follow-ups.
+- **2026-09-29 — Sub-project 2 is split into 2a, 2b and 2c, 2a first.** 2a is the task grammar
+  and dependency order, 2b one orchestrator, 2c parallel seats; 2b and 2c both consume 2a's
+  routes and waves. Rejected: one spec with three or four plans (too large to review as one
+  design); starting with 2b (it would merge the orchestrators on a task format about to change);
+  dropping 2c (kept, but last: it carries the most risk for the smallest saving). Design:
+  `docs/superpowers/specs/2026-09-29-task-grammar-design.md`.
+- **2026-09-29 — A task is a block, and the parser is its only reader.** A `### Task N.M:` block
+  with field bullets — `Files:`, `Depends on:`, `Route:`, `Test:`, `Produces:`, `Implements:` —
+  and its checkboxes as steps is one queue row and one implementer dispatch
+  (`docs/task-grammar.md`). `Depends on:` names tasks of the same iteration only: earlier
+  iterations are done before a task runs. Readiness is computed from the document's ticks
+  (`ready_now`), so promotion follows dependencies and never row order — AW-3342's D4, where
+  retitled rows took tail ids and ran against file order, cannot recur; and a task-format
+  tasklist is first mirrored only after approval, so the fold-back leaves no stale row.
+  Rejected: the checkbox as the unit (fields on every line, 100+ rows on an AW-3187-size
+  ticket); the iteration as the unit (no order inside it); a fenced YAML block per task (harder
+  to edit, and YAML patched through `artifact_patch` is the failure class of 0.21.0's quoting
+  bug); the queue owning the graph (it fails on the files path and on `--local`).
+  History replay (AW-3342, AW-3270): four of five criteria met — AW-3270's one-wave check not
+  met as specified, because the rewrite moved each ARB edit into the dialog task that uses it;
+  --check green at round 1 and after the approval fold-back (gate 4.2 holds already-met
+  questions for the pause); D2 declared; D4 simulation clean over 18 claims; plan review 3 of 44
+  findings judged plan-changing. The replay found two defects, fixed before scoring: the
+  `missing-file` rule ignored files an earlier task creates, and the task gate ran `verify.fast`
+  on paths outside `verify.surface`.
+- **2026-09-29 — Routes replace the run-wide per-task review.** Each task is `light` or `full`:
+  declared by the planner, floored by the parser (a sensitive path, a HITL tag, more than
+  `ROUTE_FULL_FILES = 5` files) and at runtime (an earlier deviation on its files, kept in
+  `run-state.json` `deviation_files`), overridable at the pause, where a change is written back
+  as `— set at approval`. `review.perTask: true` now raises every task to `full`. It is the shape
+  run modes already have. Rejected: the classifier alone (it loses the planner's judgement); the
+  planner alone (a sensitive-path task runs light when the planner forgets).
+- **2026-09-29 — Requirement IDs live in the PRD, and the plan is reviewed before the pause.**
+  The analyst writes `## Requirements` (`R<n>`, stable, with `withdrawn` and `already met`
+  markers); each task's `Implements:` cites them. `tasklist_tasks.py --check` proves grammar,
+  coverage, paths and the absence of placeholders on every path that writes a task-format
+  tasklist, and on `feature-development` the reviewer's plan mode grades what a parser cannot
+  (gate 4.2, at most `MAX_PLAN_REVIEW_ROUNDS = 2`). IDs never enter code, tests or commit
+  subjects. Rejected: IDs in a tasklist preamble (the writer would grade its own coverage) or in
+  the vision; a parser-only or an agent-only plan review. SDD v2 contributed the `Implements`
+  line and the rubric as ideas only (no licence file).
+- **2026-09-29 — Old-format tasklists keep working until 2b.** Detected per file; one row per
+  checkbox, promotion by iteration, `review.perTask`, no plan review. First proposed to end
+  after one release and corrected during design: `dev`'s mini-interview work list writes the old
+  format until 2b redesigns that head. See Open follow-ups.

@@ -327,7 +327,9 @@ successful read into a failure.
 The tasklist stays one document with today's shape; its writers change verb, not logic:
 
 - **Tick a task** (implementer Step 5) — one `artifact_patch` with the version bump and two
-  replace edits: the checkbox and the Progress Report row.
+  replace edits: the checkbox and the Progress Report row. A task block
+  (`docs/task-grammar.md` §1) takes one replace edit per step instead of the one checkbox, in
+  the same patch.
 - **Append a fix batch** under `## Code Review Fixes`, `## Runtime Fixes` or `## Verify Fixes`
   — `artifact_patch`, inserting before the next `## ` heading, or `append` when the section
   is last or missing.

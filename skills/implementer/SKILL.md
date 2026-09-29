@@ -49,7 +49,10 @@ Use the Agent tool with `subagent_type: "implementer"`, description `"Implement 
 Implement the next incomplete task now, per your agent definition's workflow:
 1. Take the next task per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 and §3 — a
    `task_ready` claim on the queue path, the first `- [ ]` in scope on the fallback
-   path. The **Task queue** field above is §1's `--local` input. A dispatch naming
+   path (on a task-format tasklist, the first task of the parser's `data.ready_now` —
+   `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §4). The **Task queue** field above is §1's `--local` input.
+   On a task-format tasklist one task is one `### Task <N.M>:` block: work every step of it
+   in this dispatch, reading the `Produces:` lines of the tasks its `Depends on:` names. A dispatch naming
    `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` or Final Verification
    is file-scan work on either path — `task_ready` never offers their rows (§6), so do
    not call it for one. On the queue path keep that task's row current per §3's
@@ -59,9 +62,11 @@ Implement the next incomplete task now, per your agent definition's workflow:
    return `HITL: <reason>` instead of implementing — the orchestrator owns that pause.
 2. Implement directly (no proposal step). Apply the task gate (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md`
    §1) through the verify loop (max MAX_VERIFY_ITERATIONS = 4) of the `/artel:inner-loop` skill:
-   `verify.fast` on the changed paths, then `verify.test` on the test files you touched; codegen
+   `verify.fast` on the changed paths, then `verify.test` on the test files you touched and on
+   the task's `Test:` files, touched or not; codegen
    when needed, then one more pass. The whole-tree gate is the orchestrator's checkpoint, not yours.
-3. Only when the last task gate is green or skipped: flip the checkbox, update the Progress
+3. Only when the last task gate is green or skipped: flip the checkbox (every step of a task
+   block, in one write), update the Progress
    Report, and report per your completion contract. A red gate is never "done" — leave
    the checkbox as it is and return a `DEVIATION` report instead of a completion.
 4. On the queue path a completion is `task_update(task_id, status="done")` followed by
@@ -79,6 +84,8 @@ mid-task; `/artel:run-app --gate` remains the only mode the gate treats as autho
 
 Deviations follow `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`: minor → conservative option, record,
 continue; major or unsure → halt and return a DEVIATION report instead of a completion.
+Needing something another task produces that its `Depends on:` does not list is Major. The
+completion's `Deviations:` line names the files each deviation changed (protocol §5).
 ```
 
 **Save the agent ID** — deviation escalations resume the same agent.

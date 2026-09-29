@@ -93,7 +93,8 @@ fifth case, fall back and record it as spelled there.
 
 ## 2. Mirroring the tasklist
 
-Run by `generate-tasklist` and `tasklist` after `tasklist.md` is written, by
+Run by `generate-tasklist` and `tasklist` after `tasklist.md` is written — `tasklist`
+only once the plan is approved when the tasklist is task-format (below) — by
 `dev` and `feature-development` alike on entry to implementation, and by every
 writer of a fix section right after its append (§6).
 
@@ -132,6 +133,25 @@ has no priority column, so insertion order is queue order. Mirror in the order
 the script emits. Fix-section rows are never `ready`, so where they land in that
 order changes nothing.
 
+**A task-format tasklist mirrors one row per task** (`docs/task-grammar.md` §7). Its
+iteration rows are unchanged; each `### Task <N.M>:` block becomes one child, titled
+`I<N> · <N.M> · <task title>`, its description carrying the task's fields and steps. The
+parser sets each child's status at creation: `done` when every step is ticked, `ready` when
+the task is in `data.ready_now` — not done, every dependency done, in the first iteration
+with open work — and `backlog` otherwise. Only an unblocked task is ever claimable, so
+insertion order breaks ties and nothing more: a row created late — a task added or retitled
+after the first mirror takes a new title and so a new, higher `task_id` — is still never
+claimed ahead of its dependencies.
+
+**A task-format tasklist is first mirrored after approval.** The plan review (gate 4.2) and
+the pause's fold-back can renumber and retitle tasks, and rows are create-only, so rows made
+at gate 4 would go stale. `tasklist` therefore mirrors nothing while the tasklist is
+task-format and the plan is not yet `PLAN_APPROVED`; the rows are created by the orchestrator's
+re-mirror before the first implementer dispatch (`feature-development` step 5, `dev` step 4).
+`generate-tasklist` mirrors after its own approval round, as before. An old-format tasklist
+keeps one row per checkbox, mirrored at gate 4, with its first iteration's children `ready`
+and every other child `backlog`.
+
 **The step is create-only and safe to re-run.** `task_create` is idempotent on
 `(ticket_key, title)` *and discards* a changed status or description, returning
 the stored row. A re-mirror never resets a `done` row and never undoes a
@@ -161,11 +181,15 @@ source heading names the phase (§6), so two phases' fixes never share a title.
                 → first child of an iteration: task_update(parent, in_progress)
     guard     title contains "[HITL:" → task_update(task_id, blocked),
                 return `HITL: <reason>`, do not implement
+              (task format: the claimed block's heading carries "[HITL:" — the row's
+                description has a "HITL:" line — and the guard covers every step)
     phase     claimed row belongs to another phase -> task_update(task_id, ready)
                 the one release that is not blocked; nothing was worked
     work      implement; flip the checkbox in the tasklist in scope
               (tasklist.md, or phase-<N>/tasks.md on a phase-scoped run)
               and update the Progress Report table, exactly as before
+              (task format: work every step of the block, then tick them all
+                and update the Progress Report in one write)
     report    task_update(task_id, status="done")
     promote   task_list(project=<project>, ticket_key=<TICKET_KEY>)
                 → any "I<N> · " sibling not done?
@@ -173,10 +197,23 @@ source heading names the phase (§6), so two phases' fixes never share a title.
                 no  → task_update(parent "I<N>: …", done)
                       every "I<N+1> · " child: backlog → ready
                 no I<N+1> exists → checkbox work is complete; Final Verification
+    promote   (task format — rows titled "I<N> · <N.M> · …")
+                re-run the parser over the tasklist in scope
+                every data.ready_now task whose row is backlog → task_update(row, ready)
+                  (the row found by its title in task_list)
+                no "I<N> · " sibling left not done → task_update(parent "I<N>: …", done)
+                  — the next iteration's unblocked tasks are already in ready_now
     abort     red gate, any DEVIATION halt, or Abort task ->
                 task_update(task_id, blocked)
                 never left in_progress: task_ready offers `ready` rows only,
                 so a held row wedges the iteration permanently
+
+**Promotion follows dependencies on a task-format tasklist.** `ready_now` is computed from
+the ticks in the document, so the document stays the source of truth for readiness: the
+promotion needs no memory of what was promoted before, and a crash between the tick and the
+promotion is repaired by the next promotion or by §5's repair, which find the same set. The
+parser reads the tasklist in scope — `phase-<N>/tasks.md` on a phase-scoped run, where the
+ticks land first. An iteration parent still goes `done` with its last child, as above.
 
 `actor` is `artel@<hostname>`, where `<hostname>` is the output of `hostname -s`,
 run in the dispatch rather than recalled. Handed the placeholder alone, an agent
@@ -258,6 +295,11 @@ Scan the tasklist in scope (`tasklist.md`, or `phase-<N>/tasks.md` on a
 phase-scoped run) for the first incomplete `- [ ]` and proceed exactly as artel
 did before the queue existed, flipping the checkbox on completion.
 
+On a task-format tasklist the scan is the parser's: run §2 step 1's command over the
+tasklist in scope, take the first task of `data.ready_now`, and work its whole block, ticking
+every step on completion. The first unticked box may belong to a task still waiting on a
+dependency; `ready_now` never offers one.
+
 **Record which path the run took**, in the ticket's `implementation-notes.md`
 alongside the deviation record. A run that switches paths mid-ticket leaves the
 checkbox marks ahead of the queue statuses and nothing reconciles them. The
@@ -286,7 +328,11 @@ keep it from draining; they are the fifth line, not a variant of the first four:
   iteration that still has an unfinished child, then claim again. If every child
   of that iteration is already `done`, promote the next one and repeat. If no
   iteration has an unfinished child, there is nothing left to promote — take the
-  first bullet.
+  first bullet. On a task-format tasklist the repair is the §3 promotion itself: re-run the
+  parser over the tasklist in scope, set every `data.ready_now` task whose row is `backlog`
+  to `ready`, then claim again. `ready_now` empty while children stay `backlog` means every
+  open task waits on one that is `blocked` or `in_progress`: nothing is promotable, so report
+  the line below that applies instead.
 - iteration children in `blocked` — a HITL task or an aborted task is waiting on the user.
 - iteration children in `in_progress` — a holder is still working, or stalled and left the row
   held. `actor` names the holder and `updated_at` says how long ago. Report it;

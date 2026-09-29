@@ -46,8 +46,9 @@ arrive via the "Other" option.
   offering: `setup.commands` (post-branch install/codegen), `design.figma` (the design-analysis
   stage), the `runtime.*` commands (`run`, `drive`, `scaffold.add`, `scaffold.remove`),
   `runtime.surface` (globs gating when the runtime gate runs), `verify.surface` (globs with
-  `!`-excludes filtering which edits the verify hooks check), `review.perTask` (a review of
-  each task's diff before the next task starts — one extra reviewer seat per task; the phase
+  `!`-excludes filtering which edits the verify hooks check), `review.perTask` (every task on
+  the `full` route: a review of each task's diff before the next task starts, not only of the
+  tasks the planner or a floor routes `full` — one extra reviewer seat per task; the phase
   review runs either way), and a `.artel/sensitive-paths.json` scaffold (a copy of the plugin's default sensitive-paths policy, for projects that want to
   extend it). Ask follow-up value questions only for the selected ones; everything skipped keeps
   its inert default.

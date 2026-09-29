@@ -1,7 +1,7 @@
 ---
 name: run-reviewer
 description: "Review changes for a ticket — the phase/ticket review, or one task's diff right after its implementer returned"
-argument-hint: "[ticket-id] or [ticket-id]-[phase] [--task \"<task title>\" --report <path> --package <path>] [--local]"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [--task \"<task title>\" --report <path> --package <path> | --plan] [--local]"
 model: sonnet
 ---
 
@@ -11,7 +11,7 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT
 
 `--local` flag: record nothing in the kartoteka task queue — the fix tasks the agent writes
 stay in the tasklist file alone, as `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 row 1
-prescribes. It may appear in any position; strip it before reading `$0` and the task-mode
+prescribes. It may appear in any position; strip it before reading `$0` and the mode
 flags, and remember that it was passed. An orchestrator invoked with `--local` passes it on.
 
 ## Execute
@@ -33,11 +33,14 @@ Use the Agent tool with `subagent_type: "reviewer"`, description `"Review change
 ### Task mode (`--task`)
 
 The per-task gate of `${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16 — an orchestrator
-invokes it after one implementer completion when `review.perTask` is on. All three flags are
+invokes it after one implementer completion whose task runs on the `full` route (on an
+old-format tasklist, after every one when `review.perTask` is on). All three flags are
 required; a missing one is an invocation error — report it and stop, never fall back to the
 ticket review:
 
-- `--task "<task title>"` — the task exactly as titled in the phase-aware tasklist
+- `--task "<task title>"` — the task exactly as titled in the phase-aware tasklist; on a
+  task-format tasklist, its heading's text after `### ` (`Task 2.3: Show the purchase success
+  dialog`)
 - `--report <path>` — the implementer's report, `.artel/run/<TICKET_ID>/reports/NNN-<slug>.md`
 - `--package <path>` — the diff package `scripts/review_package.py diff` wrote
 
@@ -47,6 +50,21 @@ Use the Agent tool with `subagent_type: "reviewer"`, description `"Review task f
 rest: read the task text from the tasklist, judge the package against it and the report, write
 `NNN-<slug>-review.md` beside the report, and append Blocking / Important findings under
 `## Code Review Fixes`.
+
+### Plan mode (`--plan`)
+
+The agent half of gate 4.2 `PLAN_REVIEWED` in `feature-development`: the tasklist graded before
+the approval pause, after the parser's mechanical check. `--plan` takes no value; with `--task`,
+`--report` or `--package` it is an invocation error — report it and stop. `--local` may
+accompany it and changes nothing: plan mode records nothing in the queue.
+
+Resolve the spec store exactly as ticket mode's **Spec store.** paragraph says. Then use the
+Agent tool with `subagent_type: "reviewer"`, description `"Review plan for <TICKET_ID>"`, and a
+prompt that states **Mode: plan** and passes `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` (or "all
+phases") and the **Spec store:** field. The agent's plan mode knows the rest: read the PRD,
+vision, plan and the phase-aware tasklist, grade the eight points, write
+`.artel/run/<TICKET_ID>/plan-review.md` with its `**Plan-review round:**` line, and return one
+line. Plan mode appends no `## Code Review Fixes` task, so skip `## Record the fix tasks` below.
 
 ## Record the fix tasks
 
@@ -84,5 +102,7 @@ key, without the phase suffix.
 Wait for the agent to finish and relay its summary. In task mode the summary is the verdict
 line (`Approved` / `Needs fixes`), the count of `## Code Review Fixes` tasks it appended, and
 the review file's path — not the findings themselves; the caller reads the tasklist, and the
-detail is in the file. In both modes add one line: `Task queue: recorded <n> fix rows` or
+detail is in the file. In plan mode relay the agent's one line verbatim —
+`Plan review round <k>: <c> Critical, <i> Important, <m> Minor — <path>` — and nothing else. In
+ticket and task mode add one line: `Task queue: recorded <n> fix rows` or
 `Task queue: not used (<the §1 reason>)`.

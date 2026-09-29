@@ -269,6 +269,29 @@ class TestTaskGate(GateCase):
                                      'reason': 'no test path in scope'})
         self.assertFalse(env['data']['skipped'])
 
+    def test_fast_stage_takes_only_the_surface_paths(self):
+        # verify.fast is language-specific on real hosts (`dart format` exits 65 on a Makefile
+        # or a Markdown file); the post-edit hook filters by verify.surface, so the task gate
+        # must too — found by the 0.23.0 history replay on AW-3342.
+        self.write_config({'fast': GREEN, 'surface': ['lib/**/*.dart', '!**/*.g.dart']})
+        # (fnmatch: `lib/**/*.dart` needs a directory under lib/, as verify.surface always has.)
+        self.touch('lib/src/a.dart', 'lib/src/b.g.dart', 'Makefile', 'docs/x.md')
+        code, env = self.run_main(['task', '--files',
+                                   'lib/src/a.dart,lib/src/b.g.dart,Makefile,docs/x.md'])
+        self.assertEqual(code, 0)
+        fast = env['data']['stages'][0]
+        self.assertIn('lib/src/a.dart', fast['command'])
+        for other in ('lib/src/b.g.dart', 'Makefile', 'docs/x.md'):
+            self.assertNotIn(other, fast['command'])
+
+    def test_no_surface_path_skips_the_fast_stage(self):
+        self.write_config({'fast': RED, 'surface': ['lib/**/*.dart']})
+        self.touch('Makefile', 'docs/x.md')
+        code, env = self.run_main(['task', '--files', 'Makefile,docs/x.md'])
+        self.assertEqual(code, 0)
+        self.assertEqual(env['data']['stages'][0],
+                         {'name': 'fast', 'skipped': True, 'reason': 'no surface path in scope'})
+
     def test_test_stage_runs_only_on_test_paths(self):
         self.write_config({'fast': GREEN, 'test': GREEN})
         self.touch('lib/a.dart', 'test/a_test.dart')

@@ -318,6 +318,11 @@ also authorizes the run's checkpoint commits & pushes to `origin`. You **Approve
 plan/tasklist, the questions flip to resolved, and the plan becomes status `PLAN_APPROVED`.
 This is the only mid-pipeline approval — after it, the run goes silent.
 
+**Routes at the pause.** On a tasklist written in the task grammar ([task-grammar.md](task-grammar.md)) the
+same interaction lists every task's route — `light`, or `full` with the reasons: the planner's,
+and any floor (a sensitive path, a HITL tag, more than five files). Change any of them, down as
+well as up; the change is written into the task's `Route:` line as `— set at approval`.
+
 **Arm the run.** The classifier runs over plan + tasklist (`autonomous-run.md §10`). A
 `full-gates` forced floor stops here and tells you to re-run with `--step`. Otherwise the
 orchestrator writes `.artel/run/PROJ-XXXX/run-state.json` (`run_active: true`,
@@ -336,10 +341,14 @@ start, and each phase closes with the `verify.commands` gate + a checkpoint comm
 
 - *Gate 5 — implement.* Loops [`implementer`](skills-reference.md#implementer) over the open
   tasks. Each completion is a short contract pointing at a report under
-  `.artel/run/<TICKET_ID>/reports/`; with `review.perTask: true` (config.md) every task's diff
-  is also reviewed before the next task starts (`autonomous-run.md §16`) — findings land under
-  `## Code Review Fixes`, recorded in the task queue on the queue path, for one fix round, then
-  the phase review owns whatever is left.
+  `.artel/run/<TICKET_ID>/reports/`. One dispatch works one whole task — every step of its
+  `### Task N.M:` block — and the next task is one whose dependencies are done. A task on the
+  `full` route — declared by the planner, raised by a sensitive path, a HITL tag, more than five
+  files or an earlier deviation on its files, or every task with `review.perTask: true`
+  (`autonomous-run.md §16`) — has its diff reviewed before the next task starts: findings land
+  under `## Code Review Fixes`, recorded in the task queue on the queue path, for one fix round,
+  then the phase review owns whatever is left. The journal says which route each task took and
+  why.
 - *Gate 6 — index.* Optional host index-refresh hook
   ([orchestrator-common.md](orchestrator-common.md) §1); silently absent when the host has not
   wired one up. Refreshing is the only part that is a host hook — how the stages above and
@@ -476,7 +485,8 @@ what to run next. Run all of these from the host repo root.
 
 8. **Implement one task.** *Pre:* a `tasklist.md`/`phase-<N>/tasks.md` with an open `- [ ]`
    task. *Run:* `/artel:implementer PROJ-XXXX`. *Produces:* the source change, the checkbox
-   flipped, and a deviation record if it diverged; returns `HITL: <reason>` instead of
+   flipped — every step of the task's block, when the tasklist is in the task grammar; the task
+   taken is the first whose dependencies are done — and a deviation record if it diverged; returns `HITL: <reason>` instead of
    implementing a HITL-tagged task. *Next:* re-run to take the next task, or
    `/artel:run-reviewer PROJ-XXXX`. See [implementer](skills-reference.md#implementer).
 

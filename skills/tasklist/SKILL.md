@@ -30,14 +30,25 @@ Use the Agent tool with `subagent_type: "task-planner"`, description `"Create ta
 
 Wait for the agent to finish and then report the tasklist status back to the user.
 
-The prompt must also instruct: apply the HITL tagging rule from your agent definition
+The prompt must also instruct: write every task as a task block in the task grammar
+(`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md`), apply the HITL tagging rule from your agent definition
 (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4) and set `status: TASKLIST_READY` in the output file's header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2).
 This skill never asks the user; any open question the breakdown surfaces goes to
 `.artel/run/<TICKET_ID>/open-questions.md` (§3 format, `from: tasklist`).
 
 ### Mirror the tasklist into the task queue
 
-Skipped entirely when `--local` was passed (§1 row 1). Otherwise, per
+Skipped entirely when `--local` was passed (§1 row 1). Skipped too for a task-grammar tasklist
+(`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4) whose plan is not yet `PLAN_APPROVED` — read
+the plan's status (the phase-aware plan path, `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4)
+the way the orchestrator's gates do:
+`doc=$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path>) && printf '%s\n' "$doc" | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py status`
+(files path: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py status < <plan-path>`). The
+plan review (gate 4.2) and the approval fold-back can still renumber or retitle its tasks, and
+the queue's rows are create-only, so a row mirrored now could outlive its task; the
+orchestrator's re-mirror before the first implementer dispatch creates them once the plan is
+approved. A tasklist with no plan beside it, or an old-format tasklist, mirrors here as before.
+Otherwise, per
 `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, decide whether the queue path applies. On the
 fallback path, skip this step silently and continue.
 

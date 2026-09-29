@@ -103,7 +103,7 @@ Every `qa.md` opens with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-s
 ## Rules
 
 - **Phase scope:** When working on a specific phase, focus test scenarios on that phase's functionality.
-- **Comprehensive:** Cover all scenarios from the PRD and plan.
+- **Comprehensive:** Cover all scenarios from the PRD and plan. When the PRD has a `## Requirements` section, every active requirement gets at least one scenario, judged by its `*Accepts when:*` line; a task-format tasklist's `Implements:` fields show which tasks built it. Withdrawn and already-met requirements need none.
 - **Context files:** Always read `idea.md` and `vision.md` for background.
 - **Previous reports:** Check existing QA reports for context and avoid duplication.
 - **Never overwrite a ticket-wide QA file from a phase-scoped run.** Phase output goes inside `phase-<PHASE_NUM>/`.

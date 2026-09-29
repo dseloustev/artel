@@ -267,8 +267,12 @@ def run_task_gate(config, inv):
         value = verify_cfg.get(key) or ''
         return value.strip() if isinstance(value, str) else ''
 
+    # verify.fast is usually one language's linter and formatter: hand it only the paths
+    # verify.surface covers, as the post-edit hook does (hook_common.is_verifiable). A
+    # Makefile or a Markdown file handed to `dart format` is a finding, not a check.
+    fast_files = [f for f in files if matches_surface(f, verify_cfg.get('surface'))]
     plan = [
-        ('fast', command('fast'), files, 'no fast command'),
+        ('fast', command('fast'), fast_files, 'no fast command'),
         ('test', command('test'), select_test_paths(files, config), 'no test command'),
     ]
     stages = []
@@ -277,7 +281,10 @@ def run_task_gate(config, inv):
             stages.append({'name': name, 'skipped': True, 'reason': why})
             continue
         if not scope:
-            reason = 'no test path in scope' if name == 'test' else 'no existing path in scope'
+            if name == 'test':
+                reason = 'no test path in scope'
+            else:
+                reason = 'no surface path in scope' if files else 'no existing path in scope'
             stages.append({'name': name, 'skipped': True, 'reason': reason})
             continue
         stage, error_kind = run_stage(cmd, scope, inv['timeout'], index, name)

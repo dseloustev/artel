@@ -24,6 +24,9 @@ loop (gates.md §1, rule 3).
   `git diff --name-only HEAD`), excluding paths the host marks as generated (analyzer/linter
   exclusion lists, generated-file headers — the same convention
   `${CLAUDE_PLUGIN_ROOT}/agents/implementer.md`'s "Generated code is read-only" rule uses).
+  On a task-format tasklist (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4) the caller adds
+  every file the task's `Test:` field lists, touched or not (gates.md §1), so the `test` stage
+  runs the tests the task must leave green even when the task never opened them.
 - `EVIDENCE_DIR` — resolve per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`:
   `<specs.dir>/<TICKET_ID>/[phase-<PHASE_NUM>/]verify/` (read `<specs.dir>/.active_ticket` when the
   caller didn't pass a ticket id explicitly). No active ticket → skip evidence writes, report

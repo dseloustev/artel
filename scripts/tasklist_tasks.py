@@ -11,10 +11,17 @@ inserting a second one. Composing titles here, deterministically, rather than
 letting an agent re-derive them from the markdown is what makes a re-run match
 instead of duplicating the work list.
 
-Exit codes: 0 parsed (JSON on stdout), 2 error (error envelope, nothing to mirror).
-Contract: docs/superpowers/specs/2026-08-22-artel-task-queue-design.md
+A tasklist written in task blocks (docs/task-grammar.md) is parsed by
+task_grammar.py and mirrors one row per task; a tasklist without one keeps the
+one-row-per-checkbox output below, byte for byte.
 
-Usage: tasklist-tasks --tasklist <path|-> --ticket-key <KEY>
+Exit codes: 0 parsed (JSON on stdout), 1 `--check` found a Critical or Important
+finding, 2 error (error envelope, nothing to mirror).
+Contract: docs/superpowers/specs/2026-08-22-artel-task-queue-design.md, docs/task-grammar.md
+
+Usage: tasklist-tasks --tasklist <path|-> --ticket-key <KEY> [--repo <dir>] [--sensitive-paths <file>]
+       tasklist-tasks --tasklist <path|-> --ticket-key <KEY> --check --requirements <R1,R2,…|none|absent> [--repo <dir>] [--sensitive-paths <file>]
+       tasklist-tasks requirements --prd <path|->
 """
 import json
 import re
@@ -23,7 +30,9 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'hooks'))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import doc_header  # noqa: E402
+import task_grammar  # noqa: E402
 
 # kartoteka's tasks.MAX_TITLE_CHARS. A second copy of a constant is acceptable
 # here for the same reason knowledge_mirror.py's MAX_BYTES is: this is a guard,
@@ -365,13 +374,105 @@ def malformed_reason(text, iterations, sections):
     return None
 
 
-def envelope(ok, elapsed_ms, data=None, error=None):
-    out = {'ok': ok, 'verb': 'tasklist-tasks', 'elapsed_ms': elapsed_ms}
+def task_title(iteration_number, task):
+    """(title, was_truncated) for a task row: `I<N> · <N.M> · <task title>`."""
+    return _capped('I{} · {} · {}'.format(iteration_number, task['number'], task['title']))
+
+
+def build_task_rows(iterations, rules):
+    """(rows, ready, warnings) for a task-format tasklist -- one child row per task.
+
+    `ready` is data.ready_now: {task, title} pairs, the titles capped exactly as
+    the rows are, so a consumer can match rows by title.
+    """
+    ready_numbers = set(task_grammar.ready_now(iterations))
+    rows = []
+    ready = []
+    warnings = []
+    for iteration in iterations:
+        number = iteration['number']
+        parent_title, truncated = _capped('I{}: {}'.format(number, iteration['name']))
+        if truncated:
+            warnings.append('iteration {} title truncated to {} chars'.format(
+                number, MAX_TITLE_CHARS))
+        parts = []
+        if iteration['goal']:
+            parts.append('Goal: ' + iteration['goal'])
+        if iteration['test']:
+            parts.append('Test: ' + iteration['test'])
+        children = []
+        for task in iteration['tasks']:
+            title, truncated = task_title(number, task)
+            if truncated:
+                warnings.append('task title truncated to {} chars: {}'.format(
+                    MAX_TITLE_CHARS, title))
+            if task_grammar.is_done(task):
+                status = 'done'
+            elif task['number'] in ready_numbers:
+                status = 'ready'
+                ready.append({'task': task['number'], 'title': title})
+            else:
+                status = 'backlog'
+            child = {'title': title, 'status': status,
+                     'description': task_grammar.description(task),
+                     'hitl': task['hitl']}
+            child.update(task_grammar.structured(task, rules))
+            children.append(child)
+        rows.append({'title': parent_title, 'status': 'backlog',
+                     'description': '\n\n'.join(parts), 'children': children})
+    return rows, ready, warnings
+
+
+def envelope(ok, elapsed_ms, data=None, error=None, verb='tasklist-tasks'):
+    out = {'ok': ok, 'verb': verb, 'elapsed_ms': elapsed_ms}
     if error is not None:
         out['error'] = error
     else:
         out['data'] = data
     return json.dumps(out)
+
+
+def _read_input(path, fail, not_found_kind, noun):
+    """(text, label) or (None, exit code) after reporting the failure."""
+    if path == '-':
+        # A stored document arrives by pipe from `spec_store.py get` (docs/spec-storage.md
+        # §4.2): the document goes script to script, never through a model's context.
+        # Line endings as Path.read_text() leaves them, so both forms parse one text.
+        text = sys.stdin.buffer.read().decode('utf-8')
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        if not text.strip():
+            # A failed `get` prints nothing; name the pipe, not a file nobody wrote.
+            return None, fail('empty_input', EMPTY_INPUT)
+        return text, '<stdin>'
+    file = Path(path)
+    if not file.is_file():
+        return None, fail(not_found_kind, '{} not found: {}'.format(noun, path))
+    return file.read_text(encoding='utf-8'), path
+
+
+def requirements_main(argv, elapsed):
+    def fail(kind, message):
+        print(envelope(False, elapsed(), error={'kind': kind, 'message': message},
+                       verb='tasklist-requirements'))
+        return 2
+
+    prd_path = None
+    i = 0
+    while i < len(argv):
+        if argv[i] == '--prd':
+            i += 1
+            prd_path = argv[i] if i < len(argv) else None
+        else:
+            return fail('invalid_argument', 'unknown flag: {}'.format(argv[i]))
+        i += 1
+    if not prd_path:
+        return fail('invalid_argument', 'missing required --prd <path|->')
+    text, label = _read_input(prd_path, fail, 'prd_not_found', 'PRD')
+    if text is None:
+        return label
+    data = task_grammar.parse_requirements(doc_header.body(text))
+    print(envelope(True, elapsed(), data=data, verb='tasklist-requirements'))
+    return 0
 
 
 def main(argv):
@@ -380,12 +481,22 @@ def main(argv):
     def elapsed():
         return int((time.monotonic() - start) * 1000)
 
-    def fail(kind, message):
-        print(envelope(False, elapsed(), error={'kind': kind, 'message': message}))
+    def fail(kind, message, data=None):
+        error = {'kind': kind, 'message': message}
+        if data is not None:
+            error['data'] = data
+        print(envelope(False, elapsed(), error=error))
         return 2
+
+    if argv and argv[0] == 'requirements':
+        return requirements_main(argv[1:], elapsed)
 
     tasklist_path = None
     ticket_key = None
+    check = False
+    requirements = None
+    repo = '.'
+    sensitive_paths = None
     i = 0
     while i < len(argv):
         arg = argv[i]
@@ -395,6 +506,17 @@ def main(argv):
         elif arg == '--ticket-key':
             i += 1
             ticket_key = argv[i] if i < len(argv) else None
+        elif arg == '--check':
+            check = True
+        elif arg == '--requirements':
+            i += 1
+            requirements = argv[i] if i < len(argv) else ''
+        elif arg == '--repo':
+            i += 1
+            repo = argv[i] if i < len(argv) else ''
+        elif arg == '--sensitive-paths':
+            i += 1
+            sensitive_paths = argv[i] if i < len(argv) else ''
         else:
             return fail('invalid_argument', 'unknown flag: {}'.format(arg))
         i += 1
@@ -402,23 +524,31 @@ def main(argv):
         return fail('invalid_argument', 'missing required --tasklist <path|->')
     if not ticket_key:
         return fail('invalid_argument', 'missing required --ticket-key <KEY>')
+    if check and not requirements:
+        return fail('invalid_argument',
+                    '--check needs --requirements <R1,R2,…|none|absent>')
+    if requirements is not None and not check:
+        return fail('invalid_argument', '--requirements is only read with --check')
+    if not repo:
+        return fail('invalid_argument', 'missing value for --repo <dir>')
+    if sensitive_paths == '':
+        return fail('invalid_argument', 'missing value for --sensitive-paths <file>')
 
-    if tasklist_path == '-':
-        # A stored tasklist arrives by pipe from `spec_store.py get` (docs/spec-storage.md
-        # §4.2): the document goes script to script, never through a model's context.
-        # Line endings as Path.read_text() leaves them, so both forms parse one text.
-        text = sys.stdin.buffer.read().decode('utf-8')
-        text = text.replace('\r\n', '\n').replace('\r', '\n')
-        if not text.strip():
-            # A failed `get` prints nothing; name the pipe, not a tasklist nobody wrote.
-            return fail('empty_input', EMPTY_INPUT)
-        tasklist_path = '<stdin>'
-    else:
-        tasklist_file = Path(tasklist_path)
-        if not tasklist_file.is_file():
-            return fail('tasklist_not_found', 'tasklist not found: {}'.format(tasklist_path))
-        text = tasklist_file.read_text(encoding='utf-8')
-    text = doc_header.body(text)  # the header (docs/spec-storage.md §3.2) holds no task
+    text, tasklist_path = _read_input(tasklist_path, fail, 'tasklist_not_found', 'tasklist')
+    if text is None:
+        return tasklist_path
+    body = doc_header.body(text)  # the header (docs/spec-storage.md §3.2) holds no task
+    if task_grammar.is_task_format(body):
+        offset = text[:len(text) - len(body)].count('\n')
+        return run_task_format(body, offset, tasklist_path, ticket_key, check,
+                               requirements, repo, sensitive_paths, fail, elapsed)
+    if check:
+        # The plan review reads the task grammar; an old-format tasklist has none.
+        print(envelope(True, elapsed(), data={
+            'ticket_key': ticket_key, 'format': 'legacy', 'findings': [],
+            'coverage': {'uncovered': [], 'unknown': []}, 'warnings': []}))
+        return 0
+    text = body
     iterations, warnings = parse_tasklist(text)
     sections = parse_sections(text)
     reason = malformed_reason(text, iterations, sections)
@@ -439,6 +569,51 @@ def main(argv):
     if section_rows:
         # Only when there is one, so a tasklist without a fix section prints
         # exactly what 0.14.0 printed.
+        data['sections'] = section_rows
+    print(envelope(True, elapsed(), data=data))
+    return 0
+
+
+def run_task_format(body, offset, label, ticket_key, check, requirements, repo,
+                    sensitive_paths, fail, elapsed):
+    """The task-format half of main(): --check findings, or the mirror payload."""
+    iterations, problems, warnings = task_grammar.parse(body, line_offset=offset)
+    if check:
+        if requirements == 'absent':
+            ids = None
+        elif requirements == 'none':
+            ids = []
+        else:
+            ids = [rid.strip() for rid in requirements.split(',') if rid.strip()]
+        findings, coverage = task_grammar.check(iterations, problems, repo, ids)
+        print(envelope(True, elapsed(), data={
+            'ticket_key': ticket_key, 'format': 'tasks', 'findings': findings,
+            'coverage': coverage, 'warnings': warnings}))
+        blocking = any(f['severity'] in ('Critical', 'Important') for f in findings)
+        return 1 if blocking else 0
+    if problems:
+        first = problems[0]
+        return fail('tasklist_malformed',
+                    '{}: {} problem(s) in the task grammar; first: line {}: {}'.format(
+                        label, len(problems), first['line'], first['message']),
+                    data={'problems': problems})
+    rules = task_grammar.load_sensitive_rules(repo, sensitive_paths)
+    rows, ready, row_warnings = build_task_rows(iterations, rules)
+    collisions = find_collisions(rows)
+    if collisions:
+        return fail('title_collision',
+                    'titles are the idempotency key and these repeat: {}'.format(
+                        '; '.join(collisions)))
+    section_rows, section_warnings = build_sections(parse_sections(body))
+    data = {
+        'ticket_key': ticket_key,
+        'format': 'tasks',
+        'warnings': warnings + row_warnings + section_warnings,
+        'iterations': rows,
+        'waves': task_grammar.waves(iterations),
+        'ready_now': ready,
+    }
+    if section_rows:
         data['sections'] = section_rows
     print(envelope(True, elapsed(), data=data))
     return 0

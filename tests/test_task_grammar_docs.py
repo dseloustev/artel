@@ -320,5 +320,74 @@ class TestTasklistWriterWritesTheGrammar(unittest.TestCase):
         self.assertNotIn('Draft the tasklist in memory', self.agent)
 
 
+class TestReviewerPlanMode(unittest.TestCase):
+    """Spec §6.2 and §2: the reviewer's plan mode, `run-reviewer --plan`, the acceptance
+    table per requirement, and an ID in code reported as Minor."""
+
+    def setUp(self):
+        self.agent = _w_flat('agents/reviewer.md')
+        self.plan = _w_between(self.agent, '## Plan mode', '## Review focus')
+        self.skill = _w_flat('skills/run-reviewer/SKILL.md')
+
+    def test_the_role_names_four_modes(self):
+        role = _w_between(self.agent, '## Role', '## Phase support')
+        for phrase in ('Four modes:', '- **plan** — the tasklist before the approval pause',
+                       'Task mode and plan mode are never assumed'):
+            self.assertIn(phrase, role)
+
+    def test_plan_mode_sits_between_task_mode_and_the_review_focus(self):
+        raw = _w_raw('agents/reviewer.md')
+        self.assertLess(raw.index('\n## Task mode\n'), raw.index('\n## Plan mode\n'))
+        self.assertLess(raw.index('\n## Plan mode\n'), raw.index('\n## Review focus'))
+
+    def test_the_eight_points(self):
+        for point in ('1. **Delivery.**', '2. **Clarity.**', '3. **Size and route.**',
+                      '4. **Dependencies.**', '5. **Tests.**', '6. **Intent, not code.**',
+                      '7. **Decisions honoured.**', '8. **Scope.**'):
+            self.assertIn(point, self.plan)
+
+    def test_the_parser_s_rules_are_not_re_reported(self):
+        self.assertIn('so never re-report those', self.plan)
+        self.assertIn('docs/task-grammar.md` §6', self.plan)
+
+    def test_findings_carry_severity_where_what_why_and_the_smallest_fix(self):
+        for phrase in ('- **Critical** —', '- **Important** —', '- **Minor** —',
+                       'where (the task number, or the iteration, or the whole tasklist)',
+                       'the smallest fix that resolves it', 'marked `(repeat)`'):
+            self.assertIn(phrase, self.plan)
+
+    def test_the_evidence_file_and_its_round(self):
+        for phrase in ('.artel/run/<TICKET_ID>/plan-review.md', 'no document header',
+                       '**Tasklist:** <the tasklist path you reviewed>',
+                       '**Plan-review round:** <k>', "`k` is the previous file's round plus one",
+                       'or when its `**Tasklist:**` line names another tasklist',
+                       'Plan review round <k>: <c> Critical, <i> Important, <m> Minor — '
+                       '.artel/run/<TICKET_ID>/plan-review.md'):
+            self.assertIn(phrase, self.plan)
+
+    def test_plan_mode_writes_nothing_else(self):
+        self.assertIn('plan mode edits no spec document, appends to no fix section', self.plan)
+
+    def test_the_acceptance_table_is_one_row_per_requirement(self):
+        output = _w_between(self.agent, '### Output', '### Deviation check')
+        for phrase in ("one row per requirement of the PRD's `## Requirements` section",
+                       'keeps one row per acceptance criterion of the work list',
+                       'or reads `none`'):
+            self.assertIn(phrase, output)
+        self.assertNotIn("one row per criterion of the PRD's acceptance section", self.agent)
+
+    def test_an_id_in_code_is_a_minor_finding(self):
+        focus = _w_between(self.agent, '## Review focus', '## Review lenses')
+        for phrase in ('**IDs stay out of the product**', '**Minor** convention finding',
+                       'never a fix task', 'docs/task-grammar.md` §5'):
+            self.assertIn(phrase, focus)
+
+    def test_run_reviewer_dispatches_plan_mode(self):
+        for phrase in ('--package <path> | --plan] [--local]', '### Plan mode (`--plan`)',
+                       '**Mode: plan**', 'skip `## Record the fix tasks` below',
+                       "In plan mode relay the agent's one line verbatim"):
+            self.assertIn(phrase, self.skill)
+
+
 if __name__ == '__main__':
     unittest.main()

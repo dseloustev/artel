@@ -194,5 +194,80 @@ class TestAnalystRequirements(unittest.TestCase):
             self.assertIn(phrase, finalize)
 
 
+class TestTaskPlannerWritesTheGrammar(unittest.TestCase):
+    """Spec §7: task-planner writes task blocks; per-task acceptance criteria become
+    `Test:` and `Implements:`; the phase-scoped output uses the same blocks."""
+
+    def setUp(self):
+        self.agent = _w_flat('agents/task-planner.md')
+        self.output = _w_between(self.agent, '## Output', '## Rules')
+        self.rules = _w_between(self.agent, '## Rules', '## Fix rounds and fold-backs')
+
+    def test_both_outputs_are_written_in_the_grammar(self):
+        for phrase in ('`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md`',
+                       'a `### Task <N>.<m>: <title>` heading, its field bullets, then its steps',
+                       'one `## Iteration <N>: <title>` section per phase / iteration',
+                       'one `## Iteration <PHASE_NUM>: <title>` section',
+                       'numbered `<PHASE_NUM>.1`, `<PHASE_NUM>.2`, …',
+                       'no `## Final Verification` section'):
+            self.assertIn(phrase, self.output)
+
+    def test_the_example_carries_every_field(self):
+        for field in ('- **Files:** `src/checkout/receipt_view.py` (new)',
+                      '- **Depends on:** none', '- **Depends on:** 2.1', '- **Route:** light',
+                      '- **Route:** full — payment path',
+                      '- **Test:** `tests/checkout/test_receipt_view.py`',
+                      '- **Produces:** `ReceiptView.render(order)` — class method',
+                      '- **Implements:** R1',
+                      '### Task 2.2: Show the receipt after checkout [HITL: '):
+            self.assertIn(field, self.output)
+
+    def test_the_shapeless_output_is_gone(self):
+        for retired in ('a list of tasks with checkboxes', 'acceptance criteria for each task',
+                        '**Acceptance criteria** — For each task', 'note the dependency',
+                        '`- [ ] [HITL: <reason>] <task text>`'):
+            self.assertNotIn(retired, self.agent)
+
+    def test_rules_carry_the_fields_the_trace_and_the_order(self):
+        for phrase in ('**Every task carries the required fields**',
+                       '**`Test:` is the acceptance criterion.**',
+                       '**`Implements:` traces the PRD.**', 'no task carries `Implements:`',
+                       '**Dependencies are declared, never implied.**',
+                       'Never a task of another iteration',
+                       '**Steps state intent, not code.**', '**No gate tasks.**',
+                       '`### Task <N>.<m>: <title> [HITL: <reason>]`'):
+            self.assertIn(phrase, self.rules)
+
+    def test_already_met_is_an_open_question(self):
+        for phrase in ('**Already met is a question, not a gap.**',
+                       '`Is R<n> already met by the current code?`', '`from: tasklist`'):
+            self.assertIn(phrase, self.rules)
+
+    def test_fix_rounds_and_fold_backs_edit_the_fields(self):
+        section = _w_between(self.agent, '## Fix rounds and fold-backs')
+        for phrase in ('.artel/run/<TICKET_ID>/plan-review.md',
+                       'keep the grammar, the header and `status: TASKLIST_READY`',
+                       'the fields as well as the prose', 'task numbers stay contiguous'):
+            self.assertIn(phrase, section)
+
+    def test_the_tasklist_skill_asks_for_task_blocks(self):
+        self.assertIn('write every task as a task block in the task grammar',
+                      _w_flat('skills/tasklist/SKILL.md'))
+
+    def test_a_task_grammar_tasklist_is_not_mirrored_before_approval(self):
+        # Spec §4 as amended while planning: gate 4.2 and the approval fold-back can
+        # renumber or retitle tasks, and create-only rows would outlive them (the
+        # AW-3342 D4 class), so the first mirror of a task-grammar tasklist is the
+        # orchestrator's re-mirror after approval.
+        skill = _w_flat('skills/tasklist/SKILL.md')
+        for phrase in ('Skipped too for a task-grammar tasklist',
+                       'whose plan is not yet `PLAN_APPROVED`',
+                       "the queue's rows are create-only",
+                       "the orchestrator's re-mirror before the first implementer dispatch"
+                       ' creates them once the plan is approved',
+                       'or an old-format tasklist, mirrors here as before'):
+            self.assertIn(phrase, skill)
+
+
 if __name__ == '__main__':
     unittest.main()

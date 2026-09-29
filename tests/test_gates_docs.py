@@ -108,8 +108,11 @@ class TestTaskLoop(unittest.TestCase):
         self.assertNotIn('Run every command in `verify.commands`', text)
         self.assertIn('### No `## Final Verification` section', text)
         self.assertIn('docs/gates.md', text)
-        after = section(text, '### After changes', '**Test:**')
-        self.assertIn('task gate', after)
+        # Since 0.23.0 the task grammar has no `### After changes` checklist
+        # (docs/task-grammar.md §3): the task gate is the implementer's standing duty.
+        self.assertNotIn('- [ ] Run the task gate', text)
+        green = section(text, '- **Every task ends green.**', '\n- ')
+        self.assertIn('task gate', green)
 
     def test_task_planner_forbids_gate_tasks(self):
         text = read('agents/task-planner.md')

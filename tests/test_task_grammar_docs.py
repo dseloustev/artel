@@ -269,5 +269,56 @@ class TestTaskPlannerWritesTheGrammar(unittest.TestCase):
             self.assertIn(phrase, skill)
 
 
+class TestTasklistWriterWritesTheGrammar(unittest.TestCase):
+    """Spec §7: tasklist-writer drops the file headings and `### After changes`, writes task
+    blocks, reads the PRD only for its IDs, and drafts into run state for the plan check."""
+
+    def setUp(self):
+        self.agent = _w_flat('agents/tasklist-writer.md')
+
+    def test_the_template_is_task_blocks(self):
+        template = _w_between(self.agent, '### Required structure',
+                              '### Rules for the Progress Report table')
+        for phrase in ('### Task 1.1: {imperative title}', '- **Depends on:** none',
+                       '- **Depends on:** 1.1', '- **Route:** light',
+                       '- **Route:** full — {why this task needs its own review}',
+                       '- **Test:** none — {why no test can pin it}',
+                       '- **Implements:** {requirement IDs — only when the PRD has'
+                       ' `## Requirements`}',
+                       '**Test:** {how the developer verifies this iteration end-to-end'):
+            self.assertIn(phrase, template)
+        for retired in ('### `{repo-relative file path}`', '### After changes', '(new file)'):
+            self.assertNotIn(retired, template)
+
+    def test_file_grouping_and_after_changes_are_gone(self):
+        for retired in ('**Group tasks by file.**', 'Include the "After changes" checklist',
+                        'Call this out in the "After changes" checklist', '(new file)',
+                        'subheading must be a path', '`- [ ] [HITL: <reason>] <task text>`'):
+            self.assertNotIn(retired, self.agent)
+        self.assertIn('no `### After changes` checklist', self.agent)
+
+    def test_every_task_carries_the_fields_and_implements_follows_the_prd(self):
+        for phrase in ('**Tasks are blocks, not file groups.**',
+                       '**Every task carries the required fields**', 'and on none otherwise',
+                       '**Every task ends green.**',
+                       '`### Task <N>.<m>: <title> [HITL: <reason>]`'):
+            self.assertIn(phrase, self.agent)
+
+    def test_it_reads_the_prd_for_its_ids_only(self):
+        inputs = _w_between(self.agent, '## Input', '## Output')
+        self.assertIn("read its `## Requirements` section for the IDs your tasks'"
+                      " `Implements:` lines cite", inputs)
+        self.assertIn("the PRD's path or `none`", inputs)
+
+    def test_the_draft_lives_in_run_state_and_takes_fix_rounds(self):
+        workflow = _w_between(self.agent, '## Per-run workflow', '## KISS rules')
+        for phrase in ('.artel/run/<TICKET_ID>/tasklist-draft.md',
+                       'Never write `<specs.dir>/<TICKET_ID>/tasklist.md` in this step',
+                       '### Step 1b — Fix the draft', 'This happens at most twice',
+                       'the fields as well as the prose'):
+            self.assertIn(phrase, workflow)
+        self.assertNotIn('Draft the tasklist in memory', self.agent)
+
+
 if __name__ == '__main__':
     unittest.main()

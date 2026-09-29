@@ -190,5 +190,42 @@ class TestReviewer(unittest.TestCase):
         self.assertIn('whose priority carries `behavior`', self.doc)
         self.assertIn('this check does not read them', self.doc)
 
+class TestSkill(unittest.TestCase):
+    def setUp(self):
+        self.raw = read(SKILL)
+        self.doc = flat(self.raw)
+
+    def test_frontmatter(self):
+        self.assertTrue(self.raw.startswith('---\nname: debugging\n'))
+        frontmatter = self.raw.split('---', 2)[1]
+        description = re.search(r'(?m)^description: (.*)$', frontmatter).group(1)
+        self.assertIn('artel-configured repo', description)
+        self.assertLessEqual(len(description), 1024)
+        self.assertNotRegex(frontmatter, r'(?m)^model:')
+        self.assertNotRegex(frontmatter, r'(?m)^disable-model-invocation:')
+
+    def test_reads_the_contract_first(self):
+        self.assertIn('**The discipline is `${CLAUDE_PLUGIN_ROOT}/docs/debugging.md`', self.doc)
+
+    def test_reproduces_through_the_gate(self):
+        for phrase in ('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify.py task --files',
+                       'No config →', 'a `skipped` stage is never red evidence'):
+            self.assertIn(phrase, self.doc)
+
+    def test_knowledge_search_is_conditional(self):
+        for phrase in ('With `knowledge.adapter: "kartoteka"`', '`Skill: knowledge`',
+                       'With the adapter off or absent, skip this step and say nothing about it'):
+            self.assertIn(phrase, self.doc)
+
+    def test_structural_hands_off_to_issue_draft(self):
+        for phrase in ('/artel:issue-draft <the report> --type bug',
+                       '/artel:issue-draft <the report> --type task', '`AskUserQuestion`'):
+            self.assertIn(phrase, self.doc)
+
+    def test_footprint(self):
+        self.assertIn('**Never commits, pushes or opens a PR.**', self.doc)
+        self.assertIn('**Never touches the spec trail**', self.doc)
+        self.assertNotIn('subagent_type', self.doc)
+
 if __name__ == '__main__':
     unittest.main()

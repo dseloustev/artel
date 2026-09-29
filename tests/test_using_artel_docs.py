@@ -256,5 +256,23 @@ class TestRouterCodeNavigation(unittest.TestCase):
         self.assertIn('ast-index: on PATH', read(ROUTER))
 
 
+class TestRouterDebugging(unittest.TestCase):
+    def setUp(self):
+        self.doc = ' '.join(read(ROUTER).split())
+
+    def test_domain_includes_bugs(self):
+        self.assertIn("the project's institutional knowledge, or a bug to find and fix", self.doc)
+
+    def test_routing_row(self):
+        self.assertIn('| a bug, test failure or unexpected behaviour traced to its cause and '
+                      'fixed | `/artel:debugging [symptom]` |', self.doc)
+
+    def test_precedence_over_generic_debugging_skills(self):
+        self.assertIn('`/artel:debugging` wins over generic debugging skills', self.doc)
+        self.assertIn('`superpowers:systematic-debugging`', self.doc)
+
+    def test_red_flag(self):
+        self.assertIn('"I see the problem, I\'ll just fix it"', self.doc)
+
 if __name__ == '__main__':
     unittest.main()

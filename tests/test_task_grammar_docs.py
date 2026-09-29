@@ -389,5 +389,78 @@ class TestReviewerPlanMode(unittest.TestCase):
             self.assertIn(phrase, self.skill)
 
 
+class TestGateFourTwoPlanReviewed(unittest.TestCase):
+    """Spec §6.1, §6.3, §6.4: gate 4.2 in feature-development and the pause around it."""
+
+    def setUp(self):
+        self.raw = _w_raw('skills/feature-development/SKILL.md')
+        self.fd = _w_flat('skills/feature-development/SKILL.md')
+        self.gate = _w_between(self.fd, '#### Gate 4.2 — the plan review', '### 3. THE ONE PAUSE')
+        self.pause = _w_between(self.fd, '### 3. THE ONE PAUSE', '### 4. Arm the run')
+
+    def test_the_row_sits_between_the_tasklist_and_phase_extraction(self):
+        self.assertLess(self.raw.index('| 4 | `TASKLIST_READY`'),
+                        self.raw.index('| 4.2 | `PLAN_REVIEWED`'))
+        self.assertLess(self.raw.index('| 4.2 | `PLAN_REVIEWED`'), self.raw.index('| 4.5 |'))
+
+    def test_it_runs_on_the_grammar_before_approval_in_the_chatty_head(self):
+        for phrase in ("while the plan's status is not `PLAN_APPROVED`",
+                       'A resume after approval never re-runs it',
+                       '`PLAN_REVIEWED: skipped (old-format tasklist)`',
+                       'never count toward `counters.correction_rounds`'):
+            self.assertIn(phrase, self.gate)
+
+    def test_the_requirements_read_feeds_the_mechanical_check(self):
+        for phrase in ('tasklist_tasks.py requirements --prd <prd-path>',
+                       'tasklist_tasks.py requirements --prd -',
+                       '`present: false` → `absent`',
+                       '`present: true` with an empty `ids` → `none`',
+                       'tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID>'
+                       ' --check --requirements <requirements>',
+                       'tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>'
+                       ' --check --requirements <requirements>'):
+            self.assertIn(phrase, self.gate)
+
+    def test_the_agent_half_and_the_capped_rounds(self):
+        for phrase in ('`Skill: run-reviewer --plan` with `$0`',
+                       '`MAX_PLAN_REVIEW_ROUNDS = 2`', 'the `task-planner` agent',
+                       'Minor findings never start a round'):
+            self.assertIn(phrase, self.gate)
+
+    def test_an_already_met_question_waits_for_the_pause(self):
+        self.assertIn('`Is R<n> already met by the current code?`', self.gate)
+        self.assertIn('the pause answers it', self.gate)
+
+    def test_a_stale_or_resumed_review_keeps_its_count_honest(self):
+        for phrase in ('whose `**Tasklist:**` line names another tasklist is stale',
+                       'has used its rounds', 'the reviewer continues the round count'):
+            self.assertIn(phrase, self.gate)
+
+    def test_the_pause_shows_what_is_open_and_the_old_prd_line(self):
+        for phrase in ("the plan review's open findings as their own section",
+                       'no requirement coverage — the PRD predates requirement IDs'):
+            self.assertIn(phrase, self.pause)
+
+    def test_the_fold_back_reaches_the_analyst_and_rechecks(self):
+        approve = _w_between(self.pause, '- **Approve** →', '- **Request changes** →')
+        for phrase in ('fields as well as its prose', 'goes to the `analyst` agent instead',
+                       '`(already met — <evidence>)`',
+                       "re-run gate 4.2's requirements read and mechanical check"):
+            self.assertIn(phrase, approve)
+
+    def test_request_changes_restarts_the_review(self):
+        request = _w_between(self.pause, '- **Request changes** →', '- **`yolo` only:**')
+        self.assertIn('delete `.artel/run/<TICKET_ID>/plan-review.md`', request)
+
+    def test_yolo_still_stops_on_a_surviving_finding(self):
+        yolo = _w_between(self.pause, '- **`yolo` only:**')
+        self.assertIn('a Critical or Important plan-review finding still open', yolo)
+        self.assertIn('guardrail, not a pause preference', yolo)
+
+    def test_the_run_start_entry_records_the_outcome(self):
+        arm = _w_between(self.fd, '### 4. Arm the run', 'Then run the **planning checkpoint**')
+        self.assertIn("the plan review's outcome", arm)
+
+
 if __name__ == '__main__':
     unittest.main()

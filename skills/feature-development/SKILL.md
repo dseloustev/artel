@@ -13,7 +13,8 @@ multi-phase traversal the current `<TICKET_ID>-<N>`) to every sub-skill. Skip an
 artifact already exists (resume); re-read artifacts after every sub-skill/agent return. (gate 3.5
 has no artifact — it re-runs after any write to the plan file, including planner regeneration and
 the §3 fold-back, and unconditionally on resume; a green run is recorded by resetting the bounce
-line to `**Plan-check bounces:** 0`).
+line to `**Plan-check bounces:** 0`). Gate 4.2 has no artifact to skip on either: it runs while
+the plan is not yet `PLAN_APPROVED` (its own section follows the table in step 2).
 
 `--step` flag: run in legacy step-by-step mode — confirm between major phases via
 `AskUserQuestion`, skip all `run-state.json` writes (autonomous-run.md §6). The remainder of this
@@ -97,27 +98,94 @@ On the kartoteka path "artifact exists" in every gate below is one `python3 ${CL
 | 3 | plan drafted — `plan.md` exists | `Skill: researcher` then `Skill: planner` (both `$0`; `researcher` also takes `--local` when this run was invoked with it) — **silent**: their questions land in `.artel/run/<TICKET_ID>/open-questions.md` (autonomous-run.md §3). |
 | 3.5 | `PLAN_GROUNDED` — plan-check green | Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan - --strict`), where `<plan-path>` is the phase-aware plan path per ticket-parsing.md §4. Exit 0 → proceed. Exit 1 → append/update `**Plan-check bounces:** N` at the bottom of `<plan-path>` (kartoteka path: `artifact_patch(project=<project>, …)` replacing the existing bounce line, or `append` it), and while `N <= MAX_PLAN_CHECK_BOUNCES = 2`: `SendMessage` the `data.unresolved` list to the `planner` agent ("resolve or declare `new:`"), regenerate, re-run the check. Planner regeneration rewrites `<plan-path>` and drops the bounce line with it; after each regeneration re-append `**Plan-check bounces:** N` (N = bounces performed so far) before re-running the check. Third failure → stop and ask (chatty head — plain `AskUserQuestion`, no `pause_reason`) without writing N=3 — the file shows `**Plan-check bounces:** 2` at the stop. Exit 2 → environment error: stop-and-ask pointing at setup, never a bounce. |
 | 4 | `TASKLIST_READY` — tasklist status `TASKLIST_READY` | `Skill: tasklist` with `$0`, plus `--local` when this run was invoked with it — silent, HITL-tagged; the flag keeps its task-queue mirror from writing rows. |
+| 4.2 | `PLAN_REVIEWED` — the plan review ran (a tasklist in the task grammar, plan not yet `PLAN_APPROVED`) | The plan review before the pause — Gate 4.2, below the table: the mechanical check (`tasklist_tasks.py --check`), then `Skill: run-reviewer --plan`, with at most `MAX_PLAN_REVIEW_ROUNDS = 2` fix rounds to `task-planner`. An old-format tasklist records `PLAN_REVIEWED: skipped (old-format tasklist)`. |
 | 4.5 | phase extraction (phase runs only) | `Skill: sync-phases` with `$0` — creates `phase-<N>/tasks.md` when missing. |
+
+#### Gate 4.2 — the plan review
+
+Runs only for a tasklist in the task grammar (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4),
+and only while the plan's status is not `PLAN_APPROVED`. A resume after approval never re-runs
+it, and an old-format tasklist never sees it. It belongs to the chatty head: the run is not armed
+yet, its questions carry no `pause_reason`, and its rounds never count toward
+`counters.correction_rounds`. `<tasklist-path>` is the phase-aware tasklist and `<prd-path>` the
+phase-aware PRD with its read fallback (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5);
+`--ticket-key` takes the canonical `<TICKET_ID>`, without the phase suffix.
+
+1. **Requirements.** Read the PRD's active requirement IDs. Files path first, kartoteka path
+   (`docs/spec-storage.md` §4.2) second:
+
+       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd <prd-path>
+       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -
+
+   Turn `data` into `<requirements>`: `present: false` → `absent`; `present: true` with an empty
+   `ids` → `none`; otherwise the `ids` joined by `,`. Exit `2` → environment error: stop-and-ask
+   (plain `AskUserQuestion`), never a round.
+2. **Mechanical check** (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §6). Files path first,
+   kartoteka path second:
+
+       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <requirements>
+       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
+
+   `data.format` `legacy` → the tasklist predates the grammar: record
+   `PLAN_REVIEWED: skipped (old-format tasklist)` for the pause and step 4, and end the gate.
+   Exit `2` → environment error, as in step 1. Otherwise keep `data.findings` and
+   `data.coverage`: exit `1` means a Critical or Important finding, exit `0` none.
+3. **Agent check.** A `.artel/run/<TICKET_ID>/plan-review.md` whose `**Tasklist:**` line names
+   another tasklist is stale: delete it first. Then `Skill: run-reviewer --plan` with `$0`. It
+   returns `Plan review round <k>: <c> Critical, <i> Important, <m> Minor — .artel/run/<TICKET_ID>/plan-review.md`.
+4. **Fix round.** A Critical or Important finding from either half, and `k` at most
+   `MAX_PLAN_REVIEW_ROUNDS = 2` → `SendMessage`/re-invoke the `task-planner` agent (a fresh
+   dispatch carries `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` and the **Spec store:** field) with
+   the check's Critical and Important findings verbatim — `severity`, `task`, `line`, `rule`,
+   `message` — and the path of `plan-review.md`, per its "Fix rounds and fold-backs" section.
+   Then run the gate again from step 1. Minor findings never start a round. An
+   `uncovered-requirement` finding for an ID (in `data.coverage.uncovered`) that an open question
+   already asks about — `Is R<n> already met by the current code?`, `from: tasklist` — is not
+   sent: the pause answers it.
+5. **End.** No Critical or Important finding left, or round `k` still has some after
+   `MAX_PLAN_REVIEW_ROUNDS` fix rounds → the gate ends. Whatever is still open — the last
+   check's findings and the last `plan-review.md`'s, Minor included — goes to THE ONE PAUSE as
+   its own section. On a resume before approval, a `plan-review.md` for this tasklist whose round
+   is above `MAX_PLAN_REVIEW_ROUNDS` has used its rounds: run steps 1–2 and go to the pause;
+   otherwise run the gate from step 1, and the reviewer continues the round count.
 
 ### 3. THE ONE PAUSE — plan+tasklist approval
 
 Present via `AskUserQuestion` in one interaction: plan summary, the task list with its `[HITL: …]`
 tags called out, every `Status: open` entry from `.artel/run/<TICKET_ID>/open-questions.md`
-(proposed defaults as the first, "(Recommended)" option each), and a note that approval also
-authorizes the run's checkpoint commits & pushes to `origin` (planning docs now, one commit+push
-per completed phase — see `## Checkpoint commits & pushes`).
+(proposed defaults as the first, "(Recommended)" option each), the plan review's open findings
+as their own section — gate 4.2's last check and last `plan-review.md`, Critical and Important
+first, each with where, what and the smallest fix; `none` when nothing is open, or
+`PLAN_REVIEWED: skipped (old-format tasklist)` — plus, when gate 4.2's requirements read gave
+`absent`, the line `no requirement coverage — the PRD predates requirement IDs`, and a note that
+approval also authorizes the run's checkpoint commits & pushes to `origin` (planning docs now,
+one commit+push per completed phase — see `## Checkpoint commits & pushes`).
 
 - **Approve** → `SendMessage`/re-invoke `planner` and `tasklist` agents to fold any answer that
-  overrides a default back into `plan.md` / the tasklist, flip the
-  `.artel/run/<TICKET_ID>/open-questions.md` entries to `resolved: "<answer>"`, and remove
-  `(provisional — Q<n>)` markers (plan becomes status `PLAN_APPROVED`). This write re-arms gate
-  3.5 — if the fold-back touched `plan.md`, re-run the plan-check before proceeding. Proceed to
-  step 4.
-- **Request changes** → route feedback to `planner`/`tasklist`, regenerate, repeat this pause.
+  overrides a default back into `plan.md` / the tasklist — the tasklist's fields as well as its
+  prose: an answer that changes a route, a dependency or a file list changes that field — flip
+  the `.artel/run/<TICKET_ID>/open-questions.md` entries to `resolved: "<answer>"`, and remove
+  `(provisional — Q<n>)` markers (plan becomes status `PLAN_APPROVED`). An answer confirming
+  that the current code already meets a requirement goes to the `analyst` agent instead, which
+  adds `(already met — <evidence>)` to that requirement in the phase-aware PRD under its "After
+  `PRD_READY`" rule; no task is written for it. This write re-arms gate
+  3.5 — if the fold-back touched `plan.md`, re-run the plan-check before proceeding. After any
+  fold-back into the tasklist or the PRD, re-run gate 4.2's requirements read and mechanical
+  check (its steps 1–2 — no agent check, no fix round). A Critical or Important finding it
+  reports stops and asks (plain `AskUserQuestion` — the run is not armed yet): the findings,
+  then **Fix** (one more `task-planner` round, then the check again) / **Proceed as is** /
+  **Abort**. Proceed to step 4.
+- **Request changes** → route feedback to `planner`/`tasklist`, regenerate, delete
+  `.artel/run/<TICKET_ID>/plan-review.md`, run gates 3.5 and 4.2 again, and repeat this pause.
 - **`yolo` only:** skip the `AskUserQuestion` — treat every
   `.artel/run/<TICKET_ID>/open-questions.md` default as the accepted answer, run the same
-  fold-back (planner/tasklist agents, `resolved: "<answer>"` flips, status `PLAN_APPROVED`), and
-  proceed. The HITL tags remain armed — yolo removes this pause only.
+  fold-back (planner/tasklist agents, the `analyst` for an already-met answer,
+  `resolved: "<answer>"` flips, status `PLAN_APPROVED`) and the check after it, and proceed. The
+  HITL tags remain armed — yolo removes this pause only. One exception: a Critical or Important
+  plan-review finding still open after that — from the check after the fold-back, or left by
+  gate 4.2's agent check — stops the run and presents this pause after all, findings first. That
+  is a guardrail, not a pause preference, as when `dev` asks in `yolo` about an ambiguous
+  description. Minor findings never stop a `yolo` run; the run-start journal entry lists them.
 
 ### 4. Arm the run
 
@@ -132,7 +200,9 @@ re-derive the mode fields before re-arming — never trust stale ones, and carry
 forward unchanged: it is the user's opt-out, not a classifier output. From here the run is
 silent except deviations, HITL tasks, and cap escalations. Create
 `.artel/run/<TICKET_ID>/run-journal.md` with the run-start entry (autonomous-run.md §11): mode
-resolution, reasons, HITL tags count.
+resolution, reasons, HITL tags count, and the plan review's outcome —
+`PLAN_REVIEWED: <k> round(s), <n> finding(s) left open` with the Minor ones listed, or
+`PLAN_REVIEWED: skipped (old-format tasklist)`.
 
 Then run the **planning checkpoint** (see `## Checkpoint commits & pushes`): commit
 `<specs.dir>/<TICKET_ID>/**` + `<specs.dir>/.active_ticket` and push — subject `docs: <TICKET_ID>
@@ -270,7 +340,8 @@ external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)
 - The only files this orchestrator writes directly: `<specs.dir>/.active_ticket`,
   `.artel/run/<TICKET_ID>/run-state.json`, `.artel/run/<TICKET_ID>/run-journal.md`,
   `.artel/run/<TICKET_ID>/runtime-observation.md`, the phase-aware `runtime/observation.md`
-  surface-skip entry, the `open-questions.md` status flips (same directory), the
+  surface-skip entry, the `open-questions.md` status flips (same directory), the deletion of a
+  stale or reset `plan-review.md` (same directory — gate 4.2 and **Request changes**), the
   description file during sync, `.artel/run/<TICKET_ID>/spec-store.json` (through
   `spec_store.py`); on the kartoteka path its spec-document writes — the plan-check bounce line,
   runtime and verify fix batches, the review reset — are store writes. Everything else is delegated.

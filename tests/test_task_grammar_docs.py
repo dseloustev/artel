@@ -573,5 +573,61 @@ class TestSyncPhasesCopiesTheIteration(unittest.TestCase):
             self.assertIn(phrase, self.writeback)
 
 
+class TestTasksAddWritesATaskBlock(unittest.TestCase):
+    """Spec §7 and §8: `/artel:tasks add` writes in the tasklist's own format; the check runs
+    before the row; `done` ticks a whole task block; `add --fix` is unchanged."""
+
+    FLAGS = ('--iteration N [--files <paths>] [--depends <tasks>] [--route <route>]'
+             ' [--test <paths>] [--section <name>]')
+
+    def setUp(self):
+        self.skill = _w_flat('skills/tasks/SKILL.md')
+        self.add = _w_between(self.skill, '### `add <ticket> "<title>" --iteration N',
+                              '### `add <ticket> "<title>" --fix')
+
+    def test_the_hint_and_the_heading_name_the_field_flags(self):
+        hint = [ln for ln in _w_raw('skills/tasks/SKILL.md').splitlines()
+                if ln.startswith('argument-hint:')][0]
+        self.assertIn(self.FLAGS, hint)
+        self.assertIn('### `add <ticket> "<title>" ' + self.FLAGS, self.skill)
+
+    def test_the_format_decides_the_branch_and_refuses_the_other_flags(self):
+        for phrase in ('docs/task-grammar.md` §4',
+                       '`--section` places a checkbox in an old-format tasklist',
+                       'those flags write a task block'):
+            self.assertIn(phrase, self.add)
+
+    def test_a_task_block_with_its_title_as_its_one_step(self):
+        for phrase in ('### Task <N>.<m>: <title>',
+                       "The title is both the heading and the task's one step",
+                       'Ask for every required field still missing in one `AskUserQuestion`',
+                       'Never invent a value'):
+            self.assertIn(phrase, self.add)
+
+    def test_no_prd_means_absent(self):
+        self.assertIn('`<specs.dir>/<TICKET_ID>/prd.md` absent', self.add)
+        self.assertIn('`<requirements>` is `absent`', self.add)
+
+    def test_the_check_runs_before_the_row_and_a_failure_restores_the_file(self):
+        check = _w_between(self.add, '**Check before the row.**', '3. **Mirror**')
+        for phrase in ('--check --requirements <requirements>',
+                       'take the block back out of every file you wrote it to',
+                       'no row is created'):
+            self.assertIn(phrase, check)
+
+    def test_a_grammar_row_s_status_follows_ready_now(self):
+        self.assertIn('`ready` when the new task is in `data.ready_now`', self.add)
+        self.assertIn('`I<N> · <N>.<m> · <title>` in the task grammar', self.add)
+
+    def test_done_ticks_every_step_of_a_task_block(self):
+        done = _w_between(self.skill, '### `done <task-id>`', '### `block')
+        self.assertIn('tick every step of the `### Task <N>.<m>:` block', done)
+
+    def test_add_fix_is_unchanged(self):
+        fix = _w_between(self.skill, '### `add <ticket> "<title>" --fix', '### `done')
+        for flag in ('--files', '--depends', '--route', '--test'):
+            self.assertNotIn(flag, fix)
+
+
 if __name__ == '__main__':
     unittest.main()

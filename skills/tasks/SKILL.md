@@ -1,7 +1,7 @@
 ---
 name: tasks
 description: "Operate the ticket's kartoteka task queue from the conversation: list the queue and diagnose it (drained, promotion pending, blocked, held), add a task through tasklist.md so file and queue stay in step — an iteration task, or a review, runtime or verify fix (`add --fix`) — mark a task done or blocked, or release a task a dead agent left in_progress. Use when the user asks what is in the queue, who holds a task, wants a task or a fix added to a ticket, or wants a stuck task released."
-argument-hint: 'list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--section <name>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]'
+argument-hint: 'list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] [--section <name>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]'
 model: sonnet
 ---
 
@@ -86,7 +86,7 @@ operation — never with Read/Write/Edit or a shell file command.
 4. **Report only.** `list` never promotes, never releases, never edits a file. If the user wants
    a held row cleared, that is `release`.
 
-### `add <ticket> "<title>" --iteration N [--section <name>] [--hitl <reason>] [--raw]`
+### `add <ticket> "<title>" --iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] [--section <name>] [--hitl <reason>] [--raw]`
 
 `--raw` → skip to **Raw** below — unless `--fix` was given too: `--raw` with `--fix` → print
 the argument hint and stop.
@@ -95,8 +95,16 @@ the argument hint and stop.
    for <TICKET_ID>; create one with `/artel:tasklist` or `/artel:generate-tasklist`, or pass
    `--raw` for a bare backlog row". `--iteration` missing (and no `--fix`), or iteration `N`
    absent → stop and list the `## Iteration N:` / `## Phase N:` headings the file has.
-2. **Append the checkbox** — the line `- [ ] <title>`, with ` [HITL: <reason>]` appended when
-   `--hitl` was given — under iteration `N`:
+   **Format** (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4): any `### Task <N>.<m>:` heading
+   in the tasklist → it is in the task grammar. There, `--section` → stop: "`--section` places a
+   checkbox in an old-format tasklist; this one is in the task grammar — pass `--files`,
+   `--depends`, `--route` and `--test` instead". No such heading → the old format, where
+   `--files`, `--depends`, `--route` or `--test` → stop: "those flags write a task block; this
+   tasklist is in the old checkbox format — use `--section`".
+2. **Write the task** in the tasklist's format (step 1).
+
+   **Old format** — append the checkbox: the line `- [ ] <title>`, with ` [HITL: <reason>]`
+   appended when `--hitl` was given — under iteration `N`:
    - under `### <section>` when `--section` names an existing section of that iteration;
    - else under the iteration's **last** `### ` section;
    - else create `### Follow-ups` at the end of the iteration and put it there.
@@ -109,6 +117,54 @@ the argument hint and stop.
    total (`X/Y` → `X/Y+1`).
    On the kartoteka path the append, the phase-file append and the Progress Report bump are
    `artifact_patch(project=<project>, …)` calls (spec-storage.md §4.3).
+
+   **Task grammar** — write a task block (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §1–§2):
+   - **Requirements.** `<specs.dir>/<TICKET_ID>/prd.md` absent (kartoteka path:
+     `spec_store.py exists` exits 3) → `<requirements>` is `absent`. Otherwise read its active
+     IDs. Files path first, kartoteka path (`docs/spec-storage.md` §4.2) second:
+
+         python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd <specs.dir>/<TICKET_ID>/prd.md
+         set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/prd.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -
+
+     Turn `data` into `<requirements>`: `present: false` → `absent`; `present: true` with an
+     empty `ids` → `none`; otherwise the `ids` joined by `,`.
+   - **Fields.** `Files:` from `--files` — comma-separated repo-relative paths, each
+     backticked, with ` (new)` after a path that has no file in the checkout; `Depends on:` from
+     `--depends` — task numbers of iteration `N`, or `none`; `Route:` from `--route` — `light`,
+     or `full — <reason>`; `Test:` from `--test` — backticked paths, or `none — <reason>`;
+     `Implements:` only when `<requirements>` is not `absent` — the IDs this task delivers. Ask
+     for every required field still missing in one `AskUserQuestion`, one entry each: `Files:`
+     and `Test:` as free text, `Depends on:` offering `none` and the iteration's task numbers,
+     `Route:` offering `light` and `full — <reason>`, `Implements:` offering the active IDs.
+     Never invent a value.
+   - **Block.** Number it `<N>.<m>`, `<m>` one past the iteration's last task, and write it
+     after that last task block, before the iteration's `**Test:**` line:
+
+         ### Task <N>.<m>: <title>
+         - **Files:** <files>
+         - **Depends on:** <depends>
+         - **Route:** <route>
+         - **Test:** <test>
+         - **Implements:** <IDs>
+         - [ ] <title>
+
+     The title is both the heading and the task's one step; with `--hitl`, ` [HITL: <reason>]`
+     goes on the heading, never on the step. Leave the `Implements:` line out when
+     `<requirements>` is `absent`. If `<specs.dir>/<TICKET_ID>/phase-<N>/tasks.md` exists,
+     write the identical block at the same place there. If the tasklist has a Progress Report
+     table with a row for iteration `N`, bump its task total (`X/Y` → `X/Y+1`). On the
+     kartoteka path each write is an `artifact_patch(project=<project>, …)` call
+     (spec-storage.md §4.3).
+   - **Check before the row.** Files path first, kartoteka path second:
+
+         python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID> --check --requirements <requirements>
+         set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
+
+     A Critical or Important finding whose `task` is `<N>.<m>` → take the block back out of
+     every file you wrote it to, undo the Progress Report bump, report the findings, and stop:
+     no row is created. Exit `2` → report `error.kind` and `error.message` and stop the same
+     way. Any other finding is reported as a warning and the add goes on — step 3's mirror
+     refuses a tasklist whose grammar is broken, and says so.
 3. **Mirror** — exactly `docs/task-queue.md` §2. Files path first, kartoteka path
    (`docs/spec-storage.md` §4.2) second:
 
@@ -127,11 +183,15 @@ the argument hint and stop.
    parent's returned `task_id`, and a partial mirror is how two rows end up in two orders.
    Exit `2` → report `error.kind` and `error.message`. The checkbox is written; the row is not;
    the next orchestrator re-mirror picks it up. Stop.
-4. **Status**: the parser emits `ready` for a child of the first iteration and `backlog`
+4. **Status**: in the task grammar, leave what the parser emitted — `ready` when the new task is
+   in `data.ready_now`, `backlog` otherwise: its `Depends on:` decides, and the implementer's
+   promotion reaches it (`docs/task-queue.md` §3). In the old format the parser emits `ready`
+   for a child of the first iteration and `backlog`
    otherwise. If the new row came back `backlog` **and** its parent `I<N>: …` row is
    `in_progress` (the implementer is working that iteration now), promote it:
    `task_update(<task_id>, status="ready")`. Otherwise leave it — normal promotion reaches it.
-5. **Report**: `task_id`, title (the composed `I<N> · <section> · <title>`), status — or
+5. **Report**: `task_id`, title (the composed `I<N> · <section> · <title>`, or
+   `I<N> · <N>.<m> · <title>` in the task grammar), status — or
    "already mirrored as #<id>" when that title existed — plus the parser warnings.
 
 **Raw** (`--raw`): `task_create(project=<project>, ticket_key=<TICKET_ID>, title=<title>, status="backlog")`.
@@ -192,7 +252,11 @@ with any of them → print the argument hint and stop.
    kartoteka renders `## <title> (#<id> · <KEY> · <status>)` and ` · ` is also its field
    separator. The checkbox text is everything after the title's second ` · ` (the
    `I<N> · <section> · ` prefix, or `<CODE> · <source> · ` for a fix-section row); a `--raw`
-   title has no prefix and no checkbox. Flip the
+   title has no prefix and no checkbox. A task-grammar row — `I<N> · <N>.<m> · <title>`, its
+   middle segment a task number — has no single checkbox either: tick every step of the
+   `### Task <N>.<m>:` block in `<specs.dir>/<TICKET_ID>/tasklist.md` and in
+   `phase-<N>/tasks.md` when it exists (kartoteka path: one `artifact_patch` per document).
+   For any other row, flip the
    matching `- [ ]` to `- [x]` (kartoteka path: `artifact_patch` on each document that holds the box) in `<specs.dir>/<TICKET_ID>/tasklist.md` (and in
    `phase-<N>/tasks.md` when it exists) — the file is the fallback the implementer reads when
    the daemon is gone, so it must not fall behind the queue. A fix-section row's box may sit in

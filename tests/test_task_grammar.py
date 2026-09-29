@@ -306,3 +306,141 @@ class TestGrammarProblems(unittest.TestCase):
         problems = self.problems(body)
         self.assertEqual(rules_of(problems), ['bad-route', 'no-steps', 'test-reason'])
         self.assertEqual([p['line'] for p in problems], sorted(p['line'] for p in problems))
+
+
+class TestWavesAndReadiness(unittest.TestCase):
+    def test_waves_are_dependency_levels_per_iteration(self):
+        iterations = task_grammar.parse(TASKS)[0]
+        self.assertEqual(task_grammar.waves(iterations),
+                         {'1': [['1.1', '1.2']], '2': [['2.1'], ['2.2', '2.3']]})
+
+    def test_a_later_numbered_dependency_still_orders_the_wave(self):
+        body = one_iteration(block('1.1', depends='1.2'), block('1.2'))
+        self.assertEqual(task_grammar.waves(task_grammar.parse(body)[0]),
+                         {'1': [['1.2'], ['1.1']]})
+
+    def test_ready_now_is_the_first_unfinished_iteration(self):
+        iterations = task_grammar.parse(TASKS)[0]
+        self.assertEqual(task_grammar.ready_now(iterations), ['1.1', '1.2'])
+
+    def test_finishing_an_iteration_opens_the_next_ones_first_wave(self):
+        text = tick(tick(TASKS, 'Add the widget test'), 'Add `PurchaseSucceeded`')
+        self.assertEqual(task_grammar.ready_now(task_grammar.parse(text)[0]), ['2.1'])
+
+    def test_finishing_a_dependency_promotes_its_dependents(self):
+        text = tick(tick(TASKS, 'Add the widget test'), 'Add `PurchaseSucceeded`')
+        text = tick(text, 'Emit `PurchaseSucceeded` on a settled order')
+        self.assertEqual(task_grammar.ready_now(task_grammar.parse(text)[0]), ['2.2', '2.3'])
+
+    def test_a_partly_ticked_task_is_not_done(self):
+        task = task_grammar.parse(TASKS)[0][0]['tasks'][0]
+        self.assertFalse(task_grammar.is_done(task))
+
+    def test_a_phase_extract_has_its_iteration_and_its_ready_tasks(self):
+        # sync-phases writes `# Phase N: title` above the iteration's section, copied whole.
+        section = '## Iteration 2' + TASKS.split('## Iteration 2', 1)[1]
+        body = '# Phase 2: Wire the dialog\n\n' + section.split('## Code Review Fixes')[0]
+        iterations, problems, _ = task_grammar.parse(body)
+        self.assertEqual(problems, [])
+        self.assertEqual([it['number'] for it in iterations], [2])
+        self.assertEqual(task_grammar.ready_now(iterations), ['2.1'])
+
+    def test_everything_done_means_nothing_ready(self):
+        text = TASKS.replace('- [ ] ', '- [x] ')
+        self.assertEqual(task_grammar.ready_now(task_grammar.parse(text)[0]), [])
+
+
+class TestRouteFloors(unittest.TestCase):
+    def floor(self, body, rules=DEFAULT_RULES):
+        task = task_grammar.parse(body)[0][0]['tasks'][0]
+        return task_grammar.route_floor(task, rules)
+
+    def test_no_floor(self):
+        self.assertEqual(self.floor(one_iteration(block('1.1'))), (None, []))
+
+    def test_a_sensitive_path_floors_to_full(self):
+        self.assertEqual(self.floor(one_iteration(block('1.1', files='`.github/workflows/ci.yml`'))),
+                         ('full', ['sensitive path (ci-cd): .github/workflows/ci.yml']))
+
+    def test_a_hitl_tag_floors_to_full(self):
+        body = one_iteration(block('1.1', title='Rotate the key [HITL: release owner decides]'))
+        self.assertEqual(self.floor(body), ('full', ['HITL tag']))
+
+    def test_more_than_five_files_floors_to_full(self):
+        files = ', '.join('`f{}.py`'.format(n) for n in range(6))
+        self.assertEqual(self.floor(one_iteration(block('1.1', files=files))),
+                         ('full', ['more than 5 files (6)']))
+        five = ', '.join('`f{}.py`'.format(n) for n in range(5))
+        self.assertEqual(self.floor(one_iteration(block('1.1', files=five))), (None, []))
+
+    def test_the_effective_route_is_the_higher_of_declared_and_floor(self):
+        body = one_iteration(block('1.1', files='`.env.local`'))
+        task = task_grammar.parse(body)[0][0]['tasks'][0]
+        data = task_grammar.structured(task, DEFAULT_RULES)
+        self.assertEqual((data['route'], data['route_floor'], data['route_effective']),
+                         ('light', 'full', 'full'))
+
+    def test_a_route_set_at_approval_is_final_over_the_floors(self):
+        body = one_iteration(block('1.1', files='`.env.local`', route='light — set at approval'))
+        task = task_grammar.parse(body)[0][0]['tasks'][0]
+        data = task_grammar.structured(task, DEFAULT_RULES)
+        self.assertEqual((data['route'], data['route_reason'], data['route_floor'],
+                          data['route_effective']),
+                         ('light', 'set at approval', 'full', 'light'))
+        self.assertEqual(data['route_reasons'], ['sensitive path (secrets): .env.local'])
+
+    def test_any_other_reason_on_light_does_not_beat_a_floor(self):
+        body = one_iteration(block('1.1', files='`.env.local`', route='light — trivial'))
+        task = task_grammar.parse(body)[0][0]['tasks'][0]
+        self.assertEqual(task_grammar.structured(task, DEFAULT_RULES)['route_effective'], 'full')
+
+    def test_a_host_policy_replaces_the_default_wholesale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            host = Path(tmp) / '.artel' / 'sensitive-paths.json'
+            host.parent.mkdir()
+            host.write_text(json.dumps({'categories': [
+                {'name': 'payments', 'floor': 'plan-gate', 'globs': ['lib/ramps/*']}]}))
+            rules = task_grammar.load_sensitive_rules(tmp)
+        self.assertEqual([c['name'] for c in rules['categories']], ['payments'])
+
+    def test_without_a_host_policy_the_plugin_default_applies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rules = task_grammar.load_sensitive_rules(tmp)
+        self.assertIn('secrets', [c['name'] for c in rules['categories']])
+
+
+class TestStructuredAndDescription(unittest.TestCase):
+    def setUp(self):
+        self.iterations = task_grammar.parse(TASKS)[0]
+
+    def test_structured_keys(self):
+        data = task_grammar.structured(self.iterations[0]['tasks'][0], DEFAULT_RULES)
+        self.assertEqual(data, {
+            'task': '1.1', 'deps': [],
+            'files': [{'path': 'lib/ramps/success_dialog.dart', 'new': True},
+                      {'path': 'test/ramps/success_dialog_test.dart', 'new': True}],
+            'route': 'light', 'route_reason': None, 'route_floor': None, 'route_reasons': [],
+            'route_effective': 'light', 'test': ['test/ramps/success_dialog_test.dart'],
+            'test_none_reason': None,
+            'produces': '`SuccessDialog.show(context, amount)` — static method',
+            'implements': ['R1'],
+            'steps': [{'text': 'Create the widget', 'done': True},
+                      {'text': 'Add the widget test', 'done': False}]})
+
+    def test_test_none_carries_its_reason(self):
+        data = task_grammar.structured(self.iterations[0]['tasks'][1], DEFAULT_RULES)
+        self.assertEqual((data['test'], data['test_none_reason']),
+                         ([], 'an event class with no behaviour'))
+
+    def test_description_lists_fields_hitl_and_untickable_steps(self):
+        self.assertEqual(task_grammar.description(self.iterations[1]['tasks'][1]),
+                         'Files: `lib/ramps/ramps_screen.dart`\n'
+                         'Depends on: 2.1\n'
+                         'Route: light\n'
+                         'Test: `test/ramps/success_dialog_test.dart`\n'
+                         'Implements: R1\n'
+                         'HITL: copy needs product sign-off\n'
+                         '\n'
+                         'Steps:\n'
+                         '- Listen for `PurchaseSucceeded`\n'
+                         '- Call `SuccessDialog.show`')

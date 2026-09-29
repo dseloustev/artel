@@ -333,3 +333,150 @@ def _cycles(tasks, iteration_number):
         if task['number'] not in state:
             visit(task['number'], [])
     return problems
+
+
+def is_done(task):
+    return bool(task['steps']) and all(step['done'] for step in task['steps'])
+
+
+def waves(iterations):
+    """{iteration number (str): [[task numbers], …]} in dependency levels (§7)."""
+    out = {}
+    for iteration in iterations:
+        remaining = [task['number'] for task in iteration['tasks']]
+        deps = {task['number']: set(dependencies(task)) & set(remaining)
+                for task in iteration['tasks']}
+        levels = []
+        placed = set()
+        while remaining:
+            level = [n for n in remaining if deps[n] <= placed]
+            if not level:
+                break  # a cycle; the grammar check has already reported it
+            levels.append(level)
+            placed.update(level)
+            remaining = [n for n in remaining if n not in placed]
+        out[str(iteration['number'])] = levels
+    return out
+
+
+def ready_now(iterations):
+    """Task numbers claimable now: in the first iteration with a task not done, the
+    tasks not done whose dependencies are all done (§7)."""
+    for iteration in iterations:
+        pending = [task for task in iteration['tasks'] if not is_done(task)]
+        if not pending:
+            continue
+        done = {task['number'] for task in iteration['tasks'] if is_done(task)}
+        return [task['number'] for task in pending
+                if set(dependencies(task)) <= done]
+    return []
+
+
+def load_sensitive_rules(repo_root='.', override=None):
+    """The sensitive-paths policy, resolved the way hooks/sensitive_guard.py does: a
+    host `.artel/sensitive-paths.json` replaces the plugin default wholesale."""
+    if override:
+        path = Path(override)
+    else:
+        host = Path(repo_root) / '.artel' / 'sensitive-paths.json'
+        path = host if host.is_file() else (
+            Path(__file__).resolve().parent.parent / 'hooks' / 'sensitive-paths.json')
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def files_of(task):
+    """[{'path', 'new'}] from the task's `Files:` field."""
+    field = task['fields'].get('Files')
+    if not field:
+        return []
+    return [{'path': path.strip(), 'new': bool(new)}
+            for path, new in PATH_RE.findall(field['value'])]
+
+
+def tests_of(task):
+    """(paths, none_reason) from the task's `Test:` field."""
+    field = task['fields'].get('Test')
+    if not field or not field['value']:
+        return [], None
+    head, reason = _split_reason(field['value'])
+    if head.lower() == 'none':
+        return [], reason
+    return [path.strip() for path, _ in PATH_RE.findall(field['value'])], None
+
+
+def implements_of(task):
+    field = task['fields'].get('Implements')
+    if not field or not field['value']:
+        return []
+    return [t.strip() for t in field['value'].split(',') if REQ_ID_RE.match(t.strip())]
+
+
+def route_of(task):
+    """(route, reason) from the task's `Route:` field; route is `light` or `full`."""
+    field = task['fields'].get('Route')
+    head, reason = _split_reason(field['value'])
+    return head.lower(), reason
+
+
+def route_floor(task, rules, threshold=ROUTE_FULL_FILES):
+    """(floor, reasons): floor is `full` when a static floor applies, else None.
+
+    Floors 1-3 of docs/task-grammar.md §7. Floor 4 (an earlier deviation on the same
+    files) is known only at runtime and is applied by the orchestrator.
+    """
+    reasons = []
+    files = files_of(task)
+    for entry in files:
+        for category in rules.get('categories') or []:
+            if any(fnmatch.fnmatch(entry['path'], glob) for glob in category.get('globs') or []):
+                reasons.append('sensitive path ({}): {}'.format(category.get('name'),
+                                                                entry['path']))
+                break
+    if task['hitl']:
+        reasons.append('HITL tag')
+    if len(files) > threshold:
+        reasons.append('more than {} files ({})'.format(threshold, len(files)))
+    return ('full' if reasons else None), reasons
+
+
+def structured(task, rules):
+    """The contract's structured keys for one task (docs/task-grammar.md §7).
+
+    `route_effective` is the higher of the declared route and the floor, except that a
+    route set at approval is final: the floor is still reported, for the journal.
+    """
+    route, reason = route_of(task)
+    floor, reasons = route_floor(task, rules)
+    tests, none_reason = tests_of(task)
+    produces = task['fields'].get('Produces')
+    if reason == APPROVAL_REASON:
+        effective = route  # the person's choice at the pause stands over floors 1-3
+    else:
+        effective = 'full' if route == 'full' or floor == 'full' else 'light'
+    return {
+        'task': task['number'],
+        'deps': dependencies(task),
+        'files': files_of(task),
+        'route': route,
+        'route_reason': reason,
+        'route_floor': floor,
+        'route_reasons': reasons,
+        'route_effective': effective,
+        'test': tests,
+        'test_none_reason': none_reason,
+        'produces': produces['value'] if produces else None,
+        'implements': implements_of(task),
+        'steps': [{'text': step['text'], 'done': step['done']} for step in task['steps']],
+    }
+
+
+def description(task):
+    """The row description: the fields as written, HITL, then the steps (no ticks)."""
+    lines = ['{}: {}'.format(name, task['fields'][name]['value'])
+             for name in KNOWN_FIELDS if name in task['fields']]
+    if task['hitl']:
+        lines.append('HITL: ' + task['hitl'])
+    lines.append('')
+    lines.append('Steps:')
+    lines.extend('- ' + step['text'] for step in task['steps'])
+    return '\n'.join(lines)

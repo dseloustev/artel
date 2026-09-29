@@ -223,7 +223,10 @@ the phase's gates pass (sync status back to `tasklist.md`). On the kartoteka pat
   phase-scoped runs (`docs/task-queue.md` §2):
   `dev` and `feature-development` alike run the parser and `task_create` its rows.
   The re-mirror is what covers a resumed run and a tasklist written before the
-  adapter was reachable, neither of which re-runs the skill that wrote it.
+  adapter was reachable, neither of which re-runs the skill that wrote it. For a
+  task-format tasklist it is also the first mirror: `tasklist` mirrors nothing before the plan
+  is `PLAN_APPROVED`, because the plan review and the fold-back can still renumber tasks
+  (`docs/task-queue.md` §2).
   Every writer of a fix section — `run-reviewer`, `deep-review`, the runtime gate
   and the phase checkpoint — records its batch the same way right after the
   append, so the queue shows fix work before the first fix is dispatched (§6:

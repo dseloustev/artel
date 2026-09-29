@@ -743,5 +743,58 @@ class TestOneTaskPerDispatch(unittest.TestCase):
                       tick)
 
 
+class TestPromotionByDependency(unittest.TestCase):
+    """Plan 3, Task 2: rows per task, statuses at creation, promotion and repair (spec §4)."""
+
+    def setUp(self):
+        self.doc = flat(read('docs/task-queue.md'))
+
+    def test_the_mirror_creates_one_row_per_task(self):
+        mirror = _between(self.doc, '## 2. Mirroring the tasklist', '## 3.')
+        for phrase in ('**A task-format tasklist mirrors one row per task**',
+                       '`I<N> · <N.M> · <task title>`',
+                       '`ready` when the task is in `data.ready_now`',
+                       'never claimed ahead of its dependencies',
+                       'An old-format tasklist keeps one row per checkbox, mirrored at gate 4'):
+            self.assertIn(phrase, mirror)
+
+    def test_a_task_format_tasklist_is_first_mirrored_after_approval(self):
+        mirror = _between(self.doc, '## 2. Mirroring the tasklist', '## 3.')
+        for phrase in ('`tasklist` only once the plan is approved when the tasklist is task-format',
+                       '**A task-format tasklist is first mirrored after approval.**',
+                       'mirrors nothing while the tasklist is task-format and the plan is not yet '
+                       '`PLAN_APPROVED`',
+                       "the orchestrator's re-mirror before the first implementer dispatch",
+                       '`generate-tasklist` mirrors after its own approval round, as before'):
+            self.assertIn(phrase, mirror)
+        bullet = _between(flat(read('docs/autonomous-run.md')), '**Task-queue mirror**', '## 10.')
+        self.assertIn('For a task-format tasklist it is also the first mirror', bullet)
+        remirror = _between(flat(read('skills/feature-development/SKILL.md')),
+                            '**Re-mirror first.**', '| 5 |')
+        self.assertIn('For a task-format tasklist this step is also the first mirror', remirror)
+
+    def test_the_claim_loop_promotes_by_dependency(self):
+        claim = _between(self.doc, '## 3. Claiming, reporting and promoting', '## 4.')
+        for phrase in ('promote (task format — rows titled "I<N> · <N.M> · …")',
+                       'every data.ready_now task whose row is backlog → task_update(row, ready)',
+                       "(task format: the claimed block's heading carries \"[HITL:\"",
+                       'work every step of the block, then tick them all',
+                       '**Promotion follows dependencies on a task-format tasklist.**',
+                       '`phase-<N>/tasks.md` on a phase-scoped run, where the ticks land first',
+                       'every "I<N+1> · " child: backlog → ready'):
+            self.assertIn(phrase, claim)
+
+    def test_the_fallback_takes_ready_now(self):
+        fallback = _between(self.doc, '## 4. The fallback path', '## 5.')
+        self.assertIn('take the first task of `data.ready_now`', fallback)
+        self.assertIn('flipping the checkbox on completion', fallback)
+
+    def test_the_repair_uses_ready_now(self):
+        empty = _between(self.doc, '## 5. When the queue is empty', '## 6.')
+        self.assertIn('On a task-format tasklist the repair is the §3 promotion itself', empty)
+        self.assertIn('nothing is promotable', empty)
+        self.assertIn('promote every `I<N> · ` child of the lowest-numbered iteration', empty)
+
+
 if __name__ == '__main__':
     unittest.main()

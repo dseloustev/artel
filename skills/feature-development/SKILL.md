@@ -246,7 +246,9 @@ and `task_create` the rows it emits — `data.iterations`, then `data.sections` 
 2–4, surfacing every `data.warnings` line). Gate 4 invokes `Skill: tasklist` only when the
 tasklist is not already `TASKLIST_READY`, so without this step a resumed run — or a
 ticket whose tasklist was written before the adapter was reachable — never mirrors at
-all, and every implementer dispatch falls back to the file. The step is create-only and
+all, and every implementer dispatch falls back to the file. For a task-format tasklist this
+step is also the first mirror: gate 4's `tasklist` mirrors nothing before `PLAN_APPROVED`
+(`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §2). The step is create-only and
 idempotent: it never resets a `done` row and never undoes a promotion. Exit `2` → report
 `error.kind` and `error.message` and continue on the fallback path. On phase runs it
 lands after this section's `Skill: sync-phases`, which is what keeps `tasklist.md`

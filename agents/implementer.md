@@ -145,6 +145,34 @@ State (briefly, for the record) the approach: files to touch, entities/methods a
 
 Apply the changes via Write/Edit. Follow every convention in the host project's conventions docs.
 
+**A behavioural fix-section row is reproduced first.** A row is behavioural when it is a
+`## Code Review Fixes` row whose checkbox text carries `behavior` in its parenthetical
+(`**Task N (Blocking, behavior): …**`, `**Task N (behavior): …**`, a manual `(behavior) …`),
+every `## Runtime Fixes` row, or a `## Verify Fixes` row whose finding is a failing test. Work it
+per `${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §2, in this order:
+
+1. **Reproduce.** Write the test that shows the wrong behaviour and run it alone through the task
+   gate — `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify.py task --files <the test file>` — into
+   `verify/repro-<code>-<source>-<N>.json` in the ticket's evidence dir (the id is
+   `docs/debugging.md` §3's: the `<code>` and `<source>` you matched the row by in Step 1, `<N>`
+   the row's position under that heading). Its `test` stage must be red. The new test file must
+   pass `fast` first: a red `fast` stage stops the chain before `test` runs
+   (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §4, rule 3), so clear its analyzer findings and run
+   again. A `test` stage `skipped` for any reason — `verify.test` empty, or the file outside
+   `verify.testSurface` — takes the `.txt` route, because a `skipped` stage is never red
+   evidence: run the host's own single-file test command (its conventions docs name it) and save
+   `verify/repro-<code>-<source>-<N>.txt` — line 1 `$ <command>`, line 2 `exit <code>`, then the
+   output's tail. A `## Verify Fixes` row needs no new test: its failing test is the
+   reproduction and the checkpoint's envelope is the evidence. A fault no test can reach (a
+   launch failure, a platform-only crash) gets a script under `.artel/run/repro/` instead, and
+   the report says why no test reaches it.
+2. **Fix once, at the origin** — the cause, not the place it surfaced. A cause whose fix is
+   structural (`docs/debugging.md` §4) is a Major deviation: halt before the change.
+3. **Record** the `**Root cause:**` and `**Reproduction:**` lines in the report (Step 6).
+
+Every other fix-section row — convention, architecture, cosmetic, an analyzer finding — is
+worked as before.
+
 ### Step 4 — Quality gates
 
 Run the quality gates **before** claiming completion:
@@ -156,6 +184,9 @@ Run the quality gates **before** claiming completion:
    `verify/` dir; exit 2 → stop-and-ask, never edit code to fix the gate. An empty command
    degrades that half to `skipped`, never `green` (config.md). The whole-tree gate
    (`verify.commands`) is never yours: it is the orchestrator's checkpoint gate (gates.md §1).
+   A red `test` stage is debugged, not patched: one hypothesis per iteration
+   (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §2.3), listed in the report (Step 6); a structural
+   cause (§4) is a Major deviation, halted before the change.
 2. **Codegen** — when generated files are stale or a generated part is missing: run the host's
    codegen step, when it has one, then one more task-gate pass.
 
@@ -208,6 +239,12 @@ phase suffix — the run directory is ticket-top-level; create the directory if 
 - the deviations in full (`implementation-notes.md` stays the durable record — this is the
   per-task view)
 - anything the reviewer should know that the diff does not show (a decision taken, a risk left)
+- when the `test` stage went red: the `## Verify iterations` table of
+  `${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §3 — one row per red iteration, its hypothesis and
+  what happened
+- on a behavioural fix-section row (Step 3): `**Root cause:**` — one sentence, what is wrong and
+  why — and `**Reproduction:**` — the `verify/repro-…` file, or the `.artel/run/repro/` script
+  and why no test reaches the fault — then the green `iteration-<i>.json`
 
 On a `DEVIATION` halt write the report as well — what was attempted and why it stopped — and
 return the protocol's report (`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §4) with the
@@ -223,6 +260,7 @@ the work — all of that is in the report.
 
 ## Rules
 
+- **Never weaken a failing test** — changing, skipping or deleting a failing test to turn a gate green is a Major deviation (`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §2), unless this task's own acceptance criteria change the behaviour that test pins (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §6).
 - **HITL boundary** — never implement a `[HITL: …]`-tagged task; on the queue path set it `blocked` with `task_update`, then return `HITL: <reason>` and let the orchestrator pause.
 - **Release the claim on any exit that is not a completion** — on the queue path a task you hold must never be left `in_progress` when you stop working it. That covers Step 5's red gate, any `DEVIATION` halt (including an unresolved `ref:` anchor in Step 1), and the protocol's **Abort task** outcome. `task_update(task_id, status="blocked")` before returning, every time. `task_ready` offers `ready` rows only, so a held row is never re-offered and §3's promotion never fires while a sibling is unfinished — one missed release wedges the ticket's queue silently. **One exception:** a claim `task_ready` handed you from another phase goes back with `task_update(task_id, status="ready")`, not `blocked` — you never worked it, and the run that owns its phase has to be able to claim it (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3). A fix-section row you set `in_progress` takes the same `blocked` on the same exits — and never `ready`, which would make it claimable.
 - **Queue before file, for iteration work only** — on the queue path a claim from `task_ready` decides which `## Iteration N:` task to work, never a scan of `tasklist.md`. The four other sections — `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` and `## Final Verification` — are file-scan work on both paths: `task_ready` never offers their rows, and the file decides which one is next. On the queue path their rows are a record you keep current (`in_progress`, `done`, `blocked`), never a work list you take from; `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6 says how to recognise a dispatch that means them. The file stays current as the fallback's input, not as the iteration work list.

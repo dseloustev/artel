@@ -162,6 +162,9 @@ with any of them → print the argument hint and stop.
      file.
    A day's manual additions share one heading, the one exception to §6's never-reuse rule.
    Fix sections are not in the Progress Report table; leave it alone.
+   A `CRF` fix about what the code does can carry the reviewer's marker at the start of its
+   title — `(behavior)` — and the implementer then reproduces it before fixing it
+   (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §3). This command adds nothing on its own.
    On the kartoteka path the append is an `artifact_patch(project=<project>, …)` call
    (spec-storage.md §4.3).
 3. **Mirror** — `docs/task-queue.md` §2's fix-writer rule. Files path first, kartoteka path

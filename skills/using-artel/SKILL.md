@@ -17,7 +17,7 @@ declares kartoteka and which ticket is in flight.
 
 Before any response or action — including clarifying questions, reading files, or exploring
 the codebase — decide whether the request is **artel's domain**: ticket work, a pipeline stage,
-the task queue, or the project's institutional knowledge. If it is, invoke the matching
+the task queue, the project's institutional knowledge, or a bug to find and fix. If it is, invoke the matching
 `/artel:` skill from the tables below, announce "Using `/artel:<name>` to <purpose>", and
 follow it. The skill resolves the ticket, reads the config and asks its own questions; do not
 ask them first.
@@ -68,6 +68,7 @@ it). `<ticket>-<N>` is a phase-scoped run.
 | documentation updated for the ticket's work | `/artel:docs-update <ticket>` |
 | a PR description / the PR opened | `/artel:pr-description <ticket>` · `/artel:pr-create <ticket>` |
 | a single PR comment addressed | `/artel:address-pr-comment <pr-comment-url>` |
+| a bug, test failure or unexpected behaviour traced to its cause and fixed | `/artel:debugging [symptom]` |
 
 **Utilities**
 
@@ -130,7 +131,9 @@ With `not on PATH`, code navigation is not routed here — use the ordinary tool
 2. For artel's domain, the `/artel:` skill wins over generic process skills. An entry point
    **is** the process: `feature-development` interviews, plans and pauses for approval; `dev`
    confirms a work list. Do not run brainstorming or plan-writing skills in front of them —
-   that is the interview twice.
+   that is the interview twice. `/artel:debugging` wins over generic debugging skills
+   (`superpowers:systematic-debugging`, `sdd-v2:debugging`): the same discipline, plus this
+   repo's gates, its knowledge and a ticket handoff.
 3. Everything else is not routed here.
 
 Agents (`analyst`, `implementer`, `reviewer`, …) are never dispatched from here. Every one has
@@ -145,6 +148,7 @@ a skill that resolves ticket context first; use the skill.
 | "I'll `task_create` it directly" | `/artel:tasks add` keeps `tasklist.md` and the queue in step; a bare row breaks promotion. |
 | "I'll grep for that class" | With the index on PATH, `/ast-index:ast-index` answers in milliseconds; grep is for regex, literals and comments. |
 | "This change is small, I'll just implement it" | Small is what `/artel:dev` is for — gates included. |
+| "I see the problem, I'll just fix it" | `/artel:debugging` — the cause first, then one fix. |
 | "I'll brainstorm first, then run the pipeline" | The pipeline interviews. Run it. |
 | "I'll ask a clarifying question first" | The skill asks its own. Route first. |
 | "I remember what this skill does" | Skills change. Invoke it and read it. |

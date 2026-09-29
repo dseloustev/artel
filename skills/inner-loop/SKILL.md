@@ -64,7 +64,11 @@ loop:
   exit 0 → break — green, or skipped (the caller's completion contract decides what skipped means)
   findings = the red stage's keys (or its raw tail, for tools with no structured findings)
   if findings == last_findings: STOP-AND-ASK — no progress (do not burn budget)
-  fix minimally, targeting each finding's file:line (and rule, when the tool reports one)
+  red stage fast → fix minimally, targeting each finding's file:line (and rule, when the tool reports one)
+  red stage test → read its keys and tail in full; state ONE hypothesis ("X is the cause
+    because Y", ${CLAUDE_PLUGIN_ROOT}/docs/debugging.md §2.3) for the caller's report;
+    a structural cause (§4) → STOP as a Major deviation, no further iteration;
+    else make the one change the hypothesis calls for
   last_findings = findings; i += 1
   if i > MAX_VERIFY_ITERATIONS: write <EVIDENCE_DIR>/residual.json (the last envelope) and
     STOP-AND-ASK with the residual findings, separated into in-PATHS vs. outside-PATHS
@@ -80,6 +84,15 @@ carries `scoped` and `files`; `data.missing` lists paths that no longer exist.
   the test files among them), so a finding on a file outside it can only come from a
   `verify.test` without the `{files}` token — pre-existing baseline, not something to fix here.
   Report it (labeled `pre-existing-baseline` in `residual.json`) rather than silently dropping it.
+- **A red `test` stage is debugged, not patched** (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md`
+  §2.3, §4). One hypothesis per iteration, recorded by the caller (the implementer's report,
+  Step 6); a hypothesis that fails is replaced, never stacked on — the no-progress stop above is
+  the same rule seen from the gate. A red `fast` stage is an analyzer or formatter finding: the
+  finding is the diagnosis, so fix it per finding. The budget is unchanged: four iterations are
+  one first run and three fixes.
+- **Never weaken a failing test.** Changing, skipping or deleting a failing test to turn the gate
+  green is a Major deviation, unless the task's own acceptance criteria change the behaviour
+  that test pins (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §6).
 - **Never mark work complete while the last task gate was red or unresolved.** A `skipped` half
   (no command, or no test path in scope) is not green, but it is not blocking either — the
   caller's own completion contract (e.g. `${CLAUDE_PLUGIN_ROOT}/agents/implementer.md`'s "Gate

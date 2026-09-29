@@ -488,6 +488,28 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 ## Utilities
 
+### debugging
+
+- **Purpose:** Find the root cause of a bug, failing test or unexpected behaviour, prove it with
+  a test that fails first, and make one fix at the origin — or, when the right fix is
+  structural, hand the cause to a ticket instead of patching it.
+- **Invocation:** `/artel:debugging [symptom | failing test | error text]`
+- **Reads:** [debugging.md](debugging.md) (the discipline); `.artel/config.json` when present
+  (`verify.fast`, `verify.test`, `knowledge.adapter`); the host's conventions docs for its test
+  command.
+- **Writes:** the fix and its test in the working tree; throwaway reproduction scripts under
+  `.artel/run/repro/`. Never commits or pushes, and never touches spec documents, the tasklist,
+  the task queue or a ticket's run state.
+- **Pauses:** asks once for the symptom when none was given; on a structural cause, offers
+  `/artel:issue-draft --type bug|task` or leaving the report in chat (`AskUserQuestion`).
+- **Notes:** worker, not orchestrator — runs inline (like `knowledge`), because debugging needs
+  the person and the session. Reproduces through `verify.py task --files <test>` so red and
+  green mean what they mean in a run; with `verify.test` empty, or no config, it uses the host's
+  own test command. With kartoteka it adds one `/artel:knowledge` search on the error or
+  component. Inside a run the same discipline is applied by the implementer and checked by the
+  reviewer ([debugging.md](debugging.md) §7). The router sends bugs here ahead of generic
+  debugging skills.
+
 ### sync-phases
 
 - **Purpose:** Keep `tasklist.md` and per-phase `phase-<N>/tasks.md` files in sync in both

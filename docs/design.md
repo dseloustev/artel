@@ -980,7 +980,10 @@ move to the decision log.
   `THIRD_PARTY_NOTICES.md`); AdGuard's SDD v2 `debugging` contributed ideas only — the structural
   criteria, the handoff to the invoker, the CI, dependency and secrets cases — because its
   repository carries no licence. Rejected: contract and pipeline only; skill only. Design:
-  `docs/superpowers/specs/2026-09-29-debugging-design.md`.
+  `docs/superpowers/specs/2026-09-29-debugging-design.md`. Fixture eval (3 bugs × no skill /
+  superpowers / artel): passed — all nine runs named the cause, fixed it at the origin and went red
+  first, so the fixture saturates; blind rankings put superpowers (mean rank 1.50) and artel (1.83)
+  ahead of no skill (2.67), and the unguided arm was the one that widened its fix.
 - **2026-09-29 — No whiteboard.** SDD v2's `using-whiteboard` (a local browser tab the agent
   draws mockups into) was assessed and not adopted. Few of artel's questions are visual — the
   analysis interview's UX branch without Figma, an occasional architecture choice in the vision —

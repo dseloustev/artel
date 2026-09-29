@@ -504,7 +504,7 @@ class TestDevPathPlanCheck(unittest.TestCase):
 
     def test_the_written_tasklist_is_checked_once_more(self):
         phase3 = _w_between(self.gen, '### Phase 3:', '### Phase 4:')
-        self.assertIn('no round this time', phase3)
+        self.assertIn('the answers folded in can break what the draft check passed', phase3)
         self.assertIn('tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>'
                       ' --check --requirements <requirements>', phase3)
 
@@ -1040,6 +1040,35 @@ class TestTaskGrammarReleaseDocs(unittest.TestCase):
                        '### Upgrading', '**A ticket in flight keeps working.**',
                        '**New tickets get the grammar**', '**PRDs gain `## Requirements`.**'):
             self.assertIn(phrase, since)
+
+
+class TestWholeBranchReviewFixes(unittest.TestCase):
+    """The 0.23.0 whole-branch review's Important findings: an indented checkbox and a step-level
+    HITL tag are grammar problems (docs/task-grammar.md §1, §6.1; autonomous-run.md §4), and a
+    red post-write check on the dev path never arms silently (generate-tasklist Phase 3)."""
+
+    def test_the_contract_names_both_problems(self):
+        self.assertIn('an indented checkbox is not a step and is a grammar problem',
+                      flat(read('docs/task-grammar.md')))
+        self.assertIn('| `hitl-on-step` |', read('docs/task-grammar.md'))
+
+    def test_autonomous_run_leads_with_the_heading_form(self):
+        section = flat(read('docs/autonomous-run.md')).split(
+            '## 4. AFK / HITL task tags')[1].split('## 5.')[0]
+        self.assertLess(section.index('`### Task 2.3: <title> [HITL: <reason>]`'),
+                        section.index('`- [ ] [HITL: <reason>] <task text>`'))
+        self.assertIn('a tag on a step is a grammar problem (`hitl-on-step`)', section)
+        self.assertIn('On an old-format tasklist the tag sits on the checkbox', section)
+
+    def test_a_red_post_write_check_gets_one_round_then_the_person(self):
+        gen = flat(read('skills/generate-tasklist/SKILL.md'))
+        phase3 = gen.split('### Phase 3:')[1].split('### Phase 4:')[0]
+        for phrase in ('one fix `SendMessage` to the same agent',
+                       'still has a Critical or Important finding',
+                       '**Fix it by hand**', '**Proceed anyway**', '**Abort**',
+                       'even in `yolo`'):
+            self.assertIn(phrase, phase3)
+        self.assertIn('at most one post-write fix `SendMessage` in Phase 3', gen)
 
 
 if __name__ == '__main__':

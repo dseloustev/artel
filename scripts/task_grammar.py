@@ -49,7 +49,7 @@ GRAMMAR_RULES = (
     'missing-field', 'empty-field', 'duplicate-field', 'bad-files', 'bad-dependency',
     'unknown-dependency', 'cross-iteration-dependency', 'self-dependency', 'cycle',
     'bad-route', 'route-reason', 'test-reason', 'bad-test', 'bad-implements', 'numbering',
-    'no-steps', 'bare-checkbox', 'no-tasks',
+    'no-steps', 'bare-checkbox', 'no-tasks', 'hitl-on-step',
 )
 CHECK_RULES = {
     'uncovered-requirement': 'Critical',
@@ -168,9 +168,22 @@ def parse(text, line_offset=0):
             continue
         match = STEP_RE.match(line)
         if match:
+            if HITL_RE.search(match.group(2)):
+                # The pre-0.23.0 place for the tag; the floor and the pause read the heading.
+                problems.append(_problem(
+                    lineno, task['number'], 'hitl-on-step',
+                    'a `[HITL: …]` tag on a step is never read; move it to the `### Task {}:`'
+                    ' heading'.format(task['number'])))
             task['steps'].append({'text': match.group(2),
                                   'done': match.group(1).lower() == 'x', 'line': lineno})
             last_field = None
+            continue
+        if line[:1] in (' ', '\t') and ANY_CHECKBOX_RE.match(line):
+            # Not a step, and a task whose steps are all ticked would read done over it.
+            problems.append(_problem(
+                lineno, task['number'], 'bare-checkbox',
+                'an indented checkbox is not a step of task {}: unindent it to make it a step,'
+                ' or make it plain text'.format(task['number'])))
             continue
         if line[:1] in (' ', '\t') and line.strip():
             if last_field is not None:

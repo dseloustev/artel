@@ -139,11 +139,13 @@ flip each entry to `- **Status:** resolved: "<answer>"`. A missing file means no
 Tasklist writers (`task-planner`, `tasklist-writer` agents) tag tasks at generation time:
 
 - Untagged task ⇒ **AFK**: runs without any human interaction.
-- `- [ ] [HITL: <reason>] <task text>` ⇒ the orchestrator pauses **before starting** this task, sets
+- A `[HITL: <reason>]` tag ⇒ the orchestrator pauses **before starting** the task, sets
   `pause_reason: "hitl-task"`, asks the pre-declared question via `AskUserQuestion`, then resumes.
   On a task-format tasklist the tag sits on the task's heading —
   `### Task 2.3: <title> [HITL: <reason>]` ([task-grammar.md](task-grammar.md) §1) — and covers
-  the whole task: one question before its first step, none between steps.
+  the whole task: one question before its first step, none between steps; a tag on a step is a
+  grammar problem (`hitl-on-step`), because the route floor and the pause read only the heading.
+  On an old-format tasklist the tag sits on the checkbox: `- [ ] [HITL: <reason>] <task text>`.
 
 Mandatory HITL triggers:
 

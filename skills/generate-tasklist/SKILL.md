@@ -208,13 +208,20 @@ User's answers:
 3. Return the single confirmation line.
 ```
 
-When the agent confirms, run Phase 1b's check once more on the written tasklist — no round this
-time. Files path first, kartoteka path (`docs/spec-storage.md` §4.2) second:
+When the agent confirms, run Phase 1b's check once more on the written tasklist — the answers
+folded in can break what the draft check passed (a dropped task renumbers the rest). Files path
+first, kartoteka path (`docs/spec-storage.md` §4.2) second:
 
     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID> --check --requirements <requirements>
     set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
 
-Its Critical and Important findings go into the Completion report.
+A Critical or Important finding gets one fix `SendMessage` to the same agent — the findings,
+each with its line, and "fix only these in <specs.dir>/<TICKET_ID>/tasklist.md; keep the task
+grammar and the person's answers" — and the check runs once more. When it still has a Critical
+or Important finding, stop and ask the person, even in `yolo` (a tasklist that fails its own
+check is a guardrail, not a pause preference): **Fix it by hand** (edit the tasklist, then run
+this skill again) / **Proceed anyway** (the findings go into the Completion report) / **Abort**.
+Minor findings go into the Completion report.
 
 ### Phase 4: Mirror the tasklist into the task queue
 
@@ -252,8 +259,8 @@ When the agent returns its confirmation line, print it verbatim plus:
 - **Never write the tasklist directly from this skill.** All file writes happen inside the agent
   (it owns `Write`). The orchestrator only reads, asks, and messages.
 - **One agent, one draft.** One `Agent` call in Phase 1, at most `MAX_PLAN_REVIEW_ROUNDS`
-  fix-round `SendMessage`s in Phase 1b, and one `SendMessage` in Phase 3 — all to the same
-  agent. Do not spawn a second agent.
+  fix-round `SendMessage`s in Phase 1b, one `SendMessage` in Phase 3 and at most one post-write
+  fix `SendMessage` in Phase 3 — all to the same agent. Do not spawn a second agent.
 - **Never silently overwrite.** If the tasklist already exists, always confirm via
   `AskUserQuestion` before proceeding.
 - **KISS is the agent's job.** The orchestrator does not re-check KISS; if the user's answers

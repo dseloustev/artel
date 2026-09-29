@@ -293,6 +293,25 @@ class TestGrammarProblems(unittest.TestCase):
         self.assertEqual(rules_of(self.problems(one_iteration(block('1.1', steps='')))),
                          ['no-steps'])
 
+    def test_an_indented_checkbox_under_a_task_is_a_problem(self):
+        # Silently dropping it would read the task as done while the document shows an open
+        # box (whole-branch review, 0.23.0).
+        body = one_iteration(block('1.1', steps='- [x] Step one\n  - [ ] nested sub-step\n'))
+        problems = self.problems(body)
+        self.assertEqual(rules_of(problems), ['bare-checkbox'])
+        self.assertIn('indented checkbox', problems[0]['message'])
+
+    def test_an_indented_plain_line_is_still_step_detail(self):
+        body = one_iteration(block('1.1', steps='- [ ] Step one\n  more detail for step one\n'))
+        self.assertEqual(self.problems(body), [])
+
+    def test_a_hitl_tag_on_a_step_is_a_problem(self):
+        # The pre-0.23.0 place for the tag: the floor and the pause read only the heading.
+        body = one_iteration(block('1.1', steps='- [ ] [HITL: release owner decides] Rotate it\n'))
+        problems = self.problems(body)
+        self.assertEqual(rules_of(problems), ['hitl-on-step'])
+        self.assertIn('move it to the `### Task 1.1:` heading', problems[0]['message'])
+
     def test_a_bare_checkbox_in_a_task_iteration(self):
         body = one_iteration(block('1.1')).replace('**Goal:** g\n', '**Goal:** g\n- [ ] Loose\n')
         self.assertEqual(rules_of(self.problems(body)), ['bare-checkbox'])

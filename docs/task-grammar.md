@@ -37,8 +37,12 @@ A task is a `### Task <iteration>.<n>: <title>` heading inside an `## Iteration 
 - The optional `[HITL: <reason>]` tag sits on the heading and applies to the whole task
   (`docs/autonomous-run.md` §4). It is not part of the title.
 - Fields come first, in any order, one bullet each; a value may wrap onto indented
-  continuation lines. The steps follow: one or more `- [ ]` checkboxes. A task is **done**
-  when every step is ticked.
+  continuation lines. The steps follow: one or more unindented `- [ ]` checkboxes. An indented
+  plain line under a step is that step's detail; an indented checkbox is not a step and is a
+  grammar problem, so a task can never read done over an open box. A task is **done** when
+  every step is ticked.
+- A `[HITL: …]` tag belongs on the heading. On a step — where the old format put it — it is a
+  grammar problem, because the route floor and the approval pause read only the heading.
 - One task is one queue row and one implementer dispatch (`docs/task-queue.md`).
 
 ## 2. Field rules
@@ -140,8 +144,9 @@ mirrored until the file is clean.
 | `bad-implements` | an `Implements:` token is not a requirement ID like `R1` |
 | `numbering` | the task number is not the next one of its iteration |
 | `no-steps` | the task has no `- [ ]` step |
-| `bare-checkbox` | a checkbox of a task-format iteration sits outside any task |
+| `bare-checkbox` | a checkbox of a task-format iteration sits outside any task, or is indented under a step |
 | `no-tasks` | an iteration has no task |
+| `hitl-on-step` | a `[HITL: …]` tag sits on a step instead of the task heading |
 
 An unknown field, a field after the steps, or another `###` heading inside an iteration is a
 warning (`data.warnings`), so the grammar can grow.

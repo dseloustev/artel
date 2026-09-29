@@ -43,6 +43,13 @@ All notable changes to this project are documented here. The format follows
   `deep-review`, `change-digest`, `pr-description`, `tech-writer`, `qa`, `validator` and
   `/artel:tasks done` read task blocks.
 
+### Fixed
+
+- The task gate hands `verify.fast` only the changed paths `verify.surface` covers, as the
+  post-edit hook always has. Since 0.18.0 it passed every changed path, so on a host whose fast
+  command is one language's linter and formatter a task that touched a Makefile, a Markdown file
+  or `pubspec.yaml` stayed red until it halted as a deviation.
+
 ### Upgrading
 
 - No configuration change. `review.perTask: true` keeps every task reviewed; `false` now still

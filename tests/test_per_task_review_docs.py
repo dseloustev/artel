@@ -73,8 +73,8 @@ class TestConfigKey(unittest.TestCase):
 class TestGateContract(unittest.TestCase):
     def test_contract_has_section_16_with_the_cap_and_the_script(self):
         text = read(CONTRACT)
-        self.assertIn('## 16. Per-task review', text)
-        body = section(text, '## 16. Per-task review')
+        self.assertIn('## 16. Routes', text)
+        body = section(text, '## 16. Routes')
         self.assertIn(CAP, body)
         self.assertIn('scripts/review_package.py snapshot', body)
         self.assertIn('scripts/review_package.py diff', body)

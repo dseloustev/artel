@@ -29,8 +29,8 @@ lives under `.artel/run/` in the host repo instead, matching config.md's descrip
     ├── verify-baseline.json    # the checkpoint gate's baseline, recorded once at a fresh arm (gates.md §1)
     ├── reports/                # per-task worker output (§1 "Bulk stays in files", §16):
     │   ├── NNN-<slug>.md       #   the implementer's report for one task
-    │   ├── NNN-<slug>.diff     #   that task's diff package (review.perTask only)
-    │   └── NNN-<slug>-review.md #  the per-task review verdict (review.perTask only)
+    │   ├── NNN-<slug>.diff     #   that task's diff package (a `full` route only, §16)
+    │   └── NNN-<slug>-review.md #  the per-task review verdict (a `full` route only, §16)
     └── .stop-gate-blocks       # stop-gate's consecutive-block counter
 ```
 
@@ -84,7 +84,8 @@ Path: `.artel/run/<TICKET_ID>/run-state.json` (always ticket-top-level, even for
   "suggested_mode": "plan-gate", // classifier suggestion (§10)
   "forced_floor": null,          // highest matched floor from the sensitive-paths policy, or null (§10)
   "mode_reasons": [],            // human-readable classifier reasons
-  "gates_confirmed": []          // e.g. ["TASKLIST_READY"] after the approval pause (§10)
+  "gates_confirmed": [],         // e.g. ["TASKLIST_READY"] after the approval pause (§10)
+  "deviation_files": []          // files named by completions' `Deviations:` lines (§16, floor 4)
 }
 ```
 
@@ -107,6 +108,13 @@ it is a user's opt-out for this run, and a resumed run has no argument list left
 So the orchestrator writes it at arm time and hands it to every sub-skill that consults
 (`analysis`, `researcher`) on a resumed gate exactly as it did on the first pass. Losing it is
 silent: the run simply starts consulting again, and only a citation nobody asked for shows it.
+
+`deviation_files` is **carried, not re-derived**, for the same reason. It is `[]` at a fresh arm
+and only grows: after every implementer completion — iteration task or fix list — the
+orchestrator adds each path the completion's `Deviations:` line names
+([deviation-protocol.md](deviation-protocol.md) §5), once. A resume and a phase boundary keep
+it, so a deviation in phase 1 still raises a phase-3 task on the same file to `full` (§16,
+floor 4). A run armed before 0.23.0 has no such key; read it as `[]`.
 
 ## 3. Question collection — `open-questions.md`
 
@@ -133,6 +141,9 @@ Tasklist writers (`task-planner`, `tasklist-writer` agents) tag tasks at generat
 - Untagged task ⇒ **AFK**: runs without any human interaction.
 - `- [ ] [HITL: <reason>] <task text>` ⇒ the orchestrator pauses **before starting** this task, sets
   `pause_reason: "hitl-task"`, asks the pre-declared question via `AskUserQuestion`, then resumes.
+  On a task-format tasklist the tag sits on the task's heading —
+  `### Task 2.3: <title> [HITL: <reason>]` ([task-grammar.md](task-grammar.md) §1) — and covers
+  the whole task: one question before its first step, none between steps.
 
 Mandatory HITL triggers:
 
@@ -160,7 +171,9 @@ a cap escalation.
 | Loop | Cap (default) | Counter location |
 |---|---|---|
 | task gate → fix (per task, gates.md §1) | `MAX_VERIFY_ITERATIONS = 4` | `Verify iterations: N` in the implementer completion note |
-| per-task review → fix (per task, `review.perTask` only, §16) | `MAX_TASK_REVIEW_ROUNDS = 1` | the task's `task review` entry in `run-journal.md` (the round also counts toward `correction_rounds`) |
+| per-task review → fix (per task on the `full` route, §16) | `MAX_TASK_REVIEW_ROUNDS = 1` | the task's `task review` entry in `run-journal.md` (the round also counts toward `correction_rounds`) |
+| route floor 3 (per task, §16) — a threshold, not a loop | `ROUTE_FULL_FILES = 5` | none: a task whose `Files:` lists more paths is routed `full` |
+| plan review → fix (before the pause, task-format tasklists) | `MAX_PLAN_REVIEW_ROUNDS = 2` | `**Plan-review round:** k` in `.artel/run/<TICKET_ID>/plan-review.md` (the chatty head's; never counts toward `correction_rounds`) |
 | review → fix → re-review | `MAX_REVIEW_ROUNDS = 3` | `**Review round:** N` in `review.md` (reset by deleting it on the files path, by a round-0 version on the kartoteka path — spec-storage.md §4.4) |
 | runtime gate red → fix | `MAX_RUNTIME_RETRIES = 1` | `.artel/run/<TICKET_ID>/runtime-observation.md` |
 | checkpoint verify → fix (per checkpoint, §14) | `MAX_CHECKPOINT_VERIFY_ROUNDS = 2` | checkpoint entry in `run-journal.md` (rounds also count toward `correction_rounds`) |
@@ -369,16 +382,68 @@ means.
 - `.active_ticket` is the phase pointer for argument-less invocations and for `run-app`'s
   evidence pathing; orchestrators still pass the full identifier explicitly to sub-skills.
 
-## 16. Per-task review
+## 16. Routes
 
-Off by default; `review.perTask: true` ([config.md](config.md)) turns it on for both
-orchestrators' implementation loops (`dev` step 4, `feature-development` gate 5). It is a gate
-on one task's diff, run right after its implementer returns and before the next task is
-dispatched, so a misread acceptance criterion is caught before the next task builds on it. It
-does not replace the phase review (gate 7 / `dev` step 6) — that still runs over the whole
-phase with the lenses and `review.md`; this gate feeds it.
+Every iteration task runs on a **route**, `light` or `full`, in both orchestrators'
+implementation loops (`dev` step 4, `feature-development` gate 5). The route decides one thing:
+whether the task's own diff is reviewed right after its implementer returns and before the next
+task is dispatched, so a misread requirement is caught before the next task builds on it. It
+never replaces the phase review (gate 7 / `dev` step 6) — that still runs over the whole phase
+with the lenses and `review.md`, whatever the routes were; a `full` task's review feeds it.
 
-Per iteration-task dispatch:
+### 16.1 Which route a task takes
+
+On a task-format tasklist ([task-grammar.md](task-grammar.md) §4) each task has its own:
+
+- **Declared** by the planner on the task's `Route:` line — `light`, or `full — <reason>`.
+- **Floored** — four floors, which only ever raise a route to `full`:
+  1. a `Files:` path matches a sensitive-paths category (the plugin's
+     `hooks/sensitive-paths.json`, replaced wholesale by a host `.artel/sensitive-paths.json`, §10);
+  2. the task carries a `[HITL: …]` tag;
+  3. its `Files:` lists more than `ROUTE_FULL_FILES = 5` paths;
+  4. an earlier deviation in this run changed one of its files.
+
+  Floors 1–3 are the parser's: every task row carries `route_floor`, `route_reasons` and
+  `route_effective`, the higher of the declared route and the floor — or the declared route
+  alone when it was set at approval (task-grammar.md §7).
+  Floor 4 is known only at runtime: the orchestrator checks the task's `Files:` against
+  `run-state.json` `deviation_files` (§2) as it stood when the task was dispatched, so a task's
+  own deviations raise the tasks after it, not itself.
+- **Overridable at the pause.** The approval pause (`feature-development` step 3, `dev` step 2)
+  lists every task's effective route with its reasons —
+  `2.3 full — declared: money-movement path; floor: sensitive path (payments): lib/ramps/ramps_bloc.dart`
+  — and the person may change any of them, down as well as up. A change is folded back into
+  the task's `Route:` line with `— set at approval` (`Route: light — set at approval`), so the
+  document stays the record, and journaled in the run-start entry, naming any floor it lowered.
+  A route set at approval is final over floors 1–3; floor 4 still applies, because no one could
+  see it at the pause.
+- **`review.perTask: true`** ([config.md](config.md)) raises every task to `full`.
+
+On an old-format tasklist there are no routes: `review.perTask: true` wraps every iteration-task
+dispatch in the procedure of §16.2 and `false` wraps none, exactly as before 0.23.0.
+
+**When the route is decided.** The implementer takes its own task — `task_ready` on the queue
+path, the first of `ready_now` on the fallback ([task-queue.md](task-queue.md) §3, §4) — so the
+orchestrator learns which task a dispatch worked from its completion, whose first line names
+it (`Task 2.3: <title>`). On a task-format tasklist it therefore snapshots before **every**
+iteration-task dispatch (§16.2 step 1) and decides the route when the completion arrives: the
+parser's row for that task (the re-mirror's parser run, or on a `--local` run a parser run of
+its own), floor 4 and `review.perTask`. A `light` task's snapshot is never used.
+
+One journal line per dispatched task (§11), in this form:
+
+    task 2.3: route full (declared full; floor: sensitive path (payments): lib/ramps/ramps_bloc.dart)
+
+— `task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]])`, the reasons
+the row's `route_reasons`, plus `earlier deviation: <path>` for floor 4 and `review.perTask` when
+the key raised it.
+
+### 16.2 What a route runs
+
+- **`light`** — nothing more: the implementer's own task gate (gates.md §1) is the task's check.
+- **`full`** — the wrapper below: one reviewer seat on the task's diff and at most one fix round.
+
+The `full` wrapper, per iteration-task dispatch:
 
 1. **Snapshot** — before dispatching the implementer, run
    `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/review_package.py snapshot` and keep the printed tree
@@ -391,7 +456,9 @@ Per iteration-task dispatch:
    `Report:` path so the three files pair up. The one-line output carries the file count:
    `0 file(s)` → journal `task review: skipped (empty diff)` and move on.
 3. **Review** — `Skill: run-reviewer` with `$0 --task "<task title>" --report <report path>
-   --package <diff path>` (plus `--local` on a run that holds it). The `reviewer` agent's task
+   --package <diff path>` (plus `--local` on a run that holds it); on a task-format tasklist
+   `<task title>` is the task heading's text after `### ` (`Task 2.3: Show the purchase success
+   dialog`). The `reviewer` agent's task
    mode writes `NNN-<slug>-review.md` and appends every Blocking / Important finding and every
    spec gap as a task under `## Code Review Fixes` in the phase-aware tasklist — the same
    section and format the phase review uses, so nothing downstream learns a new shape —
@@ -410,11 +477,12 @@ Per iteration-task dispatch:
    this entry is the counter: a task whose entry records the round is done with the gate even
    if fix tasks are still open.
 
-Fix-list tasks (`## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes`) are never gated
-this way — the loop that dispatched them re-checks its own result. `--step` runs the gate too
-when configured, minus the run-state and journal writes (§6).
+Fix-list tasks (`## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes`) are never
+wrapped — the loop that dispatched them re-checks its own result. `--step` runs the wrapper too,
+minus the run-state and journal writes (§6).
 
-Costs, stated so the default is understood: one reviewer seat per task on top of the phase
-review, and `task-planner` deliberately produces small tasks. Leave it off for tasklists of
-mechanical steps; turn it on when tasks carry judgement, or when phases are long enough that
-drift across tasks has room to compound.
+Costs: one reviewer seat per `full` task on top of the phase review. Every floor is journaled
+with its reason, so a run that routes too much to `full` shows why; `ROUTE_FULL_FILES` is one
+constant, and the person can lower any route at the pause. `review.perTask: true` — every task
+`full` — earns its seats when tasks carry judgement throughout, or when phases are long enough
+that drift across tasks has room to compound.

@@ -107,6 +107,17 @@ On phase-scoped runs (`PHASE_NUM` set), first invoke `Skill: sync-phases` with `
 
 On the kartoteka path these existence checks are one `spec_store.py list <TICKET_ID>`, and branch 3's work list is written with `artifact_put(project=<project>, …, expected_version=0)` (spec-storage.md §4.1).
 
+**Routes at the confirmation** (task-format tasklists — autonomous-run.md §16.1). Branch 1's
+summary lists every task's effective route with its reasons, one line each — `2.3 full —
+declared: money-movement path; floor: sensitive path (payments): lib/ramps/ramps_bloc.dart` —
+from a parser run over the work list (step 4's re-mirror command, without `task_create`),
+every task `full` when `review.perTask` is `true`. **Adjust** may change any route, down as well
+as up: write each change into that task's `Route:` line as `<light|full> — set at approval`
+(kartoteka path: one `artifact_patch`) and list it in the run-start journal entry (step 3),
+naming any floor it lowered. On branch 2 the pause is `generate-tasklist`'s approval round, and
+a route change asked there reaches `tasklist-writer` like any other change; step 3 announces the
+routes either way. Branch 3's work list has no routes.
+
 The confirmed work list is the deviation anchor. The confirmation presentation also notes that
 confirming authorizes the run's checkpoint commits & pushes to `origin` (work-list docs now, one
 commit+push per completed phase — procedure: `feature-development` `## Checkpoint commits &
@@ -123,9 +134,11 @@ Run the risk classifier (autonomous-run.md §10) over the confirmed work list, p
 `vision.md` when present. `forced_floor: "full-gates"` ⇒ stop here: report the matched sensitive
 categories and instruct the user to re-run with `--step`. Otherwise write
 `.artel/run/<TICKET_ID>/run-state.json` per autonomous-run.md §2: `run_active: true`,
-`completed: false`, `pause_reason: null`, fresh `started_at`, zeroed counters, plus the six mode
-fields (§10), with `gates_confirmed: ["TASKLIST_READY"]`. Announce the effective mode and reasons.
-On resume, re-derive the mode fields before re-arming — never trust stale ones. From here the run
+`completed: false`, `pause_reason: null`, fresh `started_at`, zeroed counters,
+`deviation_files: []` (§2), plus the six mode
+fields (§10), with `gates_confirmed: ["TASKLIST_READY"]`. Announce the effective mode and reasons,
+and on a task-format tasklist every task's effective route (§16.1). On resume, re-derive the mode
+fields before re-arming — never trust stale ones — and carry `deviation_files` forward unchanged. From here the run
 is silent except deviations, HITL tasks, and cap escalations. Create
 `.artel/run/<TICKET_ID>/run-journal.md` with the run-start entry (autonomous-run.md §11): mode
 resolution, reasons, HITL tags count.
@@ -189,18 +202,26 @@ every sub-skill. Single-phase work → one pass ending at step 7.5.
 
 Loop `Skill: implementer` with `$0` (or `$0 $1` when driving from a description file) until every
 task is `- [x]`. Handle returns exactly as `feature-development` step 5 does: completions →
-aggregate `Deviations:` / `Verify iterations:` and journal the `Report:` path (never open the
-report — autonomous-run.md §1, "Bulk stays in files"); `HITL:` → `pause_reason: "hitl-task"`,
+aggregate `Deviations:` / `Verify iterations:`, add every path the `Deviations:` line names to
+`run-state.json` `deviation_files` (autonomous-run.md §2), and journal the `Report:` path (never
+open the report — autonomous-run.md §1, "Bulk stays in files"); `HITL:` → `pause_reason: "hitl-task"`,
 ask, clear, resume; `DEVIATION` escalation → bracket with `pause_reason:
 "deviation-escalation"`; aborted task → `pause_reason: "cap-escalation"`, stop and report that
 the plan needs revision.
 
-**Per-task review** (`review.perTask: true` in config.md; off by default): wrap every
-iteration-task dispatch in autonomous-run.md §16 — `scripts/review_package.py snapshot` before
-the implementer, `diff` + `Skill: run-reviewer --task …` after its completion, at most one
-`## Code Review Fixes` implementer round (`MAX_TASK_REVIEW_ROUNDS = 1`, counted toward
-`counters.correction_rounds`), one `task review` journal entry. Fix-list dispatches are never
-gated this way.
+**Routes** (autonomous-run.md §16): on a task-format tasklist run
+`scripts/review_package.py snapshot` before every iteration-task dispatch; when the completion
+names its task (`Task <N.M>: …`), take that task's route from the parser's row (the re-mirror's
+run, or the same command run for the routes alone on the fallback path): `route_effective` — a
+`Route:` ending `— set at approval` is final over floors 1–3 — raised to `full` when one of its
+`Files:` is in `deviation_files` or `review.perTask` is `true`; journal
+`task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]])`. A `full` task
+gets the §16.2 wrapper — `diff` + `Skill: run-reviewer --task …` after its completion, at most
+one `## Code Review Fixes` implementer round (`MAX_TASK_REVIEW_ROUNDS = 1`, counted toward
+`counters.correction_rounds`), one `task review` journal entry; a `light` task gets none. On an
+old-format tasklist — branch 3's work list always is one — there are no routes:
+`review.perTask: true` in config.md (off by default) wraps every iteration-task dispatch in that
+procedure, as before. Fix-list dispatches are never wrapped.
 
 ### 5. Refresh the code index (optional host hook)
 
@@ -299,7 +320,8 @@ to `run-journal.md`.
 - Files this orchestrator writes directly: `<specs.dir>/.active_ticket`,
   `.artel/run/<TICKET_ID>/run-state.json`, `.artel/run/<TICKET_ID>/run-journal.md`,
   `.artel/run/<TICKET_ID>/runtime-observation.md`, the phase-aware `runtime/observation.md`
-  surface-skip entry, the step-2.3 work-list tasklist, and the description file during sync.
+  surface-skip entry, the step-2.3 work-list tasklist, a task's `Route:` line changed at the
+  step-2 confirmation, and the description file during sync.
   Everything else is delegated.
 - **`STORE_UNAVAILABLE`** from a sub-skill or agent, or a failing store call of your own, is the
   environment error of `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §5.2: set

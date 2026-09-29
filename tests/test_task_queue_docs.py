@@ -560,7 +560,7 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
 
     def test_the_per_task_fix_round_carries_it(self):
         text = (ROOT / 'docs/autonomous-run.md').read_text(encoding='utf-8')
-        step = text.split('## 16. Per-task review')[1].split('4. **One fix round**')[1].split(
+        step = text.split('## 16. Routes')[1].split('4. **One fix round**')[1].split(
             '5. **Journal**')[0]
         self.assertIn('(plus `--local` on a run that holds it)', step)
 

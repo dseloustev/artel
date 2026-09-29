@@ -796,5 +796,115 @@ class TestPromotionByDependency(unittest.TestCase):
         self.assertIn('promote every `I<N> · ` child of the lowest-numbered iteration', empty)
 
 
+class TestRoutes(unittest.TestCase):
+    """Plan 3, Task 3: autonomous-run.md §16 and both orchestrators (spec §5)."""
+
+    def setUp(self):
+        self.run = flat(read('docs/autonomous-run.md'))
+        self.routes = _between(self.run, '## 16. Routes')
+
+    def test_section_16_is_routes(self):
+        self.assertNotIn('## 16. Per-task review', self.run)
+        for heading in ('### 16.1 Which route a task takes', '### 16.2 What a route runs'):
+            self.assertIn(heading, self.routes)
+
+    def test_the_four_floors(self):
+        which = _between(self.routes, '### 16.1', '### 16.2')
+        for phrase in ('a `Files:` path matches a sensitive-paths category',
+                       'the task carries a `[HITL: …]` tag',
+                       'more than `ROUTE_FULL_FILES = 5` paths',
+                       'an earlier deviation in this run changed one of its files',
+                       '`route_floor`, `route_reasons` and `route_effective`',
+                       '`run-state.json` `deviation_files` (§2) as it stood when the task was dispatched'):
+            self.assertIn(phrase, which)
+
+    def test_override_per_task_and_old_format(self):
+        which = _between(self.routes, '### 16.1', '### 16.2')
+        for phrase in ('`— set at approval`', 'down as well as up',
+                       'A route set at approval is final over floors 1–3; floor 4 still applies',
+                       '**`review.perTask: true`** ([config.md](config.md)) raises every task to `full`',
+                       'On an old-format tasklist there are no routes',
+                       'exactly as before 0.23.0',
+                       'snapshots before **every** iteration-task dispatch'):
+            self.assertIn(phrase, which)
+
+    def test_the_journal_line(self):
+        for phrase in ('task 2.3: route full (declared full; floor: sensitive path (payments): '
+                       'lib/ramps/ramps_bloc.dart)',
+                       '`task <N.M>: route <effective> (declared <route>[; floor: <reason>[, '
+                       '<reason>…]])`',
+                       '`earlier deviation: <path>`'):
+            self.assertIn(phrase, self.routes)
+
+    def test_what_a_route_runs(self):
+        runs = _between(self.routes, '### 16.2')
+        for phrase in ('**`light`** — nothing more', 'The `full` wrapper, per iteration-task dispatch:',
+                       'Fix-list tasks (`## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes`) '
+                       'are never wrapped',
+                       "`<task title>` is the task heading's text after `### `"):
+            self.assertIn(phrase, runs)
+
+    def test_run_state_caps_and_hitl(self):
+        state = _between(self.run, '## 2. `run-state.json`', '## 3.')
+        self.assertIn('"deviation_files": []', state)
+        self.assertIn('`deviation_files` is **carried, not re-derived**', state)
+        self.assertIn('read it as `[]`', state)
+        caps = _between(self.run, '## 5. Capped loops', '## 6.')
+        for phrase in ('`ROUTE_FULL_FILES = 5`', '`MAX_PLAN_REVIEW_ROUNDS = 2`',
+                       '`**Plan-review round:** k`', 'per task on the `full` route, §16'):
+            self.assertIn(phrase, caps)
+        self.assertIn('`### Task 2.3: <title> [HITL: <reason>]`',
+                      _between(self.run, '## 4. AFK / HITL task tags', '## 5.'))
+
+    def test_feature_development_routes(self):
+        fd = flat(read('skills/feature-development/SKILL.md'))
+        gate = _between(fd, '| 5 | `IMPLEMENT_STEP_OK`', '| 6 |')
+        for phrase in ('add every path its `Deviations:` line names to `run-state.json` `deviation_files`',
+                       '**Routes** (autonomous-run.md §16)',
+                       'before every iteration-task dispatch',
+                       'a `Route:` ending `— set at approval` is final over floors 1–3',
+                       '`task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]])`',
+                       'a `light` task gets none',
+                       'On an old-format tasklist there are no routes'):
+            self.assertIn(phrase, gate)
+        pause = _between(fd, '**Routes at the pause**', '### 4. Arm the run')
+        for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered',
+                       'In `yolo` the routes stand as declared and floored'):
+            self.assertIn(phrase, pause)
+        arm = _between(fd, '### 4. Arm the run', '### 5.')
+        self.assertIn('`deviation_files: []` (§2)', arm)
+        self.assertIn('carry `requested_local` and `deviation_files` forward unchanged', arm)
+
+    def test_dev_routes(self):
+        dev = flat(read('skills/dev/SKILL.md'))
+        confirm = _between(dev, '**Routes at the confirmation**', 'The confirmed work list')
+        for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered',
+                       "Branch 3's work list has no routes"):
+            self.assertIn(phrase, confirm)
+        arm = _between(dev, '### 3. Arm the run', '### 4.')
+        self.assertIn("every task's effective route (§16.1)", arm)
+        self.assertIn('carry `deviation_files` forward unchanged', arm)
+        step = _between(dev, '### 4. Implement (autonomous)', '### 5.')
+        for phrase in ('add every path the `Deviations:` line names to `run-state.json` `deviation_files`',
+                       '**Routes** (autonomous-run.md §16)',
+                       'a `light` task gets none',
+                       'On an old-format tasklist'):
+            self.assertIn(phrase, step)
+        self.assertIn("a task's `Route:` line changed at the step-2 confirmation",
+                      _between(dev, '## Important'))
+
+    def test_config_setup_and_run_reviewer(self):
+        row = _between(flat(read('docs/config.md')), '| `review.perTask` |',
+                       '| `review.forecast.threshold` |')
+        for phrase in ('`true` raises every iteration task to the `full` route',
+                       'so `full` tasks are reviewed either way',
+                       'A tasklist written before 0.23.0 has no routes'):
+            self.assertIn(phrase, row)
+        self.assertIn('every task on the `full` route', flat(read('skills/setup/SKILL.md')))
+        reviewer = flat(read('skills/run-reviewer/SKILL.md'))
+        self.assertIn('whose task runs on the `full` route', reviewer)
+        self.assertIn("its heading's text after `### `", reviewer)
+
+
 if __name__ == '__main__':
     unittest.main()

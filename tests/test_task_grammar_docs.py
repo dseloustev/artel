@@ -629,5 +629,119 @@ class TestTasksAddWritesATaskBlock(unittest.TestCase):
             self.assertNotIn(flag, fix)
 
 
+# --- Plan 3 of sub-project 2a: execution, promotion, routes, readers, release docs ----------
+# Reuses plan 1's module helpers `read(rel)` and `flat(text)`. The names below carry a leading
+# underscore so they can never shadow a helper another plan's classes rely on.
+
+import re as _re
+from pathlib import Path as _Path
+
+_ROOT = _Path(__file__).resolve().parent.parent
+
+
+def _between(text, start, end=None):
+    """The text after the first `start`, up to the first `end` after it (to the end when None)."""
+    body = text.split(start, 1)[1]
+    return body.split(end, 1)[0] if end else body
+
+
+class TestOneTaskPerDispatch(unittest.TestCase):
+    """Plan 3, Task 1: one dispatch works one whole task block (spec §4)."""
+
+    def setUp(self):
+        self.agent = flat(read('agents/implementer.md'))
+
+    def test_step_one_takes_a_task_block(self):
+        step = _between(self.agent, '### Step 1', '### Step 2')
+        for phrase in ('**A task-format tasklist**', '`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4',
+                       '`I<N> · <N.M> · <title>`', 'take the first task of `data.ready_now`',
+                       'never the first unticked box', '`tasklist_malformed`',
+                       'is a `DEVIATION` halt',
+                       "the `Produces:` line of every task its `Depends on:` names",
+                       'keeps one checkbox as one task'):
+            self.assertIn(phrase, step)
+
+    def test_hitl_covers_the_whole_task(self):
+        step = _between(self.agent, '### Step 1', '### Step 2')
+        sentence = _between(step, 'If the task carries a `[HITL: …]` tag')
+        self.assertIn("sits on the task's heading and covers every step", sentence)
+        self.assertIn('(a tag on a task block\'s heading covers all its steps)',
+                      _between(self.agent, '- **HITL boundary**', ' - **'))
+
+    def test_step_three_works_the_block_and_names_the_dependency_deviation(self):
+        step = _between(self.agent, '### Step 3', '### Step 4')
+        for phrase in ('**A task block is worked whole.**', 'the report lists it (Step 6)',
+                       '**A missing or wrong dependency is a deviation.**',
+                       '**Major** under `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §2',
+                       'Halt before writing a stand-in'):
+            self.assertIn(phrase, step)
+
+    def test_step_four_gate_runs_the_test_files(self):
+        step = _between(self.agent, '### Step 4', '### Step 5')
+        self.assertIn("add every file the task's `Test:` field lists to the paths, touched or not",
+                      step)
+        self.assertIn('`data.missing`', step)
+
+    def test_step_five_ticks_once_and_promotes_by_dependency(self):
+        step = _between(self.agent, '### Step 5', '### Step 6')
+        for phrase in ('tick every step of the block and update the Progress Report in the same write',
+                       'promotion follows dependencies instead',
+                       '`data.ready_now` task whose row',
+                       'is still `backlog`',
+                       'every `I<N+1> · ` child from `backlog` to `ready`'):
+            self.assertIn(phrase, step)
+
+    def test_step_six_reports_outside_files_and_deviation_files(self):
+        step = _between(self.agent, '### Step 6', '## Rules')
+        for phrase in ('`**Outside Files:**`', 'generated files excepted',
+                       '`Task <N.M>: <title>`', '`D1 (minor: <path>, …)`',
+                       'each with the files it changed'):
+            self.assertIn(phrase, step)
+
+    def test_rules(self):
+        rules = _between(self.agent, '## Rules')
+        for phrase in ('**IDs stay out of the product**',
+                       '`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §5',
+                       'the task is the whole `### Task <N.M>:` block',
+                       '`D1 (minor: <path>, …), …`',
+                       '§16 on a task whose route is `full`'):
+            self.assertIn(phrase, rules)
+
+    def test_the_skill_dispatch_carries_the_same_rules(self):
+        skill = flat(read('skills/implementer/SKILL.md'))
+        for phrase in ("the first task of the parser's `data.ready_now`",
+                       "on the task's `Test:` files, touched or not",
+                       'every step of a task block, in one write',
+                       'that its `Depends on:` does not list is Major',
+                       "names the files each deviation changed (protocol §5)"):
+            self.assertIn(phrase, skill)
+
+    def test_inner_loop_and_gates_add_the_test_files(self):
+        loop = _between(flat(read('skills/inner-loop/SKILL.md')), '## Inputs', '## Exit-code contract')
+        self.assertIn("every file the task's `Test:` field lists, touched or not", loop)
+        gates = flat(read('docs/gates.md'))
+        self.assertIn("the paths also carry the task's `Test:` files, touched or not",
+                      _between(gates, '| **task** |', '| **checkpoint** |'))
+        self.assertIn("**A task's `Test:` files join its task gate.**",
+                      _between(gates, '## 1. The schedule', '## 2.'))
+
+    def test_the_deviations_line_names_files(self):
+        protocol = flat(read('docs/deviation-protocol.md'))
+        contract = _between(protocol, '## 5. Completion contract', '## 6.')
+        for phrase in ('`Deviations: D1 (minor: lib/wallet/wallet_repository.dart), D2 (major: '
+                       'lib/wallet/wallet_bloc.dart, test/wallet/wallet_bloc_test.dart)`',
+                       '`D<n> (<severity>[: <path>, …])`',
+                       'keeps the bare `D<n> (<severity>)`',
+                       '`deviation_files`'):
+            self.assertIn(phrase, contract)
+        self.assertIn('leave the task checkbox unchecked (every step of a task block)', protocol)
+
+    def test_the_stored_tick_is_one_patch(self):
+        tick = _between(flat(read('docs/spec-storage.md')), '- **Tick a task**',
+                        '- **Append a fix batch**')
+        self.assertIn('one replace edit per step instead of the one checkbox, in the same patch',
+                      tick)
+
+
 if __name__ == '__main__':
     unittest.main()

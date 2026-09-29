@@ -58,10 +58,11 @@ read it with `artifact_get` and scan it exactly as you would the file.
 ## Output
 
 - Code changes for the task
-- Updated tasklist — the completed task's checkbox flipped to `- [x]`
+- Updated tasklist — the completed task's checkbox flipped to `- [x]`; on a task-format tasklist,
+  every step of the task's block
 - Updated Progress Report table (when one exists in the tasklist)
 - `implementation-notes.md` — a `## Deviations` entry for every deviation from the approved proposal (see `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §3); created lazily, only when a deviation occurs
-- On the kartoteka path (**Spec store:**): the checkbox and the Progress Report row are one `artifact_patch(project=<project>, …)` carrying the version bump and both edits (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.3); `implementation-notes.md` is created with `artifact_put(project=<project>, …, expected_version=0)` at the first deviation and appended to with `artifact_patch` after.
+- On the kartoteka path (**Spec store:**): the checkboxes and the Progress Report row are one `artifact_patch(project=<project>, …)` carrying the version bump and both edits (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.3); `implementation-notes.md` is created with `artifact_put(project=<project>, …, expected_version=0)` at the first deviation and appended to with `artifact_patch` after.
 
 ---
 
@@ -119,6 +120,22 @@ the report. Nothing is claimed, so there is no iteration promotion to run.
 ticket), exactly as before the queue existed. A dispatch carrying **Task queue:**
 local-only takes this path regardless of adapter or tool availability.
 
+**A task-format tasklist** — one with a `### Task <N.M>:` heading
+(`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4) — changes what one task is: the whole block,
+its field bullets and every step under it, and this dispatch works all of it. On the queue
+path the claimed row is titled `I<N> · <N.M> · <title>`; work the block with that number. On
+the fallback path run the parser over the tasklist in scope —
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <path> --ticket-key <TICKET_KEY>`
+(kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_KEY>`)
+— and take the first task of `data.ready_now`, never the first unticked box: a later task can
+be ready while an earlier one waits on a dependency. `ready_now` empty while a task block still
+has an unticked step, or exit `2` (`tasklist_malformed` — the grammar was checked before
+approval, so the file was edited since), is a `DEVIATION` halt: `Blocked by:` names the open
+tasks and what each waits on, or quotes `error.message`. Then read, besides the block, the
+`Produces:` line of every task its `Depends on:` names: those are the symbols this task may
+use from other tasks. An old-format tasklist — no `### Task` heading — keeps one checkbox as
+one task, exactly as above.
+
 Either way, record which path this run took (`docs/task-queue.md` §4), then read
 the tasklist, `vision` / `idea` files, and the host project's conventions docs
 (its CLAUDE.md and anything it points to). Design the approach so no stated
@@ -131,7 +148,9 @@ that doesn't resolve after that is a Major deviation to halt and report per
 `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`, not something to invent.
 On the queue path, release the claim first — see **Rules**, below.
 
-If the task carries a `[HITL: …]` tag, do not implement. On the queue path,
+If the task carries a `[HITL: …]` tag, do not implement — on a task-format tasklist the tag
+sits on the task's heading and covers every step, so the question comes before the first
+one. On the queue path,
 `task_update(task_id, status="blocked")` first. Either way return the single line
 `HITL: <reason>` and stop — the orchestrator owns the pause. A fix-section row set
 `blocked` this way goes back to `in_progress` when the orchestrator resumes you with
@@ -144,6 +163,16 @@ State (briefly, for the record) the approach: files to touch, entities/methods a
 ### Step 3 — Implement
 
 Apply the changes via Write/Edit. Follow every convention in the host project's conventions docs.
+
+**A task block is worked whole.** On a task-format tasklist do every step of the block, in
+order, before the task gate (Step 4) — one dispatch, one task, however many steps. The block's
+`Files:` are the files it is expected to touch; a file you touch outside them is not a
+deviation by itself, but the report lists it (Step 6), generated files excepted. **A missing or
+wrong dependency is a deviation.** Needing something another task produces — a type, a
+function, a key — that `Depends on:` does not list, or finding a listed task's `Produces:` is
+not what it shipped, is structural: the task order is wrong, which reorders other tasks —
+**Major** under `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §2. Halt before writing a
+stand-in and return a `DEVIATION` report naming the task that should have come first.
 
 **A behavioural fix-section row is reproduced first.** A row is behavioural when it is a
 `## Code Review Fixes` row whose checkbox text carries `behavior` in its parenthetical
@@ -180,7 +209,10 @@ Run the quality gates **before** claiming completion:
 1. **Task gate** — run the bounded verify→fix→re-verify algorithm per
    `${CLAUDE_PLUGIN_ROOT}/skills/inner-loop/SKILL.md` on the changed paths: the task gate of
    `${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1 — `verify.fast` on the paths, then `verify.test` on
-   the test files among them (config.md); `MAX_VERIFY_ITERATIONS=4`; evidence to the ticket's
+   the test files among them (config.md). On a task-format tasklist add every file the task's
+   `Test:` field lists to the paths, touched or not: a task that breaks what a listed test pins
+   is red at its own gate. `Test: none — <reason>` adds nothing, and a listed file a later task
+   creates drops out as `data.missing` (gates.md §3). `MAX_VERIFY_ITERATIONS=4`; evidence to the ticket's
    `verify/` dir; exit 2 → stop-and-ask, never edit code to fix the gate. An empty command
    degrades that half to `skipped`, never `green` (config.md). The whole-tree gate
    (`verify.commands`) is never yours: it is the orchestrator's checkpoint gate (gates.md §1).
@@ -193,8 +225,10 @@ Run the quality gates **before** claiming completion:
 ### Step 5 — Close the task
 
 Only when the last task gate is green or skipped (gates.md §1, rule 1): flip the checkbox to `- [x]` and
-update the Progress Report table when present. On the kartoteka path both edits go
-in one `artifact_patch`, version bump first (spec-storage.md §4.3). The tasklist in scope
+update the Progress Report table when present. On a task-format tasklist tick every step of
+the block and update the Progress Report in the same write — never step by step as you go. On
+the kartoteka path all these edits go in one `artifact_patch`, version bump first
+(spec-storage.md §4.3). The tasklist in scope
 (`tasklist.md`, or `phase-<N>/tasks.md` on a phase-scoped run) is kept current on
 both paths — it is what the fallback reads.
 
@@ -202,6 +236,13 @@ On the queue path, then `task_update(task_id, status="done")` and run the
 promotion step in `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3: `task_list` the
 ticket scoped to `<project>`, and if no `I<N> · ` sibling is left undone, mark the `I<N>: …` parent
 `done` and promote every `I<N+1> · ` child from `backlog` to `ready`. A fix-section row gets `done`, and its parent gets `done` when it was the section's last open child (task-queue.md §3, `close`) — no iteration promotion.
+
+On a task-format tasklist promotion follows dependencies instead (task-queue.md §3, `promote`
+for task blocks): after `done`, re-run the parser over the tasklist in scope (Step 1's command)
+and `task_update(<row>, status="ready")` every `data.ready_now` task whose row — found by its
+`title` in `task_list` — is still `backlog`. When no `I<N> · ` sibling is left undone, the
+`I<N>: …` parent goes `done` as before; the next iteration's unblocked tasks are then already
+in `ready_now`, and the same step promotes them.
 
 A red gate is never "done" — if the loop stopped-and-asked (verify budget
 exhausted, no-progress, exit-2 environment error, or out-of-scope baseline
@@ -237,7 +278,9 @@ phase suffix — the run directory is ticket-top-level; create the directory if 
   `verify/` dir
 - the queue path taken and the claim id or fix-row id, when any — or `row not found; file only`
 - the deviations in full (`implementation-notes.md` stays the durable record — this is the
-  per-task view)
+  per-task view), each with the files it changed
+- on a task-format tasklist, `**Outside Files:**` — every file you touched that the task's
+  `Files:` does not list, generated files excepted — or `none`
 - anything the reviewer should know that the diff does not show (a decision taken, a risk left)
 - when the `test` stage went red: the `## Verify iterations` table of
   `${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §3 — one row per red iteration, its hypothesis and
@@ -251,9 +294,11 @@ return the protocol's report (`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`
 report path added; the orchestrator acts on the halt message itself, so the specifics stay in it.
 
 **Return message** — under ten lines, in this order: task title (with its section when it is
-a fix-list task); the files changed as **paths only**; `Report: <path>`; then the two mandatory
-closing lines, `Verify iterations: N` and the `Deviations:` line per
-`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §5. No diff, no test output, no narration of
+a fix-list task; on a task-format tasklist `Task <N.M>: <title>`, which is how the orchestrator
+knows which task you worked); the files changed as **paths only**; `Report: <path>`; then the
+two mandatory closing lines, `Verify iterations: N` and the `Deviations:` line per
+`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §5 — each deviation with the files it
+changed, `D1 (minor: <path>, …)`. No diff, no test output, no narration of
 the work — all of that is in the report.
 
 ---
@@ -261,13 +306,14 @@ the work — all of that is in the report.
 ## Rules
 
 - **Never weaken a failing test** — changing, skipping or deleting a failing test to turn a gate green is a Major deviation (`${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §2), unless this task's own acceptance criteria change the behaviour that test pins (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §6).
-- **HITL boundary** — never implement a `[HITL: …]`-tagged task; on the queue path set it `blocked` with `task_update`, then return `HITL: <reason>` and let the orchestrator pause.
+- **HITL boundary** — never implement a `[HITL: …]`-tagged task (a tag on a task block's heading covers all its steps); on the queue path set it `blocked` with `task_update`, then return `HITL: <reason>` and let the orchestrator pause.
 - **Release the claim on any exit that is not a completion** — on the queue path a task you hold must never be left `in_progress` when you stop working it. That covers Step 5's red gate, any `DEVIATION` halt (including an unresolved `ref:` anchor in Step 1), and the protocol's **Abort task** outcome. `task_update(task_id, status="blocked")` before returning, every time. `task_ready` offers `ready` rows only, so a held row is never re-offered and §3's promotion never fires while a sibling is unfinished — one missed release wedges the ticket's queue silently. **One exception:** a claim `task_ready` handed you from another phase goes back with `task_update(task_id, status="ready")`, not `blocked` — you never worked it, and the run that owns its phase has to be able to claim it (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3). A fix-section row you set `in_progress` takes the same `blocked` on the same exits — and never `ready`, which would make it claimable.
 - **Queue before file, for iteration work only** — on the queue path a claim from `task_ready` decides which `## Iteration N:` task to work, never a scan of `tasklist.md`. The four other sections — `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` and `## Final Verification` — are file-scan work on both paths: `task_ready` never offers their rows, and the file decides which one is next. On the queue path their rows are a record you keep current (`in_progress`, `done`, `blocked`), never a work list you take from; `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6 says how to recognise a dispatch that means them. The file stays current as the fallback's input, not as the iteration work list.
 - **Phase boundary** — if a phase is set, never touch tasks from other phases.
-- **One task per cycle** — complete the current task before picking the next.
-- **No subagents** — do all of this task's work yourself: never spawn a helper to implement part of it, and never spawn a reviewer to check it. Review is the orchestrator's, dispatched against your report after you return (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16 per task when configured, the phase review always); a reviewer you spawn duplicates that seat at full cost and its verdict counts for nothing. Self-review means reading your own diff before Step 6.
-- **Deviation protocol** — during implementation (post-approval), any divergence from the approved proposal follows `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`: minor → most conservative option, record in `implementation-notes.md` § Deviations, continue; major or unsure → halt before applying the deviating change and return a `DEVIATION` report (protocol §4) instead of a completion. Every completion message ends with a `Deviations:` line (`none` or `D1 (minor), …`).
+- **One task per cycle** — complete the current task before picking the next. On a task-format tasklist the task is the whole `### Task <N.M>:` block: every step, one gate, one report.
+- **IDs stay out of the product** — requirement IDs (`R3`) and task numbers (`2.3`) never appear in code, tests, identifiers, comments or commit subjects (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §5); they belong to the spec trail and the report.
+- **No subagents** — do all of this task's work yourself: never spawn a helper to implement part of it, and never spawn a reviewer to check it. Review is the orchestrator's, dispatched against your report after you return (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16 on a task whose route is `full`, the phase review always); a reviewer you spawn duplicates that seat at full cost and its verdict counts for nothing. Self-review means reading your own diff before Step 6.
+- **Deviation protocol** — during implementation (post-approval), any divergence from the approved proposal follows `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`: minor → most conservative option, record in `implementation-notes.md` § Deviations, continue; major or unsure → halt before applying the deviating change and return a `DEVIATION` report (protocol §4) instead of a completion. Every completion message ends with a `Deviations:` line (`none`, or `D1 (minor: <path>, …), …` — each deviation with the files it changed, `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §5).
 - **Code optimization** — apply the host project's conventions docs' code-quality guidance (duplicates, oversized functions, magic numbers, dead code, SRP). Decompose proactively when a proposal would violate these rules.
 - **Generated code is read-only** — never hand-edit files the host marks as generated (analyzer/linter exclusion lists, generated-file headers). Fix the generating source and re-run the host's codegen step (Step 4.2); never pass generated paths to verify/format.
 - **Paths in output: repo-relative only** — when writing to `<specs.dir>` artifacts (e.g., status updates, notes), use repo-relative paths. See `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.

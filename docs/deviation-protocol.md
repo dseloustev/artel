@@ -92,7 +92,7 @@ The implementer agent never prompts the user directly — the orchestrator owns 
 
 4. **The agent records** the entry (§3) with the user's decision, then:
    - a way forward was chosen → continue implementing accordingly;
-   - **Abort task** → leave the task checkbox unchecked, record
+   - **Abort task** → leave the task checkbox unchecked (every step of a task block), record
      `Decision: task aborted for re-planning`, and return control, including the
      recorded deviation in the returned message so the orchestrator can report it.
 
@@ -104,11 +104,18 @@ agent to re-emit it before involving the user.
 Every implementer completion message ends with a `Deviations:` line:
 
 - `Deviations: none`
-- `Deviations: D1 (minor), D2 (major)`
+- `Deviations: D1 (minor: lib/wallet/wallet_repository.dart), D2 (major: lib/wallet/wallet_bloc.dart, test/wallet/wallet_bloc_test.dart)`
+
+Each entry is `D<n> (<severity>[: <path>, …])` — the entry's number in the notes file (§3), its
+severity, and after a colon every file that deviation changed, repo-relative and
+comma-separated. A deviation that changed no file (a decision recorded, a check left undone)
+keeps the bare `D<n> (<severity>)`, the form every completion took before 0.23.0.
 
 Orchestrators (`dev`, `feature-development`) aggregate these lines and always include a
 deviations line in their final report — the user must never have to open the notes file to
-learn that something diverged.
+learn that something diverged. They also add every path the line names to `run-state.json`
+`deviation_files` ([autonomous-run.md](autonomous-run.md) §2): a later task on one of those
+files is routed `full` (§16, floor 4).
 
 The line closes a short contract, not a narrative: the completion names the task, the changed
 paths and a `Report:` path, and the diff, evidence and the deviations' detail live in that

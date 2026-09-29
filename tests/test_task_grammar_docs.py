@@ -536,5 +536,42 @@ class TestDevPathPlanCheck(unittest.TestCase):
                       _w_flat('agents/tasklist-writer.md'))
 
 
+class TestSyncPhasesCopiesTheIteration(unittest.TestCase):
+    """Spec §7: a task-grammar phase file is the iteration, verbatim; write-back syncs step
+    ticks; old-format tasklists keep today's extraction."""
+
+    def setUp(self):
+        self.skill = _w_flat('skills/sync-phases/SKILL.md')
+        self.extract = _w_between(self.skill, '### Step 6', '### Step 7')
+        self.writeback = _w_between(self.skill, '### Step 4', '### Step 5')
+
+    def test_format_is_detected_per_tasklist(self):
+        step2 = _w_between(self.skill, '### Step 2', '### Step 3')
+        self.assertIn('any `### Task <N>.<m>:` heading → the task grammar', step2)
+        self.assertIn('docs/task-grammar.md` §4', step2)
+
+    def test_a_grammar_phase_file_is_the_iteration_verbatim(self):
+        for phrase in ('**Task grammar.**', 'copied, never re-derived',
+                       "<the tasklist's `## Iteration N: Title` section, verbatim>",
+                       "its `## Iteration N:` heading (the parser finds the phase's tasks"
+                       " under it)",
+                       'the extraction copies none from the tasklist',
+                       'title: "Phase N: Title"', 'produced_by: artel:sync-phases',
+                       'name="phase-<N>.tasks.md"'):
+            self.assertIn(phrase, self.extract)
+
+    def test_the_old_format_keeps_its_derived_extraction(self):
+        old = _w_between(self.extract, '**Old format.**')
+        for phrase in ('## Context', '## Technical Details', 'Phase N-1 complete'):
+            self.assertIn(phrase, old)
+
+    def test_write_back_syncs_step_ticks_by_task_number(self):
+        for phrase in ('matched by task number and step text, never by position',
+                       'a step with no twin is reported, never guessed',
+                       'The Progress Report counts tasks',
+                       'fix-section boxes stay in the file their writer put them in'):
+            self.assertIn(phrase, self.writeback)
+
+
 if __name__ == '__main__':
     unittest.main()

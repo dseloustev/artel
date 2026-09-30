@@ -1,7 +1,7 @@
 ---
 name: generate-tasklist
-description: "Generate an iterative, testable work plan (<specs.dir>/<TICKET_ID>/tasklist.md) directly from the idea and vision files"
-argument-hint: "[ticket-id] [idea-file] [vision-file]"
+description: "Generate an iterative, testable work plan (<specs.dir>/<TICKET_ID>/tasklist.md) directly from the idea file — with the vision, a spike answer or a diagnosis when the ticket has one"
+argument-hint: "[ticket-id] [idea-file] [vision-file] [--local]"
 model: sonnet
 ---
 
@@ -10,13 +10,19 @@ model: sonnet
 Produces `<specs.dir>/<TICKET_ID>/tasklist.md` with the Progress Report table at the top,
 `Iteration N` sections underneath holding task blocks in the task grammar
 (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md`), `**Test:**` footer per iteration. Reads the
-ticket's idea and vision files as input (and the PRD's requirement IDs, when a PRD exists),
-checks the draft mechanically before anyone approves it, applies KISS, and asks the user a
-short set of clarifying questions before finalizing.
+ticket's idea file as input — and its vision, a spike answer, a diagnosis and the PRD's
+requirement IDs, when they exist — checks the draft mechanically before anyone approves it,
+applies KISS, and asks the user a short set of clarifying questions before finalizing.
 
-This is the **lean path**. It skips the PRD + plan stages used by the full feature-development
-pipeline and the existing `tasklist` skill. Use `generate-tasklist` when the idea + vision are
-enough to start; use `tasklist` when the full PRD/plan chain has been produced.
+This skill is the writer of `feature-development`'s lean head and bug head, and it runs à la
+carte as well. It skips the PRD + plan stages of the full head and the `tasklist` skill that
+belongs to them: use `tasklist` when the full PRD/plan chain has been produced. A vision is
+optional. With one, the work list follows its design. Without one, it is grounded in the idea
+and the code, and work that needs a design is raised to the full head instead of being
+written (Phase 1).
+
+`--local` flag: mirror nothing into the kartoteka task queue (Phase 4) — the tasklist alone
+carries the work list for this run (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1).
 
 ## Ticket Resolution
 
@@ -40,8 +46,10 @@ parameter or set it in <specs.dir>/.active_ticket" and terminate.
 - Resolve paths relative to the repo root.
 - If the resolved idea file does not exist, error with `Error: idea file not found at {path}` and
   terminate.
-- If the resolved vision file does not exist, error with `Error: vision file not found at
-  {path}. Run /artel:generate-vision first.` and terminate.
+- The vision file is optional. When the default vision path does not exist, pass `none` on the
+  prompt's **Vision file** line: the agent then grounds the work list in the idea and the
+  codebase. An explicit `$2` that does not exist is still an error — `Error: vision file not
+  found at {path}` — and terminates.
 
 ### File paths this skill uses
 
@@ -49,7 +57,9 @@ All ticket artifacts live under `<specs.dir>/<TICKET_ID>/`. The directory carrie
 filenames do not repeat `<TICKET_ID>` or `<TICKET_NUM>`.
 
 - Idea (read): `{resolved idea path, default <specs.dir>/<TICKET_ID>/idea.md}`
-- Vision (read): `{resolved vision path, default <specs.dir>/<TICKET_ID>/vision.md}`
+- Vision (read, when it exists): `{resolved vision path, default <specs.dir>/<TICKET_ID>/vision.md}`
+- Spike answer (read, when it exists): `<specs.dir>/<TICKET_ID>/spike.md`
+- Diagnosis (read, when it exists): `<specs.dir>/<TICKET_ID>/diagnosis.md` — with its status
 - Tasklist (write): `<specs.dir>/<TICKET_ID>/tasklist.md`
 - PRD (read, when it exists): `<specs.dir>/<TICKET_ID>/prd.md` — its `## Requirements` IDs only
 - Draft (written by the agent; run state, a file on both spec-store paths):
@@ -59,11 +69,12 @@ Ensure `<specs.dir>/<TICKET_ID>/` exists before writing.
 
 ### Existing-file handling
 
-**Pipeline invocation** (from the `dev` orchestrator): if `tasklist.md` exists (kartoteka path:
+**Pipeline invocation** (from `feature-development`'s lean head or bug head): if `tasklist.md`
+exists (kartoteka path:
 `spec_store.py exists <specs.dir>/<TICKET_ID>/tasklist.md` exits 3), skip — report
 `Tasklist exists — skipped` and terminate (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9).
-The Phase 2 questions+approval round below serves as `dev`'s mini-interview and single work-list
-confirmation.
+The Phase 2 questions+approval round below is that head's mini-interview and its single
+work-list confirmation.
 
 **Manual invocation:** if `tasklist.md` exists (kartoteka path:
 `spec_store.py exists <specs.dir>/<TICKET_ID>/tasklist.md` exits 3), `AskUserQuestion` with two
@@ -100,6 +111,15 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 **PRD** line; otherwise pass `none`. The agent reads it for its requirement IDs only, and Phase
 1b reads the same IDs.
 
+**Vision, spike answer, diagnosis.** Each goes on its prompt line as a path when it exists and
+as `none` when it does not (the same existence check). For a diagnosis, read its status without
+the document entering this context —
+`doc=$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/diagnosis.md) && printf '%s\n' "$doc" | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py status`
+(files path: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py status < <specs.dir>/<TICKET_ID>/diagnosis.md`)
+— and put it on the line in brackets. A `DIAGNOSED_STRUCTURAL` diagnosis is never passed: print
+`This diagnosis is structural. Next: /artel:feature-development <TICKET_ID> --head=full` and
+terminate.
+
 Use the `Agent` tool with:
 
 - `subagent_type`: `"tasklist-writer"`
@@ -114,18 +134,24 @@ You are drafting the iterative work plan for ticket <TICKET_ID>.
 - **Ticket ID:** <TICKET_ID>
 - **Ticket Number:** <TICKET_NUM>
 - **Idea file (input):** <resolved idea path>
-- **Vision file (input):** <resolved vision path>
+- **Vision file (input):** <resolved vision path>, or none
+- **Spike (input):** <specs.dir>/<TICKET_ID>/spike.md, or none
+- **Diagnosis (input):** <specs.dir>/<TICKET_ID>/diagnosis.md (<status>), or none
 - **PRD (input, requirement IDs only):** <specs.dir>/<TICKET_ID>/prd.md, or none
 - **Tasklist file (output):** <specs.dir>/<TICKET_ID>/tasklist.md
 
 ## Instructions
 
-Read the idea file and the vision file, and the PRD's `## Requirements` section when a PRD is
-given. Draft an iterative, testable work plan that honors every KISS rule in your agent
-definition. Use the Progress Report table + numbered Iterations + task blocks in the task
-grammar + `**Test:**` footer format from your agent definition.
+Read the idea file, the vision file when one is given, the spike answer or the diagnosis when
+one is given, and the PRD's `## Requirements` section when a PRD is given. Draft an iterative,
+testable work plan that honors every KISS rule in your agent definition. Use the Progress
+Report table + numbered Iterations + task blocks in the task grammar + `**Test:**` footer
+format from your agent definition.
 
-Return THREE things and stop:
+If the raise rule of your agent definition applies, return the single line
+`RAISE: <reason>; <reason>` instead — no draft, no questions — and stop.
+
+Otherwise return THREE things and stop:
 1. A short summary of the draft (iteration count and one-line titles).
 2. A numbered list of clarifying questions, or the literal string `NO_QUESTIONS`.
 3. A short "KISS trade-offs" note if you deliberately omitted anything; skip the line otherwise.
@@ -135,6 +161,11 @@ and wait for resume.
 ```
 
 **Save the agent ID** — Phase 1b and Phase 3 resume the same agent via `SendMessage`.
+
+**A raise ends the skill.** When the agent's return is a `RAISE:` line, print that line
+unchanged, then `Next: /artel:feature-development <TICKET_ID> --head=full`, and stop before
+Phase 1b: nothing is checked, asked or written. `feature-development` reads the line and moves
+the ticket to its full head; run by hand, the second line says what to do.
 
 ### Phase 1b: Check the draft
 
@@ -226,7 +257,8 @@ Minor findings go into the Completion report.
 ### Phase 4: Mirror the tasklist into the task queue
 
 Per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, decide whether the queue path
-applies. On the fallback path, skip this phase silently and continue.
+applies — its first row is the flag: a run invoked with `--local` mirrors nothing. On the
+fallback path, skip this phase silently and continue.
 
 On the queue path, run. Files path first, kartoteka path (`docs/spec-storage.md` §4.2)
 second:
@@ -265,3 +297,5 @@ When the agent returns its confirmation line, print it verbatim plus:
   `AskUserQuestion` before proceeding.
 - **KISS is the agent's job.** The orchestrator does not re-check KISS; if the user's answers
   would push the agent past its limits, the agent surfaces the conflict in the next round.
+- **A `RAISE` is not a failure.** It is the writer saying the ticket needs the full head. Never
+  answer it with a second dispatch or with a work list of your own.

@@ -109,8 +109,10 @@ promotion by iteration, `review.perTask` as before, no plan review — and keeps
 everywhere, so a ticket already in flight finishes the way it started. A phase file
 (`phase-<N>/tasks.md`) is in the format of the tasklist it was extracted from.
 
-The old format stays until sub-project 2b ships: `dev`'s mini-interview work list still writes
-it.
+No writer of the old format remains: since 0.25.0 every tasklist a run writes — the full head's,
+and the lean and bug heads' work list from `generate-tasklist` — is in this grammar. Every reader
+keeps its old-format path until the cleanup release, 0.26.0, so a ticket armed on an old-format
+tasklist finishes on the format it started with.
 
 ## 5. IDs stay out of the product
 
@@ -205,7 +207,10 @@ What a mirror run of a task-format tasklist emits beyond the old format's shape
   1. a `Files:` path matches a category of the sensitive-paths policy (a host
      `.artel/sensitive-paths.json` replaces the plugin's `hooks/sensitive-paths.json`
      wholesale) — `sensitive path (<category>): <path>`;
-  2. the task carries a `[HITL: …]` tag — `HITL tag`;
+  2. the task carries a `[HITL: …]` tag and at least one of its `Files:` lies outside the
+     ticket's spec trail (`<specs.dir>/<TICKET_ID>/`) — `HITL tag`. A task whose files are all
+     records in the trail keeps its declared route: its HITL pause already puts a person in
+     the loop, and there is no code for a task review to read;
   3. it lists more than `ROUTE_FULL_FILES = 5` files — `more than 5 files (<n>)`.
 
   `route_effective` is `full` when the declared route or the floor is — except that a route

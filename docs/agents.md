@@ -38,9 +38,9 @@ once without `model`, on the frontmatter default.
 **A skill's `model:` applies only when the person types the skill.** Invoked through the Skill
 tool — by the router, or by one skill composing another — the line is ignored and the session's
 model runs it: across the host runs of 2026-08-31 to 2026-09-30, typed invocations switched model
-in 156 of 166 activations, Skill-tool invocations in 0 of 230. So the orchestrators
-(`feature-development`, `dev`) declare none and run on the session's model however they are
-reached; a stage skill's line matters only when that skill is typed on its own.
+in 156 of 166 activations, Skill-tool invocations in 0 of 230. So the orchestrator
+(`feature-development`, and its `/artel:dev` alias) declares none and runs on the session's
+model however it is reached; a stage skill's line matters only when that skill is typed on its own.
 
 OpenCode drops the tiers and ignores per-dispatch models ([opencode.md](opencode.md)).
 

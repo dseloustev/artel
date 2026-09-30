@@ -4,7 +4,7 @@
 
 How implementation-time deviations from an approved plan are recorded, escalated, and reviewed.
 Referenced by the `implementer` agent and skill (writers), the `reviewer` agent (verifier), and
-the `dev` / `feature-development` orchestrators (reporting). Do not duplicate these rules in
+the `feature-development` orchestrator (reporting). Do not duplicate these rules in
 agent prompts — link to this file instead.
 
 ---
@@ -13,8 +13,8 @@ agent prompts — link to this file instead.
 
 A **deviation** is any divergence between what gets implemented and the **approved proposal**
 for the current task — plus the plan / tasklist / vision where those artifacts exist. The
-approved proposal is the anchor because it exists in both the full `feature-development`
-pipeline and the lean `dev` loop (which may have no `plan.md`).
+approved proposal is the anchor because it exists on every run of `feature-development`,
+whichever head ran — behind the lean and the bug head there may be no `plan.md`.
 
 The protocol applies **after** approval, during implementation. Conflicts discovered while
 drafting a proposal are surfaced in the proposal itself, not here.
@@ -30,7 +30,7 @@ drafting a proposal are surfaced in the proposal itself, not here.
 ## 3. The notes file — `implementation-notes.md`
 
 Path resolution mirrors the tasklist ([ticket-parsing.md](ticket-parsing.md) §4): use the same
-scope as the tasklist the current task came from. When no tasklist exists (ad-hoc `dev` runs),
+scope as the tasklist the current task came from. When no tasklist exists,
 resolve by `PHASE_NUM` per that document's §4.
 
 - Phase-scoped: `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/implementation-notes.md`
@@ -111,9 +111,9 @@ severity, and after a colon every file that deviation changed, repo-relative and
 comma-separated. A deviation that changed no file (a decision recorded, a check left undone)
 keeps the bare `D<n> (<severity>)`, the form every completion took before 0.23.0.
 
-Orchestrators (`dev`, `feature-development`) aggregate these lines and always include a
-deviations line in their final report — the user must never have to open the notes file to
-learn that something diverged. They also add every path the line names to `run-state.json`
+The orchestrator (`feature-development`) aggregates these lines and always includes a
+deviations line in its final report — the user must never have to open the notes file to
+learn that something diverged. It also adds every path the line names to `run-state.json`
 `deviation_files` ([autonomous-run.md](autonomous-run.md) §2): a later task on one of those
 files is routed `full` (§16, floor 4).
 

@@ -76,6 +76,12 @@ The rules everything else obeys, plus the config mechanism they will reference.
 - [x] First-run init interview: no config found → interview → write `.artel/config.json`.
       Shipped as the `setup` skill (`/artel:setup`) — see design.md's decision log for the
       naming.
+- [x] One orchestrator (0.25.0): `dev` folded into `feature-development` — a thin `SKILL.md`,
+      one file per head (`heads/full.md`, `heads/lean.md`, `heads/bug.md`) and one `tail.md`;
+      sizing picks the head, and `/artel:dev` stays as an alias for one release (design.md
+      decision log, 2026-09-30).
+- [ ] Cleanup release (0.26.0): delete the `/artel:dev` alias and the old-format tasklist
+      reader paths, once no old-format ticket is in flight (design.md, Open follow-ups).
 
 ## Phase 5 — hooks and gates
 

@@ -431,11 +431,22 @@ def route_of(task):
     return head.lower(), reason
 
 
-def route_floor(task, rules, threshold=ROUTE_FULL_FILES):
+def _in_trail(path, trail):
+    """True when a `Files:` path lies under the ticket's spec-trail prefix."""
+    if path.startswith('./'):
+        path = path[2:]
+    return path.startswith(trail)
+
+
+def route_floor(task, rules, threshold=ROUTE_FULL_FILES, trail=None):
     """(floor, reasons): floor is `full` when a static floor applies, else None.
 
     Floors 1-3 of docs/task-grammar.md §7. Floor 4 (an earlier deviation on the same
     files) is known only at runtime and is applied by the orchestrator.
+
+    `trail` is the ticket's spec trail as a repo-relative prefix ending in `/`. A HITL
+    task whose files all lie under it is an evidence record: floor 2 leaves it alone.
+    Without a trail, or without files, every HITL task is floored.
     """
     reasons = []
     files = files_of(task)
@@ -445,21 +456,24 @@ def route_floor(task, rules, threshold=ROUTE_FULL_FILES):
                 reasons.append('sensitive path ({}): {}'.format(category.get('name'),
                                                                 entry['path']))
                 break
-    if task['hitl']:
+    record_only = bool(trail) and bool(files) and all(
+        _in_trail(entry['path'], trail) for entry in files)
+    if task['hitl'] and not record_only:
         reasons.append('HITL tag')
     if len(files) > threshold:
         reasons.append('more than {} files ({})'.format(threshold, len(files)))
     return ('full' if reasons else None), reasons
 
 
-def structured(task, rules):
+def structured(task, rules, trail=None):
     """The contract's structured keys for one task (docs/task-grammar.md §7).
 
     `route_effective` is the higher of the declared route and the floor, except that a
     route set at approval is final: the floor is still reported, for the journal.
+    `trail` is passed to route_floor.
     """
     route, reason = route_of(task)
-    floor, reasons = route_floor(task, rules)
+    floor, reasons = route_floor(task, rules, trail=trail)
     tests, none_reason = tests_of(task)
     produces = task['fields'].get('Produces')
     if reason == APPROVAL_REASON:

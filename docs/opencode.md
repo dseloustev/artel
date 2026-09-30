@@ -19,7 +19,7 @@ and places them into OpenCode's discovery directories:
 
 | Location | Contents |
 |---|---|
-| `~/.config/opencode/skills/artel-<name>/SKILL.md` | every artel skill, prefixed |
+| `~/.config/opencode/skills/artel-<name>/` | every artel skill, prefixed: its `SKILL.md`, and beside it the skill's other Markdown files (the head and tail files of `artel-feature-development`, templates, references) |
 | `~/.config/opencode/commands/artel-<name>.md` | `/artel-<name>` command wrappers |
 | `~/.config/opencode/agents/artel-<name>.md` | the agent crew, prefixed |
 | `~/.config/opencode/plugins/artel.ts` | the bridge plugin |
@@ -30,7 +30,8 @@ Restart OpenCode after installing. Paths are baked at install time — re-run th
 after moving or significantly updating the checkout. Respects `XDG_CONFIG_HOME`.
 
 A refresh and `--remove` delete exactly what the manifest records — skills retired upstream
-are pruned, and a skill of your own that happens to be named `artel-…` is left alone. An
+are pruned, and a skill of your own that happens to be named `artel-…` is left alone. The
+manifest records each generated skill's directory, so every file inside it goes with it. An
 install predating the manifest has none to read, so `--remove` falls back to sweeping every
 `artel-*` artifact in those directories and says so before it does.
 
@@ -42,7 +43,13 @@ prepended `<OPENCODE-HOST-NOTES>` glossary mapping the dialect to OpenCode tools
 (`Skill:` → the `skill` tool, `subagent_type` → the `task` tool, `SendMessage` → a fresh
 `task` dispatch, `AskUserQuestion` → the `question` tool, `$0`/`$ARGUMENTS` → the invoked
 arguments). `${CLAUDE_PLUGIN_ROOT}` is baked to the install root; `/artel:<name>`
-references become `artel-<name>`.
+references become `artel-<name>`. A skill's other Markdown files — `feature-development`'s
+`heads/*.md` and `tail.md`, templates, references — are generated next to its `SKILL.md`,
+baked the same way but with no frontmatter and no glossary: their reader already has the
+glossary through `SKILL.md`. A pointer into a skill's directory
+(`${CLAUDE_PLUGIN_ROOT}/skills/<name>/<file>`) resolves to the generated copy under
+`~/.config/opencode/artel/opencode/dist/skills/artel-<name>/`, never to the Claude-dialect
+source.
 
 **Bridge plugin.** `opencode/plugin/artel.ts` adapts OpenCode events onto the unchanged
 Python hooks (`hooks/README.md` documents their stdin/stdout contracts):
@@ -67,6 +74,7 @@ Everything is inert unless the project has `.artel/config.json`.
 | Two-phase skills (`researcher`, `planner`, …) | `SendMessage` resumes the agent by id | a fresh `task` dispatch; the agent re-reads its context files |
 | Agent model tiers | `opus`/`sonnet` frontmatter, plus a per-dispatch `model` for the implementer's step-up rounds and `deep-review`'s reviewer ([agents.md](agents.md) `## Models`) | dropped — subagents inherit the caller's model (override per agent in your `opencode.json`); a per-dispatch model has no effect |
 | `inner-loop` model-invocation guard | `disable-model-invocation: true` | no equivalent; it is loadable like any skill |
+| A sketch on a question's option (`analysis`, `generate-vision`) | the option's `preview` field | the `question` tool has no such field: the sketch goes into the question text as a fenced block |
 | Knowledge-mirror context | injected after edits | side effect only (the mirror still runs) |
 | Invocation | `/artel:<name>` | `/artel-<name>` (command) or the `artel-<name>` skill |
 

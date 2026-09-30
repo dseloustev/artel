@@ -88,7 +88,7 @@ implementer for it (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §2, fix-writer r
    Exit `0` → for each entry of `data.sections`, in order:
    `task_create(project=<project>, ticket_key=<TICKET_ID>, title=…, description=…, status=…)`
    the section row, then each of its `children` the same way with `parent_id` set to the
-   section row's `task_id`. Skip `data.iterations`: iteration rows are the orchestrators'
+   section row's `task_id`. Skip `data.iterations`: iteration rows are the orchestrator's
    re-mirror. A child emitted `backlog` that comes back `done` → report
    `fix task #<id> is done in the queue but open in the file: <title>`. Surface every
    `data.warnings` line. Exit `2`, or a `Rejected:` line naming `kartoteka project add` →

@@ -127,6 +127,9 @@ These are `deviation-protocol.md` §2 **Major**. Where you are decides the hando
   properly is structural. The orchestrator asks the person.
 - **In `/artel:debugging`** — report the cause, explain what makes the proper fix structural,
   leave the code as it is, and offer `/artel:issue-draft` to turn the report into a ticket.
+- **In diagnose mode** (`/artel:debugging <ticket> --diagnose`) — record the cause in the
+  ticket's `diagnosis.md` with status `DIAGNOSED_STRUCTURAL` and say which condition holds. No
+  ticket is drafted: the ticket exists, and its orchestrator moves it to the full pipeline.
 
 Never widen the scope quietly.
 
@@ -171,3 +174,11 @@ holds:
 | `agents/implementer.md` | a behavioural fix-section row | §2, §3 (the reproduction), §4, §6 |
 | `agents/reviewer.md` | re-reviewing a fix round | §3 — a `behavior` row closed without red-first evidence is Important |
 | `/artel:debugging` | a person's bug, outside a run | §1–§6 |
+| `/artel:debugging --diagnose` | the bug head (`heads/bug.md` of `feature-development`), before any work list | §2.1–§2.3, §3, §4, §5, §6 — and stops before §2.4 |
+| `/artel:debugging` | a red-gate halt (`tail.md`, "Debug it here first"), at the person's choice | §1–§6; the orchestrator journals the fix and re-runs the gate |
+
+Diagnose mode ends in a document instead of a fix: `diagnosis.md` in the ticket's spec trail,
+its status `DIAGNOSED` (a confirmed cause with a local fix), `DIAGNOSED_STRUCTURAL` (a confirmed
+cause whose proper fix is structural, §4) or `NOT_REPRODUCED` (§6's "cannot reproduce", after
+the person was asked for more). The failing test of §2.4 is then the first task of the work
+list written from it.

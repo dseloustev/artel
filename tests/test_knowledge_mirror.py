@@ -78,6 +78,13 @@ class TestArtifactIdentity(unittest.TestCase):
         self.assertIsNone(
             km.artifact_identity('specs/.current/AW-1234/review-summary.md', CONFIG))
 
+    def test_a_spike_answer_and_a_diagnosis_are_mirrored(self):
+        # 0.25.0: a ticket that asks a question gets spike.md, a bug ticket diagnosis.md.
+        self.assertEqual(km.artifact_identity('specs/.current/AW-1234/spike.md', CONFIG),
+                         ('AW-1234', 'spike', 'spike.md'))
+        self.assertEqual(km.artifact_identity('specs/.current/AW-1234/diagnosis.md', CONFIG),
+                         ('AW-1234', 'diagnosis', 'diagnosis.md'))
+
     def test_directory_not_matching_the_ticket_pattern_is_not_mirrored(self):
         self.assertIsNone(km.artifact_identity('specs/.current/scratch/prd.md', CONFIG))
 

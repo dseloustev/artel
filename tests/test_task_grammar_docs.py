@@ -100,7 +100,7 @@ class TestGrammarContract(unittest.TestCase):
 
     def test_old_format_and_ids(self):
         doc = flat(self.doc)
-        self.assertIn('The old format stays until sub-project 2b ships', doc)
+        self.assertIn('No writer of the old format remains', doc)
         self.assertIn('never appear in code, tests, identifiers, comments or commit subjects',
                       doc)
         self.assertIn('The fix sections are outside this grammar.', doc)
@@ -390,13 +390,15 @@ class TestReviewerPlanMode(unittest.TestCase):
 
 
 class TestGateFourTwoPlanReviewed(unittest.TestCase):
-    """Spec §6.1, §6.3, §6.4: gate 4.2 in feature-development and the pause around it."""
+    """Spec §6.1, §6.3, §6.4: gate 4.2 and the pause around it — feature-development's full head
+    (heads/full.md) since 0.25.0. Arming stays in SKILL.md."""
 
     def setUp(self):
-        self.raw = _w_raw('skills/feature-development/SKILL.md')
+        self.raw = _w_raw('skills/feature-development/heads/full.md')
+        self.head = _w_flat('skills/feature-development/heads/full.md')
         self.fd = _w_flat('skills/feature-development/SKILL.md')
-        self.gate = _w_between(self.fd, '#### Gate 4.2 — the plan review', '### 3. THE ONE PAUSE')
-        self.pause = _w_between(self.fd, '### 3. THE ONE PAUSE', '### 4. Arm the run')
+        self.gate = _w_between(self.head, '### Gate 4.2 — the plan review', '## THE ONE PAUSE')
+        self.pause = _w_between(self.head, '## THE ONE PAUSE')
 
     def test_the_row_sits_between_the_tasklist_and_phase_extraction(self):
         self.assertLess(self.raw.index('| 4 | `TASKLIST_READY`'),
@@ -458,19 +460,20 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
         self.assertIn('guardrail, not a pause preference', yolo)
 
     def test_the_run_start_entry_records_the_outcome(self):
-        arm = _w_between(self.fd, '### 4. Arm the run', 'Then run the **planning checkpoint**')
+        arm = _w_between(self.fd, '### 5. Arm the run', 'Then run the **planning checkpoint**')
         self.assertIn("the plan review's outcome", arm)
 
 
 class TestDevPathPlanCheck(unittest.TestCase):
-    """Spec §6.1: the mechanical half on the dev path — generate-tasklist's draft and ladder
-    branch 1's existing tasklist; branch 3 stays in the old format."""
+    """Spec §6.1: the mechanical half on the lean path — generate-tasklist's draft and branch 1
+    of the lean head's ladder (heads/lean.md since 0.25.0); the third branch and its old-format
+    work list are gone."""
 
     def setUp(self):
         self.gen = _w_flat('skills/generate-tasklist/SKILL.md')
         self.check = _w_between(self.gen, '### Phase 1b: Check the draft', '### Phase 2:')
-        self.ladder = _w_between(_w_flat('skills/dev/SKILL.md'), '### 2. Input ladder',
-                                 '### 3. Arm the run')
+        self.ladder = _w_between(_w_flat('skills/feature-development/heads/lean.md'),
+                                 '## The ladder', '## Routes at the confirmation')
 
     def test_the_draft_is_checked_before_the_approval_round(self):
         raw = _w_raw('skills/generate-tasklist/SKILL.md')
@@ -515,8 +518,9 @@ class TestDevPathPlanCheck(unittest.TestCase):
                        '`plan check: not run (<error.kind>)`'):
             self.assertIn(phrase, self.ladder)
 
-    def test_branch_three_stays_in_the_old_format(self):
-        self.assertIn('This work list stays in the old checkbox format', self.ladder)
+    def test_the_third_branch_is_gone(self):
+        self.assertNotIn('old checkbox format', self.ladder)
+        self.assertIn('2. **Otherwise** → `Skill: generate-tasklist` with `$0`', self.ladder)
 
     def test_yolo_still_presents_a_critical_or_important_finding(self):
         self.assertIn('a Critical or Important plan-check finding still presents the'
@@ -769,7 +773,7 @@ class TestPromotionByDependency(unittest.TestCase):
             self.assertIn(phrase, mirror)
         bullet = _between(flat(read('docs/autonomous-run.md')), '**Task-queue mirror**', '## 10.')
         self.assertIn('For a task-format tasklist it is also the first mirror', bullet)
-        remirror = _between(flat(read('skills/feature-development/SKILL.md')),
+        remirror = _between(flat(read('skills/feature-development/tail.md')),
                             '**Re-mirror first.**', '| 5 |')
         self.assertIn('For a task-format tasklist this step is also the first mirror', remirror)
 
@@ -858,7 +862,8 @@ class TestRoutes(unittest.TestCase):
 
     def test_feature_development_routes(self):
         fd = flat(read('skills/feature-development/SKILL.md'))
-        gate = _between(fd, '| 5 | `IMPLEMENT_STEP_OK`', '| 6 |')
+        gate = _between(flat(read('skills/feature-development/tail.md')),
+                        '| 5 | `IMPLEMENT_STEP_OK`', '| 6 |')
         for phrase in ('add every path its `Deviations:` line names to `run-state.json` `deviation_files`',
                        '**Routes** (autonomous-run.md §16)',
                        'before every iteration-task dispatch',
@@ -867,31 +872,26 @@ class TestRoutes(unittest.TestCase):
                        'a `light` task gets none',
                        'On an old-format tasklist there are no routes'):
             self.assertIn(phrase, gate)
-        pause = _between(fd, '**Routes at the pause**', '### 4. Arm the run')
+        pause = _between(flat(read('skills/feature-development/heads/full.md')),
+                         '**Routes at the pause**')
         for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered',
                        'In `yolo` the routes stand as declared and floored'):
             self.assertIn(phrase, pause)
-        arm = _between(fd, '### 4. Arm the run', '### 5.')
+        arm = _between(fd, '### 5. Arm the run', '### 6.')
         self.assertIn('`deviation_files: []` (§2)', arm)
         self.assertIn('carry `requested_local` and `deviation_files` forward unchanged', arm)
 
-    def test_dev_routes(self):
-        dev = flat(read('skills/dev/SKILL.md'))
-        confirm = _between(dev, '**Routes at the confirmation**', 'The confirmed work list')
+    def test_lean_head_routes(self):
+        lean = flat(read('skills/feature-development/heads/lean.md'))
+        confirm = _between(lean, '## Routes at the confirmation', '## Raised by the writer')
         for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered',
-                       "Branch 3's work list has no routes"):
+                       'An old-format tasklist shows no routes.'):
             self.assertIn(phrase, confirm)
-        arm = _between(dev, '### 3. Arm the run', '### 4.')
+        fd = flat(read('skills/feature-development/SKILL.md'))
+        arm = _between(fd, '### 5. Arm the run', '### 6.')
         self.assertIn("every task's effective route (§16.1)", arm)
-        self.assertIn('carry `deviation_files` forward unchanged', arm)
-        step = _between(dev, '### 4. Implement (autonomous)', '### 5.')
-        for phrase in ('add every path the `Deviations:` line names to `run-state.json` `deviation_files`',
-                       '**Routes** (autonomous-run.md §16)',
-                       'a `light` task gets none',
-                       'On an old-format tasklist'):
-            self.assertIn(phrase, step)
-        self.assertIn("a task's `Route:` line changed at the step-2 confirmation",
-                      _between(dev, '## Important'))
+        self.assertIn("a task's `Route:` line changed at the lean head's confirmation",
+                      _between(fd, '## Important'))
 
     def test_config_setup_and_run_reviewer(self):
         row = _between(flat(read('docs/config.md')), '| `review.perTask` |',
@@ -922,7 +922,9 @@ class TestReadersAudit(unittest.TestCase):
         'docs/task-grammar.md', 'docs/task-queue.md', 'docs/ticket-parsing.md',
         'docs/workflow-guide.md', 'skills/address-pr-comment/SKILL.md',
         'skills/change-digest/SKILL.md', 'skills/deep-review/SKILL.md', 'skills/dev/SKILL.md',
-        'skills/feature-development/SKILL.md', 'skills/generate-tasklist/SKILL.md',
+        'skills/feature-development/SKILL.md', 'skills/feature-development/heads/bug.md',
+        'skills/feature-development/heads/full.md', 'skills/feature-development/heads/lean.md',
+        'skills/feature-development/tail.md', 'skills/generate-tasklist/SKILL.md',
         'skills/implementer/SKILL.md', 'skills/issue-draft/SKILL.md', 'skills/planner/SKILL.md',
         'skills/pr-description/SKILL.md', 'skills/researcher/SKILL.md',
         'skills/run-reviewer/SKILL.md', 'skills/sync-phases/SKILL.md', 'skills/tasklist/SKILL.md',
@@ -932,6 +934,7 @@ class TestReadersAudit(unittest.TestCase):
     def test_every_tasklist_reader_was_audited(self):
         pattern = _re.compile(r'tasklist\.md|tasks\.md|checkbox|- \[ \]|first incomplete')
         live = (sorted(_ROOT.glob('agents/*.md')) + sorted(_ROOT.glob('skills/*/SKILL.md'))
+                + sorted(_ROOT.glob('skills/*/heads/*.md')) + sorted(_ROOT.glob('skills/*/tail.md'))
                 + sorted(_ROOT.glob('docs/*.md')) + [_ROOT / 'README.md'])
         readers = {str(p.relative_to(_ROOT)) for p in live
                    if pattern.search(p.read_text(encoding='utf-8'))}
@@ -1002,10 +1005,9 @@ class TestTaskGrammarReleaseDocs(unittest.TestCase):
         self.assertIn("and on the task's `Test:` files", implementer)
         self.assertIn("Task mode is the `full` route's review",
                       _between(ref, '### run-reviewer', '### run-app'))
-        for entry, end in (('### feature-development', '### dev'), ('### dev', '### setup')):
-            with self.subTest(entry):
-                self.assertIn("a task's own review runs when its route is `full`",
-                              _between(ref, entry, end))
+        # `dev` is an alias since 0.25.0: its entry points at feature-development's.
+        self.assertIn("a task's own review runs when its route is `full`",
+                      _between(ref, '### feature-development', '### dev'))
 
     def test_readme(self):
         self.assertIn('**Tasks with dependencies and routes**', flat(read('README.md')))
@@ -1019,14 +1021,14 @@ class TestTaskGrammarReleaseDocs(unittest.TestCase):
                        '**2026-09-29 — Requirement IDs live in the PRD, and the plan is reviewed '
                        'before the pause.**',
                        '**2026-09-29 — Old-format tasklists keep working until 2b.**',
-                       '**Sub-project 2b: one orchestrator**', '**Sub-project 2c: parallel seats.**',
-                       '**Old-format tasklists are still read** (0.23.0).'):
+                       '**Sub-project 2c: parallel seats.**'):
             self.assertIn(phrase, design)
+        # 0.25.0 closed "Sub-project 2b" and "SDD v2 inputs for sub-project 2" and turned the
+        # old-format follow-up into the cleanup release: tests/test_one_orchestrator_docs.py.
         follow_ups = _between(design, '## Open follow-ups', '## Decision log')
-        sdd = _between(follow_ups, '**SDD v2 inputs for sub-project 2**', '**Sub-project 2b')
-        self.assertIn('Sub-project 2b still owes', sdd)
-        self.assertNotIn('an `Implements` line per task', sdd)
-        self.assertNotIn('a plan-review rubric', sdd)
+        self.assertNotIn('Sub-project 2b still owes', follow_ups)
+        self.assertNotIn('an `Implements` line per task', follow_ups)
+        self.assertNotIn('a plan-review rubric', follow_ups)
 
     def test_changelog(self):
         # Everything since 0.22.0: [Unreleased] before the release is cut, [0.23.0] after.

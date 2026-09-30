@@ -66,29 +66,43 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 ### feature-development
 
-- **Purpose:** End-to-end autonomous orchestrator that carries a ticket from idea through PRD,
-  vision, plan, tasklist, implementation, review, runtime check, docs (once per ticket), and PR — with exactly
-  one approval pause.
-- **Invocation:** `/artel:feature-development [ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]`
+- **Purpose:** The one entry point for ticket work. It imports the ticket, sizes the work —
+  `spike`, `bug`, `bounded` or `architectural` — says the size aloud, runs the head that size
+  calls for (full: PRD, vision, plan, tasklist; lean: a work list; bug: a diagnosis, then the
+  work list), and then one tail on every run: implementation, review, runtime check, docs (once
+  per ticket, when a PRD exists) and the PR — with exactly one approval pause.
+- **Invocation:** `/artel:feature-development [ticket-id] or [ticket-id]-[phase] [description-file] [--head=full|lean|bug] [--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]`
 - **Reads:** `.artel/config.json` (missing → invokes `setup` first); whichever ticket artifacts
-  already exist (`idea.md`, `prd.md`, `vision.md`, `plan.md`, `tasklist.md`) — skip-if-exists
-  governs each gate; `.artel/run/<TICKET_ID>/open-questions.md`; `run-state.json` /
-  `run-journal.md` on resume.
-- **Writes:** `<specs.dir>/.active_ticket`, `.artel/run/<TICKET_ID>/run-state.json`,
+  already exist (`idea.md`, `prd.md`, `vision.md`, `plan.md`, `tasklist.md`, `spike.md`,
+  `diagnosis.md`) — they size the run, and skip-if-exists governs each gate;
+  `.artel/run/<TICKET_ID>/sizing.json` and `open-questions.md`; `run-state.json` /
+  `run-journal.md` on resume. The skill is five files: `SKILL.md` (the shared start, sizing,
+  arming), one head — `heads/full.md`, `heads/lean.md` or `heads/bug.md`, read after sizing —
+  and `tail.md`, read once the run is armed.
+- **Writes:** `<specs.dir>/.active_ticket`, `.artel/run/<TICKET_ID>/sizing.json`, `run-state.json`,
   `run-journal.md`, `runtime-observation.md` (the runtime-retry counter — run bookkeeping,
   distinct from `run-app`'s `runtime/observation.md` evidence in the spec trail), the
   `open-questions.md` status flips, and the description-file sync — everything else (`prd.md`,
   `vision.md`, `plan.md`, `tasklist.md`, `review.md`, `pr-description.md`, …) is
   delegated to sub-skills/agents. Also performs the checkpoint commits & pushes to `origin`
-  (autonomous-run.md §14: planning + one per completed phase).
-- **Pauses:** one plan+tasklist approval pause (skipped entirely in `yolo`, per
-  autonomous-run.md §10); mid-run HITL tasks, deviation escalations, and loop-cap escalations;
-  the PR-gate confirmation in `plan-gate` mode (proceeds without pausing in `yolo`).
-- **Notes:** `--mode=yolo|plan-gate|full-gates` resolves per autonomous-run.md §10 (the risk
-  classifier may raise the effective mode, never lower it); `--dry-run` runs only the chatty
-  head + the approval-pause presentation, prints the resolved mode + reasons and the intended
-  external actions, writes no `run-state.json`, and never arms — **this flag exists only on
-  `feature-development`, not on `dev`**. `--step` is legacy per-gate confirmation mode (alias
+  (autonomous-run.md §14: the planning or work-list checkpoint + one per completed phase).
+- **Pauses:** one approval pause — the full head's plan+tasklist approval, or the lean and bug
+  heads' work-list confirmation (skipped entirely in `yolo`, per autonomous-run.md §10); the bug
+  head's question when a bug is not reproduced; mid-run HITL tasks, deviation escalations, and
+  loop-cap escalations; the PR-gate confirmation in `plan-gate` mode (proceeds without pausing
+  in `yolo`). Sizing never pauses.
+- **Notes:** sizing (autonomous-run.md §17) takes the first rule that matches —
+  `--head=full|lean|bug`; a recorded `sizing.json`; what exists (a PRD or a plan →
+  `architectural`, `diagnosis.md` → `bug`, a tasklist with open tasks or `vision.md` →
+  `bounded`); judgement over `idea.md`, heavier in doubt, `bug` winning any doubt it is part
+  of. Only the flag lowers a size; a head may raise it to `architectural` until the run is armed
+  (the writer's `RAISE`, a structural diagnosis). A `spike` has no head: `researcher --question`
+  writes `spike.md` and the run stops, nothing armed. An armed run resumes past its head, and a
+  `--head` flag on it is ignored. `--mode=yolo|plan-gate|full-gates` resolves per
+  autonomous-run.md §10 (the risk classifier may raise the effective mode, never lower it);
+  `--dry-run` runs the head to the end of its approval, prints the resolved mode + reasons and
+  the intended external actions, writes no `run-state.json`, and never arms; `--dry-run` and
+  `--local` apply to every head. `--step` is legacy per-gate confirmation mode (alias
   `--mode=full-gates`, autonomous-run.md §6): no `run-state.json`, hooks stay disarmed. Every
   worker-skill gate follows skip-if-exists (autonomous-run.md §9); `pr-description` is the
   deliberate exception, always regenerated at close-out. Gate 3.5 (`PLAN_GROUNDED`) runs
@@ -100,31 +114,27 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   checklist itself (autonomous-run.md §7); QA and validate are not pipeline stages since 0.18.0.
   On a task-format tasklist the approval pause also lists every task's route, which the person
   may change, and a task's own review runs when its route is `full` (autonomous-run.md §16).
+  The tail is the same behind every head: the docs stage (gate 10) runs when the ticket has a
+  PRD and is journaled `skipped (no PRD)` otherwise; the completion gate, `pr-description` and
+  the PR gate close every run, and in `yolo` the PR is opened without asking. On three red-gate
+  halts the escalation offers **Debug it here first** (autonomous-run.md §5).
 
 ### dev
 
-- **Purpose:** Lean autonomous implementation loop for straightforward work — implement, review,
-  and runtime-gate a confirmed work list, with no PRD/plan/docs artifacts.
+- **Purpose:** Alias, for one release, of `/artel:feature-development --head=lean`. It goes away
+  in 0.26.0.
 - **Invocation:** `/artel:dev [ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates]`
-- **Reads:** `.artel/config.json` (missing → invokes `setup` first); an existing tasklist or
-  `phase-<N>/tasks.md` with incomplete tasks; else `idea.md` + `vision.md`; else `$1`/an inline
-  description.
-- **Writes:** `<specs.dir>/.active_ticket`, `.artel/run/<TICKET_ID>/run-state.json`,
-  `run-journal.md`, `runtime-observation.md`, the work-list tasklist written during the input
-  ladder, and the description-file sync. Also performs the checkpoint commits & pushes to
-  `origin` (autonomous-run.md §14: work-list + one per completed phase), sweeping spec-trail
-  images into kartoteka first on that path (spec-storage.md §4.6).
-- **Pauses:** one work-list confirmation — it happens even when an existing tasklist is found
-  (skipped in `yolo`; genuine ambiguity on the description-only input path still asks even in
-  `yolo`); mid-run HITL tasks, deviation escalations, and loop-cap escalations. No PR gate — commits/pushes happen at the §14 checkpoints; only opening the PR
-  remains manual (`dev` never invokes `pr-create`).
-- **Notes:** `--mode` resolves the same way as `feature-development` (autonomous-run.md §10);
-  `--step` is the legacy per-gate mode (alias `--mode=full-gates`, §6). **No `--dry-run` flag**
-  — that is a `feature-development`-only capability. No PRD/plan/docs gates exist on this path.
-  Multi-phase tasklists are traversed phase-by-phase in one run (autonomous-run.md §15)
-  with a checkpoint commit+push per phase. On a task-format tasklist the work-list confirmation
-  lists every task's route, and a task's own review runs when its route is `full`
-  (autonomous-run.md §16).
+- **Reads:** nothing itself. It prints
+  `/artel:dev is now /artel:feature-development --head=lean and goes away in 0.26.0.` and
+  invokes [`feature-development`](#feature-development) with its arguments and `--head=lean`.
+- **Writes:** nothing itself; whatever the run writes is `feature-development`'s.
+- **Pauses:** as `feature-development` on the lean head — one work-list confirmation, the
+  guardrail pauses, and the PR gate.
+- **Notes:** a run started here is a `feature-development` run in every respect. What changed
+  for it in 0.25.0: the ticket is imported into `idea.md` first; the run ends with a PR
+  description and the PR gate, and in `yolo` it opens the PR unattended; it takes `--dry-run`
+  and `--local`; its work list, when it has to be written, comes from `generate-tasklist` in
+  the task grammar. A run armed before 0.25.0 resumes past its head through either command.
 
 ### setup
 
@@ -141,7 +151,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   ticket grammar → adapters → quality gate + languages → optional extras); a
   present-and-parseable config asks Revise/Abort first, a broken one asks Recreate/Abort.
 - **Notes:** worker, not orchestrator — runs inline. Invoked automatically by
-  `feature-development`/`dev` when no config exists; run manually to create or revise. Reports
+  `feature-development` when no config exists; run manually to create or revise. Reports
   which gates are armed vs will record `skipped`, and reminds that `.artel/config.json` is
   committed team configuration (checkpoint commits never stage `.artel/`).
 
@@ -194,7 +204,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Run the upfront requirements interview and draft the ticket's PRD.
 - **Invocation:** `/artel:analysis [ticket-id] or [ticket-id]-[phase] [description-file] [--local]`
 - **Reads:** `idea.md` (or the `$1` description file) as the interview seed;
-  `design-analysis.md` when present; the `analyst` agent explores the codebase before asking
+  `design-analysis.md`, `diagnosis.md` and `spike.md` when present; the `analyst` agent
+  explores the codebase before asking
   anything, and consults the institutional-knowledge index when `knowledge.adapter` is
   `kartoteka` and its MCP tools are in the session (config.md; `--local` forces this off for
   one run). Answers found there close Resolved Questions with a citation instead of being asked.
@@ -206,7 +217,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   nor a description file exists, or the description is too vague.
 - **Notes:** orchestrator per the skill-orchestrator contract — delegates all PRD writing to the
   `analyst` agent. Never reads `vision.md`; phase scope and never-overwrite rules live in
-  ticket-parsing.md §4–§5 and §7.
+  ticket-parsing.md §4–§5 and §7. On a question about a layout or a step flow an option may
+  carry a `preview` — a monospace sketch, at most 12 lines of 60 columns — on single-choice
+  questions only, and only when the ticket has no `DESIGN_ANALYZED` design analysis.
 
 ### generate-vision
 
@@ -221,12 +234,15 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   manual invocation, an Overwrite/Abort prompt when `vision.md` already exists (pipeline runs
   skip-if-exists, autonomous-run.md §9).
 - **Notes:** ticket-level only — a phase suffix is ignored with a printed note. One agent
-  (`vision-writer`), one draft, one checkpoint — no per-section approvals.
+  (`vision-writer`), one draft, one checkpoint — no per-section approvals. On an architecture
+  choice whose options differ in shape, an option may carry a `preview` — a component or
+  data-flow sketch, at most 12 lines of 60 columns — on single-choice questions only.
 
 ### researcher
 
-- **Purpose:** Gather codebase/technical context and produce the ticket's research document.
-- **Invocation:** `/artel:researcher [ticket-id] or [ticket-id]-[phase] [--local]`
+- **Purpose:** Gather codebase/technical context and produce the ticket's research document —
+  or, with `--question`, answer the question a spike ticket asks.
+- **Invocation:** `/artel:researcher [ticket-id] or [ticket-id]-[phase] [--question] [--local]`
 - **Reads:** PRD (phase-scoped with ticket-wide fallback), `idea.md`, `vision.md`, and the phase
   tasks file when one exists; the codebase (scan only); and the institutional-knowledge index
   when `knowledge.adapter` is `kartoteka` and its MCP tools are in the session (config.md;
@@ -235,13 +251,19 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   Decisions** section records what the knowledge index held — or states that nothing was found,
   or that consultation did not happen and why; unresolved questions to
   `.artel/run/<TICKET_ID>/open-questions.md` (`from: researcher`) with proposed defaults.
+  With `--question`: `<specs.dir>/<TICKET_ID>/spike.md` — the answer first, then the evidence,
+  prior decisions, what it would take and the open questions — and no `research.md`; no PRD is
+  read or required, the question being the ticket's.
 - **Pauses:** never — this skill never asks the user (autonomous-run.md §3); questions are
-  recorded with defaults and research proceeds on them.
+  recorded with defaults and research proceeds on them. With `--question` it asks only what the
+  ticket leaves open about the question itself.
 - **Notes:** orchestrator (dispatches the `researcher` agent in a phased
   extract-questions-then-research model); refuses per the phase-ambiguity rule
   (ticket-parsing.md §5) when `PHASE_NUM` is unset but `phase-*/` subfolders already exist;
   never overwrites the ticket-wide `research.md` from a phase-scoped run; read-only — no code
-  changes.
+  changes. `--question` is what `feature-development` runs for a ticket sized `spike`
+  (autonomous-run.md §17), and it runs à la carte; its last line is
+  `Spike answered: <one-line answer> — <path>`.
 
 ### planner
 
@@ -270,25 +292,36 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `.artel/run/<TICKET_ID>/open-questions.md` (`from: tasklist`).
 - **Pauses:** never.
 - **Notes:** thin orchestrator — the `task-planner` agent owns input/output paths, format, and
-  rules, so this skill does not restate them. Requires the full PRD/plan chain; the lean
-  idea+vision-only path is `generate-tasklist`, not this skill.
+  rules, so this skill does not restate them. Requires the full PRD/plan chain; a work list
+  written from the idea alone is `generate-tasklist`'s, not this skill's.
 
 ### generate-tasklist
 
-- **Purpose:** Produce the ticket's iterative tasklist directly from idea + vision, skipping the
-  PRD/plan chain used by the full pipeline.
-- **Invocation:** `/artel:generate-tasklist [ticket-id] [idea-file] [vision-file]`
-- **Reads:** `idea.md`, `vision.md` (both overridable via `$1`/`$2`); errors if the resolved
-  vision file is missing, pointing at `/artel:generate-vision`.
-- **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/tasklist.md` (Progress Report table,
-  numbered Iterations, file-grouped checkbox tasks, `**Test:**` footer per iteration).
+- **Purpose:** Write the ticket's work list in the task grammar from the idea — with the vision,
+  a spike or a diagnosis when they exist — without the PRD/plan chain. It is the lean head's and
+  the bug head's writer, and it runs à la carte.
+- **Invocation:** `/artel:generate-tasklist [ticket-id] [idea-file] [vision-file] [--local]`
+- **Reads:** `idea.md` (required; `$1` overrides it); `vision.md` when it exists (`$2`
+  overrides it) — without one the writer grounds the work list in the idea and the codebase;
+  `spike.md` and `diagnosis.md` when they exist; the PRD, for its requirement IDs only.
+- **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/tasklist.md` in the task grammar
+  ([task-grammar.md](task-grammar.md)) — Progress Report table, numbered Iterations, task blocks
+  with `Files`, `Depends on`, `Route` and `Test`, a `**Test:**` footer per iteration — with
+  status `TASKLIST_READY` in its header. Mirrors it into the task queue after approval, unless
+  `--local` was passed.
 - **Pauses:** one questions+approval round (`AskUserQuestion`: Approve / Request changes /
-  Abort) — this doubles as `dev`'s mini-interview and single work-list confirmation; an
+  Abort), which shows every task's route — it is the lean and the bug heads' interview and their
+  single work-list confirmation; an
   Overwrite/Abort prompt on manual invocation when `tasklist.md` already exists (pipeline runs
   skip-if-exists, autonomous-run.md §9).
 - **Notes:** ticket-level only — a phase argument is ignored with a printed note ("iterations
   are the phases"). One agent (`tasklist-writer`), one draft — never a second agent spawn;
-  never writes the file itself, only the agent does.
+  never writes the file itself, only the agent does. In place of a draft the writer may return
+  `RAISE: <reason>; <reason>` — an open product question it cannot ground in the ticket or the
+  code, or, with no vision, work that needs more than one iteration. The skill prints that line
+  and `Next: /artel:feature-development <TICKET_ID> --head=full`, and stops; inside a run the
+  orchestrator raises the size instead. With a `DIAGNOSED` diagnosis, task `1.1` writes the
+  failing test for the reproduction and no task reaches beyond the fix origin.
 
 ### implementer
 
@@ -296,7 +329,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   on a task-format tasklist one whole `### Task N.M:` block per dispatch, every step ticked.
 - **Invocation:** `/artel:implementer [ticket-id] or [ticket-id]-[phase] [--local] [--model sonnet|opus|fable]`
 - **Model:** the agent's frontmatter `opus`; `--model` overrides it for one dispatch — the
-  orchestrators pass `fable` on a fix round that follows a failed one
+  orchestrator passes `fable` on a fix round that follows a failed one
   ([autonomous-run.md](autonomous-run.md) §5).
 - **Reads:** on the queue path a `task_ready` claim from kartoteka, else the phase tasks
   file or `tasklist.md` (first `- [ ]` task in scope; on a task-format tasklist the first task
@@ -372,7 +405,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   ([task-queue.md](task-queue.md) §6).
 - **Pauses:** never.
 - **Notes:** orchestrator (dispatches the `reviewer` agent). Capped at `MAX_REVIEW_ROUNDS`
-  (autonomous-run.md §5) — the cap is enforced by the calling orchestrators, which loop it
+  (autonomous-run.md §5) — the cap is enforced by the calling orchestrator, which loops it
   against implementer fix rounds until clean or capped. Task mode is the `full` route's review
   of autonomous-run.md §16 (every task with `review.perTask: true`; one fix round,
   `MAX_TASK_REVIEW_ROUNDS = 1`, no per-task re-review — open fix tasks are handed to the phase
@@ -453,8 +486,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   variant) plus a `CHANGELOG.md` entry.
 - **Pauses:** never.
 - **Notes:** thin orchestrator — the agent owns its own input/output paths. Runs as
-  `feature-development` gate 10 (`DOCS_UPDATED`) once per ticket, on the last phase before its checkpoint
-  commit; `dev` has no docs gate.
+  `feature-development`'s gate 10 (`tail.md`), `DOCS_UPDATED`, once per ticket, on the last
+  phase before its checkpoint commit, when the ticket has a PRD; a run with no PRD journals
+  `DOCS_UPDATED: skipped (no PRD)`, and the skill stays available à la carte.
 
 ### pr-description
 
@@ -487,8 +521,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `<TICKET_ID>: <tracker summary>`, body from `pr-description.md`), a tracker comment with the
   PR URL — or `<specs.dir>/<TICKET_ID>/pr-pending.md` when an adapter identity check fails
   (report and stop, never fabricate).
-- **Pauses:** never directly — `feature-development`'s PR gate wraps the invocation with a
-  confirmation in `plan-gate` mode only; proceeds without pausing in `yolo`. Stops-and-asks
+- **Pauses:** never directly — the PR gate (`tail.md`) of `feature-development` wraps the
+  invocation with a confirmation in `plan-gate` mode only, behind every head; it proceeds
+  without pausing in `yolo`. Stops-and-asks
   only on a missing/malformed Bitbucket remote or an ambiguous default branch.
 - **Notes:** **idempotent by design** — a clean `git status --porcelain` skips the commit; an
   existing open PR (matched on branch **and** repo slug for Bitbucket) is never re-created,
@@ -508,14 +543,17 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Find the root cause of a bug, failing test or unexpected behaviour, prove it with
   a test that fails first, and make one fix at the origin — or, when the right fix is
-  structural, hand the cause to a ticket instead of patching it.
-- **Invocation:** `/artel:debugging [symptom | failing test | error text]`
+  structural, hand the cause to a ticket instead of patching it. With `<ticket-id> --diagnose`
+  it stops at the cause and writes the ticket's diagnosis.
+- **Invocation:** `/artel:debugging [symptom | failing test | error text] or <ticket-id> --diagnose [--local]`
 - **Reads:** [debugging.md](debugging.md) (the discipline); `.artel/config.json` when present
   (`verify.fast`, `verify.test`, `knowledge.adapter`); the host's conventions docs for its test
   command.
 - **Writes:** the fix and its test in the working tree; throwaway reproduction scripts under
   `.artel/run/repro/`. Never commits or pushes, and never touches spec documents, the tasklist,
-  the task queue or a ticket's run state.
+  the task queue or a ticket's run state — with one exception: diagnose mode writes
+  `<specs.dir>/<TICKET_ID>/diagnosis.md` (status `DIAGNOSED`, `DIAGNOSED_STRUCTURAL` or
+  `NOT_REPRODUCED`) and leaves no fix, no failing test and no probe in the tree.
 - **Pauses:** asks once for the symptom when none was given; on a structural cause, offers
   `/artel:issue-draft --type bug|task` or leaving the report in chat (`AskUserQuestion`).
 - **Notes:** worker, not orchestrator — runs inline (like `knowledge`), because debugging needs
@@ -524,7 +562,10 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   own test command. With kartoteka it adds one `/artel:knowledge` search on the error or
   component. Inside a run the same discipline is applied by the implementer and checked by the
   reviewer ([debugging.md](debugging.md) §7). The router sends bugs here ahead of generic
-  debugging skills.
+  debugging skills. `feature-development` invokes it in two places: in diagnose mode as the bug
+  head's gate B1 (`heads/bug.md`), and on a red-gate halt as the option
+  `tail.md` `## Debug it here first`. Diagnose mode's last line is
+  `Diagnosis: <status> — <path>`; `--local` skips its knowledge search.
 
 ### sync-phases
 
@@ -537,7 +578,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `**Current Phase:** N`.
 - **Pauses:** never.
 - **Notes:** worker, not orchestrator — runs inline (like `generate-idea`). Invoked
-  automatically by `dev`/`feature-development` on phase-scoped runs: at run start (extraction)
+  automatically by `feature-development` on phase-scoped runs: at run start (extraction)
   and after a phase's gates pass (write-back); manual invocation remains available for
   hand-repair. Phase tasks files are the source of truth for completion within their phase;
   implementation notes in them are never deleted or overwritten.

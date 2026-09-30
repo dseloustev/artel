@@ -2,8 +2,8 @@
 
 *Status: draft v0.1 · 2026-08-01*
 
-Shared contract for the autonomous `feature-development` and `dev` orchestrators and the
-skills/agents they drive. Ticket-ID parsing, the spec-trail directory layout, and
+Shared contract for the autonomous `feature-development` orchestrator (`/artel:dev` is its alias
+until 0.26.0) and the skills/agents it drives. Ticket-ID parsing, the spec-trail directory layout, and
 `.active_ticket` are defined in [ticket-parsing.md](ticket-parsing.md) — this document does not
 restate that grammar, only consumes its `<TICKET_ID>` / `<N>` tokens. Config keys referenced
 below are the ones [config.md](config.md) defines. Operator-facing narrative docs:
@@ -21,6 +21,7 @@ lives under `.artel/run/` in the host repo instead, matching config.md's descrip
 ├── .hooks/                  # session baselines and verify-stop counters (dot-prefixed so it
 │                            # never collides with a ticket dir; hooks/hook_common.py STATE_DIR)
 └── <TICKET_ID>/
+    ├── sizing.json             # the size and the head it picked, written before any head (§17.3)
     ├── run-state.json          # orchestrator-owned run state (§2)
     ├── spec-store.json         # the ticket's storage decision (spec-storage.md §2.2), written by scripts/spec_store.py
     ├── run-journal.md          # append-only run journal (§11)
@@ -49,7 +50,8 @@ updates it in place, it does not relocate it.
 
 - **All information is collected upfront.** The interview (analysis) and the vision checkpoint are the
   chatty head of the pipeline. After the one approval pause, the run is silent.
-- **One approval pause.** `feature-development`: plan+tasklist approval. `dev`: work-list confirmation.
+- **One approval pause.** The full head: plan+tasklist approval. The lean head and the bug head:
+  the work-list approval (§17).
   The approved artifact is the anchor for the deviation protocol — the escalation rule for
   implementation-time divergences from the approved plan/tasklist
   ([deviation-protocol.md](deviation-protocol.md)).
@@ -101,6 +103,10 @@ Transitions:
   by the Stop hook (§8). On resume, the orchestrator rewrites `started_at`.
 
 The `counters` object is a reporting aggregate; authoritative counters live in the loop artifacts (§5).
+
+An **armed run** is one whose file has `run_active: true` and `gates_confirmed` holding
+`TASKLIST_READY`. Re-invoking `feature-development` on it skips the import, sizing and every
+head (§17.2): the orchestrator re-derives the mode fields, re-arms and enters the tail.
 
 `requested_local` is **carried, not re-derived.** The mode fields are recomputed on every resume
 (§10) because the classifier can see everything it needs in the artifacts; `--local` it cannot —
@@ -179,6 +185,7 @@ a cap escalation.
 | review → fix → re-review | `MAX_REVIEW_ROUNDS = 3` | `**Review round:** N` in `review.md` (reset by deleting it on the files path, by a round-0 version on the kartoteka path — spec-storage.md §4.4) |
 | runtime gate red → fix | `MAX_RUNTIME_RETRIES = 1` | `.artel/run/<TICKET_ID>/runtime-observation.md` |
 | checkpoint verify → fix (per checkpoint, §14) | `MAX_CHECKPOINT_VERIFY_ROUNDS = 2` | checkpoint entry in `run-journal.md` (rounds also count toward `correction_rounds`) |
+| debug it here first (per halt, below) | `MAX_DEBUG_HERE_ATTEMPTS = 1` | the halt's `debugged here: …` entry in `run-journal.md` |
 | baseline capture (§14, gates.md §1) | once per run, at a fresh arm — never re-recorded on resume or at a phase boundary | `.artel/run/<TICKET_ID>/verify-baseline.json` |
 | global correction rounds (review + runtime fix rounds) | `MAX_TOTAL_CORRECTION_ROUNDS = 8` | `counters.correction_rounds` in `run-state.json` |
 | global wall-clock | `WALL_CLOCK_HOURS = 3` | `run-state.json` `started_at` |
@@ -190,6 +197,18 @@ those keys the gate is recorded as `skipped` (config.md) and this loop never arm
 matches it — a non-match is recorded as `skipped (no runtime surface)`.
 
 Cap hit ⇒ set `pause_reason: "cap-escalation"`, present consolidated findings via `AskUserQuestion`, stop.
+
+**Debug it here first.** On three cap escalations — each a red gate in app code — the question
+opens with one more option, **Debug it here first**: a task aborted when `MAX_VERIFY_ITERATIONS`
+ran out, a checkpoint still red after `MAX_CHECKPOINT_VERIFY_ROUNDS`, and the runtime gate's
+second red from an app-code error. Not the review cap, not an environment error, not
+`MAX_TOTAL_CORRECTION_ROUNDS` or the wall clock; a headless run journals and stops as before.
+The option runs the `debugging` skill on the red evidence while `pause_reason` stays
+`cap-escalation`. Fixed → the orchestrator journals `debugged here: <root cause> — <files>`,
+adds the files to `deviation_files` (§2) and re-runs the gate that was red; green resets that
+loop's counter as a resume with guidance does. Red again → the question is asked again without
+the option: `MAX_DEBUG_HERE_ATTEMPTS = 1`, one attempt per halt. The procedure is in the
+`feature-development` skill (`../skills/feature-development/tail.md`, `## Debug it here first`).
 
 **Step-up rounds.** A fix round that follows a failed one runs one tier up, on `fable`: the
 review loop's fix round whose findings come from a `review.md` with `**Review round:**` 2 or
@@ -205,23 +224,30 @@ loop findings — immediate stop-and-ask pointing at setup.
 
 ## 6. `--step` compatibility flag
 
-`/artel:feature-development --step` / `/artel:dev --step` enables per-gate confirmations instead of
+`/artel:feature-development --step` enables per-gate confirmations instead of
 the autonomous default — confirm between major phases, per-task implementer approval. No
 `run-state.json` is written in step mode and the Stop hook stays disarmed.
 
 ## 7. Completion gate
 
-A run may set `completed: true` only when its pipeline's gates all pass. For
-`feature-development` the orchestrator confirms eight facts itself, from the artifacts it already
-reads, and journals one line each: `PLAN_APPROVED`, `TASKLIST_READY`, `IMPLEMENT_STEP_OK` (no
-unchecked box in any iteration or fix section), `REVIEW_OK` (`review.md` with a round line, no
+A run may set `completed: true` only when its gates all pass. The orchestrator confirms eight
+facts itself, from the artifacts it already
+reads, and journals one line each: `PLAN_APPROVED` (`skipped (no plan)` when the ticket has no
+plan — `gates_confirmed` holding `TASKLIST_READY` is then the approval — and
+`skipped (plan not approved by this run)` when a plan exists that this run did not approve: a
+draft on a run whose confirmed work list was the approval), `TASKLIST_READY` (the
+tasklist's status, or `gates_confirmed` for a tasklist that declares none), `IMPLEMENT_STEP_OK` (no
+unchecked box in any iteration or fix section, and every fix-section parent closed —
+[task-queue.md](task-queue.md) §6), `REVIEW_OK` (`review.md` with a round line, no
 open `## Code Review Fixes` box), `RUNTIME_OK` (green or skipped, newer than the last
 `runtime.surface` change), `CHECKPOINT_OK` (the final gate — the last checkpoint green and no
 `verify.surface` change since its commit, else one more checkpoint gate; gates.md §1),
 `DOCS_UPDATED` (`summary.md` exists — written on the last phase before its checkpoint, so that
-checkpoint commit carries the docs) and `AUTOMATION_REMOVED`; the table is in
-`feature-development` §6. For `dev`, all work items are `- [x]`, review has no unresolved
-Blocking/Important findings, the runtime gate is green or skipped, and the final gate stands. No
+checkpoint commit carries the docs; `skipped (no PRD)` when the ticket has no PRD, because the
+docs stage runs only with one) and `AUTOMATION_REMOVED`; the table is in the
+`feature-development` skill (`../skills/feature-development/tail.md`, `## Completion gate`). A
+fact that reads `skipped` is green. Those readings are keyed on what exists for the ticket,
+never on the head that ran. No
 agent is dispatched: `/artel:validate` is à la carte. The final report always includes the
 aggregated `Deviations:` line (per the deviation protocol) and the loop counters.
 
@@ -238,14 +264,14 @@ the wall-clock budget (§5).
 When an orchestrator invokes `generate-idea` / `generate-vision` / `generate-tasklist`, an existing
 output artifact satisfies the gate — the orchestrator skips the invocation entirely. The workers'
 interactive Overwrite/Abort prompts fire only on manual invocation. `sync-phases` is invoked by the
-orchestrators on phase-scoped runs: at run start (extract `phase-N/tasks.md` when missing) and after
+orchestrator on phase-scoped runs: at run start (extract `phase-N/tasks.md` when missing) and after
 the phase's gates pass (sync status back to `tasklist.md`). On the kartoteka path an artifact "exists" when the store holds it (`spec_store.py list <TICKET_ID>`, spec-storage.md §4.1).
 
 - **Task-queue mirror** — `generate-tasklist` and `tasklist` mirror `tasklist.md`
-  into the kartoteka task queue as they write it, and both entry-point
-  orchestrators re-mirror on entry to implementation, after `sync-phases` on
+  into the kartoteka task queue as they write it, and the orchestrator
+  re-mirrors on entry to implementation, after `sync-phases` on
   phase-scoped runs (`docs/task-queue.md` §2):
-  `dev` and `feature-development` alike run the parser and `task_create` its rows.
+  `feature-development`'s tail runs the parser and `task_create`s its rows, whichever head ran.
   The re-mirror is what covers a resumed run and a tasklist written before the
   adapter was reachable, neither of which re-runs the skill that wrote it. For a
   task-format tasklist it is also the first mirror: `tasklist` mirrors nothing before the plan
@@ -290,8 +316,9 @@ Three ranked modes control how much the run pauses for approval: `yolo=0 < plan-
 6. Write all six mode fields (`effective_mode`, `requested_mode`, `suggested_mode`, `forced_floor`, `mode_reasons`, `gates_confirmed`) into `run-state.json` at arm time; announce
    `mode + reasons` in the run output. Never trust stale fields — re-derive before re-arming.
 
-**`gates_confirmed`:** immediately after the approval pause (feature-development §3 approve /
-dev §2 confirm) — or, in `yolo`, at the moment the pause would have occurred — the orchestrator
+**`gates_confirmed`:** immediately after the approval pause (the full head's pause on approve,
+the lean head's confirmation, the bug head's work-list approval) — or, in `yolo`, at the moment
+the pause would have occurred — the orchestrator
 appends `"TASKLIST_READY"`. The sensitive-path guard (the plugin's `hooks/sensitive_guard.py`,
 a `PreToolUse` hook) denies writes to floored paths until it is present.
 
@@ -299,7 +326,7 @@ a `PreToolUse` hook) denies writes to floored paths until it is present.
 
 Path: `.artel/run/<TICKET_ID>/run-journal.md` (ticket-top-level, like `run-state.json`).
 Append-only; written **only by the orchestrator**; exists only for armed runs. One entry per event —
-run start (with the §10 mode resolution), each gate completion, every pause and resume, every
+run start (with the §10 mode resolution and the §17 size), each gate completion, every pause and resume, every
 external action, completion/abort. Entry format:
 
 ```markdown
@@ -331,6 +358,10 @@ claude -p "/artel:feature-development <TICKET_ID> --mode=yolo" --output-format s
   auto-resolved — journal the entry, set the `pause_reason`, and stop. A stalled headless run on a
   HITL/cap pause is the guardrail working; resume it interactively.
 - Spec store unavailability follows `specs.onUnavailable` (spec-storage.md §5.4): `"abort"` stops (journaled), `"local"` works locally; a local trail found at start always stops and names `/artel:migrate-specs`.
+- Sizing (§17) never pauses, so it needs no answer: the size line goes to the output and into
+  `sizing.json`, and the run-start journal entry repeats it. Two outcomes end a headless run
+  unarmed: a spike prints its answer and stops, and a `NOT_REPRODUCED` diagnosis prints the
+  diagnosis' path and stops. A `yolo` run opens its pull request unattended whichever head ran.
 
 On OpenCode, the same unattended pattern runs through `opencode run` with the host's
 `permission` config as the curated allowlist; the Stop gate fires on the idle event as a
@@ -338,7 +369,7 @@ re-prompt rather than a hard block. Host specifics: `docs/opencode.md`.
 
 ## 13. Design analysis stage (`figma-analysis`)
 
-Conditional chatty-head stage — gate 0.5 of `feature-development`, between `generate-idea` and the
+Conditional chatty-head stage — gate 0.5 of the full head (`heads/full.md`), between `generate-idea` and the
 analysis interview — run only when `design.figma` is enabled (config.md) and either `idea.md`
 contains a design-tool link (e.g. a Figma URL) or a URL is passed explicitly. Produces the ticket-level
 `design-analysis.md` (+ `design/` screenshots — kartoteka path: kartoteka, viewed with
@@ -360,15 +391,16 @@ by `analysis`, `researcher`, and `planner`.
 
 ## 14. Checkpoint commits & pushes
 
-Both orchestrators commit and push at fixed checkpoints so the branch on `origin` always carries
-the latest approved docs and every completed phase: a **planning/work-list checkpoint** right after
-arming (docs only, no verify gate) and a **phase-end checkpoint** after each phase's gates pass
+The orchestrator commits and pushes at fixed checkpoints so the branch on `origin` always carries
+the latest approved docs and every completed phase: a **planning checkpoint** right after
+arming (docs only, no verify gate; its subject says `planning artifacts` when a plan exists and
+`work list` otherwise) and a **phase-end checkpoint** after each phase's gates pass
 (the checkpoint gate — `verify.commands` compared against the run's baseline, gates.md §1 — plus capped fixes first). Checkpoints are orchestrator-owned
 Bash actions, pre-approved at the approval pause (§4 exception), never pause, and are journaled as
 external actions (§11). The full procedure (branch guard, the image sweep, idempotence, the verify
 gate, explicit staging, push, journal) and the commit-subject table are defined in the `feature-development`
-skill (`../skills/feature-development/SKILL.md`, `## Checkpoint commits & pushes`; shared with
-`dev`). On the kartoteka path the planning checkpoint stages the same paths, and when, images
+skill (`../skills/feature-development/tail.md`, `## Checkpoint commits & pushes`). On the
+kartoteka path the planning checkpoint stages the same paths, and when, images
 aside, only `.active_ticket` changed it skips the commit and journals
 `planning checkpoint: skipped — the spec trail is in kartoteka`. On the kartoteka path every
 checkpoint sweeps images into kartoteka first and never stages one
@@ -391,15 +423,15 @@ means.
 - After each checkpoint, `.active_ticket` advances to the next incomplete phase; after the final
   phase the last identifier stays in place.
 - `.active_ticket` is the phase pointer for argument-less invocations and for `run-app`'s
-  evidence pathing; orchestrators still pass the full identifier explicitly to sub-skills.
+  evidence pathing; the orchestrator still passes the full identifier explicitly to sub-skills.
 
 ## 16. Routes
 
-Every iteration task runs on a **route**, `light` or `full`, in both orchestrators'
-implementation loops (`dev` step 4, `feature-development` gate 5). The route decides one thing:
+Every iteration task runs on a **route**, `light` or `full`, in the orchestrator's
+implementation loop (gate 5, `tail.md`). The route decides one thing:
 whether the task's own diff is reviewed right after its implementer returns and before the next
 task is dispatched, so a misread requirement is caught before the next task builds on it. It
-never replaces the phase review (gate 7 / `dev` step 6) — that still runs over the whole phase
+never replaces the phase review (gate 7, `tail.md`) — that still runs over the whole phase
 with the lenses and `review.md`, whatever the routes were; a `full` task's review feeds it.
 
 ### 16.1 Which route a task takes
@@ -410,7 +442,8 @@ On a task-format tasklist ([task-grammar.md](task-grammar.md) §4) each task has
 - **Floored** — four floors, which only ever raise a route to `full`:
   1. a `Files:` path matches a sensitive-paths category (the plugin's
      `hooks/sensitive-paths.json`, replaced wholesale by a host `.artel/sensitive-paths.json`, §10);
-  2. the task carries a `[HITL: …]` tag;
+  2. the task carries a `[HITL: …]` tag and at least one of its `Files:` lies outside the
+     ticket's spec trail (`<specs.dir>/<TICKET_ID>/`);
   3. its `Files:` lists more than `ROUTE_FULL_FILES = 5` paths;
   4. an earlier deviation in this run changed one of its files.
 
@@ -420,8 +453,8 @@ On a task-format tasklist ([task-grammar.md](task-grammar.md) §4) each task has
   Floor 4 is known only at runtime: the orchestrator checks the task's `Files:` against
   `run-state.json` `deviation_files` (§2) as it stood when the task was dispatched, so a task's
   own deviations raise the tasks after it, not itself.
-- **Overridable at the pause.** The approval pause (`feature-development` step 3, `dev` step 2)
-  lists every task's effective route with its reasons —
+- **Overridable at the pause.** The approval pause (the full head's pause, the lean head's
+  confirmation) lists every task's effective route with its reasons —
   `2.3 full — declared: money-movement path; floor: sensitive path (payments): lib/ramps/ramps_bloc.dart`
   — and the person may change any of them, down as well as up. A change is folded back into
   the task's `Route:` line with `— set at approval` (`Route: light — set at approval`), so the
@@ -497,3 +530,115 @@ with its reason, so a run that routes too much to `full` shows why; `ROUTE_FULL_
 constant, and the person can lower any route at the pause. `review.perTask: true` — every task
 `full` — earns its seats when tasks carry judgement throughout, or when phases are long enough
 that drift across tasks has room to compound.
+
+## 17. Sizing and heads
+
+`feature-development` is the one entry point for ticket work. After the ticket is imported
+(gate 0) it sizes the work, records the size, says it aloud with its reasons and runs the head
+that fits — never a pause, and no agent is dispatched: sizing is the orchestrator's own
+procedure, like the mode classifier (§10). The orchestrator acts from its skill, so the rules
+are stated in full there (`../skills/feature-development/SKILL.md`, step 3); this section is
+their contract.
+
+### 17.1 The four sizes
+
+| Size | Head | It fits when |
+|---|---|---|
+| `spike` | `none` (§17.5) | the ticket asks a question — can we, is it feasible, which of these — and names no change to ship |
+| `bug` | `bug` — `heads/bug.md` | the tracker's issue type is Bug, or the text describes behaviour that differs from what it should be: expected against actual, a regression, an error |
+| `bounded` | `lean` — `heads/lean.md` | it changes a flow that already exists in the repo, in one area, with acceptance that can be stated in a few lines and no open product question |
+| `architectural` | `full` — `heads/full.md` | a new flow, screen or subsystem; an interface other code depends on; a data-model change or migration; a Figma design to analyse; work that needs several phases; or acceptance that is unclear |
+
+The head files sit beside the skill, in `../skills/feature-development/`. The full head runs
+gates 0.5–4.5 with the plan review and ends in the plan+tasklist pause. The lean head takes an
+existing tasklist with open tasks as the work list, or has `generate-tasklist` write one, and
+confirms it once. The bug head has the `debugging` skill diagnose first (`diagnosis.md`) and
+writes the work list from the diagnosis. Each ends in one approval; then the run is armed (§2)
+and the tail is the same for every one of them.
+
+### 17.2 Order of decision
+
+The first rule that matches wins:
+
+1. **A flag.** `--head=full` → `architectural`, `--head=lean` → `bounded`, `--head=bug` → `bug`.
+   The person's flag is the only thing that lowers a size.
+2. **A recorded sizing** — `sizing.json` (§17.3), unless it is a spike already answered (§17.5).
+3. **What exists.** A PRD or a plan, at either scope → `architectural`. Else `diagnosis.md` →
+   `bug`. Else a tasklist with open tasks, or a `vision.md` → `bounded`.
+4. **Judgement** over `idea.md`, by §17.1. In doubt between two sizes the heavier wins:
+   `spike` < `bounded` < `architectural`. `bug` wins any doubt it is part of: its head diagnoses
+   first, and can raise itself or hand the ticket to the lean head. Every recorded reason is
+   true of the ticket as it stands: `idea.md` is read to its end, and a later section overrides
+   an earlier one.
+
+An armed run (§2) is not sized. It skips the import, sizing and the head, and a `--head` flag on
+it is answered with `--head ignored: the run is past its head.` when `sizing.json` records a
+different head, and with nothing otherwise. A run armed before 0.25.0 has no
+`sizing.json` and resumes the same way, through either command.
+
+### 17.3 sizing.json
+
+`.artel/run/<TICKET_ID>/sizing.json`, written by the orchestrator at sizing, before any head, so
+a run interrupted inside a head resumes on the same head. It is written in `--step` runs too: it
+is not run state.
+
+```json
+{
+  "size": "bounded",
+  "head": "lean",
+  "reasons": ["changes one existing screen", "acceptance is two lines"],
+  "decided_by": "judgement",
+  "raised_from": null,
+  "answered": false,
+  "decided_at": "2026-09-30T12:00:00Z"
+}
+```
+
+| Key | Value |
+|---|---|
+| `size` | `spike`, `bug`, `bounded` or `architectural` |
+| `head` | `none`, `bug`, `lean` or `full` |
+| `reasons` | list of strings — the reasons said aloud |
+| `decided_by` | `flag`, `existing` (rule 3), `judgement` or `raised` |
+| `raised_from` | the earlier size when a head raised it, else `null` |
+| `answered` | boolean; used by a spike only |
+| `decided_at` | UTC ISO-8601 |
+
+The size is said in one line before the head starts:
+
+    Size: <size> — <head> head. Reasons: <reason>; <reason>. To change: say so now, or re-run with --head=<full|lean|bug>.
+
+For a spike the line opens `Size: spike — no head; the researcher answers the question.` An
+answer that asks for another head is honoured as the flag would be. The run-start journal entry
+(§11) carries `- size: <size> (<head> head; decided by <decided_by>)`.
+
+### 17.4 The ratchet
+
+A head may raise the size, never lower it: the lean head when the `tasklist-writer` returns
+`RAISE` — an open product question it cannot ground, or, with no vision, work that needs more
+than one iteration — and the bug head when the diagnosis is `DIAGNOSED_STRUCTURAL`. Raising
+rewrites `sizing.json` (`decided_by` `raised`, `raised_from` the earlier size), prints
+
+    Size raised: <from> → architectural — full head. Reason: <reason>.
+
+and runs the full head. The ratchet stops at arming: after that, hidden complexity is a
+deviation ([deviation-protocol.md](deviation-protocol.md)) or an aborted task, handled as
+before.
+
+One move is not a raise: on a `NOT_REPRODUCED` diagnosis the person may choose to treat the
+ticket as a bounded change, which records `bounded` with `decided_by` `flag` and runs the lean
+head.
+
+### 17.5 The spike outcome
+
+A `spike` runs no head. The orchestrator invokes `researcher` in question mode (`--question`),
+which needs no PRD and writes `<specs.dir>/<TICKET_ID>/spike.md`, answer first. The
+orchestrator prints the skill's last line, `Spike answered: <one-line answer> — <path>`, sets
+`answered: true` in `sizing.json` and stops. Nothing is armed, journaled or committed.
+
+A later run on the same ticket is sized afresh from rule 3 — an answered spike is not a recorded
+sizing. Sized `spike` again, it prints
+
+    Already answered: <path to spike.md>. To build on it, re-run with --head=lean or --head=full.
+
+and stops, without a second dispatch.

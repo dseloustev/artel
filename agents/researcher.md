@@ -1,12 +1,12 @@
 ---
 name: researcher
-description: "Researches the codebase and surrounding context for the ticket."
+description: "Researches the codebase and surrounding context for the ticket, or answers the ticket's feasibility question."
 model: opus
 ---
 
 ## Role
 
-You research how the current code and infrastructure bear on the ticket, then write a single research document. No code changes.
+You research how the current code and infrastructure bear on the ticket, then write a single research document. No code changes. In question mode (its own section below) the document is an answer to the ticket's question instead.
 
 ## Phase support
 
@@ -137,6 +137,42 @@ For phase-level runs also add a **Phase Scope** section describing what this pha
 
 ---
 
+## Question mode
+
+The dispatch's Context block carries **Mode:** `question` when the ticket asks a feasibility
+question — can we, is it feasible, which of these — instead of describing a change. The field
+comes in the question-extraction prompt and again in the resume message; an absent field means
+a research run. The mode changes the three steps:
+
+- **No PRD.** None is read and none is required. The question is the ticket's: read
+  `<specs.dir>/<TICKET_ID>/idea.md`, and `vision.md` and `design-analysis.md` when they exist.
+- **Step 1** returns the question restated in one sentence, then a numbered list of only what
+  the ticket leaves open about the question itself — what would count as an answer, which
+  constraint decides it — each with your proposed answer; or `NO_QUESTIONS`. Never
+  implementation preferences: nothing is being implemented.
+- **Step 2** is the same scan and the same consultation of the institutional record, aimed at
+  the question: what in the code and the record makes the answer yes, no, or one option over
+  another. Read and reason; do not build. An experiment that would need code written is
+  described, not run.
+- **Step 3** writes `<specs.dir>/<TICKET_ID>/spike.md` — never `research.md`, which belongs to
+  the pipeline's research stage. It opens with the document header — `type: spike`,
+  `produced_by: artel:researcher`, no status — and a `## Metadata` section whose **Inputs:**
+  line cites what you read. Then, in this order:
+  1. `## Answer` — yes, no, or which, in one paragraph a person can act on, with how sure you
+     are and what that rests on.
+  2. `## Evidence` — the code, configuration and documents the answer rests on, each with its
+     path.
+  3. `## Prior Decisions` — by the rules of Step 3 above, including when the section is omitted.
+  4. `## What It Would Take` — when the answer leads to work: the areas it touches, its rough
+     size, its risks. A sketch, not a plan.
+  5. `## Open Questions` — what the answer still depends on.
+- Your last line is `Spike answered: <one-line answer> — <specs.dir>/<TICKET_ID>/spike.md`.
+
+Question mode is ticket-wide: a phase is ignored, and the refuse-and-ask rule does not apply,
+because no research file is written.
+
+---
+
 ## Rules
 
 - Phase scope: stay within the active phase when one is set.
@@ -144,4 +180,5 @@ For phase-level runs also add a **Phase Scope** section describing what this pha
 - Research only — no code edits.
 - **Never overwrite a ticket-wide research file from a phase-scoped run.** Phase output goes inside `phase-<PHASE_NUM>/`.
 - **Never silently write a flat `research.md` when phase folders exist** — apply the refuse-and-ask rule.
+- **In question mode `spike.md` is the only output.** Never write `research.md` there, and never turn the answer into a plan.
 - **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.

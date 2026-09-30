@@ -9,7 +9,7 @@ model: sonnet
 
 This skill synchronizes phase task completion between the ticket-wide tasklist and the per-phase `tasks.md` files inside `phase-<N>/` subfolders.
 
-**Invocation points:** the `dev` and `feature-development` orchestrators invoke this skill automatically on phase-scoped runs — at run start (extract `phase-<N>/tasks.md` when missing) and after the phase's gates pass (sync completion status back to `tasklist.md`) (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9). Manual invocation remains for hand-repair.
+**Invocation points:** the `feature-development` orchestrator invokes this skill automatically on phase-scoped runs — at run start (extract `phase-<N>/tasks.md` when missing) and after the phase's gates pass (sync completion status back to `tasklist.md`) (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9). Manual invocation remains for hand-repair.
 
 This skill is a **worker, not an orchestrator** — like `generate-idea`, it runs inline rather than delegating to a subagent: no agent matches this job, and pure-procedure utility skills keep their procedural shape (they stay config-driven instead).
 

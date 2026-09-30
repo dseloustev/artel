@@ -51,6 +51,15 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
+**Diagnosis and spike answer.** `<specs.dir>/<TICKET_ID>/diagnosis.md` and
+`<specs.dir>/<TICKET_ID>/spike.md` each go on their Context line as a path when the document
+exists (the same existence check) and as `none` when it does not. A diagnosis carries its
+status in brackets, read without the document entering this context:
+`doc=$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/diagnosis.md) && printf '%s\n' "$doc" | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py status`
+(files path: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py status < <specs.dir>/<TICKET_ID>/diagnosis.md`).
+A bug ticket that `feature-development` raised to this interview arrives with a
+`DIAGNOSED_STRUCTURAL` diagnosis, and the interview starts from its cause.
+
 Use the Agent tool with:
 - `subagent_type`: `"analyst"`
 - `description`: `"Interview for <TICKET_ID>"`
@@ -64,13 +73,16 @@ You are running the requirements interview for <TICKET_ID>{phase ? ", Phase <PHA
 - **Ticket ID:** <TICKET_ID> / **Ticket Number:** <TICKET_NUM> / **Phase:** <PHASE_NUM> (or "all phases" when ticket-wide)
 - **Description file:** [path or "none"]
 - **Knowledge consultation:** <"local-only (--local was passed)" | "enabled">
+- **Diagnosis (input):** <specs.dir>/<TICKET_ID>/diagnosis.md (<status>), or none
+- **Spike (input):** <specs.dir>/<TICKET_ID>/spike.md, or none
 
 ## Instructions — Explore, then interview (do NOT draft the PRD yet)
 
 1. Update `<specs.dir>/.active_ticket`; ensure the ticket directory exists; resolve the PRD path per
    `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4 and apply the refuse-and-ask rule (§5).
 2. Read `<specs.dir>/<TICKET_ID>/idea.md`, `<specs.dir>/<TICKET_ID>/design-analysis.md`
-   (if present), and the description file if provided.
+   (if present), the description file if provided, and the diagnosis and the spike answer when
+   the Context names them.
 3. EXPLORE FIRST: search the codebase (per your agent definition) so every question is grounded —
    never ask what the repo already answers.
 4. CONSULT THE RECORD, on the same principle: per your agent definition's Interview duties and
@@ -85,7 +97,8 @@ You are running the requirements interview for <TICKET_ID>{phase ? ", Phase <PHA
 ## Return format
 
 Either `NO_QUESTIONS`, or a numbered batch of 1–4 questions, each with: the question, why it matters,
-and a proposed default when an industry-standard one exists. End with `MORE_QUESTIONS_PENDING` if
+and a proposed default when an industry-standard one exists. An option of a visual question may
+carry a `preview` (your agent definition's Interview duties). End with `MORE_QUESTIONS_PENDING` if
 further branches remain after this batch, else `LAST_BATCH`.
 ```
 
@@ -96,7 +109,10 @@ further branches remain after this batch, else `LAST_BATCH`.
 Repeat until the agent returns `INTERVIEW_COMPLETE`:
 
 1. Present the batch via `AskUserQuestion` (one entry per question; proposed defaults as the first,
-   "(Recommended)" option). Vague user answers ("it depends") are sent back to the agent, which must
+   "(Recommended)" option). An option the agent sketched carries a `preview`: pass the block
+   through unchanged as that option's `preview` field. Previews go on single-choice questions only
+   — a batch that mixes previewed questions with multi-choice ones is asked as two calls, the
+   previewed questions first. Vague user answers ("it depends") are sent back to the agent, which must
    split them into resolvable sub-questions in the next batch.
 2. `SendMessage` the answers to the agent: `User's answers: [answers]. Resolve these branches. Return
    the next batch (same format), or INTERVIEW_COMPLETE when every branch is unambiguous or explicitly

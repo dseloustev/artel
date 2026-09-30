@@ -6,6 +6,75 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Sizing.** `/artel:feature-development` sizes the work once the ticket is imported —
+  `spike`, `bug`, `bounded` or `architectural` — says the size in one line with its reasons, and
+  keeps going. The size picks the head: the full head (PRD, vision, plan, tasklist, one approval
+  pause), the lean head (a work list, one confirmation) or the bug head. `--head=full|lean|bug`
+  overrides it; only that flag lowers a size, and a head can raise it to `architectural` until
+  the run is armed. The size is recorded in `.artel/run/<TICKET_ID>/sizing.json`
+  (`docs/autonomous-run.md` §17).
+- **The bug head.** A bug is reproduced and its cause found before anything is planned:
+  `/artel:debugging <ticket-id> --diagnose` writes `diagnosis.md` (`DIAGNOSED`,
+  `DIAGNOSED_STRUCTURAL` or `NOT_REPRODUCED`) and leaves no fix in the tree, and the work list
+  written from it opens with the failing test for the reproduction. A structural cause raises
+  the run to the full head.
+- **The spike outcome.** A ticket that asks a question and names no change to ship is answered
+  by `/artel:researcher <ticket-id> --question` in `spike.md`, and the run stops there with
+  nothing armed.
+- **"Debug it here first."** When a run halts on an aborted task, a checkpoint still red at its
+  cap, or the runtime gate's second red from an app-code error, the escalation's first option
+  runs `/artel:debugging` on the red evidence, once per halt.
+- **ASCII previews.** On a visual question the analyst (a layout or a step flow) and the
+  vision-writer (a component or data-flow sketch) may attach a monospace preview to an option,
+  at most 12 lines of 60 columns.
+
+### Changed
+
+- **One orchestrator.** `dev` is folded into `feature-development`: a thin `SKILL.md` (the
+  shared start, sizing, arming), one file per head and one `tail.md` every run shares. Every
+  run now has the completion gate, a PR description and the PR gate; the docs stage runs when
+  the ticket has a PRD. `--dry-run` and `--local` work on every head.
+- **The lean work list is written by `generate-tasklist`**, in the task grammar, with or
+  without a vision. `dev`'s inline mini-interview is gone, and with it the last writer of the
+  old tasklist format. The writer returns `RAISE` in place of a draft when the work is more
+  than a bounded change. `generate-tasklist` takes `--local` and stamps `status: TASKLIST_READY`.
+- **The HITL floor skips evidence-only tasks.** A task with a `[HITL: …]` tag is raised to the
+  `full` route only when at least one of its files lies outside the ticket's spec trail.
+- An armed run resumes past its head: a resumed lean run no longer shows its work-list
+  confirmation again.
+
+### Upgrading
+
+- No configuration change and no kartoteka change.
+- **`/artel:dev` is an alias.** It prints one line and runs
+  `/artel:feature-development --head=lean` with the same arguments. It goes away in 0.26.0:
+  move scripts and habits to `/artel:feature-development`, with `--head=lean` where you want the
+  lean head whatever sizing would pick.
+- **A lean run ends with a PR.** A run that used to stop after its last checkpoint, leaving the
+  PR to you, now writes the PR description and reaches the PR gate: in `plan-gate` it asks
+  "Open the PR now?", and declining closes the run cleanly.
+- **A lean `yolo` run opens its PR unattended.** This is the one new external action: before
+  0.25.0 `/artel:dev --mode=yolo` pushed its checkpoints and stopped. The run-start announcement
+  lists it; stay on `plan-gate`, the default, to be asked.
+- **Every run has an `idea.md`.** The ticket is imported first on every run, because sizing
+  reads it. With `tracker.adapter: "none"` and no description file you are asked for a
+  description once.
+- **Floor 2 changed.** A HITL-tagged task whose files all sit under `<specs.dir>/<TICKET_ID>/`
+  — an evidence record, a run log — stays on its declared route. A task with a HITL tag and a
+  file outside the trail, or with no `Files:` at all, is still `full`.
+- **`--head`.** Sizing is a judgement over the ticket and goes heavier when in doubt. When it
+  picks a head you did not want, say so at the head's first question or re-run with
+  `--head=full|lean|bug`. A run with no PRD has no docs stage: use `--head=full`, or run
+  `/artel:docs-update` yourself, when the project wants its changelog line.
+- **Tickets in flight keep working.** A run armed before 0.25.0 resumes past its head through
+  either command. A tasklist in the old format is still read everywhere; the readers go in
+  0.26.0, once no old-format ticket is in flight.
+- **A finished ticket is not re-planned.** A lean run on a ticket whose work list has no open
+  task stops before arming and says so. For follow-up work, add tasks to the work list
+  (`/artel:tasks add`, or by hand) and run again, or open a new ticket.
+
 ## [0.24.0] - 2026-09-30
 
 ### Added

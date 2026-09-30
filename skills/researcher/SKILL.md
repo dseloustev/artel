@@ -1,7 +1,7 @@
 ---
 name: researcher
-description: "Gather technical context and create a research document for the ticket"
-argument-hint: "[ticket-id] or [ticket-id]-[phase] [--local]"
+description: "Gather technical context and create a research document for the ticket — or, with --question, answer the ticket's feasibility question"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [--question] [--local]"
 model: sonnet
 ---
 
@@ -18,6 +18,13 @@ appeared in the invocation, in the Phase 1 prompt **and** again in the Phase 3 r
 message, since the resume is where the consultation actually happens.
 Default is to consult; see `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §1
 for how it resolves against `knowledge.adapter` and tool availability.
+
+`--question` flag: **question mode** — the ticket asks a feasibility question instead of
+describing a change. The agent answers it into `<specs.dir>/<TICKET_ID>/spike.md`; the
+differences from a research run are under "Question mode" below. `feature-development` invokes
+it for a ticket it sized as a spike, and it runs à la carte as well. The agent cannot see your
+arguments: it learns the mode from the **Mode** field of the Context block, in the Phase 1
+prompt **and** in the Phase 3 resume message.
 
 ## Execute
 
@@ -53,6 +60,7 @@ You are preparing to research ticket <TICKET_ID>{phase ? ", Phase <PHASE_NUM>" :
 - **Ticket Number:** <TICKET_NUM>
 - **Phase:** <PHASE_NUM> (or "all phases" when ticket-wide)
 - **Knowledge consultation:** <"local-only (--local was passed)" | "enabled">
+- **Mode:** <"question (--question was passed)" | "research">
 
 ## Instructions — Question Extraction Only
 
@@ -80,7 +88,7 @@ Return control after listing the questions.
 
 ### Phase 2: Collect questions (no user interaction)
 
-This skill never asks the user (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §3).
+Outside question mode this skill never asks the user (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §3).
 
 - **NO_QUESTIONS** → proceed to Phase 3 with `answers = "No additional questions — proceed with research"`.
 - **Refusal** → report it to the caller and stop.
@@ -105,6 +113,7 @@ defaults."]
 ## Context
 
 - **Knowledge consultation:** <"local-only (--local was passed)" | "enabled">
+- **Mode:** <"question (--question was passed)" | "research">
 
 ## Research Steps — Proceed Now
 
@@ -130,6 +139,29 @@ defaults."]
 - **Never overwrite** the ticket-wide `research.md` from a phase-scoped run.
 ```
 
+### Question mode (`--question`)
+
+The three phases run as above, with these differences. The agent's own rules for the mode are
+the "Question mode" section of its definition.
+
+- **Ticket-wide.** A phase suffix in `$0` is ignored with the notice
+  `Note: phase argument ignored — a spike answers the ticket's question.`
+- **Phase 1.** No PRD is read or required: the question is the ticket's own, in
+  `<specs.dir>/<TICKET_ID>/idea.md`. The agent returns the question restated in one sentence
+  and only what the ticket leaves open about the question itself, each with a proposed answer,
+  or `NO_QUESTIONS`.
+- **Phase 2.** A spike has no approval pause to bundle questions at, so this is the one mode in
+  which this skill asks: present the returned questions via `AskUserQuestion` — at most four,
+  the agent's proposed answer as the first option of each. `NO_QUESTIONS`, or a headless run,
+  proceeds on the proposed answers. Nothing is written to `open-questions.md`.
+- **Phase 3.** The agent answers the question instead of documenting the code: the same scan
+  and the same consultation of the institutional record, aimed at the question, written to
+  `<specs.dir>/<TICKET_ID>/spike.md` with the answer first. `research.md` is not written. An
+  existing `spike.md` is replaced — on the kartoteka path the earlier version stays in its
+  history; `feature-development` checks for an answered spike before it invokes this mode.
+
 ### Completion
 
 When the subagent returns after researching, display a summary of the research document to the user.
+In question mode, display the answer and end with the agent's own last line,
+`Spike answered: <one-line answer> — <specs.dir>/<TICKET_ID>/spike.md`.

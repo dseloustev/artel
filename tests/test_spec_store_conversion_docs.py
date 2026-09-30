@@ -19,7 +19,7 @@ DISPATCHERS = ('analysis', 'researcher', 'planner', 'tasklist', 'generate-taskli
                'docs-update', 'pr-description', 'figma-analysis', 'deep-review')
 INLINE = ('generate-idea', 'sync-phases', 'tasks', 'change-digest', 'address-pr-comment',
           'pr-create', 'knowledge')
-ORCHESTRATORS = ('feature-development', 'dev')
+ORCHESTRATORS = ('feature-development',)
 CONTRACT = 'docs/spec-storage.md'
 FILE_FORM = re.compile(r'(tasklist_tasks\.py --tasklist|plan_check\.py --plan) <')
 
@@ -94,7 +94,7 @@ class TestInlineSkills(unittest.TestCase):
 
     def test_restore_context_never_restores_spec_documents_under_the_store(self):
         text = skill('restore-context')
-        self.assertIn('--exclude={idea,vision,prd,research,plan,tasklist,tasks,'
+        self.assertIn('--exclude={idea,vision,prd,research,spike,diagnosis,plan,tasklist,tasks,'
                       'implementation-notes,review,deep-review,qa,adr,summary,design-analysis,'
                       'pr-description,post_feedback}.md', text)
         self.assertIn('/artel:migrate-specs', text)
@@ -118,7 +118,8 @@ class TestInlineSkills(unittest.TestCase):
 
 
 class TestScriptPipes(unittest.TestCase):
-    LIVE = [p for p in sorted((ROOT / 'skills').glob('*/SKILL.md'))] + [
+    LIVE = [p for p in sorted((ROOT / 'skills').glob('*/SKILL.md'))] + sorted(
+        (ROOT / 'skills').glob('*/heads/*.md')) + sorted((ROOT / 'skills').glob('*/tail.md')) + [
         ROOT / 'docs' / 'task-queue.md', ROOT / 'docs' / 'workflow-guide.md']
 
     def test_every_file_form_has_its_pipe_form_beside_it(self):
@@ -144,8 +145,9 @@ class TestOrchestrators(unittest.TestCase):
                 self.assertIn('Skill: migrate-specs', text)
                 self.assertIn('--pending-only', text)
                 self.assertIn('spec_store.py pending add', text)
-                self.assertIn('§4.4', text)
                 self.assertIn('only `.active_ticket` changed', text)
+        # The review-round reset (§4.4) is the tail's since 0.25.0.
+        self.assertIn('§4.4', read('skills/feature-development/tail.md'))
 
     def test_feature_development_passes_local_to_decide(self):
         self.assertIn('--decided-by feature-development` (plus `--local`',

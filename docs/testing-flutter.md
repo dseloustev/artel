@@ -26,7 +26,7 @@ Companion docs: [workflow-guide.md](workflow-guide.md) (what each step should do
   ```
 
 - **Optional but recommended: an `origin` remote** (a scratch GitHub repo works). The
-  orchestrators' checkpoint commits **push to `origin`** after the approval pause; without a
+  orchestrator's checkpoint commits **push to `origin`** after the approval pause; without a
   remote, expect the push step to stop-and-ask — that stop is itself correct behavior, but a
   remote lets you see the full loop. `gh auth login` if you also want to exercise the
   `github-cli` PR step and/or the `github-issues` tracker.
@@ -41,7 +41,7 @@ In the Flutter project's Claude Code session:
 ```
 
 **Expected:** install succeeds; typing `/artel:` offers the namespaced skills
-(`/artel:feature-development`, `/artel:dev`, `/artel:setup`, `/artel:analysis`, …). If the
+(`/artel:feature-development`, `/artel:setup`, `/artel:analysis`, …). If the
 skills don't appear, restart the session once — hooks and skills register at session start.
 
 ## 3. Configure for Flutter
@@ -164,24 +164,30 @@ block). Fix the error → the next stop passes. State appears under `.artel/run/
 (`baseline-<session>.json`, `stopblocks-<session>.json`); deleting the baseline file is the
 documented escape hatch.
 
-### 4.4 Lean loop end to end
+### 4.4 The lean head end to end
 
 ```
 /artel:init-branch FLT-1
-/artel:dev FLT-1
+/artel:feature-development FLT-1 --head=lean
 ```
 
-**Expected:** `init-branch` (an optional convenience — the pipelines run on any feature branch)
+**Expected:** `init-branch` (an optional convenience — the pipeline runs on any feature branch)
 finds no ticket ID in the current branch name and asks once; choosing **Create** makes
 `feature/FLT-1-<slug>` (slug from the `idea.md` title) off the detected default branch. It then
-runs `flutter pub get` (`setup.commands`). Re-running it on that branch makes no git change. `dev` presents the tasklist from 4.2 for its one work-list confirmation
+runs `flutter pub get` (`setup.commands`). Re-running it on that branch makes no git change.
+`feature-development` says the size in one line (`Size: bounded — lean head. …`); the flag
+decides it, because 4.2 left a PRD and a plan and sizing would otherwise pick the full head.
+The lean head presents the tasklist from 4.2 for its one work-list confirmation
 (Confirm / Adjust — the pause happens even though the tasklist already exists), arms the run
-(`.artel/run/FLT-1/run-state.json` with `run_active: true`), makes the work-list checkpoint
+(`.artel/run/FLT-1/run-state.json` with `run_active: true`), makes the arm-time checkpoint
 commit, then silently implements, reviews (`review.md`, `## Code Review Fixes` on findings),
-records the runtime gate as `skipped (not configured)`, and closes with the phase checkpoint:
+records the runtime gate as `skipped (not configured)`, updates the docs once (the ticket has a
+PRD), and closes the phase with its checkpoint:
 `flutter analyze` + format + tests green → commit + push. Without an `origin`, the push
 stops-and-asks — the checkpoint procedure never forces and never self-repairs remotes; a
-stop-and-ask there is correct behavior, not a failure. The final report lists tasks, deviations (`none` expected),
+stop-and-ask there is correct behavior, not a failure. The run then confirms the completion
+checklist, regenerates `pr-description.md` and pauses at the PR gate, exactly as 4.5 does.
+The final report lists tasks, deviations (`none` expected),
 counters, checkpoint commits, and the journal path. During the armed run, a premature
 session-end attempt is blocked by the run stop gate.
 
@@ -233,7 +239,7 @@ substitutes the paths into `verify.fast`'s `{files}` token.
 | Dry run never writes `run-state.json` | 4.2 |
 | Verify stop gate blocks only findings you introduced | 4.3 |
 | Checkpoint commits only on the feature branch, never forced | 4.4, 4.5 |
-| PR-gate decline still closes the run cleanly | 4.5 |
+| PR-gate decline still closes the run cleanly | 4.4, 4.5 |
 
 ## 6. Cleanup
 

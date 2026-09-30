@@ -22,7 +22,7 @@ on every spawn. Default is the queue; see
 `--model <sonnet|opus|fable>`: dispatch the agent on this model instead of its frontmatter
 `opus`. It may appear in any position; strip it before reading `$0`. Any other value is an
 invocation error — report it and stop. A dispatch refused for that model (not available, or not
-allowed on this host) is re-dispatched once without it. The orchestrators pass the flag only to
+allowed on this host) is re-dispatched once without it. The orchestrator passes the flag only to
 step up a fix round that follows a failed one (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §5).
 
 ## Execute

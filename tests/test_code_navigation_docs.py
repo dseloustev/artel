@@ -79,6 +79,8 @@ def body_files():
     return sorted(
         [p for p in (ROOT / 'agents').glob('*.md') if p.name != 'README.md']
         + list((ROOT / 'skills').glob('*/SKILL.md'))
+        + list((ROOT / 'skills').glob('*/heads/*.md'))
+        + list((ROOT / 'skills').glob('*/tail.md'))
     )
 
 

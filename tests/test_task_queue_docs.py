@@ -22,8 +22,7 @@ NEAR_MISSES = ('task_claim', 'task_next', 'tasks_ready', 'task_get',
 MIRROR_FILES = (
     'skills/generate-tasklist/SKILL.md',
     'skills/tasklist/SKILL.md',
-    'skills/dev/SKILL.md',
-    'skills/feature-development/SKILL.md',
+    'skills/feature-development/tail.md',
 )
 
 CLAIM_FILES = (
@@ -87,12 +86,10 @@ class TestQueueDoc(unittest.TestCase):
             self.assertNotIn(wrong, text)
 
     def test_doc_says_where_the_local_flag_actually_exists(self):
-        # dev carries no --local by a deliberate decision that
-        # test_knowledge_consultation_docs.py pins. Gating dev's re-mirror on a
-        # flag it cannot receive would make row 1 unreachable while implying it
-        # applied, so the doc has to say which orchestrators hold the flag.
+        # Since 0.25.0 there is one entry point and it takes --local on every head, so row 1
+        # is reachable on every run. The doc still has to say which skills hold the flag.
         text = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
-        self.assertIn('test_dev_does_not_carry_the_flag', text)
+        self.assertIn('`feature-development` takes it on every head', text)
         self.assertIn('rows 2-4', text)
 
     def test_dev_skill_still_carries_no_local_flag(self):
@@ -186,7 +183,7 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
             'skills/dev/SKILL.md',
-            'skills/feature-development/SKILL.md',
+            'skills/feature-development/tail.md',
             'skills/run-reviewer/SKILL.md',
             'skills/deep-review/SKILL.md',
             'skills/implementer/SKILL.md',
@@ -195,21 +192,20 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
         self.assertEqual(carriers, {
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
-            'skills/dev/SKILL.md',
-            'skills/feature-development/SKILL.md',
+            'skills/feature-development/tail.md',
             'skills/run-reviewer/SKILL.md',
             'skills/deep-review/SKILL.md',
         })
 
-    def test_autonomous_run_credits_both_orchestrators_with_the_remirror(self):
+    def test_autonomous_run_credits_the_tail_with_the_remirror(self):
         # Was an assertNotIn on one former phrasing, which the next rewording
         # would have satisfied by accident. The claim is positive now, and it is
         # checked against the file it is a claim about.
         text = (ROOT / 'docs/autonomous-run.md').read_text(encoding='utf-8')
         bullet = text.split('**Task-queue mirror**')[1].split('\n- ')[0]
-        self.assertIn('`dev` and `feature-development` alike run the parser', bullet)
-        skill = (ROOT / 'skills/feature-development/SKILL.md').read_text(encoding='utf-8')
-        self.assertIn('scripts/tasklist_tasks.py', skill,
+        self.assertIn("`feature-development`'s tail runs the parser", bullet)
+        tail = (ROOT / 'skills/feature-development/tail.md').read_text(encoding='utf-8')
+        self.assertIn('scripts/tasklist_tasks.py', tail,
                       'the bullet credits a re-mirror feature-development does not have')
 
 
@@ -402,8 +398,7 @@ class TestReviewerGroupingsNeverBecomeTheSource(unittest.TestCase):
 FIX_WRITERS = {
     'skills/run-reviewer/SKILL.md': (),
     'skills/deep-review/SKILL.md': ('### deep-review-<YYYY-MM-DD>',),
-    'skills/dev/SKILL.md': ('### runtime-r<n>',),
-    'skills/feature-development/SKILL.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
+    'skills/feature-development/tail.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
     'skills/tasks/SKILL.md': ('### manual-<YYYY-MM-DD>',),
 }
 
@@ -412,11 +407,9 @@ FIX_WRITERS = {
 # `data.sections` -- satisfies a whole-file assertIn with a record step deleted.
 # (file, start, end) -> phrases the step itself must carry.
 FIX_WRITER_STEPS = {
-    ('skills/dev/SKILL.md', '### 7. Runtime gate', '### 7.5'):
-        ('### runtime-r<n>', '### runtime-p<N>-r<n>'),
-    ('skills/feature-development/SKILL.md', '| 8 | `RUNTIME_OK` |', '\n'):
+    ('skills/feature-development/tail.md', '| 8 | `RUNTIME_OK` |', '\n'):
         ('### runtime-r<n>', '### runtime-p<N>-r<n>', 'never on a `--local` run'),
-    ('skills/feature-development/SKILL.md', '3. **Quality gate (phase-end only).**',
+    ('skills/feature-development/tail.md', '3. **Quality gate (phase-end only).**',
      '4. **Stage explicitly.**'):
         ('### checkpoint-r<k>', '### checkpoint-p<N>-r<k>'),
 }
@@ -499,8 +492,7 @@ class TestLongFixTitlesStayFindable(unittest.TestCase):
 
     def test_runtime_writers_put_a_one_line_summary_on_the_checkbox(self):
         runtime = {
-            'skills/dev/SKILL.md': ('### 7. Runtime gate', '### 7.5'),
-            'skills/feature-development/SKILL.md': ('| 8 | `RUNTIME_OK` |', '\n'),
+            'skills/feature-development/tail.md': ('| 8 | `RUNTIME_OK` |', '\n'),
         }
         for rel, (start, end) in runtime.items():
             with self.subTest(rel):
@@ -537,7 +529,7 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
         self.assertIn('A dispatch carrying **Task queue:**', step_one)
 
     def test_feature_development_passes_it_to_the_implementer_dispatch(self):
-        gate = (ROOT / 'skills/feature-development/SKILL.md').read_text(
+        gate = (ROOT / 'skills/feature-development/tail.md').read_text(
             encoding='utf-8').split('| 5 | `IMPLEMENT_STEP_OK`')[1].split('\n')[0]
         self.assertIn('--local', gate)
         self.assertIn('**Task queue:**', gate)
@@ -552,9 +544,11 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
                       '`implementer`'):
             self.assertIn(skill, flag)
         self.assertIn('fix rounds included', flag)
-        gate4 = text.split('| 4 | `TASKLIST_READY`')[1].split('\n')[0]
+        head = (ROOT / 'skills/feature-development/heads/full.md').read_text(encoding='utf-8')
+        gate4 = head.split('| 4 | `TASKLIST_READY`')[1].split('\n')[0]
         self.assertIn('`Skill: tasklist` with `$0`, plus `--local`', gate4)
-        gate7 = text.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
+        tail = (ROOT / 'skills/feature-development/tail.md').read_text(encoding='utf-8')
+        gate7 = tail.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
         self.assertIn('`Skill: implementer` (fix tasks from `## Code Review Fixes`, plus'
                       ' `--local`', gate7)
 
@@ -684,6 +678,7 @@ class TestNoLiveDocHidesTheFixSections(unittest.TestCase):
 
     def test_no_live_file_carries_a_retired_phrase(self):
         live = (sorted(ROOT.glob('agents/*.md')) + sorted(ROOT.glob('skills/*/SKILL.md'))
+                + sorted(ROOT.glob('skills/*/heads/*.md')) + sorted(ROOT.glob('skills/*/tail.md'))
                 + sorted(ROOT.glob('docs/*.md')) + [ROOT / 'README.md'])
         for path in live:
             text = path.read_text(encoding='utf-8')

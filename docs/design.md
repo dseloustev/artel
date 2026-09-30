@@ -168,21 +168,13 @@ move to the decision log.
   Fine if deliberate — but then it should be a decision here rather than a standing omission.
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
   the plugin (decision of 2026-07-27, below). No record that the review has been requested.
-- **SDD v2 inputs for sub-project 2** (from the 2026-09-29 debugging design, §8). Sub-project
-  2a (0.23.0) delivered two of them — the `Implements:` field over PRD requirement IDs, and the
-  plan review before the pause. Sub-project 2b still owes:
-  - sizing in the entry point — spike, bounded or architectural, said aloud, heavier when in
-    doubt, ratcheting one way;
-  - ASCII `preview` on the analyst's and vision-writer's visual questions;
-  - a "debug it here first" option when a run halts on a red gate;
-  - a bug-ticket head that reproduces before any PRD.
-- **Sub-project 2b: one orchestrator** (roadmap: the 2026-09-29 task-grammar design, §0). `dev`
-  folds into `feature-development`; the head's depth comes from sizing and the classifier; the
-  SDD v2 inputs above land there; and `dev`'s mini-interview work list gets the task grammar — it
-  is the last writer of the old tasklist format. It also owns the orchestrator seat, the largest
-  cost the 2026-09-30 analysis found (38 % of a run's spend): the post-approval loop one layer
-  down on a mid-tier model, the interview and the approval pause staying on the main thread —
-  to be measured before it is built, as the implementer's model was.
+- **The orchestrator seat** (its own spec, after 0.25.0). The largest cost the 2026-09-30
+  analysis found (38 % of a run's spend): the post-approval loop one layer down on a mid-tier
+  model, the interview and the approval pause staying on the main thread — to be measured before
+  it is built, as the implementer's model was. 0.25.0 wrote everything after arming once, as
+  `skills/feature-development/tail.md`, which names no head: that file is the unit to move.
+  Arming stays in `SKILL.md`, on the main thread, because it can stop and send the person to
+  `--step`.
 - **Model selection: what stays parked after 0.24.0** (2026-09-30 design, gitignored
   `docs/superpowers/specs/2026-09-30-model-selection-design.md`; the replay's record is in the
   gitignored `.superpowers/evals/2026-09-30-model-selection/`). A cheaper implementer for `light`
@@ -195,10 +187,19 @@ move to the decision log.
   `data.waves`, after six shared-state collisions are fixed: the `NNN-` report counter, one actor
   name, the whole-tree review snapshot, every task patching one tasklist, the shared
   `implementation-notes.md`, and whole-tree codegen.
-- **Old-format tasklists are still read** (0.23.0). A tasklist with no `### Task N.M:` heading
-  keeps one row per checkbox, promotion by iteration, `review.perTask` as its only per-task
-  review and no plan review, in every reader. The support goes when 2b converts `dev`'s
-  mini-interview work list, the format's last writer.
+- **The 0.26.0 cleanup release.** Two deletions, neither planned yet: the `/artel:dev` alias
+  (`skills/dev/`), and the old-format tasklist reader paths — a tasklist with no `### Task N.M:`
+  heading still gets one row per checkbox, promotion by iteration, `review.perTask` as its only
+  per-task review and no plan review, in every reader. No writer of that format remains since
+  0.25.0. Precondition: no ticket in flight on an old-format tasklist (one is known, armed
+  2026-09-28 — decision log, 2026-09-30).
+- **Follow-up work on a finished ticket.** A lean run on a ticket whose work list has no open
+  task stops before arming and says so (0.25.0, `skills/feature-development/heads/lean.md`):
+  `generate-tasklist` skips a tasklist that exists, and before the merge such a request was
+  either dropped or improvised around — a host run of 2026-09-28 appended tasks to a finished
+  tasklist by hand. A follow-up mode, in which the writer appends one iteration from the
+  person's request, is not designed: a finished old-format tasklist cannot take a task-block
+  iteration without changing the file's format.
 - **kartoteka's dashboard shows Mermaid as source.** Its 2026-09-17 dashboard design left Mermaid
   out (no stored document used it; about 3 MB of JavaScript), so `design-analysis.md`'s flow map
   renders as a diagram only on the files path. kartoteka's decision; recorded here because artel
@@ -1042,3 +1043,81 @@ move to the decision log.
   Skill tool. `feature-development` and `dev` drop their `model: sonnet` and run on the session's
   model however they are reached; every other skill keeps its line
   ([agents.md](agents.md) `## Models`).
+- **2026-09-30 — One orchestrator: `dev` folds into `feature-development`.** Two entry points
+  made the person choose the depth of the head once, per invocation, with nothing adapting to
+  the work afterwards, and kept most of the tail as the same prose twice. 0.25.0 has one entry
+  point in layout A: a thin `SKILL.md` (the shared start, sizing, arming), one file per head
+  (`heads/full.md`, `heads/lean.md`, `heads/bug.md`) and one `tail.md` that names no head, so
+  it can be moved later. `/artel:dev` stays for one release as an alias for `--head=lean`.
+  Rejected: one `SKILL.md` of about 600 lines (every run loads every head, and the tail cannot
+  be handed over); heads and tail as separate skills (four internal names in the `/artel:`
+  namespace); removing `/artel:dev` outright, keeping it for good, or renaming the merged entry
+  point; designing the nested tail — the orchestrator seat — in the same release (it would tie
+  the merge to a measurement that may fail, as model selection's did). Design:
+  `docs/superpowers/specs/2026-09-30-one-orchestrator-design.md`.
+  History replay (sizing over AW-3187, AW-3342, AW-3088, AW-3270 and AW-3444, three repeats
+  each; the two lean work lists rewritten without a vision; diagnose mode on AW-3107, AW-3375
+  and AW-2580): FAIL — sizing pass, lean work list FAIL, bug head FAIL. Two of the five ideas were
+  reconstructed from the work lists' own notes, because the `dev` runs took their request from
+  the conversation. Sizing failed its first score on one reason that the ticket's own revision
+  section contradicted; it passed after the sizing step gained the rule that every recorded
+  reason must be true of the ticket as it stands, with that ticket's three sessions run again.
+  The other two misses were accepted by the person. Every unit the rewritten work lists lacked
+  was a question the writer had asked and the replay could not answer — no git history for the
+  commits one request named, no Figma for the other, nobody to reply — while the plan check was
+  green and no writer raised. Two of the three diagnoses named the cause the shipped fix
+  addressed; the third named a real cause of the symptom in other code than the fix changed.
+  In all three no fix was left in the tree and the first task was a failing test for the cause.
+- **2026-09-30 — Size it, say it, keep going.** After the ticket is imported the orchestrator
+  sizes the work — `spike`, `bug`, `bounded`, `architectural` — announces the size with its
+  reasons in one line and continues without a pause. First match wins: the `--head` flag, a
+  recorded `sizing.json`, what exists, then judgement over `idea.md`; doubt goes heavier, and
+  `bug` wins any doubt it is part of. Only the person's flag lowers a size; a head may raise it
+  (the writer's `RAISE`, a structural diagnosis) until the run is armed — after that, hidden
+  complexity is a deviation or an aborted task, as before. Rejected: asking to confirm the size
+  (one more question on every run); a flag only (the two-skill choice under a new spelling); a
+  re-plan path after arming. Two details differ from what was first sketched: the flag is read
+  before a recorded sizing (the other order contradicted "only the flag lowers a size"), and a
+  spike's answer goes to `spike.md`, so `research.md` keeps one meaning.
+- **2026-09-30 — Every run closes with a PR; the docs stage needs a PRD.** The tail is
+  `feature-development`'s, the superset: the completion gate with its eight facts, the PR
+  description and the PR gate run behind every head, and a lean `yolo` run now opens its PR
+  unattended — the one new external action. Gate 10 is keyed on the PRD, not on the head: a
+  ticket whose PRD was written à la carte gets its docs whichever head ran. `dev`'s one extra
+  condition — every fix-section parent closed — joins `IMPLEMENT_STEP_OK`. Rejected: one tail
+  for every size (a docs pass written from no spec); keeping `dev`'s tail (three size branches
+  in the tail, and small work still needing a hand-made PR).
+- **2026-09-30 — A bug is diagnosed before anything is planned; a spike is answered and
+  stops.** The bug head runs `debugging --diagnose` (reproduce, compare, hypothesise and
+  confirm; no fix left in the tree), writes `diagnosis.md`, and only then asks for the work
+  list, whose first task is the failing test for the reproduction. A structural cause raises
+  the run to the full head; a bug that does not reproduce goes back to the person. A spike has
+  no head: `researcher --question` writes `spike.md`, and nothing is armed. Rejected:
+  reproduction as the first task after approval (the person approves a work list written
+  before the cause is known); two sizes only; a full spike head with a probe plan and a
+  throwaway branch.
+- **2026-09-30 — Writers stop the old tasklist format now; readers go in 0.26.0.** The lean
+  work list is written by the `tasklist-writer` through `generate-tasklist`, with or without a
+  vision, in the task grammar; `dev`'s inline mini-interview, the format's last writer, is
+  gone. Cost accepted: one `sonnet` dispatch on a tiny change. Every reader keeps its
+  old-format path until the cleanup release, because AW-3088 is in flight on one. Rejected:
+  removing the readers now, with a converter or without.
+- **2026-09-30 — SDD v2's four parked inputs land, as ideas only.** Sizing said aloud and the
+  bug-ticket head (above); "Debug it here first" as the first option on three red-gate halts —
+  an aborted task, a checkpoint at its verify cap, the runtime gate's second red from app code
+  — one attempt per halt (`MAX_DEBUG_HERE_ATTEMPTS = 1`); and an ASCII `preview` on the
+  analyst's and the vision-writer's visual questions, at most 12 lines of 60 columns. No
+  sentence of SDD v2 is used (no licence file).
+- **2026-09-30 — The AW-3270 one-wave criterion was mis-specified; the 2a replay stands as
+  passed.** The criterion expected the files of the original Tasks 1–3 in one wave. The rewrite
+  had found a real compile dependency — changing an ARB key's signature breaks the dialog that
+  uses it — and moved each ARB edit into its dialog task; its own parallel pair came out as one
+  wave. The plan was right and the criterion wrong, so the miss recorded on 2026-09-29 is not a
+  failure of the task grammar.
+- **2026-09-30 — Floor 2 skips tasks that touch only the spec trail.** A task with a
+  `[HITL: …]` tag is raised to `full` when at least one of its `Files:` lies outside
+  `<specs.dir>/<TICKET_ID>/`; a task with no `Files:` keeps the floor. The 2a replay had shown
+  the old floor sending evidence-record tasks — a run log, a verification note — to a code
+  review of a record, when the HITL pause already puts a person in the loop. On that replay's
+  AW-3342 this leaves 1.8, 1.9 and 1.10 on `light` and keeps 3.3 on `full`. Rejected: dropping
+  the floor; leaving it and lowering routes by hand at the pause.

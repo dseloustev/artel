@@ -34,10 +34,10 @@ it). `<ticket>-<N>` is a phase-scoped run.
 
 | The user wants… | Run |
 |---|---|
-| a ticket taken from idea to pull request, one approval pause | `/artel:feature-development <ticket> [description-file] [--mode=…] [--dry-run] [--local]` |
+| a ticket — feature, small change, bug or question — taken to a pull request; it sizes the work and picks the head, one approval pause | `/artel:feature-development <ticket> [description-file] [--head=full\|lean\|bug] [--mode=…] [--dry-run] [--local]` |
 | just the approved work plan, no implementation | `/artel:feature-development <ticket> --dry-run` |
-| a small change implemented, reviewed and runtime-checked, no PRD/docs | `/artel:dev <ticket> [description-file] [--mode=…]` |
-| the next phase of a phased ticket | `/artel:feature-development <ticket>-<N>` or `/artel:dev <ticket>-<N>` |
+| a small change implemented, reviewed and runtime-checked | `/artel:feature-development <ticket>` — small work is sized lean; `--head=lean` forces it (`/artel:dev` is that, as an alias until 0.26.0) |
+| the next phase of a phased ticket | `/artel:feature-development <ticket>-<N>` |
 | an interrupted run resumed | re-invoke the same entry-point command |
 | artel configured or reconfigured for this repo | `/artel:setup` |
 
@@ -128,10 +128,10 @@ With `not on PATH`, code navigation is not routed here — use the ordinary tool
 ## Precedence
 
 1. The user's instructions (`CLAUDE.md`, a direct request) win over these tables.
-2. For artel's domain, the `/artel:` skill wins over generic process skills. An entry point
-   **is** the process: `feature-development` interviews, plans and pauses for approval; `dev`
-   confirms a work list. Do not run brainstorming or plan-writing skills in front of them —
-   that is the interview twice. `/artel:debugging` wins over generic debugging skills
+2. For artel's domain, the `/artel:` skill wins over generic process skills. The entry point
+   **is** the process: `feature-development` sizes the work, runs the head that fits — interview
+   and plan, a work list, or a diagnosis — and pauses once for approval. Do not run brainstorming
+   or plan-writing skills in front of it — that is the interview twice. `/artel:debugging` wins over generic debugging skills
    (`superpowers:systematic-debugging`, `sdd-v2:debugging`): the same discipline, plus this
    repo's gates, its knowledge and a ticket handoff.
 3. Everything else is not routed here.
@@ -147,7 +147,7 @@ a skill that resolves ticket context first; use the skill.
 | "I'll call `search_knowledge` myself" | `/artel:knowledge` keeps the search budget, the citations and the ⚠ NON-CURRENT markers. |
 | "I'll `task_create` it directly" | `/artel:tasks add` keeps `tasklist.md` and the queue in step; a bare row breaks promotion. |
 | "I'll grep for that class" | With the index on PATH, `/ast-index:ast-index` answers in milliseconds; grep is for regex, literals and comments. |
-| "This change is small, I'll just implement it" | Small is what `/artel:dev` is for — gates included. |
+| "This change is small, I'll just implement it" | Small is a size: `/artel:feature-development` picks the lean head — gates included. |
 | "I see the problem, I'll just fix it" | `/artel:debugging` — the cause first, then one fix. |
 | "I'll brainstorm first, then run the pipeline" | The pipeline interviews. Run it. |
 | "I'll ask a clarifying question first" | The skill asks its own. Route first. |

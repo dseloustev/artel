@@ -6,7 +6,7 @@ themselves come from `.artel/config.json` (`docs/config.md`, `verify.*`).
 
 Written for the gate diet of 0.18.0 (design: the 2026-09-24 gate-diet spec).
 Since 0.18.0 the pipeline calls these gates by name: the inner loop runs the task gate, and the
-orchestrators record the baseline at arm time and run the checkpoint gate at every phase
+orchestrator records the baseline at arm time and runs the checkpoint gate at every phase
 checkpoint.
 
 ## 1. The schedule

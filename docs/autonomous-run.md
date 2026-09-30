@@ -410,7 +410,8 @@ On a task-format tasklist ([task-grammar.md](task-grammar.md) §4) each task has
 - **Floored** — four floors, which only ever raise a route to `full`:
   1. a `Files:` path matches a sensitive-paths category (the plugin's
      `hooks/sensitive-paths.json`, replaced wholesale by a host `.artel/sensitive-paths.json`, §10);
-  2. the task carries a `[HITL: …]` tag;
+  2. the task carries a `[HITL: …]` tag and at least one of its `Files:` lies outside the
+     ticket's spec trail (`<specs.dir>/<TICKET_ID>/`);
   3. its `Files:` lists more than `ROUTE_FULL_FILES = 5` paths;
   4. an earlier deviation in this run changed one of its files.
 

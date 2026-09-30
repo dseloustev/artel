@@ -664,5 +664,35 @@ class TestHeaderIsSkipped(unittest.TestCase):
         self.assertEqual(runs[0], runs[1])
 
 
+class TestTrailPrefix(unittest.TestCase):
+    """`<specs.dir>/<ticket_key>/` — what route floor 2 treats as the ticket's spec trail."""
+
+    def repo(self, config=None):
+        import tempfile
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        if config is not None:
+            path = Path(tmp.name) / '.artel' / 'config.json'
+            path.parent.mkdir()
+            path.write_text(config, encoding='utf-8')
+        return tmp.name
+
+    def test_the_default_when_there_is_no_config(self):
+        self.assertEqual(tasklist_tasks.trail_prefix(self.repo(), 'AW-12'),
+                         'specs/.current/AW-12/')
+
+    def test_specs_dir_from_the_config(self):
+        for value in ('docs/specs', 'docs/specs/', './docs/specs'):
+            repo = self.repo(json.dumps({'specs': {'dir': value}}))
+            self.assertEqual(tasklist_tasks.trail_prefix(repo, 'AW-12'), 'docs/specs/AW-12/',
+                             value)
+
+    def test_an_unreadable_or_incomplete_config_falls_back_to_the_default(self):
+        for config in ('not json', '[]', '{}', '{"specs": null}', '{"specs": {"dir": 7}}',
+                       '{"specs": {"dir": "  "}}'):
+            self.assertEqual(tasklist_tasks.trail_prefix(self.repo(config), 'AW-12'),
+                             'specs/.current/AW-12/', config)
+
+
 if __name__ == '__main__':
     unittest.main()

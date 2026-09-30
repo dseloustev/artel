@@ -379,11 +379,35 @@ def task_title(iteration_number, task):
     return _capped('I{} · {} · {}'.format(iteration_number, task['number'], task['title']))
 
 
-def build_task_rows(iterations, rules):
+DEFAULT_SPECS_DIR = 'specs/.current'
+
+
+def trail_prefix(repo, ticket_key):
+    """The ticket's spec trail as a repo-relative prefix: `<specs.dir>/<ticket_key>/`.
+
+    `specs.dir` comes from the host's `.artel/config.json` (docs/config.md). A missing,
+    unreadable or incomplete config means the default, so the parser still runs in a
+    scratch tree and before setup. Route floor 2 reads the prefix (docs/task-grammar.md §7).
+    """
+    specs_dir = DEFAULT_SPECS_DIR
+    try:
+        config = json.loads((Path(repo) / '.artel' / 'config.json').read_text(encoding='utf-8'))
+        value = config['specs']['dir']
+        if isinstance(value, str) and value.strip():
+            specs_dir = value.strip()
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    if specs_dir.startswith('./'):
+        specs_dir = specs_dir[2:]
+    return '{}/{}/'.format(specs_dir.strip('/'), ticket_key)
+
+
+def build_task_rows(iterations, rules, trail=None):
     """(rows, ready, warnings) for a task-format tasklist -- one child row per task.
 
     `ready` is data.ready_now: {task, title} pairs, the titles capped exactly as
-    the rows are, so a consumer can match rows by title.
+    the rows are, so a consumer can match rows by title. `trail` is the ticket's
+    spec-trail prefix (trail_prefix), which route floor 2 reads.
     """
     ready_numbers = set(task_grammar.ready_now(iterations))
     rows = []
@@ -416,7 +440,7 @@ def build_task_rows(iterations, rules):
             child = {'title': title, 'status': status,
                      'description': task_grammar.description(task),
                      'hitl': task['hitl']}
-            child.update(task_grammar.structured(task, rules))
+            child.update(task_grammar.structured(task, rules, trail=trail))
             children.append(child)
         rows.append({'title': parent_title, 'status': 'backlog',
                      'description': '\n\n'.join(parts), 'children': children})
@@ -598,7 +622,8 @@ def run_task_format(body, offset, label, ticket_key, check, requirements, repo,
                         label, len(problems), first['line'], first['message']),
                     data={'problems': problems})
     rules = task_grammar.load_sensitive_rules(repo, sensitive_paths)
-    rows, ready, row_warnings = build_task_rows(iterations, rules)
+    rows, ready, row_warnings = build_task_rows(iterations, rules,
+                                                trail_prefix(repo, ticket_key))
     collisions = find_collisions(rows)
     if collisions:
         return fail('title_collision',

@@ -392,6 +392,50 @@ class TestRouteFloors(unittest.TestCase):
         five = ', '.join('`f{}.py`'.format(n) for n in range(5))
         self.assertEqual(self.floor(one_iteration(block('1.1', files=five))), (None, []))
 
+    TRAIL = 'specs/.current/AW-9/'
+
+    def hitl_task(self, files):
+        body = one_iteration(block('1.1', title='Record the device runs [HITL: needs a phone]',
+                                   files=files, test='none — the record is the evidence'))
+        return task_grammar.parse(body)[0][0]['tasks'][0]
+
+    def test_a_hitl_task_whose_files_are_all_in_the_trail_keeps_its_route(self):
+        task = self.hitl_task('`specs/.current/AW-9/runtime/device-runs.md` (new), '
+                              '`./specs/.current/AW-9/runtime/notes.md`')
+        self.assertEqual(task_grammar.route_floor(task, DEFAULT_RULES, trail=self.TRAIL),
+                         (None, []))
+        data = task_grammar.structured(task, DEFAULT_RULES, trail=self.TRAIL)
+        self.assertEqual((data['route_floor'], data['route_reasons'], data['route_effective']),
+                         (None, [], 'light'))
+
+    def test_one_file_outside_the_trail_keeps_the_hitl_floor(self):
+        task = self.hitl_task('`specs/.current/AW-9/runtime/agent-run.md` (new), `.gitignore`')
+        self.assertEqual(task_grammar.route_floor(task, DEFAULT_RULES, trail=self.TRAIL),
+                         ('full', ['HITL tag']))
+
+    def test_another_ticket_s_trail_is_outside(self):
+        task = self.hitl_task('`specs/.current/AW-90/runtime/device-runs.md`')
+        self.assertEqual(task_grammar.route_floor(task, DEFAULT_RULES, trail=self.TRAIL),
+                         ('full', ['HITL tag']))
+
+    def test_without_a_trail_every_hitl_task_is_floored(self):
+        task = self.hitl_task('`specs/.current/AW-9/runtime/device-runs.md`')
+        self.assertEqual(task_grammar.route_floor(task, DEFAULT_RULES), ('full', ['HITL tag']))
+        self.assertEqual(task_grammar.structured(task, DEFAULT_RULES)['route_effective'], 'full')
+
+    def test_a_hitl_task_with_no_files_keeps_the_floor(self):
+        body = one_iteration(block('1.1', title='Decide the copy [HITL: product decides]',
+                                   files=None))
+        task = task_grammar.parse(body)[0][0]['tasks'][0]
+        self.assertEqual(task_grammar.route_floor(task, DEFAULT_RULES, trail=self.TRAIL),
+                         ('full', ['HITL tag']))
+
+    def test_the_other_floors_ignore_the_trail(self):
+        files = ', '.join('`specs/.current/AW-9/runtime/run-{}.md`'.format(n) for n in range(6))
+        self.assertEqual(task_grammar.route_floor(self.hitl_task(files), DEFAULT_RULES,
+                                                  trail=self.TRAIL),
+                         ('full', ['more than 5 files (6)']))
+
     def test_the_effective_route_is_the_higher_of_declared_and_floor(self):
         body = one_iteration(block('1.1', files='`.env.local`'))
         task = task_grammar.parse(body)[0][0]['tasks'][0]
@@ -678,6 +722,36 @@ class TestCli(unittest.TestCase):
         task = out['data']['iterations'][1]['children'][0]
         self.assertEqual(task['route_reasons'],
                          ['sensitive path (payments): lib/ramps/ramps_bloc.dart'])
+
+    # Task 2.2 of the fixture, rewritten as an evidence record under the ticket's trail.
+    RECORD = TASKS.replace(
+        '- **Files:** `lib/ramps/ramps_screen.dart`\n- **Depends on:** 2.1\n- **Route:** light\n'
+        '- **Test:** `test/ramps/success_dialog_test.dart`',
+        '- **Files:** `specs/.current/AW-9/runtime/sign-off.md` (new)\n- **Depends on:** 2.1\n'
+        '- **Route:** light\n- **Test:** none — the record is the evidence')
+
+    def hitl_row(self, config=None):
+        if config is not None:
+            path = Path(self.repo.name) / '.artel' / 'config.json'
+            path.parent.mkdir(exist_ok=True)
+            path.write_text(config, encoding='utf-8')
+        code, out = run_cli('--tasklist', self.write(self.RECORD), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name)
+        self.assertEqual(code, 0)
+        row = out['data']['iterations'][1]['children'][1]
+        self.assertEqual(row['hitl'], 'copy needs product sign-off')
+        return row['route_effective'], row['route_reasons']
+
+    def test_a_hitl_record_in_the_trail_mirrors_light(self):
+        self.assertNotEqual(self.RECORD, TASKS)
+        self.assertEqual(self.hitl_row(), ('light', []))
+
+    def test_the_trail_follows_the_host_s_specs_dir(self):
+        self.assertEqual(self.hitl_row('{"specs": {"dir": "docs/specs"}}'),
+                         ('full', ['HITL tag']))
+
+    def test_a_garbled_config_is_the_default_trail(self):
+        self.assertEqual(self.hitl_row('not json'), ('light', []))
 
     def test_check_passes_on_the_fixture(self):
         code, out = run_cli('--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',

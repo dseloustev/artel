@@ -1700,5 +1700,82 @@ class TestReaderPointers(unittest.TestCase):
         self.assertGreaterEqual(found, 10, 'the pointer patterns matched almost nothing')
 
 
+class TestRelease(unittest.TestCase):
+    """Plan 3, Task 4: the records — design log, follow-ups, porting plan, changelog."""
+
+    @staticmethod
+    def since():
+        # Everything since 0.24.0: [Unreleased] before the release is cut, [0.25.0] after.
+        return between(flat('CHANGELOG.md'), '## [Unreleased]', ' ## [0.24.0]')
+
+    def test_the_changelog_announces_the_merge(self):
+        since = self.since()
+        for phrase in ('**Sizing.**', '**The bug head.**', '**The spike outcome.**',
+                       '**"Debug it here first."**', '**ASCII previews.**',
+                       '**One orchestrator.**',
+                       '**The lean work list is written by `generate-tasklist`**',
+                       '**The HITL floor skips evidence-only tasks.**',
+                       '`--head=full|lean|bug`', '`.artel/run/<TICKET_ID>/sizing.json`'):
+            self.assertIn(phrase, since)
+
+    def test_upgrading_covers_every_behaviour_change(self):
+        upgrading = between(self.since(), '### Upgrading', '\0')
+        for phrase in ('**`/artel:dev` is an alias.**', 'It goes away in 0.26.0',
+                       '**A lean run ends with a PR.**',
+                       '**A lean `yolo` run opens its PR unattended.**',
+                       '**Every run has an `idea.md`.**', '**Floor 2 changed.**',
+                       '**`--head`.**', '**Tickets in flight keep working.**',
+                       'A tasklist in the old format is still read everywhere'):
+            self.assertIn(phrase, upgrading)
+
+    def test_the_version_and_the_changelog_stay_in_step(self):
+        import json
+        version = json.loads(raw('.claude-plugin/plugin.json'))['version']
+        number = tuple(int(part) for part in version.split('.'))
+        released = '\n## [0.25.0]' in raw('CHANGELOG.md')
+        # Before the cut the entry sits under [Unreleased] and the version is still 0.24.0;
+        # /bump-version moves both at once, and later releases keep both true.
+        self.assertEqual(released, number >= (0, 25, 0),
+                         'plugin.json says {} but CHANGELOG.md {} a [0.25.0] section'.format(
+                             version, 'has' if released else 'has no'))
+
+    def test_the_design_log_records_the_merge(self):
+        log = between(flat('docs/design.md'), '## Decision log', '\0')
+        for phrase in ('**2026-09-30 — One orchestrator: `dev` folds into `feature-development`.**',
+                       '**2026-09-30 — Size it, say it, keep going.**',
+                       '**2026-09-30 — Every run closes with a PR; the docs stage needs a PRD.**',
+                       '**2026-09-30 — A bug is diagnosed before anything is planned; a spike is '
+                       'answered and stops.**',
+                       '**2026-09-30 — Writers stop the old tasklist format now; readers go in '
+                       '0.26.0.**',
+                       "**2026-09-30 — SDD v2's four parked inputs land, as ideas only.**",
+                       '**2026-09-30 — The AW-3270 one-wave criterion was mis-specified; the 2a '
+                       'replay stands as passed.**',
+                       '**2026-09-30 — Floor 2 skips tasks that touch only the spec trail.**',
+                       'Only the person\'s flag lowers a size',
+                       'a lean `yolo` run now opens its PR unattended',
+                       '`MAX_DEBUG_HERE_ATTEMPTS = 1`'):
+            self.assertIn(phrase, log)
+
+    def test_the_open_follow_ups(self):
+        follow_ups = between(flat('docs/design.md'), '## Open follow-ups', '## Decision log')
+        for phrase in ('**The orchestrator seat**', '`skills/feature-development/tail.md`',
+                       'that file is the unit to move', '**The 0.26.0 cleanup release.**',
+                       'the `/artel:dev` alias',
+                       'no ticket in flight on an old-format tasklist',
+                       '**Sub-project 2c: parallel seats.**'):
+            self.assertIn(phrase, follow_ups)
+        for closed in ('**Sub-project 2b: one orchestrator**',
+                       '**SDD v2 inputs for sub-project 2**',
+                       '**Old-format tasklists are still read**'):
+            self.assertNotIn(closed, follow_ups)
+
+    def test_the_porting_plan(self):
+        plan = flat('docs/porting-plan.md')
+        self.assertIn('- [x] One orchestrator (0.25.0)', plan)
+        self.assertIn('- [ ] Cleanup release (0.26.0)', plan)
+        self.assertIn('- [x] Port `dev` (lean loop', plan)   # the port's own record stays
+
+
 if __name__ == '__main__':
     unittest.main()

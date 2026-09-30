@@ -1021,14 +1021,14 @@ class TestTaskGrammarReleaseDocs(unittest.TestCase):
                        '**2026-09-29 — Requirement IDs live in the PRD, and the plan is reviewed '
                        'before the pause.**',
                        '**2026-09-29 — Old-format tasklists keep working until 2b.**',
-                       '**Sub-project 2b: one orchestrator**', '**Sub-project 2c: parallel seats.**',
-                       '**Old-format tasklists are still read** (0.23.0).'):
+                       '**Sub-project 2c: parallel seats.**'):
             self.assertIn(phrase, design)
+        # 0.25.0 closed "Sub-project 2b" and "SDD v2 inputs for sub-project 2" and turned the
+        # old-format follow-up into the cleanup release: tests/test_one_orchestrator_docs.py.
         follow_ups = _between(design, '## Open follow-ups', '## Decision log')
-        sdd = _between(follow_ups, '**SDD v2 inputs for sub-project 2**', '**Sub-project 2b')
-        self.assertIn('Sub-project 2b still owes', sdd)
-        self.assertNotIn('an `Implements` line per task', sdd)
-        self.assertNotIn('a plan-review rubric', sdd)
+        self.assertNotIn('Sub-project 2b still owes', follow_ups)
+        self.assertNotIn('an `Implements` line per task', follow_ups)
+        self.assertNotIn('a plan-review rubric', follow_ups)
 
     def test_changelog(self):
         # Everything since 0.22.0: [Unreleased] before the release is cut, [0.23.0] after.

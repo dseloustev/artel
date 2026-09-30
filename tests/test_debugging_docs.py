@@ -249,7 +249,6 @@ class TestReleaseDocs(unittest.TestCase):
         for phrase in ('**2026-09-29 — Debugging is a contract, a pipeline rule and an inline skill.**',
                        '**2026-09-29 — No whiteboard.**',
                        "**2026-09-29 — SDD v2's sizing, `Implements` line and plan-review rubric wait for sub-project 2**",
-                       '**SDD v2 inputs for sub-project 2**',
                        "**kartoteka's dashboard shows Mermaid as source.**",
                        '**2026-09-29 — Artel is validated by use on real projects, not by separate smoke tests.**'):
             self.assertIn(phrase, doc)

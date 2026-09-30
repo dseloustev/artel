@@ -17,9 +17,18 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - `deep-review`'s whole-branch reviewer runs on `fable`; `review-forecaster` on `sonnet`.
-- `feature-development` and `dev` no longer declare `model: sonnet`: a skill's `model:` applies
-  only when the person types the skill, so the line never applied to them. They run on the
-  session's model, as they always did.
+- `feature-development` and `dev` no longer declare `model: sonnet`. A skill's `model:` applies
+  only when the person types the skill: through the router the line never applied, and typed
+  directly it moved the whole run to `sonnet`, approval pause included. Either way they now run
+  on the session's model.
+
+### Upgrading
+
+- No configuration change. Step-up rounds and `deep-review` use `fable`; on a host that does not
+  allow it, the dispatch falls back to the agent's own model.
+- If you type `/artel:feature-development` or `/artel:dev` directly, the orchestrator now runs on
+  your session's model instead of `sonnet`. Switch the session's model first if you want a
+  cheaper orchestrator. Reached through the router, nothing changes.
 
 ## [0.23.0] - 2026-09-29
 

@@ -114,5 +114,26 @@ class TestReviewerSide(unittest.TestCase):
         self.assertIn('a per-dispatch model has no effect', flat(read('docs/opencode.md')))
 
 
+class TestPinnedDefaults(unittest.TestCase):
+    """The step-up rule and the `## Models` table rest on these defaults."""
+
+    def test_the_implementer_and_the_reviewer_default_to_opus(self):
+        for rel in ('agents/implementer.md', 'agents/reviewer.md'):
+            self.assertRegex(frontmatter(rel), r'(?m)^model: opus$')
+
+    def test_run_reviewer_passes_no_model(self):
+        body = read('skills/run-reviewer/SKILL.md').split('---', 2)[2]
+        for token in ('`model`', '--model', '"fable"'):
+            self.assertNotIn(token, body)
+
+
+class TestChangelog(unittest.TestCase):
+    def test_the_orchestrators_change_is_stated_for_typed_runs(self):
+        log = flat(read('CHANGELOG.md'))
+        self.assertIn('typed directly it moved the whole run to `sonnet`', log)
+        self.assertNotIn('as they always did', log)
+        self.assertIn('If you type `/artel:feature-development` or `/artel:dev` directly', log)
+
+
 if __name__ == '__main__':
     unittest.main()

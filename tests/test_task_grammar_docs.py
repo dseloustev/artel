@@ -100,7 +100,7 @@ class TestGrammarContract(unittest.TestCase):
 
     def test_old_format_and_ids(self):
         doc = flat(self.doc)
-        self.assertIn('The old format stays until sub-project 2b ships', doc)
+        self.assertIn('No writer of the old format remains', doc)
         self.assertIn('never appear in code, tests, identifiers, comments or commit subjects',
                       doc)
         self.assertIn('The fix sections are outside this grammar.', doc)

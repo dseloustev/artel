@@ -251,7 +251,7 @@ non-zero exit is findings (exit 1).
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `review.perTask` | boolean | `false` | `true` raises every iteration task to the `full` route ([autonomous-run.md](autonomous-run.md) §16): a review of its diff right after its implementer returns — the `reviewer` agent in task mode, Blocking / Important findings written under `## Code Review Fixes`, one fix round, no per-task re-review. `false` leaves each task on its own route — declared by the planner, raised to `full` by a sensitive path, a HITL tag, more than five files or an earlier deviation on its files — so `full` tasks are reviewed either way. A tasklist written before 0.23.0 has no routes, and there the key alone decides, as before. Adds one reviewer seat per `full` task; the phase review still runs. | `dev` step 4, `feature-development` gate 5 |
+| `review.perTask` | boolean | `false` | `true` raises every iteration task to the `full` route ([autonomous-run.md](autonomous-run.md) §16): a review of its diff right after its implementer returns — the `reviewer` agent in task mode, Blocking / Important findings written under `## Code Review Fixes`, one fix round, no per-task re-review. `false` leaves each task on its own route — declared by the planner, raised to `full` by a sensitive path, a HITL tag on a task that reaches outside the spec trail, more than five files or an earlier deviation on its files — so `full` tasks are reviewed either way. A tasklist written before 0.23.0 has no routes, and there the key alone decides, as before. Adds one reviewer seat per `full` task; the phase review still runs. | `feature-development`, gate 5 (`tail.md`) |
 | `review.forecast.threshold` | integer | `70` | 1–99. `deep-review`'s cut between `likely to pass` and `at risk` ([review-forecast.md](review-forecast.md) §5): a change whose forecast pass percentage is below it gets a proposed fix. Any other value is a configuration error under reading rule 3. | `deep-review` step 2c, `review-forecaster` |
 | `review.forecast.reviewers` | array of strings | `[]` | Reviewer display names as kartoteka renders them. Empty: every precedent thread weighs `1`. Non-empty: a thread whose root comment is by a listed name weighs `1`, any other `0.5` (review-forecast.md §4). Kept in config because the roster changes. | `review-forecaster` |
 
@@ -507,12 +507,12 @@ and unset ones degrade to `skipped`.
 | `runtime.drive` | string | absent | Command that drives the running app (UI automation) | `drive-app` |
 | `runtime.scaffold.add` | string | absent | Command that adds the transient automation scaffold | `add-automation` |
 | `runtime.scaffold.remove` | string | absent | Command that removes it again | `remove-automation` |
-| `runtime.surface` | array of strings | absent | Repo-relative glob patterns (`fnmatch` semantics, like the sensitive-paths policy) naming the files whose changes make the runtime gate worth running, e.g. `["lib/**/*.dart", "packages/*/lib/**/*.dart"]`. | The entry-point orchestrators' `RUNTIME_OK` gate decision (`feature-development`, `dev`) |
+| `runtime.surface` | array of strings | absent | Repo-relative glob patterns (`fnmatch` semantics, like the sensitive-paths policy) naming the files whose changes make the runtime gate worth running, e.g. `["lib/**/*.dart", "packages/*/lib/**/*.dart"]`. | The orchestrator's `RUNTIME_OK` gate decision — `feature-development`, gate 8 (`tail.md`) |
 
 An absent or empty command means the corresponding skill reports `not configured` and the
 `RUNTIME_OK` gate is recorded as `skipped`. Missing runtime configuration never blocks a run.
 
-`runtime.surface` is a filter, not a command: when set, the entry-point orchestrators run the
+`runtime.surface` is a filter, not a command: when set, the orchestrator runs the
 `RUNTIME_OK` gate only when the run's diff (changed files vs the default branch plus the working
 tree) matches at least one glob, recording `RUNTIME_OK: skipped (no runtime surface)` otherwise.
 When absent with `runtime.run` configured, the gate always runs. It has no effect on manual
@@ -593,7 +593,7 @@ non-interactive and exit non-zero on failure.
 
 There is no bundled fallback file — absence is a defined state, not an error.
 
-- **Entry-point skills** (`feature-development`, `dev`) find no `.artel/config.json` and invoke
+- **The entry point** (`feature-development`) finds no `.artel/config.json` and invokes
   the `setup` skill (`/artel:setup`), which interviews for ticket grammar, tracker, VCS, verify
   commands and languages (plus optional extras), writes `.artel/config.json`, and returns
   control so the requested run continues. The interview happens once per repo; afterwards the

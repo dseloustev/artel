@@ -8,8 +8,8 @@ adapter off, with `--local`, or when the user allows a run to work locally while
 down, the trail is files under `<specs.dir>`, exactly as artel has always kept it.
 
 Spelled here once because every agent and skill needs the identical rules. Agents reference
-this file rather than restating it. Referenced by every agent in `agents/`, both entry
-orchestrators, and every skill that reads or writes a spec document.
+this file rather than restating it. Referenced by every agent in `agents/`, the entry-point
+orchestrator, and every skill that reads or writes a spec document.
 
 **`<project>` throughout is `knowledge.project`** (`docs/config.md`).
 
@@ -457,9 +457,9 @@ wait for migration, and `restore-context` never puts an image back on the kartot
 | Point | Where |
 |---|---|
 | after the design-analysis stage returns | `figma-analysis` |
-| before each checkpoint's staging | `feature-development`'s `## Checkpoint commits & pushes` (which `dev`'s phase checkpoints use) and `dev`'s work-list checkpoint |
+| before each checkpoint's staging | `tail.md` `## Checkpoint commits & pushes` — the planning or work-list checkpoint, and every phase checkpoint |
 | before staging | `pr-create` |
-| at run completion, before the final report | `feature-development`, `dev` |
+| at run completion, before the final report | `feature-development` (`tail.md`) |
 
 A sweep that fails never pauses a run (§5.6).
 

@@ -109,8 +109,10 @@ promotion by iteration, `review.perTask` as before, no plan review — and keeps
 everywhere, so a ticket already in flight finishes the way it started. A phase file
 (`phase-<N>/tasks.md`) is in the format of the tasklist it was extracted from.
 
-The old format stays until sub-project 2b ships: `dev`'s mini-interview work list still writes
-it.
+No writer of the old format remains: since 0.25.0 every tasklist a run writes — the full head's,
+and the lean and bug heads' work list from `generate-tasklist` — is in this grammar. Every reader
+keeps its old-format path until the cleanup release, 0.26.0, so a ticket armed on an old-format
+tasklist finishes on the format it started with.
 
 ## 5. IDs stay out of the product
 

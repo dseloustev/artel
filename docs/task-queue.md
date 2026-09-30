@@ -5,7 +5,7 @@ queue, and what they do when it is not there.
 
 Referenced by `agents/implementer.md`, `skills/implementer/SKILL.md`,
 `skills/generate-tasklist/SKILL.md`, `skills/tasklist/SKILL.md`,
-`skills/dev/SKILL.md`, `skills/feature-development/SKILL.md`,
+`skills/feature-development/SKILL.md` with its head files and `tail.md`,
 `skills/run-reviewer/SKILL.md`, `skills/deep-review/SKILL.md` and
 `skills/tasks/SKILL.md`. Spelled here
 once because they need identical rules and two copies drifting apart hands the
@@ -48,16 +48,15 @@ is considered, exactly as in `docs/knowledge-consultation.md` §1.
 
 **Where `--local` is available.** The flag exists on the orchestrators that carry
 it — `feature-development`, `analysis`, `researcher`, `deep-review` — and on the
-skills that write or keep rows on an orchestrator's behalf: `tasklist` and
+skills that write or keep rows on an orchestrator's behalf: `tasklist`, `generate-tasklist` and
 `run-reviewer`, and `skills/implementer/SKILL.md`, which receives it from its caller
-rather than from the user. `skills/dev/SKILL.md` deliberately has none, pinned by
-`tests/test_knowledge_consultation_docs.py::test_dev_does_not_carry_the_flag`. An
+rather than from the user. `feature-development` takes it on every head, and its `/artel:dev`
+alias passes its arguments through, the flag included. An
 orchestrator holding the flag passes it to each of those it invokes — to the
 implementer skill on every dispatch, fix rounds included — and the implementer skill sets
 the **Task queue:** field of the agent's dispatch to
 `local-only (--local was passed)`; `agents/implementer.md` reads that field rather
-than parsing a flag of its own. Where no orchestrator carries the flag — a `dev`
-run — rows 2-4 alone decide.
+than parsing a flag of its own. Without the flag, rows 2-4 alone decide.
 
 **One precondition is resolved before the table, not in it.** With the adapter
 `kartoteka` and `knowledge.project` empty or outside its grammar, the config is
@@ -95,7 +94,7 @@ fifth case, fall back and record it as spelled there.
 
 Run by `generate-tasklist` and `tasklist` after `tasklist.md` is written — `tasklist`
 only once the plan is approved when the tasklist is task-format (below) — by
-`dev` and `feature-development` alike on entry to implementation, and by every
+`feature-development` on entry to implementation, whichever head ran, and by every
 writer of a fix section right after its append (§6).
 
 1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <path> --ticket-key <TICKET_KEY>`
@@ -147,7 +146,7 @@ claimed ahead of its dependencies.
 the pause's fold-back can renumber and retitle tasks, and rows are create-only, so rows made
 at gate 4 would go stale. `tasklist` therefore mirrors nothing while the tasklist is
 task-format and the plan is not yet `PLAN_APPROVED`; the rows are created by the orchestrator's
-re-mirror before the first implementer dispatch (`feature-development` step 5, `dev` step 4).
+re-mirror before the first implementer dispatch of gate 5 (`tail.md`).
 `generate-tasklist` mirrors after its own approval round, as before. An old-format tasklist
 keeps one row per checkbox, mirrored at gate 4, with its first iteration's children `ready`
 and every other child `backlog`.
@@ -155,7 +154,7 @@ and every other child `backlog`.
 **The step is create-only and safe to re-run.** `task_create` is idempotent on
 `(ticket_key, title)` *and discards* a changed status or description, returning
 the stored row. A re-mirror never resets a `done` row and never undoes a
-promotion, which is what makes the orchestrators' re-mirror a repair rather than
+promotion, which is what makes the orchestrator's re-mirror a repair rather than
 a hazard.
 
 **Use the canonical ticket key, never the phase suffix** — a run of `AW-1234-2`
@@ -165,8 +164,8 @@ for `related()`.
 **`phase-<N>/tasks.md`'s iteration tasks are never mirrored.** It is an extract
 of one iteration that `sync-phases` syncs back to the ticket-wide tasklist;
 mirroring both would create two rows per checkbox. On phase-scoped runs
-`sync-phases` therefore runs before this step, which both orchestrators'
-existing step order already does. Its fix sections are the exception, because
+`sync-phases` therefore runs before this step, which the orchestrator's
+step order already does. Its fix sections are the exception, because
 they live nowhere else: on a phase-scoped run the review, runtime and checkpoint
 gates append to the phase file, and `sync-phases` never copies a fix section
 back. Their writer mirrors the phase file's `data.sections` (the extract has no
@@ -404,8 +403,8 @@ middle segment, the way an iteration's `### ` section is:
 | `reviewer` ticket mode, via `run-reviewer` | `### review-r<R>`, R the `**Review round:**` it writes — `### review-p<PHASE_NUM>-r<R>` on a phase-scoped run |
 | `reviewer` task mode, via `run-reviewer` (`autonomous-run.md` §16) | `### task-gate-<NNN>`, the `NNN` of the report it answers |
 | `deep-review` Step 6 | `### deep-review-<YYYY-MM-DD>` |
-| runtime gate — `dev` step 7, `feature-development` gate 8 | `### runtime-r<n>`, n the retry this round is — `### runtime-p<N>-r<n>` on a phase-scoped run |
-| phase checkpoint — `feature-development` `## Checkpoint commits & pushes`, shared by `dev` | `### checkpoint-r<k>`, k the verify round — `### checkpoint-p<N>-r<k>` on a phase-scoped run |
+| runtime gate — gate 8 (`tail.md`) | `### runtime-r<n>`, n the retry this round is — `### runtime-p<N>-r<n>` on a phase-scoped run |
+| phase checkpoint — `tail.md` `## Checkpoint commits & pushes` | `### checkpoint-r<k>`, k the verify round — `### checkpoint-p<N>-r<k>` on a phase-scoped run |
 | `/artel:tasks add --fix` | `### manual-<YYYY-MM-DD>` — `### manual-p<N>-<YYYY-MM-DD>` in a phase file |
 
 Dates come from `date +%F`, never from memory. A writer starting a batch never

@@ -2,10 +2,12 @@
 
 *Status: draft v0.1 · 2026-08-01*
 
-Shared procedures for the `feature-development` and `dev` entry-point orchestrators. Both invoke
-stage skills and agents and keep state in `<specs.dir>/.active_ticket` plus the ticket's artifact
-tree under `<specs.dir>/<TICKET_ID>/` (see [ticket-parsing.md](ticket-parsing.md)) — orchestrators
-never write code themselves. This is the contract every workflow skill in the plugin obeys:
+Shared procedures for `feature-development`, the entry-point orchestrator. It is the one entry
+point for ticket work: it sizes the work as `spike`, `bug`, `bounded` or `architectural`, runs
+the head that size calls for and then one tail ([autonomous-run.md](autonomous-run.md) §17). It
+invokes stage skills and agents and keeps state in `<specs.dir>/.active_ticket` plus the ticket's
+artifact tree under `<specs.dir>/<TICKET_ID>/` (see [ticket-parsing.md](ticket-parsing.md)) — an
+orchestrator never writes code itself. This is the contract every workflow skill in the plugin obeys:
 resolve context, invoke the matching agent via the `Agent` tool, report — never inline the
 agent's work (see [design.md](design.md), "the skill–orchestrator contract").
 
@@ -48,8 +50,8 @@ Orchestrators:
   Unlike the index refresh above this one *is* an `.artel/config.json` key, because a daemon may
   serve several projects, `knowledge.project` names this one on every call, and an undeclared
   index must not be consulted. `analysis` and `researcher` accept
-  `--local` to force a knowledge-free run, and `feature-development` accepts it and passes it down
-  to both; `dev` does not, because it never invokes either of them. The contract is
+  `--local` to force a knowledge-free run, and `feature-development` accepts it on every head and
+  passes it down to each sub-skill that takes it. The contract is
   [knowledge-consultation.md](knowledge-consultation.md); it never writes, and it never blocks a
   gate.
 - Report status to the user.
@@ -106,9 +108,9 @@ finished cleanly.
 
 ## 5. Autonomous run contract
 
-Both orchestrators run autonomously by default. The run-state file, question bundling, capped
-loops, AFK/HITL tags, the `--step` compatibility mode, and the Stop-hook contract are defined in
-[autonomous-run.md](autonomous-run.md) — read it before executing either orchestrator. That
+The orchestrator runs autonomously by default. The run-state file, sizing and heads, question
+bundling, capped loops, AFK/HITL tags, the `--step` compatibility mode, and the Stop-hook contract
+are defined in [autonomous-run.md](autonomous-run.md) — read it before executing the orchestrator. That
 contract adds two orchestrator-written files to the artifact list above:
 `.artel/run/<TICKET_ID>/run-state.json` and status flips in
 `.artel/run/<TICKET_ID>/open-questions.md` — host-writable run state, kept separate from the

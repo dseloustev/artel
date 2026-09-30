@@ -1443,5 +1443,72 @@ class TestWholeSkill(unittest.TestCase):
                 self.assertIn('tail.md', text)
 
 
+class TestReaders(unittest.TestCase):
+    """Plan 3, Task 1: the contract docs describe one orchestrator (spec §12)."""
+
+    def test_orchestrator_common_describes_one_entry_point(self):
+        doc = flat('docs/orchestrator-common.md')
+        for phrase in ('Shared procedures for `feature-development`, the entry-point orchestrator',
+                       'sizes the work as `spike`, `bug`, `bounded` or `architectural`',
+                       '`feature-development` accepts it on every head',
+                       'The orchestrator runs autonomously by default'):
+            self.assertIn(phrase, doc)
+        for gone in ('Both orchestrators', 'either orchestrator',
+                     'it never invokes either of them'):
+            self.assertNotIn(gone, doc)
+
+    def test_task_queue_points_into_the_tail(self):
+        doc = flat('docs/task-queue.md')
+        for phrase in ('dispatch of gate 5 (`tail.md`)',
+                       '| runtime gate — gate 8 (`tail.md`) |',
+                       '| phase checkpoint — `tail.md` `## Checkpoint commits & pushes` |',
+                       '`feature-development` takes it on every head',
+                       '`tasklist`, `generate-tasklist` and `run-reviewer`'):
+            self.assertIn(phrase, doc)
+        for gone in ('`dev` step', 'both orchestrators', 'deliberately has none'):
+            self.assertNotIn(gone, doc)
+
+    def test_deviation_protocol_names_one_orchestrator(self):
+        doc = flat('docs/deviation-protocol.md')
+        self.assertIn('The orchestrator (`feature-development`) aggregates these lines', doc)
+        self.assertIn('whichever head ran', doc)
+        # The 0.23.0 rule the paragraph carries is still stated.
+        self.assertIn('It also adds every path the line names to `run-state.json` '
+                      '`deviation_files`', doc)
+
+    def test_task_grammar_keeps_every_old_format_reader(self):
+        section = between(flat('docs/task-grammar.md'),
+                          '## 4. Format detection and the old format', '## 5.')
+        # Detection and the old format's behaviour are untouched: no reader path is deleted.
+        for kept in ('a `### Task N.M:` heading anywhere makes the file a task-format tasklist',
+                     'A file with none is the **old format**',
+                     'keeps that behaviour everywhere, so a ticket already in flight finishes '
+                     'the way it started'):
+            self.assertIn(kept, section)
+        # Only the writers are gone.
+        self.assertIn('No writer of the old format remains', section)
+        self.assertIn('Every reader keeps its old-format path until the cleanup release, 0.26.0',
+                      section)
+        self.assertNotIn('mini-interview', section)
+
+    def test_spec_storage_sweep_points(self):
+        doc = flat('docs/spec-storage.md')
+        self.assertIn("| before each checkpoint's staging | `tail.md` "
+                      "`## Checkpoint commits & pushes`", doc)
+        self.assertIn('the entry-point orchestrator, and every skill that reads or writes', doc)
+        self.assertNotIn('both entry orchestrators', doc)
+
+    def test_config_agents_and_gates(self):
+        config = flat('docs/config.md')
+        self.assertIn('| `feature-development`, gate 5 (`tail.md`) |', config)
+        self.assertIn('a HITL tag on a task that reaches outside the spec trail', config)
+        self.assertIn('`feature-development`, gate 8 (`tail.md`) |', config)
+        self.assertIn('**The entry point** (`feature-development`) finds no '
+                      '`.artel/config.json`', config)
+        self.assertIn('its `/artel:dev` alias) declares none', flat('docs/agents.md'))
+        self.assertIn('the orchestrator records the baseline at arm time',
+                      flat('docs/gates.md'))
+
+
 if __name__ == '__main__':
     unittest.main()

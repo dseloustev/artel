@@ -140,7 +140,7 @@ class TestImagesMove(unittest.TestCase):
                        '.artel/run/<TICKET_ID>/images/<path>',
                        '.artel/run/<TICKET_ID>/images/@v<N>/<path>',
                        'spec_store.py image sync <TICKET_ID> --author artel:<skill>',
-                       '`figma-analysis`', '`feature-development`', '`dev`', '`pr-create`',
+                       '`figma-analysis`', '`feature-development`', '`tail.md`', '`pr-create`',
                        '`restore-context`', 'redact'):
             self.assertIn(phrase, text)
 

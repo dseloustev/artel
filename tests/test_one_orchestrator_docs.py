@@ -1150,5 +1150,64 @@ class TestAlias(unittest.TestCase):
             self.assertIn(phrase, opening)
 
 
+class TestRouter(unittest.TestCase):
+    """Plan 2, Task 8: the router has one entry point for ticket work and names /artel:dev only
+    as its alias (spec §12)."""
+
+    ROUTER = 'skills/using-artel/SKILL.md'
+    CAP = 10240
+
+    def setUp(self):
+        self.raw = raw(self.ROUTER)
+        self.router = flat(self.ROUTER)
+        self.entry = between(self.raw, '**Entry points**', '**Pipeline stages')
+
+    def test_one_entry_point_for_ticket_work(self):
+        self.assertEqual(set(re.findall(r'/artel:([a-z-]+)', self.entry)),
+                         {'feature-development', 'dev', 'setup'})
+        rows = [line for line in self.entry.split('\n')
+                if line.startswith('| ') and '/artel:' in line]
+        self.assertEqual(len(rows), 5)
+        for row in rows:
+            self.assertIn(re.search(r'/artel:([a-z-]+)', row).group(1),
+                          ('feature-development', 'setup'), row)
+
+    def test_the_head_flag_is_the_override(self):
+        self.assertIn('| a ticket — feature, small change, bug or question — taken to a pull '
+                      'request; it sizes the work and picks the head, one approval pause | '
+                      '`/artel:feature-development <ticket> [description-file] '
+                      '[--head=full\\|lean\\|bug] [--mode=…] [--dry-run] [--local]` |', self.raw)
+
+    def test_dev_is_named_once_and_only_as_the_alias(self):
+        self.assertEqual(self.raw.count('/artel:dev'), 1)
+        line = [ln for ln in self.raw.split('\n') if '/artel:dev' in ln][0]
+        self.assertIn('`--head=lean` forces it (`/artel:dev` is that, as an alias until 0.26.0)',
+                      line)
+        self.assertNotIn('`dev`', self.raw)
+
+    def test_small_work_and_the_next_phase_go_to_the_one_entry_point(self):
+        for row in ('| a small change implemented, reviewed and runtime-checked | '
+                    '`/artel:feature-development <ticket>` — small work is sized lean;',
+                    '| the next phase of a phased ticket | '
+                    '`/artel:feature-development <ticket>-<N>` |',
+                    '| "This change is small, I\'ll just implement it" | Small is a size: '
+                    '`/artel:feature-development` picks the lean head — gates included. |'):
+            self.assertIn(row, self.raw)
+        self.assertNotIn('no PRD/docs', self.raw)
+
+    def test_precedence_describes_one_sized_entry_point(self):
+        precedence = between(self.router, '## Precedence', '## Red flags')
+        for phrase in ('The entry point **is** the process: `feature-development` sizes the '
+                       'work, runs the head that fits — interview and plan, a work list, or a '
+                       'diagnosis — and pauses once for approval.',
+                       'Do not run brainstorming or plan-writing skills in front of it — that is '
+                       'the interview twice.'):
+            self.assertIn(phrase, precedence)
+        self.assertNotIn('confirms a work list', precedence)
+
+    def test_it_fits_the_injection_budget(self):
+        self.assertLessEqual(len(self.raw.encode('utf-8')), self.CAP)
+
+
 if __name__ == '__main__':
     unittest.main()

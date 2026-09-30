@@ -259,7 +259,8 @@ class TestReleaseDocs(unittest.TestCase):
         self.assertIn('### debugging', doc)
         entry = doc.split('### debugging', 1)[1].split('### ', 1)[0]
         for field in ('**Purpose:**',
-                      '**Invocation:** `/artel:debugging [symptom | failing test | error text]`',
+                      '**Invocation:** `/artel:debugging [symptom | failing test | error text]'
+                      ' or <ticket-id> --diagnose [--local]`',
                       '**Reads:**', '**Writes:**', '**Pauses:**', '**Notes:**'):
             self.assertIn(field, entry)
 

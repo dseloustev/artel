@@ -183,5 +183,72 @@ class TestQuestionMode(unittest.TestCase):
         self.assertIn('the refuse-and-ask rule does not apply', self.agent)
 
 
+class TestDiagnoseMode(unittest.TestCase):
+    """`/artel:debugging <ticket> --diagnose`: the cause on record, and nothing else changed."""
+
+    SKILL = 'skills/debugging/SKILL.md'
+    LAST = '`Diagnosis: <status> — <specs.dir>/<TICKET_ID>/diagnosis.md`'
+
+    def setUp(self):
+        self.skill = flat(self.SKILL)
+        self.mode = between(self.skill, '## 6. Diagnose mode', '## Rules')
+        self.contract = flat('docs/debugging.md')
+
+    def test_the_hint_and_the_reference_carry_the_mode(self):
+        hint = '[symptom | failing test | error text] or <ticket-id> --diagnose [--local]'
+        self.assertIn('argument-hint: "{}"'.format(hint), raw(self.SKILL))
+        self.assertIn('- **Invocation:** `/artel:debugging {}`'.format(hint),
+                      raw('docs/skills-reference.md'))
+        description = re.search(r'(?m)^description: "(.*)"$', raw(self.SKILL)).group(1)
+        self.assertIn('--diagnose', description)
+        self.assertLessEqual(len(description), 1024)
+
+    def test_diagnose_mode_stops_before_the_fix(self):
+        for phrase in ('**no fix, and nothing left in the tree.**', '§2.1–§2.3',
+                       'Stop before §2.4', 'Probes are undone', '`.artel/run/repro/`',
+                       '`git status --porcelain` shows nothing this mode added outside'
+                       ' `.artel/`'):
+            self.assertIn(phrase, self.mode)
+
+    def test_the_diagnosis_document(self):
+        self.assertIn('`type: diagnosis`, `produced_by: artel:debugging`, and `status`',
+                      self.mode)
+        headings = ['`## Symptom`', '`## Reproduction`', '`## Root Cause`', '`## Evidence`',
+                    '`## Fix Origin`', '`## Structural`']
+        places = [self.mode.index(heading) for heading in headings]
+        self.assertEqual(places, sorted(places))
+
+    def test_the_three_statuses(self):
+        for row in ('| `DIAGNOSED` |', '| `DIAGNOSED_STRUCTURAL` |', '| `NOT_REPRODUCED` |'):
+            self.assertIn(row, self.mode)
+        self.assertIn("step 4's ticket question is not asked", self.mode)
+        self.assertIn('`## Root Cause` says `not established`', self.mode)
+
+    def test_an_existing_diagnosis_is_kept_unless_it_did_not_reproduce(self):
+        self.assertIn('**An existing diagnosis.**', self.mode)
+        self.assertIn('`NOT_REPRODUCED` → run again and replace it', self.mode)
+
+    def test_the_last_line_replaces_the_chat_report(self):
+        self.assertIn(self.LAST, self.mode)
+        self.assertIn("Step 5's report is not printed", self.mode)
+
+    def test_the_spec_trail_rule_has_its_one_exception(self):
+        rules = between(self.skill, '## Rules', '\0')
+        self.assertIn('**Never touches the spec trail**', rules)
+        self.assertIn('The one exception is `diagnosis.md`, in diagnose mode', rules)
+
+    def test_local_skips_the_knowledge_search(self):
+        self.assertIn('With `--local` in the arguments, skip this step as well', self.skill)
+
+    def test_the_contract_lists_both_new_readers(self):
+        table = between(self.contract, '## 7. Where this applies in artel', '\0')
+        for phrase in ('the bug head (`heads/bug.md`',
+                       'a red-gate halt (`tail.md`, "Debug it here first")',
+                       '`DIAGNOSED_STRUCTURAL`', '`NOT_REPRODUCED`'):
+            self.assertIn(phrase, table)
+        structural = between(self.contract, '## 4. When the fix is structural', '## 5.')
+        self.assertIn('**In diagnose mode**', structural)
+
+
 if __name__ == '__main__':
     unittest.main()

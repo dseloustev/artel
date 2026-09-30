@@ -509,7 +509,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Find the root cause of a bug, failing test or unexpected behaviour, prove it with
   a test that fails first, and make one fix at the origin — or, when the right fix is
   structural, hand the cause to a ticket instead of patching it.
-- **Invocation:** `/artel:debugging [symptom | failing test | error text]`
+- **Invocation:** `/artel:debugging [symptom | failing test | error text] or <ticket-id> --diagnose [--local]`
 - **Reads:** [debugging.md](debugging.md) (the discipline); `.artel/config.json` when present
   (`verify.fast`, `verify.test`, `knowledge.adapter`); the host's conventions docs for its test
   command.

@@ -250,5 +250,54 @@ class TestDiagnoseMode(unittest.TestCase):
         self.assertIn('**In diagnose mode**', structural)
 
 
+class TestHeadInputs(unittest.TestCase):
+    """A bug ticket raised to the full head, or a ticket with a spike answer, reaches the
+    analyst with what was already found."""
+
+    def test_the_skill_names_both_documents_in_the_dispatch(self):
+        prompt = between(raw('skills/analysis/SKILL.md'), '## Context', '## Instructions')
+        self.assertIn('- **Diagnosis (input):** <specs.dir>/<TICKET_ID>/diagnosis.md (<status>),'
+                      ' or none', prompt)
+        self.assertIn('- **Spike (input):** <specs.dir>/<TICKET_ID>/spike.md, or none', prompt)
+        self.assertIn('**Diagnosis and spike answer.**', flat('skills/analysis/SKILL.md'))
+
+    def test_the_analyst_starts_from_them(self):
+        inputs = between(flat('agents/analyst.md'), '## Input Artifacts', '## Output')
+        for phrase in ('`<specs.dir>/<TICKET_ID>/diagnosis.md`', 'are facts, not questions',
+                       '`<specs.dir>/<TICKET_ID>/spike.md`', 'is not asked again'):
+            self.assertIn(phrase, inputs)
+
+
+class TestPreviews(unittest.TestCase):
+    """A visual choice may be sketched: the agents draw, the skills pass the sketch through."""
+
+    LIMITS = ('`PREVIEW_MAX_LINES = 12`', '`PREVIEW_MAX_COLUMNS = 60`')
+
+    def test_the_analyst_sketches_ux_choices_without_a_design(self):
+        duties = between(flat('agents/analyst.md'), '## Interview duties', '## Phase Support')
+        rule = between(duties, '- **Previews.**', '- **Termination.**')
+        for phrase in self.LIMITS + ('a `preview`', 'Only on a single-choice question',
+                                     'no `DESIGN_ANALYZED` design analysis',
+                                     'never on a question that is not visual'):
+            self.assertIn(phrase, rule)
+
+    def test_the_vision_writer_sketches_architecture_choices(self):
+        workflow = between(flat('agents/vision-writer.md'), '### Step 1', '### Step 2')
+        rule = between(workflow, '**Previews.**', '\0')
+        for phrase in self.LIMITS + ('a `preview`', 'differ in *shape*',
+                                     'Only on a single-choice question'):
+            self.assertIn(phrase, rule)
+
+    def test_both_skills_pass_the_sketch_through(self):
+        for rel, start, end in (
+                ('skills/analysis/SKILL.md', '### Phase 2: Interview loop', '### Phase 3'),
+                ('skills/generate-vision/SKILL.md', '### Phase 2: Ask', '### Phase 3')):
+            with self.subTest(rel):
+                phase = between(flat(rel), start, end)
+                for phrase in ("as that option's `preview` field",
+                               'single-choice questions only', 'as two calls'):
+                    self.assertIn(phrase, phase)
+
+
 if __name__ == '__main__':
     unittest.main()

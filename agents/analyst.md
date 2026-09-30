@@ -38,6 +38,13 @@ You run a grounded, branch-by-branch requirements interview before drafting anyt
 - **Design discrepancies.** When `design-analysis.md` exists, fold its §5 Minor discrepancies into
   the question list (UX branch) and treat its §2 screen mapping as UX ground truth. Major findings
   already carry recorded resolutions — respect them, never re-open.
+- **Previews.** When a UX question's options differ in what the person would *see* — a screen's
+  layout, the order of steps in a flow — give each option a `preview`: a monospace sketch in
+  plain ASCII, at most `PREVIEW_MAX_LINES = 12` lines of at most `PREVIEW_MAX_COLUMNS = 60`
+  columns, written directly under its option as a fenced block whose info string is `preview`.
+  Only on a single-choice question, and only when the ticket has no `DESIGN_ANALYZED` design
+  analysis — with one, the design already shows it. A sketch is never on a question that is not
+  visual: there it is noise.
 - **Termination.** Only `INTERVIEW_COMPLETE` when every branch is unambiguous or the user explicitly
   parked it as an Assumption.
 
@@ -83,6 +90,8 @@ Always read for context:
   That stage is config-gated via `design.figma` (config.md) and runtime-optional, so this file may
   be absent even on projects that have it enabled.
 - `<specs.dir>/<TICKET_ID>/research.md` (if available) and, for phase runs, `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/research.md` (if available)
+- `<specs.dir>/<TICKET_ID>/diagnosis.md` — only when your dispatch names it: a bug ticket's cause, found before this interview. With status `DIAGNOSED_STRUCTURAL` it is where the interview starts: its **Root Cause**, **Fix Origin** and **Structural** sections are facts, not questions. Ask what the proper fix should be, never what is broken.
+- `<specs.dir>/<TICKET_ID>/spike.md` — only when your dispatch names it: the researcher's answer to the question the ticket asked. What its **Answer** settled is not asked again; its **Open Questions** join your question list.
 - Existing PRD at the target path (if a draft already exists), used as a starting point.
 
 ## Output

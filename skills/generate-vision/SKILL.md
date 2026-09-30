@@ -68,7 +68,8 @@ contract — in memory. Any section fully answered by repo conventions closes as
 Return THREE things and stop (do not write the file):
 1. The full draft (raw markdown).
 2. A numbered list of clarifying questions (only where idea+PRD are silent AND the answer changes
-   the design), or `NO_QUESTIONS`. Never re-ask anything answered in Resolved Questions.
+   the design), or `NO_QUESTIONS`. Never re-ask anything answered in Resolved Questions. An
+   architecture choice may carry a `preview` on each option (your agent definition, Step 1).
 3. A "KISS trade-offs" note if anything was deliberately omitted; skip otherwise.
 ```
 
@@ -77,7 +78,10 @@ Return THREE things and stop (do not write the file):
 ### Phase 2: Ask (only if there are questions)
 
 If the agent returned questions, present them via `AskUserQuestion` (≤4 per call, defaults first)
-and collect answers. If `NO_QUESTIONS`, proceed with `answers = "NO_CHANGES"`.
+and collect answers. An option the agent sketched carries a `preview`: pass the block through
+unchanged as that option's `preview` field. Previews go on single-choice questions only — a batch
+that mixes previewed questions with multi-choice ones is asked as two calls, the previewed
+questions first. If `NO_QUESTIONS`, proceed with `answers = "NO_CHANGES"`.
 
 ### Phase 3: Finalize + checkpoint
 

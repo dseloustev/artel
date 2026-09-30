@@ -106,6 +106,13 @@ After Section 7, append `## Out of scope` (from PRD + idea) and `## References` 
    idea+PRD are silent and the answer changes the design; an optional KISS trade-offs note. Do not
    write the file. Stop and wait for resume.
 
+**Previews.** When a question is an architecture choice whose options differ in *shape* — which
+component owns a step, which way the data flows — give each option a `preview`: a monospace
+sketch in plain ASCII of the components and the arrows between them, at most
+`PREVIEW_MAX_LINES = 12` lines of at most `PREVIEW_MAX_COLUMNS = 60` columns, written directly
+under its option as a fenced block whose info string is `preview`. Only on a single-choice
+question. Options that differ in a name or a number get none.
+
 ### Step 2 — Finalize on resume
 
 Incorporate the answers, set the header's `status:` to `VISION_READY`, write the whole file in one pass, and return a

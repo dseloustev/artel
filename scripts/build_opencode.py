@@ -10,8 +10,12 @@ to each one and makes exactly three mechanical rewrites: ${CLAUDE_PLUGIN_ROOT}
 is baked to the install root, `/artel:<name>` references in bodies become
 `artel-<name>`, and `/artel:<name>` prefixes in the frontmatter descriptions
 of skills, commands and agents become `artel-<name>` (`/ast-index:` references
-are left alone). Canonical sources under skills/ and agents/ are never
-modified. Contract: docs/opencode.md.
+are left alone). A skill's other Markdown files — feature-development's head and
+tail files, templates, references — are emitted next to its generated SKILL.md,
+baked the same way but with no frontmatter and no glossary, and a
+`${CLAUDE_PLUGIN_ROOT}/skills/<name>/<file>` pointer to a file this build emits
+is rewritten to the generated copy. Canonical sources under skills/ and agents/
+are never modified. Contract: docs/opencode.md.
 """
 import argparse
 import re
@@ -34,7 +38,9 @@ dialect; this glossary translates it. Apply it throughout:
 - `SendMessage` to an agent id — dispatch a fresh `task` to the same `artel-<name>` agent
   with the message as its prompt. OpenCode has no resume-by-id: the agent re-reads its
   context files, which are its state.
-- `AskUserQuestion` — the `question` tool.
+- `AskUserQuestion` — the `question` tool. It has no `preview` field: when an option carries
+  a `preview`, put that sketch into the question text as a fenced block, under the option's
+  label.
 - `EnterWorktree` / `ExitWorktree` — not available on OpenCode; follow the skill's
   **OpenCode:** instruction at that step instead.
 - `$0`, `$1`, ..., `$ARGUMENTS` — the arguments this skill was invoked with (from the
@@ -61,6 +67,7 @@ glossary:
 
 VALID_NAME = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
 ARTEL_REF = re.compile(r'/artel:([a-z0-9-]+)')
+SKILL_FILE_REF = re.compile(r'\$\{CLAUDE_PLUGIN_ROOT\}/skills/([a-z0-9-]+)/([\w./-]+)')
 MAX_DESCRIPTION = 1024
 
 
@@ -103,9 +110,19 @@ def parse_frontmatter(text):
     return fields, text
 
 
-def bake(body, root):
+def bake(body, root, generated=None):
     """Claude dialect -> OpenCode dialect for a body: bake the install root,
-    prefix `/artel:` references. Everything else is the glossary's job."""
+    prefix `/artel:` references. `generated` maps (skill folder, relative path)
+    to the generated copy of every Markdown file this build emits under a
+    skill's directory: a `${CLAUDE_PLUGIN_ROOT}/skills/<name>/<file>` pointer to
+    one of them lands on that copy, which is baked, instead of on the
+    Claude-dialect source. Any other plugin-root path resolves under the install
+    root. Everything else is the glossary's job."""
+    def land(match):
+        target = (generated or {}).get((match.group(1), match.group(2)))
+        return str(target) if target else match.group(0)
+
+    body = SKILL_FILE_REF.sub(land, body)
     body = body.replace('${CLAUDE_PLUGIN_ROOT}', str(root))
     return ARTEL_REF.sub(r'artel-\1', body)
 
@@ -129,7 +146,7 @@ def assemble(body, glossary, frontmatter):
     return '\n'.join(parts) + '\n'
 
 
-def build_skill(src_text, root):
+def build_skill(src_text, root, generated=None):
     fields, body = parse_frontmatter(src_text)
     name = 'artel-' + fields['name']
     description = ARTEL_REF.sub(r'artel-\1', fields.get('description', ''))
@@ -138,10 +155,10 @@ def build_skill(src_text, root):
         'description: ' + yaml_quote(clip(description, MAX_DESCRIPTION)),
         'license: MIT',
     ]
-    return name, assemble(bake(body, root), SKILL_GLOSSARY, frontmatter)
+    return name, assemble(bake(body, root, generated), SKILL_GLOSSARY, frontmatter)
 
 
-def build_agent(src_text, root):
+def build_agent(src_text, root, generated=None):
     """agents/<name>.md (Claude frontmatter: name/description/model) ->
     artel-<name>.md (OpenCode frontmatter: description/mode). The markdown file
     name is the agent name on OpenCode; model tiers are dropped (subagents
@@ -153,7 +170,7 @@ def build_agent(src_text, root):
         'description: ' + yaml_quote(clip(description, MAX_DESCRIPTION)),
         'mode: subagent',
     ]
-    return name, assemble(bake(body, root), AGENT_GLOSSARY, frontmatter)
+    return name, assemble(bake(body, root, generated), AGENT_GLOSSARY, frontmatter)
 
 
 def build_command(name, description, hint):
@@ -197,9 +214,23 @@ def main(argv=None):
         print('build_opencode: no skills/ under {}'.format(source), file=sys.stderr)
         return 2
 
+    # Every Markdown file under a skill's directory, and where its generated copy goes.
+    # bake() rewrites a pointer into a skill's directory against this map.
+    generated = {}
+    companions = []
+    for skill_path in skill_files:
+        fields, _ = parse_frontmatter(skill_path.read_text(encoding='utf-8'))
+        folder = skill_path.parent
+        dest_dir = out / 'skills' / ('artel-' + fields['name'])
+        for path in sorted(folder.rglob('*.md')):
+            rel = path.relative_to(folder).as_posix()
+            generated[(folder.name, rel)] = dest_dir / rel
+            if path != skill_path:
+                companions.append((path, dest_dir / rel))
+
     for skill_path in skill_files:
         src = skill_path.read_text(encoding='utf-8')
-        name, text = build_skill(src, root)
+        name, text = build_skill(src, root, generated)
         if not VALID_NAME.match(name):
             print('build_opencode: {} is not a legal OpenCode name'.format(name),
                   file=sys.stderr)
@@ -215,11 +246,18 @@ def main(argv=None):
         commands_dir.mkdir(parents=True, exist_ok=True)
         (commands_dir / (name + '.md')).write_text(command, encoding='utf-8')
 
+    # A skill's other Markdown files: baked like a body, with no frontmatter and no
+    # glossary — their reader already has the glossary through the skill's SKILL.md.
+    for path, dest in companions:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(bake(path.read_text(encoding='utf-8'), root, generated),
+                        encoding='utf-8')
+
     agent_files = sorted(p for p in (source / 'agents').glob('*.md')
                          if p.name != 'README.md')
 
     for agent_path in agent_files:
-        name, text = build_agent(agent_path.read_text(encoding='utf-8'), root)
+        name, text = build_agent(agent_path.read_text(encoding='utf-8'), root, generated)
         if not VALID_NAME.match(name):
             print('build_opencode: {} is not a legal OpenCode name'.format(name),
                   file=sys.stderr)
@@ -228,8 +266,8 @@ def main(argv=None):
         agents_dir.mkdir(parents=True, exist_ok=True)
         (agents_dir / (name + '.md')).write_text(text, encoding='utf-8')
 
-    print('build_opencode: {} skills, {} agents -> {}'.format(
-        len(skill_files), len(agent_files), out))
+    print('build_opencode: {} skills, {} agents, {} other skill files -> {}'.format(
+        len(skill_files), len(agent_files), len(companions), out))
     return 0
 
 

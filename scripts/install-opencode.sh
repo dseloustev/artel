@@ -8,7 +8,9 @@
 #   ~/.config/opencode/artel/               full plugin copy (hooks, scripts, docs,
 #                                           skills, agents, bridge plugin)
 #   ~/.config/opencode/plugins/artel.ts     the bridge plugin
-#   ~/.config/opencode/skills/artel-*/      generated skills
+#   ~/.config/opencode/skills/artel-*/      generated skills: SKILL.md, and beside it the
+#                                           skill's other Markdown files (the head and tail
+#                                           files of artel-feature-development, templates)
 #   ~/.config/opencode/agents/artel-*.md    generated agents
 #   ~/.config/opencode/commands/artel-*.md  generated command wrappers
 #   ~/.config/opencode/.artel-install-manifest
@@ -79,6 +81,8 @@ rm -rf "$DEST/hooks/__pycache__" "$DEST/scripts/__pycache__"
 python3 "$DEST/scripts/build_opencode.py" --root "$DEST"
 
 # 3. Place them into OpenCode's flat discovery directories, recording each one.
+#    A skill is recorded as its directory: that one entry covers every file the
+#    generator put in it, so a refresh or --remove takes the head and tail files too.
 #    The `[ -e ]` guards make an empty glob a no-op instead of a `set -e` abort.
 TMP_MANIFEST="$MANIFEST.tmp"
 : > "$TMP_MANIFEST"

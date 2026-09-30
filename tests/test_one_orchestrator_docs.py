@@ -125,5 +125,63 @@ class TestLeanWriter(unittest.TestCase):
             self.assertNotIn(retired, self.skill)
 
 
+class TestQuestionMode(unittest.TestCase):
+    """`/artel:researcher --question`: a spike is answered from the ticket alone, into
+    `spike.md`, and the research document keeps its one meaning."""
+
+    AGENT = 'agents/researcher.md'
+    SKILL = 'skills/researcher/SKILL.md'
+    LAST = '`Spike answered: <one-line answer> — <specs.dir>/<TICKET_ID>/spike.md`'
+
+    def setUp(self):
+        self.agent = between(flat(self.AGENT), '## Question mode', '## Rules')
+        self.skill = flat(self.SKILL)
+        self.mode = between(self.skill, '### Question mode', '### Completion')
+
+    def test_the_hint_and_the_reference_carry_the_flag(self):
+        hint = '[ticket-id] or [ticket-id]-[phase] [--question] [--local]'
+        self.assertIn('argument-hint: "{}"'.format(hint), raw(self.SKILL))
+        self.assertIn('- **Invocation:** `/artel:researcher {}`'.format(hint),
+                      raw('docs/skills-reference.md'))
+
+    def test_no_prd_is_read_or_required(self):
+        self.assertIn('No PRD is read or required', self.mode)
+        self.assertIn('None is read and none is required', self.agent)
+
+    def test_the_agent_learns_the_mode_from_the_context_block(self):
+        line = '- **Mode:** <"question (--question was passed)" | "research">'
+        self.assertEqual(raw(self.SKILL).count(line), 2)  # the Phase 1 prompt, the resume
+        self.assertIn('**Mode:** `question`', self.agent)
+
+    def test_the_answer_goes_to_spike_md_answer_first(self):
+        self.assertIn('never `research.md`', self.agent)
+        self.assertIn('`type: spike`, `produced_by: artel:researcher`, no status', self.agent)
+        headings = ['`## Answer`', '`## Evidence`', '`## Prior Decisions`',
+                    '`## What It Would Take`', '`## Open Questions`']
+        places = [self.agent.index(heading) for heading in headings]
+        self.assertEqual(places, sorted(places))
+        self.assertIn('`research.md` is not written', self.mode)
+
+    def test_question_mode_is_the_one_mode_that_asks(self):
+        for phrase in ('the one mode in which this skill asks', '`AskUserQuestion`',
+                       'Nothing is written to `open-questions.md`',
+                       'a headless run'):
+            self.assertIn(phrase, self.mode)
+        self.assertIn('Outside question mode this skill never asks the user', self.skill)
+
+    def test_it_reads_and_reasons_and_does_not_build(self):
+        self.assertIn('Read and reason; do not build', self.agent)
+        self.assertIn('described, not run', self.agent)
+
+    def test_the_last_line_is_the_answer(self):
+        self.assertIn(self.LAST, self.agent)
+        self.assertIn(self.LAST, between(self.skill, '### Completion', '\0'))
+
+    def test_question_mode_is_ticket_wide(self):
+        self.assertIn("Note: phase argument ignored — a spike answers the ticket's question.",
+                      self.skill)
+        self.assertIn('the refuse-and-ask rule does not apply', self.agent)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -226,7 +226,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### researcher
 
 - **Purpose:** Gather codebase/technical context and produce the ticket's research document.
-- **Invocation:** `/artel:researcher [ticket-id] or [ticket-id]-[phase] [--local]`
+- **Invocation:** `/artel:researcher [ticket-id] or [ticket-id]-[phase] [--question] [--local]`
 - **Reads:** PRD (phase-scoped with ticket-wide fallback), `idea.md`, `vision.md`, and the phase
   tasks file when one exists; the codebase (scan only); and the institutional-knowledge index
   when `knowledge.adapter` is `kartoteka` and its MCP tools are in the session (config.md;

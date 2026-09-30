@@ -218,9 +218,8 @@ class TestFinalReviewFixes(unittest.TestCase):
     def test_an_outage_save_keeps_its_base_version_in_the_header(self):
         self.assertIn("with its header's `version:` set to that same base",
                       flat(section(read(STORAGE), '### 5.2 Mid-run')))
-        for rel in ('skills/feature-development/SKILL.md', 'skills/dev/SKILL.md'):
-            with self.subTest(rel):
-                self.assertIn("with its header's `version:` set to `<N>`", flat(read(rel)))
+        self.assertIn("with its header's `version:` set to `<N>`",
+                      flat(read('skills/feature-development/SKILL.md')))
 
     def test_titles_and_summaries_are_double_quoted(self):
         self.assertIn('`title` and `summary` are double-quoted',

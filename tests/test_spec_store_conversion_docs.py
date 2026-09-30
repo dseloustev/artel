@@ -19,7 +19,7 @@ DISPATCHERS = ('analysis', 'researcher', 'planner', 'tasklist', 'generate-taskli
                'docs-update', 'pr-description', 'figma-analysis', 'deep-review')
 INLINE = ('generate-idea', 'sync-phases', 'tasks', 'change-digest', 'address-pr-comment',
           'pr-create', 'knowledge')
-ORCHESTRATORS = ('feature-development', 'dev')
+ORCHESTRATORS = ('feature-development',)
 CONTRACT = 'docs/spec-storage.md'
 FILE_FORM = re.compile(r'(tasklist_tasks\.py --tasklist|plan_check\.py --plan) <')
 
@@ -146,7 +146,6 @@ class TestOrchestrators(unittest.TestCase):
                 self.assertIn('spec_store.py pending add', text)
                 self.assertIn('only `.active_ticket` changed', text)
         # The review-round reset (§4.4) is the tail's since 0.25.0.
-        self.assertIn('§4.4', skill('dev'))
         self.assertIn('§4.4', read('skills/feature-development/tail.md'))
 
     def test_feature_development_passes_local_to_decide(self):

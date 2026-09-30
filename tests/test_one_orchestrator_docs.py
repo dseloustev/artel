@@ -1106,5 +1106,49 @@ class TestDebugHere(unittest.TestCase):
         self.assertEqual(self.tail.count('--model fable'), 2)
 
 
+class TestAlias(unittest.TestCase):
+    """Plan 2, Task 7: /artel:dev is an alias for one release — one printed line, one skill
+    call, nothing else (spec §9)."""
+
+    LINE = '/artel:dev is now /artel:feature-development --head=lean and goes away in 0.26.0.'
+    HINT = ('[ticket-id] or [ticket-id]-[phase] [description-file] '
+            '[--mode=yolo|plan-gate|full-gates]')
+
+    def setUp(self):
+        self.raw = raw('skills/dev/SKILL.md')
+        self.body = self.raw.split('---', 2)[2]
+
+    def test_the_frontmatter_keeps_the_name_and_the_hint(self):
+        head = self.raw.split('---')[1]
+        self.assertIn('\nname: dev\n', head)
+        self.assertIn('\nargument-hint: "' + self.HINT + '"\n', head)
+        self.assertRegex(head, r'(?m)^description: "Alias of /artel:feature-development '
+                               r'--head=lean')
+        self.assertNotRegex(head, r'(?m)^model:')
+
+    def test_the_body_prints_one_line_then_hands_the_arguments_on(self):
+        self.assertEqual(self.body.count(self.LINE), 1)
+        call = '`Skill: feature-development` with `$ARGUMENTS --head=lean`'
+        self.assertEqual(self.body.count(call), 1)
+        self.assertLess(self.body.index(self.LINE), self.body.index(call))
+
+    def test_nothing_else(self):
+        lines = [line for line in self.body.split('\n') if line.strip()]
+        self.assertLessEqual(len(lines), 5)
+        for gone in ('#', 'run-state.json', 'spec_store.py', 'tasklist_tasks.py',
+                     'AskUserQuestion', '--local', '--decided-by', '--author',
+                     '${CLAUDE_PLUGIN_ROOT}'):
+            self.assertNotIn(gone, self.body)
+
+    def test_the_alias_never_resizes_an_armed_run(self):
+        # The alias adds --head=lean on every call, a resume included; the shared start has to
+        # ignore it once the run is armed, or every resume would present the work list again.
+        opening = between(flat(FD + 'SKILL.md'), '## Workflow', '### 0. Config gate')
+        for phrase in ('Skip steps 2–4', 'do not present an approval again',
+                       'A `--head` flag on such a run changes nothing',
+                       '`--head ignored: the run is past its head.`'):
+            self.assertIn(phrase, opening)
+
+
 if __name__ == '__main__':
     unittest.main()

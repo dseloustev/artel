@@ -22,7 +22,6 @@ NEAR_MISSES = ('task_claim', 'task_next', 'tasks_ready', 'task_get',
 MIRROR_FILES = (
     'skills/generate-tasklist/SKILL.md',
     'skills/tasklist/SKILL.md',
-    'skills/dev/SKILL.md',
     'skills/feature-development/tail.md',
 )
 
@@ -195,7 +194,6 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
         self.assertEqual(carriers, {
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
-            'skills/dev/SKILL.md',
             'skills/feature-development/tail.md',
             'skills/run-reviewer/SKILL.md',
             'skills/deep-review/SKILL.md',
@@ -402,7 +400,6 @@ class TestReviewerGroupingsNeverBecomeTheSource(unittest.TestCase):
 FIX_WRITERS = {
     'skills/run-reviewer/SKILL.md': (),
     'skills/deep-review/SKILL.md': ('### deep-review-<YYYY-MM-DD>',),
-    'skills/dev/SKILL.md': ('### runtime-r<n>',),
     'skills/feature-development/tail.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
     'skills/tasks/SKILL.md': ('### manual-<YYYY-MM-DD>',),
 }
@@ -412,8 +409,6 @@ FIX_WRITERS = {
 # `data.sections` -- satisfies a whole-file assertIn with a record step deleted.
 # (file, start, end) -> phrases the step itself must carry.
 FIX_WRITER_STEPS = {
-    ('skills/dev/SKILL.md', '### 7. Runtime gate', '### 7.5'):
-        ('### runtime-r<n>', '### runtime-p<N>-r<n>'),
     ('skills/feature-development/tail.md', '| 8 | `RUNTIME_OK` |', '\n'):
         ('### runtime-r<n>', '### runtime-p<N>-r<n>', 'never on a `--local` run'),
     ('skills/feature-development/tail.md', '3. **Quality gate (phase-end only).**',
@@ -499,7 +494,6 @@ class TestLongFixTitlesStayFindable(unittest.TestCase):
 
     def test_runtime_writers_put_a_one_line_summary_on_the_checkbox(self):
         runtime = {
-            'skills/dev/SKILL.md': ('### 7. Runtime gate', '### 7.5'),
             'skills/feature-development/tail.md': ('| 8 | `RUNTIME_OK` |', '\n'),
         }
         for rel, (start, end) in runtime.items():

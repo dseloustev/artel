@@ -465,14 +465,15 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
 
 
 class TestDevPathPlanCheck(unittest.TestCase):
-    """Spec §6.1: the mechanical half on the dev path — generate-tasklist's draft and ladder
-    branch 1's existing tasklist; branch 3 stays in the old format."""
+    """Spec §6.1: the mechanical half on the lean path — generate-tasklist's draft and branch 1
+    of the lean head's ladder (heads/lean.md since 0.25.0); the third branch and its old-format
+    work list are gone."""
 
     def setUp(self):
         self.gen = _w_flat('skills/generate-tasklist/SKILL.md')
         self.check = _w_between(self.gen, '### Phase 1b: Check the draft', '### Phase 2:')
-        self.ladder = _w_between(_w_flat('skills/dev/SKILL.md'), '### 2. Input ladder',
-                                 '### 3. Arm the run')
+        self.ladder = _w_between(_w_flat('skills/feature-development/heads/lean.md'),
+                                 '## The ladder', '## Routes at the confirmation')
 
     def test_the_draft_is_checked_before_the_approval_round(self):
         raw = _w_raw('skills/generate-tasklist/SKILL.md')
@@ -517,8 +518,9 @@ class TestDevPathPlanCheck(unittest.TestCase):
                        '`plan check: not run (<error.kind>)`'):
             self.assertIn(phrase, self.ladder)
 
-    def test_branch_three_stays_in_the_old_format(self):
-        self.assertIn('This work list stays in the old checkbox format', self.ladder)
+    def test_the_third_branch_is_gone(self):
+        self.assertNotIn('old checkbox format', self.ladder)
+        self.assertIn('2. **Otherwise** → `Skill: generate-tasklist` with `$0`', self.ladder)
 
     def test_yolo_still_presents_a_critical_or_important_finding(self):
         self.assertIn('a Critical or Important plan-check finding still presents the'
@@ -879,23 +881,17 @@ class TestRoutes(unittest.TestCase):
         self.assertIn('`deviation_files: []` (§2)', arm)
         self.assertIn('carry `requested_local` and `deviation_files` forward unchanged', arm)
 
-    def test_dev_routes(self):
-        dev = flat(read('skills/dev/SKILL.md'))
-        confirm = _between(dev, '**Routes at the confirmation**', 'The confirmed work list')
+    def test_lean_head_routes(self):
+        lean = flat(read('skills/feature-development/heads/lean.md'))
+        confirm = _between(lean, '## Routes at the confirmation', '## Raised by the writer')
         for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered',
-                       "Branch 3's work list has no routes"):
+                       'An old-format tasklist shows no routes.'):
             self.assertIn(phrase, confirm)
-        arm = _between(dev, '### 3. Arm the run', '### 4.')
+        fd = flat(read('skills/feature-development/SKILL.md'))
+        arm = _between(fd, '### 5. Arm the run', '### 6.')
         self.assertIn("every task's effective route (§16.1)", arm)
-        self.assertIn('carry `deviation_files` forward unchanged', arm)
-        step = _between(dev, '### 4. Implement (autonomous)', '### 5.')
-        for phrase in ('add every path the `Deviations:` line names to `run-state.json` `deviation_files`',
-                       '**Routes** (autonomous-run.md §16)',
-                       'a `light` task gets none',
-                       'On an old-format tasklist'):
-            self.assertIn(phrase, step)
-        self.assertIn("a task's `Route:` line changed at the step-2 confirmation",
-                      _between(dev, '## Important'))
+        self.assertIn("a task's `Route:` line changed at the lean head's confirmation",
+                      _between(fd, '## Important'))
 
     def test_config_setup_and_run_reviewer(self):
         row = _between(flat(read('docs/config.md')), '| `review.perTask` |',

@@ -141,41 +141,6 @@ class TestCheckpointProcedure(unittest.TestCase):
         self.assertIn('explicit staging (no trail image on the kartoteka path)', chain)
 
 
-class TestDev(unittest.TestCase):
-    def setUp(self):
-        self.text = skill('dev')
-
-    def test_the_work_list_checkpoint_sweeps_then_stages_without_images(self):
-        step = flat(between(self.text, '### 3. Arm the run', '### 4. Implement (autonomous)'))
-        sweep = SWEEP.format('dev')
-        self.assertIn(sweep, step)
-        self.assertIn(JOURNAL, step)
-        for exclude in excludes():
-            self.assertIn(exclude, step)
-        self.assertLess(step.index(sweep), step.index(excludes()[0]))
-        self.assertIn('images aside, only `.active_ticket` changed', step)
-
-    def test_the_report_sweeps_and_lists_what_is_left(self):
-        report = flat(between(self.text, '### 9. Report', '\n## Important'))
-        self.assertIn(SWEEP.format('dev'), report)
-        self.assertIn('§5.6', report)
-        self.assertIn('images left local', report)
-
-    def test_an_unrecoverable_sweep_is_surfaced_whole_not_summarised(self):
-        step = flat(between(self.text, '### 3. Arm the run', '### 4. Implement (autonomous)'))
-        self.assertIn('unrecoverable', step)
-        self.assertIn('whole message', step)
-        report = flat(between(self.text, '### 9. Report', '\n## Important'))
-        self.assertIn('unrecoverable', report)
-        self.assertIn('whole message', report)
-
-    def test_phase_checkpoints_use_the_shared_procedure(self):
-        step = flat(between(self.text, '### 7.5 Phase checkpoint', '### 8. Complete'))
-        self.assertIn('`feature-development` `## Checkpoint commits & pushes`', step)
-        self.assertIn('the image sweep (kartoteka path) → the `verify.commands` gate', step)
-        self.assertIn('explicit staging (no trail image on the kartoteka path)', step)
-
-
 class TestFigmaAnalysis(unittest.TestCase):
     def test_sweeps_once_the_agent_has_returned(self):
         phase3 = flat(between(skill('figma-analysis'), '### Phase 3: Finalize', '### Completion'))

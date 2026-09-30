@@ -61,14 +61,12 @@ class TestOrchestrators(unittest.TestCase):
             self.assertNotRegex(frontmatter(rel), r'(?m)^model:')
 
     def test_step_up_rounds(self):
-        fd, dev = flat(read(TAIL)), flat(read(DEV))
-        review = ('`--model fable` when the findings come from a `review.md` whose '
-                  '`**Review round:**` is 2 or more')
-        for text in (fd, dev):
-            self.assertIn(review, text)
-            self.assertEqual(text.count('--model fable'), 2)
-        self.assertIn('plus `--model fable` on the second round', fd)
-        self.assertIn('the second round passes `--model fable`', dev)
+        tail = flat(read(TAIL))
+        self.assertIn('`--model fable` when the findings come from a `review.md` whose '
+                      '`**Review round:**` is 2 or more', tail)
+        self.assertEqual(tail.count('--model fable'), 2)
+        self.assertIn('plus `--model fable` on the second round', tail)
+        self.assertNotIn('--model', read(DEV))
 
     def test_the_route_journal_line_carries_no_model(self):
         for rel in (TAIL, DEV):

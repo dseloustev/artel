@@ -65,7 +65,7 @@ Everything is inert unless the project has `.artel/config.json`.
 | Stop gate | blocks the Stop event outright | the completed turn is visible; the idle event re-prompts the model to continue (the hooks' own block caps — 5 and 2 consecutive — remain the loop bound, under a bridge-side fail-safe of 10 consecutive blocks that resets on any clean stop) |
 | Router injection | SessionStart hook context, before the first prompt | prepended to the first user message on every model step (sessions only come into being with their first prompt, so there is no pre-prompt moment) |
 | Two-phase skills (`researcher`, `planner`, …) | `SendMessage` resumes the agent by id | a fresh `task` dispatch; the agent re-reads its context files |
-| Agent model tiers | `opus`/`sonnet` frontmatter | dropped — subagents inherit the caller's model (override per agent in your `opencode.json`) |
+| Agent model tiers | `opus`/`sonnet` frontmatter, plus a per-dispatch `model` for the implementer's step-up rounds and `deep-review`'s reviewer ([agents.md](agents.md) `## Models`) | dropped — subagents inherit the caller's model (override per agent in your `opencode.json`); a per-dispatch model has no effect |
 | `inner-loop` model-invocation guard | `disable-model-invocation: true` | no equivalent; it is loadable like any skill |
 | Knowledge-mirror context | injected after edits | side effect only (the mirror still runs) |
 | Invocation | `/artel:<name>` | `/artel-<name>` (command) or the `artel-<name>` skill |

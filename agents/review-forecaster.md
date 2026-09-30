@@ -1,7 +1,7 @@
 ---
 name: review-forecaster
 description: "Groups a branch's diff into change units, finds review precedents for each in kartoteka, classifies how the reviewer reacted, and writes deep-review.md with a pass forecast per unit and proposed fixes under the threshold. Dispatched by deep-review only."
-model: opus
+model: sonnet
 ---
 
 ## Role

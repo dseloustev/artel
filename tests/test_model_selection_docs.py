@@ -84,5 +84,35 @@ class TestOrchestrators(unittest.TestCase):
             self.assertIn(phrase, caps)
 
 
+class TestReviewerSide(unittest.TestCase):
+    def test_the_forecaster_runs_on_sonnet(self):
+        self.assertRegex(frontmatter('agents/review-forecaster.md'), r'(?m)^model: sonnet$')
+
+    def test_deep_review_runs_its_reviewer_on_fable(self):
+        text = flat(read('skills/deep-review/SKILL.md'))
+        step3 = between(text, '## Step 3:', '## Step 4:')
+        self.assertIn('- `model`: `"fable"`', step3)
+        self.assertIn('re-dispatch once with the same prompt and model', step3)
+        self.assertNotIn('"fable"', between(text, '## Step 4:', '## Step 5:'))
+
+    def test_the_models_section(self):
+        agents = flat(read('docs/agents.md'))
+        section = between(agents, '## Models', '## Why this file')
+        for phrase in ('| `implementer` — every task, and a first fix round | `opus` (frontmatter) |',
+                       '| `implementer` — a fix round after a failed one (review round 2 or more, '
+                       'checkpoint verify round 2) | `fable` |',
+                       "| `reviewer` — `deep-review`'s whole-branch review | `fable` |",
+                       '| `review-forecaster` | `sonnet` (frontmatter) |',
+                       '`CLAUDE_CODE_SUBAGENT_MODEL`', '`availableModels`',
+                       'is re-dispatched once without `model`',
+                       'measured and rejected on 2026-09-30',
+                       "**A skill's `model:` applies only when the person types the skill.**",
+                       '156 of 166', '0 of 230'):
+            self.assertIn(phrase, section)
+
+    def test_the_opencode_row(self):
+        self.assertIn('a per-dispatch model has no effect', flat(read('docs/opencode.md')))
+
+
 if __name__ == '__main__':
     unittest.main()

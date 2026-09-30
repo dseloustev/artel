@@ -6,8 +6,10 @@ Workflow skills — one folder per skill, `SKILL.md` inside. Installed, they sur
 All [porting-plan Phase 3](../docs/porting-plan.md#phase-3--stage-skills) stage, runtime-adapter
 and utility skills are in place, plus the
 [Phase 4](../docs/porting-plan.md#phase-4--entry-point-orchestrators) entry points:
-`feature-development` (full pipeline), `dev` (lean loop), and `setup` (the one-time config
-interview both entry points trigger when `.artel/config.json` is missing). Most skills here are
+`feature-development` (the one entry point for ticket work: it sizes the work and runs one head
+— `heads/full.md`, `heads/lean.md`, `heads/bug.md` — then `tail.md`, all beside its `SKILL.md`),
+`dev` (its alias for one release, the same as `--head=lean`), and `setup` (the one-time config
+interview the entry point triggers when `.artel/config.json` is missing). Most skills here are
 orchestrators — they resolve ticket context, invoke agents, and report; they never inline the
 agent's work. A handful are self-declared procedural workers instead (e.g. `sync-phases`,
 `generate-idea`, `merge-conflicts`, `set-home`, `migrate-prs`) — no agent matches their job, so

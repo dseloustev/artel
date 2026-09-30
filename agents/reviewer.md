@@ -99,7 +99,8 @@ Path resolution follows `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. In summa
    path), and the verdict (✅ / ⚠️ / ❌). A requirement marked `(withdrawn — …)` gets no row; one
    marked `(already met — …)` gets a row whose evidence is its marker's. A PRD written before
    requirement IDs, with no `## Requirements`, keeps one row per criterion of its success
-   criteria; a `dev` run without a PRD keeps one row per acceptance criterion of the work list.
+   criteria; a run without a PRD — behind the lean or the bug head — keeps one row per
+   acceptance criterion of the work list.
    Always present: when there are no criteria to judge it says so, or reads `none`. This table
    is the pipeline's record of criteria against evidence — nothing else writes one since 0.18.0.
 6. `## Manual checks outstanding` — every check a person still has to run before or after merge

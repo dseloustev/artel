@@ -1510,5 +1510,44 @@ class TestReaders(unittest.TestCase):
                       flat('docs/gates.md'))
 
 
+class TestReaderSkills(unittest.TestCase):
+    """Plan 3, Task 2: the skills and agents that named `dev` or "the orchestrators"."""
+
+    def test_reviewer_rows_for_a_run_without_a_prd(self):
+        doc = flat('agents/reviewer.md')
+        self.assertIn('a run without a PRD — behind the lean or the bug head — keeps one row '
+                      'per acceptance criterion of the work list', doc)
+        self.assertNotIn('a `dev` run', doc)
+
+    def test_setup_is_triggered_by_the_one_entry_point(self):
+        skill = raw('skills/setup/SKILL.md')
+        self.assertIn('Invoked automatically by /artel:feature-development when no config '
+                      'exists;', skill)
+        self.assertNotIn('/artel:dev', skill)
+        self.assertIn('the first-run path the entry point triggers', skill)
+
+    def test_sync_phases_and_docs_update(self):
+        self.assertIn('the `feature-development` orchestrator invokes this skill automatically '
+                      'on phase-scoped runs', flat('skills/sync-phases/SKILL.md'))
+        docs = flat('skills/docs-update/SKILL.md')
+        self.assertIn('`feature-development`, gate 10 (`tail.md`)', docs)
+        self.assertIn('only when the ticket has a PRD', docs)
+
+    def test_the_plural_is_gone_where_it_meant_two_entry_points(self):
+        self.assertIn('the orchestrator confirms the same facts itself',
+                      flat('skills/validate/SKILL.md'))
+        self.assertIn("iteration rows are the orchestrator's re-mirror",
+                      flat('skills/run-reviewer/SKILL.md'))
+        self.assertIn('The orchestrator passes the flag only to step up a fix round',
+                      flat('skills/implementer/SKILL.md'))
+
+    def test_skills_readme(self):
+        doc = flat('skills/README.md')
+        self.assertIn('the one entry point for ticket work', doc)
+        self.assertIn('`heads/full.md`, `heads/lean.md`, `heads/bug.md`', doc)
+        self.assertIn('`dev` (its alias for one release', doc)
+        self.assertNotIn('lean loop', doc)
+
+
 if __name__ == '__main__':
     unittest.main()

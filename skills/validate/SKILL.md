@@ -25,6 +25,6 @@ A release id (`R-…`) is always `files` (spec-storage.md §1): skip the decisio
 
 Use the Agent tool with `subagent_type: "validator"`, description `"Validate gates for <TICKET_ID>"`, and a prompt that passes the parsed values (or the release id). The `validator` agent already knows the gates (`PRD_READY`, `PLAN_APPROVED`, `TASKLIST_READY`, `IMPLEMENT_STEP_OK`, `REVIEW_OK`, `RUNTIME_OK`, `CHECKPOINT_OK`, `DOCS_UPDATED`, `AUTOMATION_REMOVED`) and their artifact paths for release / ticket / phase scope (release scope reads `<specs.releases>/<RELEASE_ID>.md` and its tickets, config.md) — no need to restate them here.
 
-Not a pipeline stage since 0.18.0 — the orchestrators confirm the same facts themselves (autonomous-run.md §7); this is the à-la-carte report.
+Not a pipeline stage since 0.18.0 — the orchestrator confirms the same facts itself (autonomous-run.md §7); this is the à-la-carte report.
 
 Wait for the agent to finish and report the gate status back to the user.

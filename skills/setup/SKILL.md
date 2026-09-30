@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "One-time configuration interview: create or revise .artel/config.json — ticket grammar, tracker/VCS adapters, verify commands, languages, optional extras (setup commands, design stage, runtime gate). Invoked automatically by /artel:feature-development and /artel:dev when no config exists; run manually to create or revise the file."
+description: "One-time configuration interview: create or revise .artel/config.json — ticket grammar, tracker/VCS adapters, verify commands, languages, optional extras (setup commands, design stage, runtime gate). Invoked automatically by /artel:feature-development when no config exists; run manually to create or revise the file."
 argument-hint: ""
 model: sonnet
 ---
@@ -13,7 +13,7 @@ it first; the interview only ever writes keys that document defines, in its docu
 
 Read `.artel/config.json`.
 
-- **Missing** → step 2 directly (the first-run path the entry points trigger).
+- **Missing** → step 2 directly (the first-run path the entry point triggers).
 - **Present and parseable** → show the current values in one screen and ask via
   `AskUserQuestion`: **Revise** (re-run the interview with the current values pre-selected as
   defaults) / **Abort** (leave the file untouched, stop).

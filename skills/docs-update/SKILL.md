@@ -26,5 +26,5 @@ Use the Agent tool with `subagent_type: "tech-writer"`, description `"Update doc
 Wait for the agent to finish and show the documentation diff.
 
 In the pipeline this skill runs **once per ticket**, ticket-wide, on the last phase before its checkpoint
-commit (`feature-development` gate 10), so that commit carries the docs; the phase-scoped output
-exists for manual runs.
+commit — `feature-development`, gate 10 (`tail.md`) — and only when the ticket has a PRD, so that
+commit carries the docs; the phase-scoped output exists for manual runs.

@@ -113,7 +113,7 @@ class TestCheckpointProcedure(unittest.TestCase):
     def test_the_planning_checkpoint_ignores_untracked_images(self):
         self.assertIn('images aside, only `.active_ticket` changed',
                       flat(between(self.start, 'Then run the **planning checkpoint**',
-                                   '### 5. Autonomous tail')))
+                                   '### 6. The tail')))
 
     def test_the_final_report_sweeps_and_lists_what_is_left(self):
         report = self.part('## Final report', '\n## Checkpoint commits & pushes')

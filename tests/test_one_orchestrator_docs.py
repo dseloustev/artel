@@ -531,5 +531,245 @@ class TestFullHead(unittest.TestCase):
             self.assertNotIn(moved, skill)
 
 
+class TestLayout(unittest.TestCase):
+    """Plan 2, Task 3: SKILL.md is the shared start — its headings, its hint, the four files it
+    sends the run to, arming and the rules (spec §1, §2)."""
+
+    HEADINGS = ['## Workflow', '### 0. Config gate', '### 1. Set active ticket',
+                '### 1.5 Spec store', '### 2. Import the ticket', '### 3. Size the work',
+                '### 4. The head', '### 5. Arm the run', '### 6. The tail', '## Important']
+    HINT = ('[ticket-id] or [ticket-id]-[phase] [description-file] [--head=full|lean|bug] '
+            '[--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]')
+
+    def setUp(self):
+        self.raw = raw(FD + 'SKILL.md')
+        self.skill = flat(FD + 'SKILL.md')
+
+    def test_headings_in_order(self):
+        self.assertEqual([line for line in self.raw.split('\n') if line.startswith('#')],
+                         self.HEADINGS)
+
+    def test_the_frontmatter(self):
+        head = self.raw.split('---')[1]
+        self.assertIn('\nname: feature-development\n', head)
+        self.assertIn('\nargument-hint: "' + self.HINT + '"\n', head)
+        self.assertNotRegex(head, r'(?m)^model:')
+        self.assertIn('- **Invocation:** `/artel:feature-development ' + self.HINT + '`\n',
+                      raw('docs/skills-reference.md'))
+
+    def test_it_names_the_four_files_and_when_each_is_read(self):
+        for name in ('heads/full.md', 'heads/lean.md', 'heads/bug.md', 'tail.md'):
+            self.assertIn('| `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/' + name + '` |',
+                          self.raw)
+        opening = between(self.skill, 'This file is the shared start', '## Workflow')
+        for phrase in ('each read when the run reaches it — never all at once',
+                       'Read exactly one head file per run, after sizing',
+                       'and another only when a head hands the ticket on',
+                       'On resume of an armed run read `tail.md` and no head file'):
+            self.assertIn(phrase, opening)
+
+    def test_every_flag_applies_to_every_head(self):
+        flags = between(self.skill, '`--step` flag:', '## Workflow')
+        for phrase in ('`--head=full|lean|bug` sets the size (step 3)',
+                       '`--dry-run`: run steps 0–4 — the head to the end of its approval',
+                       'write no `run-state.json`, never arm',
+                       'Every flag applies to every head.',
+                       '(`analysis`, `researcher`, `tasklist`, `generate-tasklist`, `debugging`, '
+                       '`run-reviewer` and `implementer`)',
+                       "fix rounds included (gates 7, 8 and 10.7, and the per-task review's "
+                       'round)'):
+            self.assertIn(phrase, flags)
+
+    def test_gate_0_is_every_run_s_import(self):
+        step = between(self.skill, '### 2. Import the ticket', '### 3. Size the work')
+        for phrase in ('in every gate of this skill — the one below and every gate of a head file',
+                       '| 0 | `IDEA_READY` — `idea.md` exists | `Skill: generate-idea` with '
+                       '`$0 $1`, under **every** adapter',
+                       'Every run imports: step 3 sizes the work from `idea.md` and every head '
+                       'starts from it'):
+            self.assertIn(phrase, step)
+        self.assertNotIn('Gate 2 hard-requires', step)
+
+    def test_step_4_reads_the_one_head_the_size_names(self):
+        step = between(self.skill, '### 4. The head', '### 5. Arm the run')
+        for size, name in (('architectural', 'full'), ('bounded', 'lean'), ('bug', 'bug')):
+            self.assertIn('| `{}` | `${{CLAUDE_PLUGIN_ROOT}}/skills/feature-development/heads/'
+                          '{}.md` |'.format(size, name), step)
+        for phrase in ('A `spike` never reaches this step',
+                       'plain `AskUserQuestion` calls with no `pause_reason`',
+                       '- **its approval**', '- **a raise** (step 3, "The ratchet")',
+                       '- **a stop the head names itself**',
+                       'only when the person chooses **Treat it as a bounded change** there'):
+            self.assertIn(phrase, step)
+
+    def test_arming_is_one_text_for_every_head(self):
+        arm = between(self.skill, '### 5. Arm the run', '### 6. The tail')
+        for phrase in ('over what the head produced: plan + tasklist, or the confirmed work list '
+                       'with `idea.md` and `vision.md` when present',
+                       '`forced_floor: "full-gates"` ⇒ stop here',
+                       '`--dry-run` ⇒ stop here too',
+                       'the pull request the run ends with (opened without asking in `yolo`)',
+                       '`requested_local`', '`deviation_files: []` (§2)',
+                       '`gates_confirmed: ["TASKLIST_READY"]`',
+                       "every task's effective route (§16.1)",
+                       '`- size: <size> (<head> head; decided by <decided_by>)`',
+                       "When gate 4.2 ran, that is the plan review's outcome",
+                       '`plan check: <c> Critical, <i> Important, <m> Minor`',
+                       '`plan check: skipped (old-format tasklist)`',
+                       '`plan check: not run (<error.kind>)`',
+                       '`plan check: run by generate-tasklist`',
+                       'subject `docs: <TICKET_ID> planning artifacts` when a plan exists, '
+                       '`docs: <TICKET_ID> work list` otherwise',
+                       '`planning checkpoint: skipped — the spec trail is in kartoteka`',
+                       '**Fresh arm only**'):
+            self.assertIn(phrase, arm)
+        self.assertNotIn('work-list checkpoint: skipped', self.skill)
+
+    def test_the_tail_is_the_last_step(self):
+        step = between(self.skill, '### 6. The tail', '## Important')
+        for phrase in ('Run `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/tail.md` from '
+                       '`## Phase traversal` to its final report',
+                       'holds every `pause_reason` bracket after the head',
+                       'A resumed armed run enters here'):
+            self.assertIn(phrase, step)
+
+    def test_the_rules(self):
+        rules = self.skill[self.skill.index('## Important'):]
+        for phrase in ('Every `AskUserQuestion` after step 5 has armed the run MUST be bracketed '
+                       'by a `pause_reason` set/clear',
+                       'Before that — steps 2–4, every head — a question is plain.',
+                       "A size is raised by a head and lowered only by the person's flag.",
+                       '`.artel/run/<TICKET_ID>/sizing.json`',
+                       "a task's `Route:` line changed at the lean head's confirmation",
+                       '**`STORE_UNAVAILABLE`**'):
+            self.assertIn(phrase, rules)
+        for gone in ('step-2.3', 'after step 3 MUST', 'dev never invokes'):
+            self.assertNotIn(gone, self.skill)
+
+    def test_the_stamps(self):
+        self.assertEqual(self.raw.count('--decided-by feature-development'), 2)
+        for gone in ('--decided-by dev', 'artel:dev', '`dev`'):
+            self.assertNotIn(gone, self.raw)
+
+
+class TestSizing(unittest.TestCase):
+    """Plan 2, Task 3: sizing — the four sizes, the order of decision, the record, the line said
+    aloud, the ratchet, the spike outcome and the armed run that skips it all (spec §2, §3)."""
+
+    KEYS = ['size', 'head', 'reasons', 'decided_by', 'raised_from', 'answered', 'decided_at']
+
+    def setUp(self):
+        self.raw = raw(FD + 'SKILL.md')
+        self.skill = flat(FD + 'SKILL.md')
+        self.step = between(self.skill, '### 3. Size the work', '### 4. The head')
+
+    def test_it_never_pauses_and_dispatches_no_agent(self):
+        for phrase in ('record it, say it, and go on — never a pause',
+                       'no agent is dispatched',
+                       '`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §17 '
+                       '(`## 17. Sizing and heads`)',
+                       'stated here in full because this is the file you act from'):
+            self.assertIn(phrase, self.step)
+
+    def test_the_four_sizes_and_their_heads(self):
+        for row in ('| `spike` | none — "The spike outcome" below |',
+                    '| `bug` | `bug` — `heads/bug.md` |',
+                    '| `bounded` | `lean` — `heads/lean.md` |',
+                    '| `architectural` | `full` — `heads/full.md` |'):
+            self.assertEqual(self.step.count(row), 1, row)
+        for phrase in ('names no change to ship', "the tracker's issue type is Bug",
+                       'no open product question', 'or acceptance that is unclear'):
+            self.assertIn(phrase, self.step)
+
+    def test_the_order_of_decision(self):
+        rules = ('1. **A flag.**', '2. **A recorded sizing**', '3. **What exists**',
+                 '4. **Judgement**')
+        at = [self.step.index(rule) for rule in rules]
+        self.assertEqual(at, sorted(at))
+        for phrase in ('the first rule that matches wins',
+                       '`--head=full` → `architectural`, `--head=lean` → `bounded`, '
+                       '`--head=bug` → `bug`',
+                       "The person's flag is the only thing that lowers a size.",
+                       'a run interrupted inside a head resumes on the same head',
+                       'A PRD or a plan, at either scope',
+                       'Else `diagnosis.md` → `bug`.',
+                       'Else a tasklist with open tasks, or a `vision.md` → `bounded`.',
+                       'An open task is an unticked `- [ ]` box',
+                       'Read that one document', 'explore nothing else'):
+            self.assertIn(phrase, self.step)
+
+    def test_doubt_goes_heavier_and_bug_wins(self):
+        self.assertIn('In doubt between two sizes take the heavier: `spike` < `bounded` < '
+                      '`architectural`.', self.step)
+        self.assertIn('`bug` wins any doubt it is part of', self.step)
+
+    def test_the_record_has_exactly_the_contract_s_keys(self):
+        import json
+        block = between(self.raw, '\n    {\n', '\n    }\n') + '\n    }'
+        example = json.loads(block)
+        self.assertEqual(list(example), self.KEYS)
+        self.assertEqual((example['size'], example['head']), ('bounded', 'lean'))
+        self.assertIsNone(example['raised_from'])
+        self.assertIs(example['answered'], False)
+        for phrase in ('write `.artel/run/<TICKET_ID>/sizing.json` — in `--step` runs too: it is '
+                       'not run state',
+                       'When rule 2 found the file, leave it as it is',
+                       '`head` is `none`, `bug`, `lean` or `full`',
+                       '`decided_by` is `flag` (rule 1), `existing` (rule 3), `judgement` '
+                       '(rule 4) or `raised` (the ratchet)',
+                       '`decided_at` is UTC ISO-8601'):
+            self.assertIn(phrase, self.step)
+
+    def test_the_line_said_aloud(self):
+        for phrase in ('Size: <size> — <head> head. Reasons: <reason>; <reason>. To change: say '
+                       'so now, or re-run with --head=<full|lean|bug>.',
+                       '`Size: spike — no head; the researcher answers the question.`',
+                       'It is an announcement, not a question: go straight on.',
+                       'honour that as the flag',
+                       'the run-start journal entry repeats the size either way (step 5)'):
+            self.assertIn(phrase, self.step)
+
+    def test_the_ratchet_raises_and_stops_at_arming(self):
+        for phrase in ('**The ratchet.** A head may raise the size, never lower it',
+                       "the lean head when `generate-tasklist` returns the writer's `RAISE`",
+                       'the bug head when the diagnosis is `DIAGNOSED_STRUCTURAL`',
+                       '`decided_by` `raised`, `raised_from` the earlier size',
+                       'Size raised: <from> → architectural — full head. Reason: <reason>.',
+                       'The ratchet stops at arming'):
+            self.assertIn(phrase, self.step)
+
+    def test_the_spike_outcome(self):
+        for phrase in ('**The spike outcome.** A `spike` reads no head file.',
+                       '`Skill: researcher` with `$0 --question`, plus `--local` when this run '
+                       'was invoked with it',
+                       '`<specs.dir>/<TICKET_ID>/spike.md`',
+                       '`Spike answered: <one-line answer> — <path>`',
+                       'set `answered: true` in `sizing.json`, and stop',
+                       'Nothing is armed, journaled or committed'):
+            self.assertIn(phrase, self.step)
+
+    def test_an_answered_spike_is_not_a_recorded_sizing(self):
+        for phrase in ('a spike already answered (`size` `spike`, `answered: true`) is not a '
+                       'recorded sizing — go on to rule 3',
+                       'A later run on the same ticket is sized afresh from rule 3.',
+                       'do not dispatch the researcher a second time',
+                       'Already answered: <path to spike.md>. To build on it, re-run with '
+                       '--head=lean or --head=full.'):
+            self.assertIn(phrase, self.step)
+
+    def test_an_armed_run_resumes_past_the_head(self):
+        opening = between(self.skill, '## Workflow', '### 0. Config gate')
+        for phrase in ('Steps 0–1.5 run on every invocation.',
+                       '**An armed run resumes past the head.**',
+                       '`run_active: true` with `gates_confirmed` holding `TASKLIST_READY`',
+                       'Skip steps 2–4',
+                       'Do not size, do not read a head file, and do not present an approval '
+                       'again.',
+                       '`--head ignored: the run is past its head.`',
+                       'A run armed before 0.25.0 has no `sizing.json` and needs none.',
+                       'Every other run — new, or interrupted inside a head — goes on to step 2.'):
+            self.assertIn(phrase, opening)
+
+
 if __name__ == '__main__':
     unittest.main()

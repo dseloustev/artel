@@ -460,7 +460,7 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
         self.assertIn('guardrail, not a pause preference', yolo)
 
     def test_the_run_start_entry_records_the_outcome(self):
-        arm = _w_between(self.fd, '### 4. Arm the run', 'Then run the **planning checkpoint**')
+        arm = _w_between(self.fd, '### 5. Arm the run', 'Then run the **planning checkpoint**')
         self.assertIn("the plan review's outcome", arm)
 
 
@@ -875,7 +875,7 @@ class TestRoutes(unittest.TestCase):
         for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered',
                        'In `yolo` the routes stand as declared and floored'):
             self.assertIn(phrase, pause)
-        arm = _between(fd, '### 4. Arm the run', '### 5.')
+        arm = _between(fd, '### 5. Arm the run', '### 6.')
         self.assertIn('`deviation_files: []` (§2)', arm)
         self.assertIn('carry `requested_local` and `deviation_files` forward unchanged', arm)
 

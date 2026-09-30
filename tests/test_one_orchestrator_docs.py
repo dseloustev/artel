@@ -1549,5 +1549,156 @@ class TestReaderSkills(unittest.TestCase):
         self.assertNotIn('lean loop', doc)
 
 
+class TestGuideAndReference(unittest.TestCase):
+    """Plan 3, Task 3: the operator guide, the reference, the README, the Flutter walk-through."""
+
+    def test_the_guide_describes_four_outcomes(self):
+        guide = flat('docs/workflow-guide.md')
+        self.assertIn('One entry point drives everything.', guide)
+        for row in ('| `architectural` | full |', '| `bounded` | lean |', '| `bug` | bug |',
+                    '| `spike` | none |'):
+            self.assertIn(row, guide)
+        for phrase in ('**Import the ticket (gate 0 — `IDEA_READY`).**', '**Size the work.**',
+                       '**The full head (gates 0.5–4.5).**', '### The other heads',
+                       '**The lean head** (`bounded`).', '**The bug head** (`bug`).',
+                       '**The spike outcome** (`spike`).',
+                       'Size raised: bounded → architectural — full head.',
+                       'a lean or a bug run in `yolo` opens its PR unattended as well',
+                       '**Debug it here first**', '`DOCS_UPDATED: skipped (no PRD)`',
+                       '**`sizing.json`** (`autonomous-run.md §17`)',
+                       'Four skills — and only these — touch git history or remotes'):
+            self.assertIn(phrase, guide)
+        for gone in ('Two entry points drive everything', 'not on `dev`', 'Lean loop (no PRD'):
+            self.assertNotIn(gone, guide)
+
+    def test_the_feature_development_entry(self):
+        entry = between(flat('docs/skills-reference.md'), '### feature-development', '### dev')
+        for phrase in ('The one entry point for ticket work',
+                       '`spike`, `bug`, `bounded` or `architectural`',
+                       '`.artel/run/<TICKET_ID>/sizing.json`',
+                       '`heads/full.md`, `heads/lean.md` or `heads/bug.md`',
+                       '`tail.md`, read once the run is armed',
+                       'Only the flag lowers a size',
+                       'An armed run resumes past its head',
+                       '`--dry-run` and `--local` apply to every head',
+                       'journaled `skipped (no PRD)` otherwise',
+                       "a task's own review runs when its route is `full`"):
+            self.assertIn(phrase, entry)
+        self.assertNotIn('not on `dev`', entry)
+
+    def test_the_alias_entry(self):
+        entry = between(flat('docs/skills-reference.md'), '### dev', '### setup')
+        for phrase in ('Alias, for one release, of `/artel:feature-development --head=lean`',
+                       '/artel:dev is now /artel:feature-development --head=lean and goes away '
+                       'in 0.26.0.',
+                       'in `yolo` it opens the PR unattended',
+                       'takes `--dry-run` and `--local`'):
+            self.assertIn(phrase, entry)
+        for gone in ('Lean autonomous implementation loop', 'never invokes `pr-create`',
+                     'No `--dry-run` flag'):
+            self.assertNotIn(gone, entry)
+
+    def test_the_worker_entries(self):
+        ref = flat('docs/skills-reference.md')
+        writer = between(ref, '### generate-tasklist', '### implementer')
+        for phrase in ("the lean head's and the bug head's writer",
+                       '`vision.md` when it exists', '`RAISE: <reason>; <reason>`',
+                       'Next: /artel:feature-development <TICKET_ID> --head=full',
+                       'status `TASKLIST_READY` in its header'):
+            self.assertIn(phrase, writer)
+        self.assertNotIn('mini-interview', writer)
+        researcher = between(ref, '### researcher', '### planner')
+        self.assertIn('With `--question`', researcher)
+        self.assertIn('`<specs.dir>/<TICKET_ID>/spike.md`', researcher)
+        debugging = between(ref, '### debugging', '### sync-phases')
+        for phrase in ('`<specs.dir>/<TICKET_ID>/diagnosis.md`',
+                       '`DIAGNOSED`, `DIAGNOSED_STRUCTURAL` or `NOT_REPRODUCED`',
+                       '`tail.md` `## Debug it here first`', '`heads/bug.md`'):
+            self.assertIn(phrase, debugging)
+        self.assertIn('at most 12 lines of 60 columns',
+                      between(ref, '### analysis', '### generate-vision'))
+        self.assertIn('at most 12 lines of 60 columns',
+                      between(ref, '### generate-vision', '### researcher'))
+        self.assertIn('gate 10 (`tail.md`)', between(ref, '### docs-update', '### pr-description'))
+        self.assertIn('the PR gate (`tail.md`)', between(ref, '### pr-create', '## Utilities'))
+
+    def test_the_readme(self):
+        readme = flat('README.md')
+        self.assertIn('`/artel:dev` is an alias for `/artel:feature-development --head=lean` '
+                      'until 0.26.0', readme)
+        self.assertIn('**Sized to the work**', readme)
+        self.assertNotIn('(lean loop)', readme)
+
+    def test_the_flutter_walkthrough(self):
+        doc = flat('docs/testing-flutter.md')
+        self.assertIn('/artel:feature-development FLT-1 --head=lean', doc)
+        self.assertIn('### 4.4 The lean head end to end', doc)
+        self.assertNotIn('/artel:dev', doc)
+
+
+class TestReaderPointers(unittest.TestCase):
+    """Plan 3, Task 3: the sweep that closes the readers' audit."""
+
+    # What the port was, not what the plugin is: read and left in plan 3, Task 1.
+    HISTORY = {'docs/design.md', 'docs/porting-plan.md', 'docs/source-inventory-workflow.md'}
+    # A sentence about the alias that does not say "alias" next to the name. Add the exact
+    # phrase here after reading it; never add a file.
+    ALIAS_PHRASES = ()
+    DEV = re.compile(r"`dev`|/artel:dev|artel:dev|skills/dev/|--decided-by dev")
+
+    @staticmethod
+    def swept():
+        paths = (sorted(ROOT.glob('agents/*.md')) + sorted(ROOT.glob('skills/**/*.md'))
+                 + sorted(ROOT.glob('docs/*.md')) + [ROOT / 'README.md', ROOT / 'hooks/README.md'])
+        return [str(p.relative_to(ROOT)) for p in paths]
+
+    def test_dev_is_named_only_as_the_alias(self):
+        offenders = []
+        for rel in self.swept():
+            if rel in self.HISTORY or rel == 'skills/dev/SKILL.md':
+                continue
+            text = flat(rel)
+            entry = (0, 0)
+            if rel == 'docs/skills-reference.md':
+                start = text.index('### dev ')
+                entry = (start, text.index('### setup ', start))
+            for match in self.DEV.finditer(text):
+                around = text[max(0, match.start() - 100):match.end() + 100]
+                if (entry[0] <= match.start() < entry[1] or 'alias' in around.lower()
+                        or any(phrase in around for phrase in self.ALIAS_PHRASES)):
+                    continue
+                offenders.append('{}: …{}…'.format(rel, text[max(0, match.start() - 50):
+                                                             match.end() + 50]))
+        self.assertEqual([], offenders, 'names `dev` as something other than the alias')
+
+    def test_every_pointer_names_something_the_merged_skill_has(self):
+        tail = raw(FD + 'tail.md')
+        headings = set(re.findall(r'(?m)^## (.+)$', tail))
+        gates = between(tail, '\n## Gates', '\n## ')
+        skill = raw(FD + 'SKILL.md')
+        found = 0
+        for rel in self.swept():
+            text = flat(rel)
+            for heading in re.findall(r'`tail\.md` `## ([^`]+)`', text):
+                found += 1
+                self.assertIn(heading, headings, '{} points at tail.md ## {}'.format(rel, heading))
+            for gate in re.findall(r'gate (\d+(?:\.\d+)?) \(`tail\.md`', text):
+                found += 1
+                self.assertRegex(gates, r'(?m)^\|\s*\**`?{}`?\**\s*\|'.format(re.escape(gate)),
+                                 '{} points at gate {} of tail.md'.format(rel, gate))
+            if 'the completion gate (`tail.md`)' in text:
+                self.assertIn('Completion gate', headings, rel)
+            if 'the PR gate (`tail.md`)' in text:
+                self.assertIn('PR description and the PR gate', headings, rel)
+            for head in re.findall(r'`(heads/[a-z]+\.md)`', text):
+                found += 1
+                self.assertTrue((ROOT / FD / head).is_file(), '{} names {}'.format(rel, head))
+            if '`feature-development` step 5' in text:
+                self.assertIn('### 5. Arm the run', skill, rel)
+            if re.search(r'autonomous-run\.md(\]\([^)]*\))?`? §17', text):
+                self.assertIn('## 17. Sizing and heads', raw('docs/autonomous-run.md'), rel)
+        self.assertGreaterEqual(found, 10, 'the pointer patterns matched almost nothing')
+
+
 if __name__ == '__main__':
     unittest.main()

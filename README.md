@@ -27,7 +27,7 @@ Flutter host is in [docs/testing-flutter.md](docs/testing-flutter.md).
 
 | Component | What it does |
 |---|---|
-| **Entry points** | `/artel:feature-development` (full pipeline, one approval pause), `/artel:dev` (lean loop), `/artel:setup` (one-time config interview) |
+| **Entry points** | `/artel:feature-development` (the one entry point for ticket work: it sizes the work and runs the full, the lean or the bug head, with one approval pause), `/artel:setup` (one-time config interview). `/artel:dev` is an alias for `/artel:feature-development --head=lean` until 0.26.0 |
 | **Stage skills** | Each pipeline stage à la carte: `analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `figma-analysis`, `generate-idea`/`-vision`/`-tasklist`, `inner-loop`, `run-app`, `drive-app`, `sync-phases` |
 | **Ops & utility skills** | `debugging` (root cause before a fix), `init-branch`, `merge-conflicts`, `deep-review`, `issue-draft`, `change-digest`, `address-pr-comment`, `add-automation`/`remove-automation`, `save-context`/`restore-context`, `migrate-specs`, `move-to-worktree`/`return-from-worktree`, `agents-md-generator`, `set-home`, `migrate-prs` |
 | **Session & kartoteka** | `using-artel` (turn-one router, hook-injected), `knowledge` (ask the index), `tasks` (operate the queue) |
@@ -46,6 +46,10 @@ Core design properties:
   trails in.
 - **One approval pause** — the pipeline interviews you, drafts the plan, and stops exactly once
   for a green light; then runs implement → review → docs → PR unattended.
+- **Sized to the work** — the entry point sizes each ticket as a spike, a bug, a bounded change
+  or architectural work, says so with its reasons, and runs the head that size calls for: a
+  question gets an answer, a bug is reproduced before anything is planned, a small change gets a
+  work list instead of a PRD. `--head=` overrides it.
 - **Gates, not vibes** — hooks enforce verification before "done": analyzer/tests must pass,
   the stop gate latches until evidence exists, sensitive paths are guarded in autonomous mode.
 - **Tasks with dependencies and routes** — a tasklist task is a block with its files,
@@ -61,8 +65,8 @@ Core design properties:
 /plugin install artel@artel
 ```
 
-Then, in the host repo, run `/artel:setup` (or let the first `/artel:feature-development` /
-`/artel:dev` invocation trigger it) to write `.artel/config.json` — the per-project
+Then, in the host repo, run `/artel:setup` (or let the first `/artel:feature-development`
+invocation trigger it) to write `.artel/config.json` — the per-project
 configuration every skill reads ([docs/config.md](docs/config.md)).
 
 ### OpenCode

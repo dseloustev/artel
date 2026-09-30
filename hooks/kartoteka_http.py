@@ -28,6 +28,7 @@ MIRRORED = {
     'tasklist.md', 'tasks.md', 'implementation-notes.md', 'review.md',
     'deep-review.md', 'qa.md', 'adr.md', 'summary.md',
     'design-analysis.md', 'pr-description.md', 'post_feedback.md',
+    'spike.md', 'diagnosis.md',
 }
 
 # stem -> stage. Absent means "the stem is the stage". The single entry exists

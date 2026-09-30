@@ -92,6 +92,8 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 ├── prd.md               # optional, ticket-wide overall PRD
 ├── plan.md              # optional, ticket-wide overall plan
 ├── research.md          # optional, ticket-wide overall research
+├── spike.md             # optional, ticket-wide only: the answer to a ticket that asks a question (researcher --question)
+├── diagnosis.md         # optional, ticket-wide only: a bug ticket's cause (debugging --diagnose)
 ├── qa.md                # optional, ticket-wide overall QA report
 ├── review.md            # optional, ticket-wide review (always ticket-level, even for phase runs)
 ├── review/              # optional, machine-readable review findings (reviewer agent)
@@ -172,6 +174,8 @@ On the files path, create the `phase-<PHASE_NUM>/` subfolder lazily on first wri
 | PRD | `<specs.dir>/<TICKET_ID>/prd.md` |
 | Plan | `<specs.dir>/<TICKET_ID>/plan.md` |
 | Research | `<specs.dir>/<TICKET_ID>/research.md` |
+| Spike answer | `<specs.dir>/<TICKET_ID>/spike.md` (ticket-level only — never phase-scoped) |
+| Diagnosis | `<specs.dir>/<TICKET_ID>/diagnosis.md` (ticket-level only — never phase-scoped) |
 | QA | `<specs.dir>/<TICKET_ID>/qa.md` |
 | Summary | `<specs.dir>/<TICKET_ID>/summary.md` |
 | Review | `<specs.dir>/<TICKET_ID>/review.md` |

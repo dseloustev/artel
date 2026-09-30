@@ -23,7 +23,13 @@ idea.md          vision.md           prd.md            research.md
 plan.md          tasklist.md         tasks.md          implementation-notes.md
 review.md        deep-review.md      qa.md             adr.md
 summary.md       design-analysis.md  pr-description.md post_feedback.md
+spike.md         diagnosis.md
 ```
+
+`spike.md` is the researcher's answer to a ticket that asks a question
+(`/artel:researcher --question`); `diagnosis.md` is a bug ticket's cause, written by
+`/artel:debugging --diagnose`. Both are ticket-wide only: neither is ever written under
+`phase-<N>/`.
 
 **And every image file under the trail**, at any depth: `design/`, `runtime/`,
 `phase-<N>/runtime/` and anywhere else below `<specs.dir>/<TICKET_ID>/`. An image file is one whose
@@ -168,6 +174,8 @@ A spec document keeps its **logical path** as its name everywhere: `<specs.dir>/
 | `<specs.dir>/PROJ-12/tasklist.md` | `PROJ-12` | `tasklist` | `tasklist.md` |
 | `<specs.dir>/PROJ-12/phase-2/tasks.md` | `PROJ-12` | `tasklist` | `phase-2.tasks.md` |
 | `<specs.dir>/PROJ-12/deep-review.md` | `PROJ-12` | `deep-review` | `deep-review.md` |
+| `<specs.dir>/PROJ-12/spike.md` | `PROJ-12` | `spike` | `spike.md` |
+| `<specs.dir>/PROJ-12/diagnosis.md` | `PROJ-12` | `diagnosis` | `diagnosis.md` |
 
 - The ticket key is canonical: the phase suffix never goes in it, it goes into `name`.
 - The stage is the filename stem, with the single override `tasks` → `tasklist`.
@@ -241,7 +249,7 @@ kartoteka, which then stores the block unread and checks nothing.
 | `ticket` | yes | the canonical ticket key; for a release-scope document, the release id |
 | `version` | yes | the kartoteka version this body is, or descends from (§4.1 says what to write); `0` = never stored, and always `0` on the files path for a new document or a release-scope one |
 | `title` | no | one line |
-| `status` | gate documents only | `PRD_READY`; `DRAFT` / `VISION_READY`; `PLAN_DRAFTED` / `PLAN_APPROVED`; `DRAFT` / `TASKLIST_READY`; `DESIGN_ANALYZED` / `DESIGN_BLOCKED` |
+| `status` | gate documents only | `PRD_READY`; `DRAFT` / `VISION_READY`; `PLAN_DRAFTED` / `PLAN_APPROVED`; `DRAFT` / `TASKLIST_READY`; `DESIGN_ANALYZED` / `DESIGN_BLOCKED`; `DIAGNOSED` / `DIAGNOSED_STRUCTURAL` / `NOT_REPRODUCED` |
 | `summary` | no | one line |
 | `schema` | no | `1` — the template version, never the document version |
 | `produced_by` | no | `artel:<agent or skill>` |

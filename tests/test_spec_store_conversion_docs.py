@@ -94,7 +94,7 @@ class TestInlineSkills(unittest.TestCase):
 
     def test_restore_context_never_restores_spec_documents_under_the_store(self):
         text = skill('restore-context')
-        self.assertIn('--exclude={idea,vision,prd,research,plan,tasklist,tasks,'
+        self.assertIn('--exclude={idea,vision,prd,research,spike,diagnosis,plan,tasklist,tasks,'
                       'implementation-notes,review,deep-review,qa,adr,summary,design-analysis,'
                       'pr-description,post_feedback}.md', text)
         self.assertIn('/artel:migrate-specs', text)

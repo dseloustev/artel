@@ -299,5 +299,46 @@ class TestPreviews(unittest.TestCase):
                     self.assertIn(phrase, phase)
 
 
+class TestNewDocuments(unittest.TestCase):
+    """`spike.md` and `diagnosis.md` are spec documents: stored, addressed and excluded like
+    the rest, and the diagnosis is a gate document with three statuses."""
+
+    STORAGE = 'docs/spec-storage.md'
+
+    def test_the_storage_contract_lists_both(self):
+        scope = between(raw(self.STORAGE), '## 1. What moves', '## 2. The storage decision')
+        for name in ('spike.md', 'diagnosis.md'):
+            self.assertIn(name, scope)
+        self.assertIn('Both are ticket-wide only', flat(self.STORAGE))
+
+    def test_the_diagnosis_statuses_are_header_statuses(self):
+        header = between(flat(self.STORAGE), '### 3.2 The document header', '## 4. Operations')
+        self.assertIn('`DIAGNOSED` / `DIAGNOSED_STRUCTURAL` / `NOT_REPRODUCED`', header)
+
+    def test_both_are_addressed_like_any_document(self):
+        rows = between(raw(self.STORAGE), '## 3. Addressing', '### 3.1')
+        for stem in ('spike', 'diagnosis'):
+            self.assertIn('| `<specs.dir>/PROJ-12/{0}.md` | `PROJ-12` | `{0}` | `{0}.md` |'
+                          .format(stem), rows)
+
+    def test_the_path_contract_lists_both(self):
+        text = raw('docs/ticket-parsing.md')
+        for phrase in ('├── spike.md', '├── diagnosis.md',
+                       '| Spike answer | `<specs.dir>/<TICKET_ID>/spike.md`',
+                       '| Diagnosis | `<specs.dir>/<TICKET_ID>/diagnosis.md`'):
+            self.assertIn(phrase, text)
+
+    def test_restore_context_excludes_exactly_the_stored_documents(self):
+        import sys
+        sys.path.insert(0, str(ROOT / 'hooks'))
+        import kartoteka_http
+        lists = re.findall(r'--exclude=\{([a-z_,-]+)\}\.md',
+                           raw('skills/restore-context/SKILL.md'))
+        self.assertEqual(len(lists), 3)  # the Branch A sentence and the two rsync comments
+        stored = {name[:-len('.md')] for name in kartoteka_http.MIRRORED}
+        for names in lists:
+            self.assertEqual(set(names.split(',')), stored)
+
+
 if __name__ == '__main__':
     unittest.main()

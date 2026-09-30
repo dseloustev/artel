@@ -453,5 +453,83 @@ class TestTail(unittest.TestCase):
             self.assertNotIn(moved, skill)
 
 
+class TestFullHead(unittest.TestCase):
+    """Plan 2, Task 2: the full head is feature-development's gates 0.5–4.5, gate 4.2 and the
+    one pause, moved with their numbers and wording (spec §4)."""
+
+    def setUp(self):
+        self.raw = raw(FD + 'heads/full.md')
+        self.head = flat(FD + 'heads/full.md')
+
+    def test_headings_in_order(self):
+        self.assertTrue(self.raw.startswith('# The full head\n'))
+        headings = [line for line in self.raw.split('\n') if line.startswith('#')]
+        self.assertEqual(headings, ['# The full head', '## Gates',
+                                    '### Gate 4.2 — the plan review',
+                                    '## THE ONE PAUSE — plan+tasklist approval'])
+
+    def test_the_gates_keep_their_numbers_and_names(self):
+        gates = between(self.raw, '\n## Gates\n', '\n### ')
+        self.assertEqual(re.findall(r'(?m)^\| ([0-9.]+) \|', gates),
+                         ['0.5', '1', '2', '3', '3.5', '4', '4.2', '4.5'])
+        for row in ('| 0.5 | `DESIGN_ANALYZED` —', '| 1 | `PRD_READY` —', '| 2 | `VISION_READY` —',
+                    '| 3 | plan drafted —', '| 3.5 | `PLAN_GROUNDED` —', '| 4 | `TASKLIST_READY` —',
+                    '| 4.2 | `PLAN_REVIEWED` —', '| 4.5 | phase extraction (phase runs only) |'):
+            self.assertEqual(self.raw.count('\n' + row), 1, row)
+        self.assertNotIn('`IDEA_READY`', self.raw)
+        for cap in ('`N <= MAX_PLAN_CHECK_BOUNCES = 2`', '`MAX_PLAN_REVIEW_ROUNDS = 2`'):
+            self.assertIn(cap, gates)
+
+    def test_the_analyst_gets_the_diagnosis_and_the_spike(self):
+        row = between(self.raw, '\n| 1 | `PRD_READY`', '\n| 2 |')
+        self.assertIn('`Skill: analysis` with `$0 $1`, plus `--local` when this run was invoked '
+                      'with it', row)
+        self.assertIn('When the ticket has a `diagnosis.md` or a `spike.md`, the skill hands each '
+                      'to the analyst as an input beside `idea.md`.', row)
+
+    def test_it_is_the_unarmed_part_of_the_run(self):
+        opening = between(self.head, '# The full head', '## Gates')
+        for phrase in ('The head for an `architectural` size',
+                       '`feature-development` step 4 '
+                       '(`${CLAUDE_PLUGIN_ROOT}/skills/feature-development/SKILL.md`)',
+                       'by a head that raises the size',
+                       'every question here is a plain `AskUserQuestion` with no `pause_reason`',
+                       "including planner regeneration and the pause's fold-back",
+                       '`**Plan-check bounces:** 0`',
+                       'Gate 4.2 has no artifact to skip on either'):
+            self.assertIn(phrase, opening)
+
+    def test_it_cites_arming_and_the_tail_by_their_new_homes(self):
+        for phrase in ('for the pause and `SKILL.md` step 5, and end the gate',
+                       '**Abort**. Proceed to `SKILL.md` step 5.',
+                       'the run-start journal entry (`SKILL.md` step 5) lists every change',
+                       "the command the tail's re-mirror runs, without `task_create`",
+                       'see `tail.md`, `## Checkpoint commits & pushes`'):
+            self.assertIn(phrase, self.head)
+        for stale in ('step 4,', 'to step 4', '(step 4)', "step 5's re-mirror", '§3 fold-back',
+                      '`dev`', '.dart'):
+            self.assertNotIn(stale, self.head)
+
+    def test_the_pause_keeps_its_three_answers_and_the_yolo_guardrail(self):
+        pause = self.head[self.head.index('## THE ONE PAUSE'):]
+        for phrase in ('- **Approve** →', '- **Request changes** →', '- **`yolo` only:**',
+                       'plan becomes status `PLAN_APPROVED`',
+                       'The HITL tags remain armed — yolo removes this pause only',
+                       "a guardrail, not a pause preference — the lean head's confirmation makes "
+                       'the same exception',
+                       '**Routes at the pause**', '`<light|full> — set at approval`',
+                       'An old-format tasklist shows no routes.'):
+            self.assertIn(phrase, pause)
+
+    def test_the_skill_keeps_gate_0_and_points_at_the_head(self):
+        skill = raw(FD + 'SKILL.md')
+        self.assertIn('${CLAUDE_PLUGIN_ROOT}/skills/feature-development/heads/full.md', skill)
+        self.assertEqual(skill.count('\n| 0 | `IDEA_READY` — `idea.md` exists |'), 1)
+        for moved in ('| 0.5 | `DESIGN_ANALYZED`', '| 3.5 | `PLAN_GROUNDED`',
+                      '| 4.2 | `PLAN_REVIEWED`', 'Gate 4.2 — the plan review\n',
+                      '- **Request changes** →', '**Routes at the pause**'):
+            self.assertNotIn(moved, skill)
+
+
 if __name__ == '__main__':
     unittest.main()

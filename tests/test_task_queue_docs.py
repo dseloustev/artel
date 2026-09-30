@@ -552,7 +552,8 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
                       '`implementer`'):
             self.assertIn(skill, flag)
         self.assertIn('fix rounds included', flag)
-        gate4 = text.split('| 4 | `TASKLIST_READY`')[1].split('\n')[0]
+        head = (ROOT / 'skills/feature-development/heads/full.md').read_text(encoding='utf-8')
+        gate4 = head.split('| 4 | `TASKLIST_READY`')[1].split('\n')[0]
         self.assertIn('`Skill: tasklist` with `$0`, plus `--local`', gate4)
         tail = (ROOT / 'skills/feature-development/tail.md').read_text(encoding='utf-8')
         gate7 = tail.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]

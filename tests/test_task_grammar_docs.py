@@ -390,13 +390,15 @@ class TestReviewerPlanMode(unittest.TestCase):
 
 
 class TestGateFourTwoPlanReviewed(unittest.TestCase):
-    """Spec §6.1, §6.3, §6.4: gate 4.2 in feature-development and the pause around it."""
+    """Spec §6.1, §6.3, §6.4: gate 4.2 and the pause around it — feature-development's full head
+    (heads/full.md) since 0.25.0. Arming stays in SKILL.md."""
 
     def setUp(self):
-        self.raw = _w_raw('skills/feature-development/SKILL.md')
+        self.raw = _w_raw('skills/feature-development/heads/full.md')
+        self.head = _w_flat('skills/feature-development/heads/full.md')
         self.fd = _w_flat('skills/feature-development/SKILL.md')
-        self.gate = _w_between(self.fd, '#### Gate 4.2 — the plan review', '### 3. THE ONE PAUSE')
-        self.pause = _w_between(self.fd, '### 3. THE ONE PAUSE', '### 4. Arm the run')
+        self.gate = _w_between(self.head, '### Gate 4.2 — the plan review', '## THE ONE PAUSE')
+        self.pause = _w_between(self.head, '## THE ONE PAUSE')
 
     def test_the_row_sits_between_the_tasklist_and_phase_extraction(self):
         self.assertLess(self.raw.index('| 4 | `TASKLIST_READY`'),
@@ -868,7 +870,8 @@ class TestRoutes(unittest.TestCase):
                        'a `light` task gets none',
                        'On an old-format tasklist there are no routes'):
             self.assertIn(phrase, gate)
-        pause = _between(fd, '**Routes at the pause**', '### 4. Arm the run')
+        pause = _between(flat(read('skills/feature-development/heads/full.md')),
+                         '**Routes at the pause**')
         for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered',
                        'In `yolo` the routes stand as declared and floored'):
             self.assertIn(phrase, pause)

@@ -84,19 +84,20 @@ class TestAgents(unittest.TestCase):
 
 
 class TestCheckpointProcedure(unittest.TestCase):
-    """feature-development's shared procedure -- dev's phase checkpoints run it too."""
+    """The run's one checkpoint procedure -- feature-development's tail.md since 0.25.0."""
 
     def setUp(self):
-        self.text = skill('feature-development')
+        self.text = read('skills/feature-development/tail.md')
+        self.start = skill('feature-development')
 
     def part(self, start, end):
         return flat(between(self.text, start, end))
 
     def test_the_sweep_runs_before_the_idempotence_check(self):
         step = self.part('2. **Image sweep', '3. **Quality gate (phase-end only).**')
-        sweep = SWEEP.format('<skill>')
+        sweep = SWEEP.format('feature-development')
         self.assertIn(sweep, step)
-        self.assertIn('`dev` when `dev` runs this procedure', step)
+        self.assertNotIn('artel:<skill>', step)
         self.assertIn(JOURNAL, step)
         self.assertIn('§5.6', step)
         self.assertLess(step.index(sweep), step.index('`git status --porcelain`'))
@@ -111,10 +112,11 @@ class TestCheckpointProcedure(unittest.TestCase):
 
     def test_the_planning_checkpoint_ignores_untracked_images(self):
         self.assertIn('images aside, only `.active_ticket` changed',
-                      self.part('Then run the **planning checkpoint**', '### 5. Autonomous tail'))
+                      flat(between(self.start, 'Then run the **planning checkpoint**',
+                                   '### 5. Autonomous tail')))
 
     def test_the_final_report_sweeps_and_lists_what_is_left(self):
-        report = self.part('### 9. Final report', '\n## Important')
+        report = self.part('## Final report', '\n## Checkpoint commits & pushes')
         self.assertIn(SWEEP.format('feature-development'), report)
         self.assertIn('§5.6', report)
         self.assertIn('images left local', report)
@@ -123,7 +125,7 @@ class TestCheckpointProcedure(unittest.TestCase):
         step = self.part('2. **Image sweep', '3. **Quality gate (phase-end only).**')
         self.assertIn('unrecoverable', step)
         self.assertIn('whole message', step)
-        report = self.part('### 9. Final report', '\n## Important')
+        report = self.part('## Final report', '\n## Checkpoint commits & pushes')
         self.assertIn('unrecoverable', report)
         self.assertIn('whole message', report)
 

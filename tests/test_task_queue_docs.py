@@ -23,7 +23,7 @@ MIRROR_FILES = (
     'skills/generate-tasklist/SKILL.md',
     'skills/tasklist/SKILL.md',
     'skills/dev/SKILL.md',
-    'skills/feature-development/SKILL.md',
+    'skills/feature-development/tail.md',
 )
 
 CLAIM_FILES = (
@@ -186,7 +186,7 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
             'skills/dev/SKILL.md',
-            'skills/feature-development/SKILL.md',
+            'skills/feature-development/tail.md',
             'skills/run-reviewer/SKILL.md',
             'skills/deep-review/SKILL.md',
             'skills/implementer/SKILL.md',
@@ -196,7 +196,7 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
             'skills/dev/SKILL.md',
-            'skills/feature-development/SKILL.md',
+            'skills/feature-development/tail.md',
             'skills/run-reviewer/SKILL.md',
             'skills/deep-review/SKILL.md',
         })
@@ -208,8 +208,8 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
         text = (ROOT / 'docs/autonomous-run.md').read_text(encoding='utf-8')
         bullet = text.split('**Task-queue mirror**')[1].split('\n- ')[0]
         self.assertIn('`dev` and `feature-development` alike run the parser', bullet)
-        skill = (ROOT / 'skills/feature-development/SKILL.md').read_text(encoding='utf-8')
-        self.assertIn('scripts/tasklist_tasks.py', skill,
+        tail = (ROOT / 'skills/feature-development/tail.md').read_text(encoding='utf-8')
+        self.assertIn('scripts/tasklist_tasks.py', tail,
                       'the bullet credits a re-mirror feature-development does not have')
 
 
@@ -403,7 +403,7 @@ FIX_WRITERS = {
     'skills/run-reviewer/SKILL.md': (),
     'skills/deep-review/SKILL.md': ('### deep-review-<YYYY-MM-DD>',),
     'skills/dev/SKILL.md': ('### runtime-r<n>',),
-    'skills/feature-development/SKILL.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
+    'skills/feature-development/tail.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
     'skills/tasks/SKILL.md': ('### manual-<YYYY-MM-DD>',),
 }
 
@@ -414,9 +414,9 @@ FIX_WRITERS = {
 FIX_WRITER_STEPS = {
     ('skills/dev/SKILL.md', '### 7. Runtime gate', '### 7.5'):
         ('### runtime-r<n>', '### runtime-p<N>-r<n>'),
-    ('skills/feature-development/SKILL.md', '| 8 | `RUNTIME_OK` |', '\n'):
+    ('skills/feature-development/tail.md', '| 8 | `RUNTIME_OK` |', '\n'):
         ('### runtime-r<n>', '### runtime-p<N>-r<n>', 'never on a `--local` run'),
-    ('skills/feature-development/SKILL.md', '3. **Quality gate (phase-end only).**',
+    ('skills/feature-development/tail.md', '3. **Quality gate (phase-end only).**',
      '4. **Stage explicitly.**'):
         ('### checkpoint-r<k>', '### checkpoint-p<N>-r<k>'),
 }
@@ -500,7 +500,7 @@ class TestLongFixTitlesStayFindable(unittest.TestCase):
     def test_runtime_writers_put_a_one_line_summary_on_the_checkbox(self):
         runtime = {
             'skills/dev/SKILL.md': ('### 7. Runtime gate', '### 7.5'),
-            'skills/feature-development/SKILL.md': ('| 8 | `RUNTIME_OK` |', '\n'),
+            'skills/feature-development/tail.md': ('| 8 | `RUNTIME_OK` |', '\n'),
         }
         for rel, (start, end) in runtime.items():
             with self.subTest(rel):
@@ -537,7 +537,7 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
         self.assertIn('A dispatch carrying **Task queue:**', step_one)
 
     def test_feature_development_passes_it_to_the_implementer_dispatch(self):
-        gate = (ROOT / 'skills/feature-development/SKILL.md').read_text(
+        gate = (ROOT / 'skills/feature-development/tail.md').read_text(
             encoding='utf-8').split('| 5 | `IMPLEMENT_STEP_OK`')[1].split('\n')[0]
         self.assertIn('--local', gate)
         self.assertIn('**Task queue:**', gate)
@@ -554,7 +554,8 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
         self.assertIn('fix rounds included', flag)
         gate4 = text.split('| 4 | `TASKLIST_READY`')[1].split('\n')[0]
         self.assertIn('`Skill: tasklist` with `$0`, plus `--local`', gate4)
-        gate7 = text.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
+        tail = (ROOT / 'skills/feature-development/tail.md').read_text(encoding='utf-8')
+        gate7 = tail.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
         self.assertIn('`Skill: implementer` (fix tasks from `## Code Review Fixes`, plus'
                       ' `--local`', gate7)
 

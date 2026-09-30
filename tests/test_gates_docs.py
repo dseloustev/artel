@@ -132,6 +132,7 @@ class TestOrchestrators(unittest.TestCase):
 
     def setUp(self):
         self.fd = read('skills/feature-development/SKILL.md')
+        self.tail = read('skills/feature-development/tail.md')
         self.dev = read('skills/dev/SKILL.md')
         self.run = read('docs/autonomous-run.md')
 
@@ -143,30 +144,32 @@ class TestOrchestrators(unittest.TestCase):
                 self.assertIn('a missing one stays missing', text)
 
     def test_gate_nine_is_gone_and_gate_ten_runs_once(self):
-        self.assertNotIn('| 9 |', self.fd)
-        self.assertNotIn('Skill: qa', self.fd)
+        for text in (self.fd, self.tail):
+            self.assertNotIn('| 9 |', text)
+            self.assertNotIn('Skill: qa', text)
+            self.assertNotIn('QA gate 9', text)
         self.assertNotIn('Skill: qa', self.dev)
-        row = self.fd.split('| 10 | `DOCS_UPDATED` |')[1].split('\n')[0]
+        row = self.tail.split('| 10 | `DOCS_UPDATED` |')[1].split('\n')[0]
         self.assertIn('once per ticket', row)
         self.assertIn('DOCS_UPDATED: deferred to the final phase', row)
-        self.assertNotIn('QA gate 9', self.fd)
 
     def test_the_checkpoint_runs_the_checkpoint_gate(self):
-        step = self.fd.split('3. **Quality gate (phase-end only).**')[1].split('4. **Stage explicitly.**')[0]
+        step = self.tail.split('3. **Quality gate (phase-end only).**')[1].split('4. **Stage explicitly.**')[0]
         self.assertIn('verify.py checkpoint --ticket <TICKET_ID>', step)
         self.assertIn('new_keys', step)
         self.assertIn('baseline_red', step)
         # the chain phrase test_spec_images_conversion_docs pins is untouched (dev wraps it)
-        for text in (self.fd, ' '.join(self.dev.split())):
+        for text in (self.tail, ' '.join(self.dev.split())):
             self.assertIn('the image sweep (kartoteka path) → the `verify.commands` gate', text)
 
     def test_the_completion_gate_is_a_checklist_not_a_dispatch(self):
-        gate = self.fd.split('### 6. Completion gate')[1].split('### 7.')[0]
+        gate = self.tail.split('## Completion gate')[1].split('## PR description')[0]
         self.assertNotIn('Skill: validate', gate)
         for fact in ('PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK',
                      'RUNTIME_OK', 'CHECKPOINT_OK', 'DOCS_UPDATED', 'AUTOMATION_REMOVED'):
             self.assertIn(fact, gate)
         self.assertNotIn('RELEASE_READY', self.fd)
+        self.assertNotIn('RELEASE_READY', self.tail)
         self.assertIn('the final gate stands', self.dev.split('### 8. Complete')[1].split('### 9.')[0])
 
     def test_autonomous_run_drops_the_qa_loop_and_gains_the_baseline(self):
@@ -269,18 +272,18 @@ class TestFinalReviewFixes(unittest.TestCase):
     def test_checkpoint_findings_fall_back_to_keys_without_a_baseline(self):
         # Review Focus 1: armed under 0.17 there is no baseline, and the runner then emits
         # `keys` only — `new_keys` exists only when a baseline was loaded.
-        fd = read('skills/feature-development/SKILL.md')
-        step = fd.split('3. **Quality gate (phase-end only).**')[1].split('4. **Stage explicitly.**')[0]
+        tail = read('skills/feature-development/tail.md')
+        step = tail.split('3. **Quality gate (phase-end only).**')[1].split('4. **Stage explicitly.**')[0]
         self.assertIn('its `keys` when `data.baseline` is `absent` or `disabled`', step)
-        self.assertIn('baseline (`recorded` / `skipped` / `absent`', fd)
+        self.assertIn('baseline (`recorded` / `skipped` / `absent`', tail)
 
     def test_docs_run_on_the_last_phase_before_its_checkpoint(self):
         # The gate-10 row sits before 10.7 in the table; "after the last phase's checkpoint"
         # left the docs uncommitted when the PR gate was skipped.
-        fd = read('skills/feature-development/SKILL.md')
-        row = fd.split('| 10 | `DOCS_UPDATED` |')[1].split('\n')[0]
+        tail = read('skills/feature-development/tail.md')
+        row = tail.split('| 10 | `DOCS_UPDATED` |')[1].split('\n')[0]
         self.assertIn('before its 10.7 checkpoint', row)
-        for rel in ('skills/feature-development/SKILL.md', 'skills/docs-update/SKILL.md',
+        for rel in ('skills/feature-development/tail.md', 'skills/docs-update/SKILL.md',
                     'docs/workflow-guide.md'):
             with self.subTest(rel):
                 self.assertNotIn("after the last phase's checkpoint", read(rel))

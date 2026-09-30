@@ -144,8 +144,10 @@ class TestOrchestrators(unittest.TestCase):
                 self.assertIn('Skill: migrate-specs', text)
                 self.assertIn('--pending-only', text)
                 self.assertIn('spec_store.py pending add', text)
-                self.assertIn('§4.4', text)
                 self.assertIn('only `.active_ticket` changed', text)
+        # The review-round reset (§4.4) is the tail's since 0.25.0.
+        self.assertIn('§4.4', skill('dev'))
+        self.assertIn('§4.4', read('skills/feature-development/tail.md'))
 
     def test_feature_development_passes_local_to_decide(self):
         self.assertIn('--decided-by feature-development` (plus `--local`',

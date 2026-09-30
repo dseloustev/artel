@@ -31,7 +31,8 @@ CONFIG = 'docs/config.md'
 KEY = 'review.perTask'
 CAP = 'MAX_TASK_REVIEW_ROUNDS = 1'
 
-ORCHESTRATORS = ('skills/dev/SKILL.md', 'skills/feature-development/SKILL.md')
+# The implementation loop (gate 5) is feature-development's tail.md since 0.25.0.
+ORCHESTRATORS = ('skills/dev/SKILL.md', 'skills/feature-development/tail.md')
 WORKER_AGENTS = ('agents/implementer.md', 'agents/reviewer.md')
 
 
@@ -180,7 +181,7 @@ class TestReviewFixesAreRecorded(unittest.TestCase):
         self.assertIn('data.sections', text)
 
     def test_feature_development_passes_local_to_both_review_calls(self):
-        text = read('skills/feature-development/SKILL.md')
+        text = read('skills/feature-development/tail.md')
         gate7 = text.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
         self.assertIn('--local', gate7)
         gate5 = text.split('| 5 | `IMPLEMENT_STEP_OK`')[1].split('\n')[0]

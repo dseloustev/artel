@@ -769,7 +769,7 @@ class TestPromotionByDependency(unittest.TestCase):
             self.assertIn(phrase, mirror)
         bullet = _between(flat(read('docs/autonomous-run.md')), '**Task-queue mirror**', '## 10.')
         self.assertIn('For a task-format tasklist it is also the first mirror', bullet)
-        remirror = _between(flat(read('skills/feature-development/SKILL.md')),
+        remirror = _between(flat(read('skills/feature-development/tail.md')),
                             '**Re-mirror first.**', '| 5 |')
         self.assertIn('For a task-format tasklist this step is also the first mirror', remirror)
 
@@ -858,7 +858,8 @@ class TestRoutes(unittest.TestCase):
 
     def test_feature_development_routes(self):
         fd = flat(read('skills/feature-development/SKILL.md'))
-        gate = _between(fd, '| 5 | `IMPLEMENT_STEP_OK`', '| 6 |')
+        gate = _between(flat(read('skills/feature-development/tail.md')),
+                        '| 5 | `IMPLEMENT_STEP_OK`', '| 6 |')
         for phrase in ('add every path its `Deviations:` line names to `run-state.json` `deviation_files`',
                        '**Routes** (autonomous-run.md §16)',
                        'before every iteration-task dispatch',

@@ -7,7 +7,7 @@ argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yo
 Autonomous orchestrator for the lean dev loop. Contract:
 `${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md`; shared procedures:
 `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md`; commit/push procedure: `## Checkpoint
-commits & pushes` in `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/SKILL.md` (shared). Pass
+commits & pushes` in `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/tail.md` (shared). Pass
 `$0` (on multi-phase traversal the current `<TICKET_ID>-<N>`) to every sub-skill. No PRD / plan /
 QA / docs gates. `--step` = legacy step-by-step mode (per-task confirmations, no run-state
 writes). `--mode=full-gates` aliases `--step`; `--mode=yolo` skips the step-2 confirmation
@@ -200,7 +200,7 @@ previous phase's review survives in that phase's checkpoint commit, or as an ear
 every sub-skill. Single-phase work → one pass ending at step 7.5.
 
 Loop `Skill: implementer` with `$0` (or `$0 $1` when driving from a description file) until every
-task is `- [x]`. Handle returns exactly as `feature-development` step 5 does: completions →
+task is `- [x]`. Handle returns exactly as `feature-development` gate 5 does (`tail.md`): completions →
 aggregate `Deviations:` / `Verify iterations:`, add every path the `Deviations:` line names to
 `run-state.json` `deviation_files` (autonomous-run.md §2), and journal the `Report:` path (never
 open the report — autonomous-run.md §1, "Bulk stays in files"); `HITL:` → `pause_reason: "hitl-task"`,

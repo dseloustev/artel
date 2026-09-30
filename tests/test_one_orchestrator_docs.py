@@ -340,5 +340,118 @@ class TestNewDocuments(unittest.TestCase):
             self.assertEqual(set(names.split(',')), stored)
 
 
+class TestTail(unittest.TestCase):
+    """Plan 2, Task 1: the tail is one document — every gate after arming once, and no head
+    named (spec §7)."""
+
+    HEADINGS = ('# The tail', '## Phase traversal', '## Gates', '## Completion gate',
+                '## PR description and the PR gate', '## Description-file sync',
+                '## Final report', '## Checkpoint commits & pushes')
+    FACTS = ('PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK', 'RUNTIME_OK',
+             'CHECKPOINT_OK', 'DOCS_UPDATED', 'AUTOMATION_REMOVED')
+
+    def setUp(self):
+        self.raw = raw(FD + 'tail.md')
+        self.tail = flat(FD + 'tail.md')
+
+    def test_headings_in_order(self):
+        self.assertTrue(self.raw.startswith('# The tail\n'))
+        at = [('\n' + self.raw).index('\n' + heading + '\n') for heading in self.HEADINGS]
+        self.assertEqual(at, sorted(at))
+        self.assertNotIn('\n### ', self.raw)
+
+    def test_each_gate_sits_in_the_table_once(self):
+        gates = between(self.raw, '\n## Gates\n', '\n## ')
+        self.assertEqual(re.findall(r'(?m)^\| ([0-9.]+) \|', gates),
+                         ['5', '6', '7', '8', '10', '10.5', '10.7'])
+        for row in ('| 5 | `IMPLEMENT_STEP_OK` — every task `- [x]` |', '| 6 | `INDEX_UPDATED` |',
+                    '| 7 | `REVIEW_OK` |', '| 8 | `RUNTIME_OK` |', '| 10 | `DOCS_UPDATED` |',
+                    '| 10.5 | phase write-back (phase runs only) |',
+                    '| 10.7 | `PHASE_CHECKPOINT` |'):
+            self.assertEqual(self.raw.count('\n' + row), 1, row)
+        for rule in ('**Journal (§11):**', '**Budget:**', '`MAX_TOTAL_CORRECTION_ROUNDS = 8`'):
+            self.assertIn(rule, gates)
+
+    def test_it_names_no_head(self):
+        # `lean` as a word: "clean" is the tail's own and stays.
+        self.assertIsNone(re.search(r'\blean\b', self.raw))
+        for name in ('bug head', 'full head', 'heads/', 'chatty head', '`dev`'):
+            self.assertNotIn(name, self.raw)
+
+    def test_it_cites_the_shared_start_by_its_steps(self):
+        for phrase in ('(`${CLAUDE_PLUGIN_ROOT}/skills/feature-development/SKILL.md` steps 5–6)',
+                       'then renew the decision as `SKILL.md` step 1.5 says',
+                       '| Planning (`SKILL.md` step 5) | immediately after arming |',
+                       '| Phase-end (gate 10.7) |',
+                       'else proceed to the completion gate. |',
+                       'All green → the PR description and the PR gate.',
+                       'keyed on what exists for the ticket'):
+            self.assertIn(phrase, self.tail)
+
+    def test_the_traversal_and_the_remirror_open_it(self):
+        opening = between(self.tail, '## Phase traversal', '## Gates | #')
+        for phrase in ('(one pass of the `## Gates` table)',
+                       'a phase boundary re-arms the wall-clock budget',
+                       '(extract `phase-<N>/tasks.md` when missing)',
+                       '**Re-mirror first.**', 'so a `--local` run skips it',
+                       'A tasklist is mirrored by the skill that writes it, and only when it '
+                       'writes it',
+                       'For a task-format tasklist this step is also the first mirror when '
+                       '`Skill: tasklist` wrote it',
+                       'The step is create-only and idempotent'):
+            self.assertIn(phrase, opening)
+
+    def test_the_gates_keep_the_old_format_path(self):
+        gate = between(self.raw, '\n| 5 | `IMPLEMENT_STEP_OK`', '\n| 6 |')
+        for phrase in ('On an old-format tasklist there are no routes',
+                       '`review.perTask: true` (config.md; off by default) wraps every '
+                       'iteration-task dispatch in that procedure, as before',
+                       'Fix-list dispatches are never wrapped'):
+            self.assertIn(phrase, gate)
+        self.assertIn('a `## Final Verification` section an older tasklist carries counts too',
+                      between(self.tail, '## Completion gate', '## PR description'))
+
+    def test_the_close_out_is_whole(self):
+        gate = between(self.tail, '## Completion gate', '## PR description and the PR gate')
+        for fact in self.FACTS:
+            self.assertEqual(gate.count('| `' + fact + '`'), 1, fact)
+        self.assertNotIn('Skill: validate', gate)
+        close = between(self.tail, '## PR description and the PR gate',
+                        '## Description-file sync')
+        for phrase in ('`Skill: pr-description` with `$0`', '**Always regenerate:**',
+                       '**PR gate:** in `plan-gate`, pause first',
+                       'In `yolo`, proceed without pausing', '`Skill: pr-create` with `$0`',
+                       'is **not** a gate failure', '`completed: true`, `run_active: false`'):
+            self.assertIn(phrase, close)
+        report = between(self.tail, '## Final report', '## Checkpoint commits & pushes')
+        self.assertIn('--author artel:feature-development', report)
+        self.assertIn('only when the PR gate was skipped', report)
+
+    def test_the_checkpoint_procedure_keeps_its_seven_steps(self):
+        procedure = self.tail[self.tail.rindex('## Checkpoint commits & pushes'):]
+        steps = ('1. **Branch guard.**', '2. **Image sweep (kartoteka path), then idempotence.**',
+                 '3. **Quality gate (phase-end only).**', '4. **Stage explicitly.**',
+                 '5. **Commit.**', '6. **Push.**', '7. **Journal.**')
+        at = [procedure.index(step) for step in steps]
+        self.assertEqual(at, sorted(at))
+        self.assertNotIn('8. **', procedure)
+        for phrase in ('The one commit and push procedure of a run.',
+                       '`docs: <TICKET_ID> planning artifacts` when a plan exists, '
+                       '`docs: <TICKET_ID> work list` otherwise',
+                       '--author artel:feature-development',
+                       'plus `--local` when the run holds it, plus `--model fable` on the '
+                       'second round'):
+            self.assertIn(phrase, procedure)
+        self.assertNotIn('artel:<skill>', self.raw)
+
+    def test_the_skill_no_longer_holds_it(self):
+        skill = raw(FD + 'SKILL.md')
+        self.assertIn('${CLAUDE_PLUGIN_ROOT}/skills/feature-development/tail.md', skill)
+        for moved in ('| 5 | `IMPLEMENT_STEP_OK`', '| 10.7 | `PHASE_CHECKPOINT` |',
+                      '\n## Checkpoint commits & pushes\n', '1. **Branch guard.**',
+                      'Confirm the eight facts below yourself'):
+            self.assertNotIn(moved, skill)
+
+
 if __name__ == '__main__':
     unittest.main()

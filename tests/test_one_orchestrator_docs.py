@@ -895,5 +895,100 @@ class TestLeanHead(unittest.TestCase):
             self.assertNotIn(stale, self.head)
 
 
+class TestBugHead(unittest.TestCase):
+    """Plan 2, Task 5: the bug head diagnoses before anything is planned, then takes the path
+    the diagnosis' status names (spec §6)."""
+
+    def setUp(self):
+        self.raw = raw(FD + 'heads/bug.md')
+        self.head = flat(FD + 'heads/bug.md')
+        self.status = self.head[self.head.index("## By the diagnosis' status"):]
+
+    def row(self, status):
+        return between(self.raw, '\n| `' + status + '` |', '\n')
+
+    def test_headings_in_order(self):
+        self.assertEqual([line for line in self.raw.split('\n') if line.startswith('#')],
+                         ['# The bug head', '## Gates', "## By the diagnosis' status"])
+
+    def test_two_gates(self):
+        gates = between(self.raw, '\n## Gates\n', '\n## ')
+        self.assertEqual(re.findall(r'(?m)^\| (B\d) \|', gates), ['B1', 'B2'])
+        for phrase in ('| B1 | `DIAGNOSED` — `diagnosis.md` has status `DIAGNOSED` or '
+                       '`DIAGNOSED_STRUCTURAL`',
+                       '`Skill: debugging` with `$0 --diagnose`, plus `--local` when this run '
+                       'was invoked with it',
+                       '| B2 | the work list — `tasklist.md` exists |'):
+            self.assertIn(phrase, gates)
+
+    def test_diagnose_mode_finds_the_cause_and_leaves_the_tree_alone(self):
+        gate = between(self.head, '**Gate B1.**', "## By the diagnosis' status")
+        for phrase in ('`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §2.1–§2.3',
+                       'stops before the fix',
+                       'It leaves no fix, no failing test and no probe in the tree',
+                       '`<specs.dir>/<TICKET_ID>/diagnosis.md`',
+                       '`Diagnosis: <status> — <path>`',
+                       'without the document entering this context'):
+            self.assertIn(phrase, gate)
+
+    def test_each_status_has_one_row(self):
+        for status in ('DIAGNOSED', 'DIAGNOSED_STRUCTURAL', 'NOT_REPRODUCED'):
+            self.assertEqual(self.raw.count('\n| `' + status + '` |'), 1, status)
+
+    def test_diagnosed_writes_the_work_list_from_the_diagnosis(self):
+        row = self.row('DIAGNOSED')
+        for phrase in ('Gate B2: `Skill: generate-tasklist` with `$0`, plus `--local` when this '
+                       'run was invoked with it',
+                       'its first task writes the failing test for the reproduction and names it '
+                       'in `Test:`',
+                       'the fix goes at the fix origin and nowhere else',
+                       "The skill's approval round is the run's one pause — add none."):
+            self.assertIn(phrase, row)
+
+    def test_a_structural_diagnosis_raises_the_size(self):
+        row = self.row('DIAGNOSED_STRUCTURAL')
+        for phrase in ('A raise (`SKILL.md` step 3, "The ratchet")',
+                       '`Size raised: bug → architectural — full head. Reason: <reason>.`',
+                       '`${CLAUDE_PLUGIN_ROOT}/skills/feature-development/heads/full.md`',
+                       'Its PRD interview starts from the diagnosis.'):
+            self.assertIn(phrase, row)
+
+    def test_a_fault_that_did_not_reproduce_asks_and_stops_headless(self):
+        row = self.row('NOT_REPRODUCED')
+        for phrase in ('Ask (plain `AskUserQuestion`)', '**Give more detail**',
+                       '**Treat it as a bounded change**', '**Stop**',
+                       '(`size` `bounded`, `head` `lean`, `decided_by` `flag`)',
+                       '`${CLAUDE_PLUGIN_ROOT}/skills/feature-development/heads/lean.md`',
+                       "Headless: print the diagnosis' path and stop."):
+            self.assertIn(phrase, row)
+
+    def test_the_approval_says_what_it_authorises(self):
+        for phrase in ("**Before gate B2's skill runs**, say in one line what its approval will "
+                       'authorise',
+                       '(`tail.md` `## Checkpoint commits & pushes`)',
+                       'asked first in `plan-gate`, opened without asking in `yolo`',
+                       'The approved work list is the deviation anchor.'):
+            self.assertIn(phrase, self.status)
+
+    def test_a_raise_from_the_writer_and_a_resume(self):
+        for phrase in ("**When gate B2's skill returns `RAISE: <reason>; <reason>`**",
+                       'that is a raise too, from `bug`',
+                       'Do not act on its `Next:` line',
+                       '**Resume.** `diagnosis.md` exists → gate B1 is done',
+                       '`tasklist.md` exists → gate B2 is done',
+                       'go to `SKILL.md` step 5',
+                       '`plan check: run by generate-tasklist`'):
+            self.assertIn(phrase, self.status)
+
+    def test_it_is_unarmed_and_writes_no_spec_of_its_own(self):
+        opening = between(self.head, '# The bug head', '## Gates')
+        for phrase in ('The head for a `bug` size',
+                       'find the cause before anything is planned',
+                       'every question here is a plain `AskUserQuestion` with no `pause_reason`',
+                       'No PRD, vision or plan is written here.'):
+            self.assertIn(phrase, opening)
+        self.assertNotIn('`dev`', self.head)
+
+
 if __name__ == '__main__':
     unittest.main()

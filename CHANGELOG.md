@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-09-30
+
 ### Added
 
 - **Sizing.** `/artel:feature-development` sizes the work once the ticket is imported —

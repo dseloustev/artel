@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: "Implement the following task from the tasklist according to the agreed plan"
-argument-hint: "[ticket-id] or [ticket-id]-[phase] [--local]"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [--local] [--model sonnet|opus|fable]"
 model: sonnet
 ---
 
@@ -18,6 +18,12 @@ the invocation (an orchestrator that was invoked with it passes it down), and se
 on every spawn. Default is the queue; see
 `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 for how it resolves against
 `knowledge.adapter` and tool availability.
+
+`--model <sonnet|opus|fable>`: dispatch the agent on this model instead of its frontmatter
+`opus`. It may appear in any position; strip it before reading `$0`. Any other value is an
+invocation error — report it and stop. A dispatch refused for that model (not available, or not
+allowed on this host) is re-dispatched once without it. The orchestrators pass the flag only to
+step up a fix round that follows a failed one (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §5).
 
 ## Execute
 
@@ -37,8 +43,9 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
-Use the Agent tool with `subagent_type: "implementer"`, description `"Implement next task for
-<TICKET_ID>"`, and a prompt passing TICKET_ID / TICKET_NUM / PHASE_NUM plus:
+Use the Agent tool with `subagent_type: "implementer"`, `model` set to the `--model` value when
+one was given (left out otherwise, so the frontmatter applies), description `"Implement next task
+for <TICKET_ID>"`, and a prompt passing TICKET_ID / TICKET_NUM / PHASE_NUM plus:
 
 ```
 ## Context

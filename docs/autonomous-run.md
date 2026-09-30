@@ -191,6 +191,15 @@ matches it — a non-match is recorded as `skipped (no runtime surface)`.
 
 Cap hit ⇒ set `pause_reason: "cap-escalation"`, present consolidated findings via `AskUserQuestion`, stop.
 
+**Step-up rounds.** A fix round that follows a failed one runs one tier up, on `fable`: the
+review loop's fix round whose findings come from a `review.md` with `**Review round:**` 2 or
+more, and a checkpoint's second `## Verify Fixes` round. The orchestrator passes the
+`implementer` skill `--model fable`; every other implementer dispatch runs on the agent's
+frontmatter `opus`. Rounds that exist once — the per-task review's fix round, the runtime retry,
+review fix round 1 — keep the default, and a stepped-up round counts toward
+`MAX_TOTAL_CORRECTION_ROUNDS` like any other. OpenCode ignores the per-dispatch model
+([opencode.md](opencode.md)).
+
 Environment errors (toolchain/dependency mismatches, subprocess failures, missing tools) are **never**
 loop findings — immediate stop-and-ask pointing at setup.
 

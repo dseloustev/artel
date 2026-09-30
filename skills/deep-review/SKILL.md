@@ -170,6 +170,9 @@ standalone mode — no ticket mode; the report goes to run-state evidence at
 section accepts a caller-specified path). Ticket files are passed as additional context only.
 
 - `subagent_type: "reviewer"`
+- `model`: `"fable"` — the whole-branch review before a pull request, the one review on the most
+  capable tier (`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`); a dispatch refused for its
+  model is re-dispatched once without one
 - `description`: `"Code review for <TICKET_ID>"`
 - `prompt`: always starts with `Run in **standalone mode** — no ticket context.`
 
@@ -213,7 +216,7 @@ Wait for the agent to complete, then verify the file exists:
 test -f .artel/run/<TICKET_ID>/reports/deep-review-findings.md && echo "Found deep-review-findings.md" || echo "File not found"
 ```
 
-If the file is missing, re-dispatch once with the same prompt. If it is still missing, display
+If the file is missing, re-dispatch once with the same prompt and model. If it is still missing, display
 `Error: the reviewer produced no report after two attempts.` and terminate — never write the
 review yourself.
 

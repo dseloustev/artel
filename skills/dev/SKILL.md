@@ -2,7 +2,6 @@
 name: dev
 description: "Lean autonomous dev workflow: mini-interview -> one work-list confirmation -> autonomous implement + review + runtime gate"
 argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates]"
-model: sonnet
 ---
 
 Autonomous orchestrator for the lean dev loop. Contract:
@@ -231,7 +230,8 @@ when the host has wired one up; silently absent otherwise.
 ### 6. Review (capped loop)
 
 `Skill: run-reviewer` with `$0`. Blocking/Important findings → `Skill: implementer` on the
-`## Code Review Fixes` tasks → re-review. `review.md` `**Review round:**` at
+`## Code Review Fixes` tasks (plus `--model fable` when the findings come from a `review.md`
+whose `**Review round:**` is 2 or more, autonomous-run.md §5) → re-review. `review.md` `**Review round:**` at
 `MAX_REVIEW_ROUNDS = 3` → cap escalation (consolidated findings via `AskUserQuestion`; on guidance
 reset the review round (delete `review.md`, or on the kartoteka path store the round-0 version —
 `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.4) and resume).
@@ -277,7 +277,8 @@ On phase-scoped work (explicit phase or a traversal iteration) invoke `Skill: sy
 `<TICKET_ID>-<N>` first (sync completion back to `tasklist.md`), then run the phase-end checkpoint
 per `feature-development` `## Checkpoint commits & pushes`: the image sweep (kartoteka path) → the
 `verify.commands` gate → capped `## Verify Fixes` implementer rounds
-(`MAX_CHECKPOINT_VERIFY_ROUNDS = 2`, counted toward `counters.correction_rounds`) → explicit
+(`MAX_CHECKPOINT_VERIFY_ROUNDS = 2`, counted toward `counters.correction_rounds`; the second
+round passes `--model fable`) → explicit
 staging (no trail image on the kartoteka path) → commit (`feat|fix|refactor: <TICKET_ID> phase
 <N> - <phase title>`; no phase → `<work summary>`) → `git push -u origin <branch>` → journal. Then
 advance `.active_ticket` to the next incomplete phase and loop back to step 4 while incomplete

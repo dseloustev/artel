@@ -922,7 +922,9 @@ class TestReadersAudit(unittest.TestCase):
         'docs/task-grammar.md', 'docs/task-queue.md', 'docs/ticket-parsing.md',
         'docs/workflow-guide.md', 'skills/address-pr-comment/SKILL.md',
         'skills/change-digest/SKILL.md', 'skills/deep-review/SKILL.md', 'skills/dev/SKILL.md',
-        'skills/feature-development/SKILL.md', 'skills/generate-tasklist/SKILL.md',
+        'skills/feature-development/SKILL.md', 'skills/feature-development/heads/bug.md',
+        'skills/feature-development/heads/full.md', 'skills/feature-development/heads/lean.md',
+        'skills/feature-development/tail.md', 'skills/generate-tasklist/SKILL.md',
         'skills/implementer/SKILL.md', 'skills/issue-draft/SKILL.md', 'skills/planner/SKILL.md',
         'skills/pr-description/SKILL.md', 'skills/researcher/SKILL.md',
         'skills/run-reviewer/SKILL.md', 'skills/sync-phases/SKILL.md', 'skills/tasklist/SKILL.md',
@@ -932,6 +934,7 @@ class TestReadersAudit(unittest.TestCase):
     def test_every_tasklist_reader_was_audited(self):
         pattern = _re.compile(r'tasklist\.md|tasks\.md|checkbox|- \[ \]|first incomplete')
         live = (sorted(_ROOT.glob('agents/*.md')) + sorted(_ROOT.glob('skills/*/SKILL.md'))
+                + sorted(_ROOT.glob('skills/*/heads/*.md')) + sorted(_ROOT.glob('skills/*/tail.md'))
                 + sorted(_ROOT.glob('docs/*.md')) + [_ROOT / 'README.md'])
         readers = {str(p.relative_to(_ROOT)) for p in live
                    if pattern.search(p.read_text(encoding='utf-8'))}

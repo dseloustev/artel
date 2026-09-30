@@ -118,7 +118,8 @@ class TestInlineSkills(unittest.TestCase):
 
 
 class TestScriptPipes(unittest.TestCase):
-    LIVE = [p for p in sorted((ROOT / 'skills').glob('*/SKILL.md'))] + [
+    LIVE = [p for p in sorted((ROOT / 'skills').glob('*/SKILL.md'))] + sorted(
+        (ROOT / 'skills').glob('*/heads/*.md')) + sorted((ROOT / 'skills').glob('*/tail.md')) + [
         ROOT / 'docs' / 'task-queue.md', ROOT / 'docs' / 'workflow-guide.md']
 
     def test_every_file_form_has_its_pipe_form_beside_it(self):

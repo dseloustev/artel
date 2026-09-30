@@ -67,6 +67,9 @@ def section(text, start, end=None):
 PROMPT_FILES = sorted(
     [str(p.relative_to(ROOT)) for p in (ROOT / 'agents').glob('*.md')]
     + [str(p.relative_to(ROOT)) for p in (ROOT / 'skills').glob('*/SKILL.md')]
+    # a skill's head and tail files are prompts too (feature-development since 0.25.0)
+    + [str(p.relative_to(ROOT)) for p in (ROOT / 'skills').glob('*/heads/*.md')]
+    + [str(p.relative_to(ROOT)) for p in (ROOT / 'skills').glob('*/tail.md')]
 )
 
 

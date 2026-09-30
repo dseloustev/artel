@@ -70,6 +70,7 @@ class TestReferencesContract(unittest.TestCase):
 
 
 PROMPTS = sorted([*(ROOT / 'agents').glob('*.md'), *(ROOT / 'skills').glob('*/SKILL.md'),
+                  *(ROOT / 'skills').glob('*/heads/*.md'), *(ROOT / 'skills').glob('*/tail.md'),
                   *(p for p in (ROOT / 'docs').glob('*.md'))])
 
 

@@ -1362,5 +1362,86 @@ class TestRunContract(unittest.TestCase):
             self.assertNotIn(gone, self.run)
 
 
+class TestWholeSkill(unittest.TestCase):
+    """Plan 2, Task 11: the five files of the merged skill, read as one — every pointer
+    resolves, every gate is held once, and nothing of the two-orchestrator wording is left."""
+
+    FILES = ('SKILL.md', 'heads/full.md', 'heads/lean.md', 'heads/bug.md', 'tail.md')
+    GATES = ['0', '0.5', '1', '2', '3', '3.5', '4', '4.2', '4.5', 'B1', 'B2',
+             '5', '6', '7', '8', '10', '10.5', '10.7']
+
+    def setUp(self):
+        self.texts = {name: raw(FD + name) for name in self.FILES}
+
+    def test_the_directory_holds_exactly_the_five_files(self):
+        found = sorted(path.relative_to(ROOT / FD).as_posix()
+                       for path in (ROOT / FD).rglob('*') if path.is_file())
+        self.assertEqual(found, sorted(self.FILES))
+
+    def test_every_plugin_root_pointer_resolves(self):
+        pointer = re.compile(r'\$\{CLAUDE_PLUGIN_ROOT\}/([\w./-]+)')
+        seen = 0
+        for name, text in self.texts.items():
+            for rel in pointer.findall(text):
+                seen += 1
+                with self.subTest(file=name, pointer=rel):
+                    self.assertTrue((ROOT / rel.rstrip('.')).exists())
+        self.assertGreater(seen, 40)
+
+    def test_the_shared_start_reaches_every_other_file(self):
+        for name in self.FILES[1:]:
+            self.assertIn('${CLAUDE_PLUGIN_ROOT}/skills/feature-development/' + name,
+                          self.texts['SKILL.md'], name)
+
+    def test_every_gate_is_held_once_across_the_skill(self):
+        rows = []
+        for name in self.FILES:
+            rows += re.findall(r'(?m)^\| (B?[0-9][0-9.]*) \|', self.texts[name])
+        self.assertEqual(rows, self.GATES)
+
+    def test_every_head_hands_over_to_arming(self):
+        for name in self.FILES[1:4]:
+            self.assertIn('`SKILL.md` step 5', self.texts[name], name)
+            self.assertIn('plain `AskUserQuestion` with no `pause_reason`',
+                          re.sub(r'\s+', ' ', self.texts[name]), name)
+
+    def test_no_two_orchestrator_wording_is_left(self):
+        for name, text in self.texts.items():
+            for stale in ('`dev`', "dev's", 'step 7.5', 'oth orchestrators', 'Autonomous tail',
+                          'Chatty head —', 'work-list checkpoint', '--decided-by dev',
+                          '--author artel:dev', 'artel:<skill>'):
+                with self.subTest(file=name, stale=stale):
+                    self.assertNotIn(stale, text)
+
+    def test_one_stamp_everywhere(self):
+        joined = '\n'.join(self.texts.values())
+        self.assertEqual(joined.count('--decided-by feature-development'), 2)
+        self.assertEqual(joined.count('--author artel:feature-development'), 2)
+        alias = raw('skills/dev/SKILL.md')
+        for stamp in ('--decided-by', '--author'):
+            self.assertNotIn(stamp, alias)
+
+    def test_examples_are_generic(self):
+        for name, text in self.texts.items():
+            for literal in ('.dart', 'lib/', 'AW-', 'wallet', 'Flutter', 'pubspec'):
+                with self.subTest(file=name, literal=literal):
+                    self.assertNotIn(literal, text)
+
+    def test_the_repo_wide_scans_read_the_head_and_tail_files(self):
+        # Each scan below finds prompts by glob; the head and tail files must be in every one.
+        for rel, needle in (('tests/test_gates_docs.py', "glob('*/heads/*.md')"),
+                            ('tests/test_document_header_docs.py', "glob('*/heads/*.md')"),
+                            ('tests/test_kartoteka_project_docs.py', "glob('skills/*/heads/*.md')"),
+                            ('tests/test_code_navigation_docs.py', "glob('*/heads/*.md')"),
+                            ('tests/test_spec_store_conversion_docs.py', "glob('*/heads/*.md')"),
+                            ('tests/test_task_grammar_docs.py', "glob('skills/*/heads/*.md')"),
+                            ('tests/test_task_queue_docs.py', "glob('skills/*/heads/*.md')"),
+                            ('tests/test_deep_review_docs.py', "'skills/*/heads/*.md'")):
+            with self.subTest(rel):
+                text = raw(rel)
+                self.assertIn(needle, text)
+                self.assertIn('tail.md', text)
+
+
 if __name__ == '__main__':
     unittest.main()

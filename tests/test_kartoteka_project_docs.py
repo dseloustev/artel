@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 LIVE_FILES = tuple(sorted(
     str(p.relative_to(ROOT)) for p in
     list(ROOT.glob('agents/*.md')) + list(ROOT.glob('skills/*/SKILL.md')) +
+    list(ROOT.glob('skills/*/heads/*.md')) + list(ROOT.glob('skills/*/tail.md')) +
     list(ROOT.glob('docs/*.md')) + [ROOT / 'README.md', ROOT / 'hooks/README.md',
                                      ROOT / 'skills/README.md']
 ))

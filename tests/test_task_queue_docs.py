@@ -680,6 +680,7 @@ class TestNoLiveDocHidesTheFixSections(unittest.TestCase):
 
     def test_no_live_file_carries_a_retired_phrase(self):
         live = (sorted(ROOT.glob('agents/*.md')) + sorted(ROOT.glob('skills/*/SKILL.md'))
+                + sorted(ROOT.glob('skills/*/heads/*.md')) + sorted(ROOT.glob('skills/*/tail.md'))
                 + sorted(ROOT.glob('docs/*.md')) + [ROOT / 'README.md'])
         for path in live:
             text = path.read_text(encoding='utf-8')

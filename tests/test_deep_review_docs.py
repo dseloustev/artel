@@ -179,7 +179,8 @@ RETIRED = ('review-second.md', 'review-summary.md', '<TICKET_ID>/review-claude.m
 # is history, like CHANGELOG.md, and not scanned.
 LIVE_FILES = tuple(sorted(
     p.relative_to(ROOT).as_posix()
-    for pattern in ('docs/*.md', 'skills/*/SKILL.md', 'agents/*.md', 'hooks/*.py')
+    for pattern in ('docs/*.md', 'skills/*/SKILL.md', 'skills/*/heads/*.md', 'skills/*/tail.md',
+                    'agents/*.md', 'hooks/*.py')
     for p in ROOT.glob(pattern)
     if p.name != 'design.md'
 ))

@@ -277,7 +277,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Produce the ticket's iterative tasklist directly from idea + vision, skipping the
   PRD/plan chain used by the full pipeline.
-- **Invocation:** `/artel:generate-tasklist [ticket-id] [idea-file] [vision-file]`
+- **Invocation:** `/artel:generate-tasklist [ticket-id] [idea-file] [vision-file] [--local]`
 - **Reads:** `idea.md`, `vision.md` (both overridable via `$1`/`$2`); errors if the resolved
   vision file is missing, pointing at `/artel:generate-vision`.
 - **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/tasklist.md` (Progress Report table,

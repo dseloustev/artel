@@ -199,13 +199,13 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
             'skills/deep-review/SKILL.md',
         })
 
-    def test_autonomous_run_credits_both_orchestrators_with_the_remirror(self):
+    def test_autonomous_run_credits_the_tail_with_the_remirror(self):
         # Was an assertNotIn on one former phrasing, which the next rewording
         # would have satisfied by accident. The claim is positive now, and it is
         # checked against the file it is a claim about.
         text = (ROOT / 'docs/autonomous-run.md').read_text(encoding='utf-8')
         bullet = text.split('**Task-queue mirror**')[1].split('\n- ')[0]
-        self.assertIn('`dev` and `feature-development` alike run the parser', bullet)
+        self.assertIn("`feature-development`'s tail runs the parser", bullet)
         tail = (ROOT / 'skills/feature-development/tail.md').read_text(encoding='utf-8')
         self.assertIn('scripts/tasklist_tasks.py', tail,
                       'the bullet credits a re-mirror feature-development does not have')

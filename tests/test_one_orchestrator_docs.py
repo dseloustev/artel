@@ -1209,5 +1209,158 @@ class TestRouter(unittest.TestCase):
         self.assertLessEqual(len(self.raw.encode('utf-8')), self.CAP)
 
 
+class TestRunContract(unittest.TestCase):
+    """Plan 2, Task 9: docs/autonomous-run.md is the contract of one orchestrator — the run
+    tree, the armed run, the debug option, and §17 on sizing and heads (spec §12)."""
+
+    RUN = 'docs/autonomous-run.md'
+    LINES = ('Size: <size> — <head> head. Reasons: <reason>; <reason>. To change: say so now, or '
+             're-run with --head=<full|lean|bug>.',
+             'Size: spike — no head; the researcher answers the question.',
+             'Size raised: <from> → architectural — full head. Reason: <reason>.',
+             'Already answered: <path to spike.md>. To build on it, re-run with --head=lean or '
+             '--head=full.',
+             '--head ignored: the run is past its head.',
+             '- size: <size> (<head> head; decided by <decided_by>)',
+             'Spike answered: <one-line answer> — <path>')
+    KEYS = ['size', 'head', 'reasons', 'decided_by', 'raised_from', 'answered', 'decided_at']
+    CAPS = ['MAX_VERIFY_ITERATIONS = 4', 'MAX_TASK_REVIEW_ROUNDS = 1', 'ROUTE_FULL_FILES = 5',
+            'MAX_PLAN_REVIEW_ROUNDS = 2', 'MAX_REVIEW_ROUNDS = 3', 'MAX_RUNTIME_RETRIES = 1',
+            'MAX_CHECKPOINT_VERIFY_ROUNDS = 2', 'MAX_DEBUG_HERE_ATTEMPTS = 1',
+            'MAX_TOTAL_CORRECTION_ROUNDS = 8', 'WALL_CLOCK_HOURS = 3']
+
+    def setUp(self):
+        self.raw = raw(self.RUN)
+        self.run = flat(self.RUN)
+        self.sizing = self.run[self.run.index('## 17. Sizing and heads'):]
+
+    def test_the_run_tree_lists_sizing_json(self):
+        tree = self.raw.split('## 1. Principles')[0]
+        self.assertRegex(tree, r'(?m)^    ├── sizing\.json +# .*\(§17\.3\)$')
+        self.assertLess(tree.index('sizing.json'), tree.index('run-state.json'))
+
+    def test_section_17_and_its_five_parts(self):
+        headings = [line for line in self.raw.split('\n') if line.startswith('#')]
+        self.assertEqual(headings[-6:], ['## 17. Sizing and heads', '### 17.1 The four sizes',
+                                         '### 17.2 Order of decision', '### 17.3 sizing.json',
+                                         '### 17.4 The ratchet', '### 17.5 The spike outcome'])
+        self.assertIn('(`../skills/feature-development/SKILL.md`, step 3)', self.sizing)
+        self.assertIn('never a pause, and no agent is dispatched', self.sizing)
+
+    def test_the_four_sizes(self):
+        sizes = between(self.sizing, '### 17.1', '### 17.2')
+        for row in ('| `spike` | `none` (§17.5) |', '| `bug` | `bug` — `heads/bug.md` |',
+                    '| `bounded` | `lean` — `heads/lean.md` |',
+                    '| `architectural` | `full` — `heads/full.md` |'):
+            self.assertEqual(sizes.count(row), 1, row)
+
+    def test_the_order_of_decision_and_the_doubt_rule(self):
+        order = between(self.sizing, '### 17.2', '### 17.3')
+        rules = ('1. **A flag.**', '2. **A recorded sizing**', '3. **What exists.**',
+                 '4. **Judgement**')
+        at = [order.index(rule) for rule in rules]
+        self.assertEqual(at, sorted(at))
+        for phrase in ('`--head=full` → `architectural`, `--head=lean` → `bounded`, '
+                       '`--head=bug` → `bug`',
+                       "The person's flag is the only thing that lowers a size.",
+                       'unless it is a spike already answered (§17.5)',
+                       'A PRD or a plan, at either scope → `architectural`.',
+                       '`spike` < `bounded` < `architectural`',
+                       '`bug` wins any doubt it is part of'):
+            self.assertIn(phrase, order)
+
+    def test_the_record(self):
+        import json
+        record = between(self.raw, '### 17.3 sizing.json', '### 17.4')
+        example = json.loads(between(record, '```json\n', '```')[len('```json\n'):])
+        self.assertEqual(list(example), self.KEYS)
+        self.assertEqual(re.findall(r'(?m)^\| `([a-z_]+)` \|', record), self.KEYS)
+        for phrase in ('`.artel/run/<TICKET_ID>/sizing.json`, written by the orchestrator at '
+                       'sizing, before any head',
+                       'It is written in `--step` runs too: it is not run state.',
+                       '| `decided_by` | `flag`, `existing` (rule 3), `judgement` or `raised` |'):
+            self.assertIn(phrase, re.sub(r'\s+', ' ', record))
+
+    def test_the_contract_and_the_skill_print_the_same_lines(self):
+        skill = flat(FD + 'SKILL.md')
+        for line in self.LINES:
+            self.assertIn(line, self.sizing, line)
+            self.assertIn(line, skill, line)
+
+    def test_the_ratchet_and_the_spike_outcome(self):
+        ratchet = between(self.sizing, '### 17.4', '### 17.5')
+        for phrase in ('A head may raise the size, never lower it',
+                       'the bug head when the diagnosis is `DIAGNOSED_STRUCTURAL`',
+                       'The ratchet stops at arming',
+                       'One move is not a raise: on a `NOT_REPRODUCED` diagnosis'):
+            self.assertIn(phrase, ratchet)
+        spike = self.sizing[self.sizing.index('### 17.5'):]
+        for phrase in ('A `spike` runs no head.', '`<specs.dir>/<TICKET_ID>/spike.md`',
+                       'sets `answered: true` in `sizing.json` and stops',
+                       'Nothing is armed, journaled or committed.',
+                       'an answered spike is not a recorded sizing'):
+            self.assertIn(phrase, spike)
+
+    def test_an_armed_run_is_defined_and_skips_the_head(self):
+        state = between(self.run, '## 2. `run-state.json`', '## 3.')
+        self.assertIn('An **armed run** is one whose file has `run_active: true` and '
+                      '`gates_confirmed` holding `TASKLIST_READY`.', state)
+        self.assertIn('skips the import, sizing and every head (§17.2)', state)
+        self.assertIn('An armed run (§2) is not sized.', self.sizing)
+        self.assertIn('A run armed before 0.25.0 has no `sizing.json` and resumes the same way, '
+                      'through either command.', self.sizing)
+
+    def test_the_debug_option_is_the_one_new_cap(self):
+        caps = between(self.run, '## 5. Capped loops', '## 6.')
+        table = between(self.raw, '| Loop | Cap (default) | Counter location |', '\n\n')
+        self.assertEqual(re.findall(r'`([A-Z_]+ = \d+)`', table), self.CAPS)
+        for phrase in ('| debug it here first (per halt, below) | `MAX_DEBUG_HERE_ATTEMPTS = 1` |',
+                       '**Debug it here first.** On three cap escalations',
+                       'a task aborted when `MAX_VERIFY_ITERATIONS` ran out, a checkpoint still '
+                       'red after `MAX_CHECKPOINT_VERIFY_ROUNDS`, and the runtime gate\'s second '
+                       'red from an app-code error',
+                       'Not the review cap, not an environment error',
+                       '`debugged here: <root cause> — <files>`',
+                       'one attempt per halt',
+                       '(`../skills/feature-development/tail.md`, `## Debug it here first`)'):
+            self.assertIn(phrase, caps)
+
+    def test_the_completion_gate_reads_what_exists(self):
+        gate = between(self.run, '## 7. Completion gate', '## 8.')
+        for phrase in ('The orchestrator confirms eight facts itself',
+                       '`PLAN_APPROVED` (`skipped (no plan)` when the ticket has no plan',
+                       'or `gates_confirmed` for a tasklist that declares none',
+                       'and every fix-section parent closed',
+                       '`skipped (no PRD)` when the ticket has no PRD',
+                       '(`../skills/feature-development/tail.md`, `## Completion gate`)',
+                       'A fact that reads `skipped` is green.',
+                       'never on the head that ran'):
+            self.assertIn(phrase, gate)
+
+    def test_the_pause_the_checkpoints_and_headless_name_one_orchestrator(self):
+        for phrase in ('(`/artel:dev` is its alias until 0.26.0)',
+                       '**One approval pause.** The full head: plan+tasklist approval. The lean '
+                       'head and the bug head: the work-list approval (§17).',
+                       "(the full head's pause on approve, the lean head's confirmation, the bug "
+                       "head's work-list approval)",
+                       'gate 0.5 of the full head (`heads/full.md`)',
+                       'The orchestrator commits and pushes at fixed checkpoints',
+                       '(`../skills/feature-development/tail.md`, `## Checkpoint commits & '
+                       'pushes`)',
+                       "`feature-development`'s tail runs the parser and `task_create`s its rows",
+                       "in the orchestrator's implementation loop (gate 5, `tail.md`)",
+                       'the phase review (gate 7, `tail.md`)',
+                       "(the full head's pause, the lean head's confirmation)",
+                       'Sizing (§17) never pauses, so it needs no answer',
+                       'run start (with the §10 mode resolution and the §17 size)'):
+            self.assertIn(phrase, self.run)
+
+    def test_no_second_orchestrator_is_left(self):
+        self.assertEqual(self.raw.count('/artel:dev'), 1)
+        for gone in ('`dev`', 'dev §2', 'oth orchestrators', 'both entry-point',
+                     'feature-development §', '`feature-development` step'):
+            self.assertNotIn(gone, self.run)
+
+
 if __name__ == '__main__':
     unittest.main()

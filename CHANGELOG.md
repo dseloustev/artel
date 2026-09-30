@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-09-30
+
 ### Added
 
 - **Step-up fix rounds.** The review loop's fix round after review round 2 and a checkpoint's

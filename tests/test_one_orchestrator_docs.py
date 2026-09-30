@@ -1796,5 +1796,45 @@ class TestSizingReasons(unittest.TestCase):
         self.assertIn('a later section overrides an earlier one', order)
 
 
+class TestReviewFixes(unittest.TestCase):
+    """The whole-branch review's three Important findings. Each is a path the skill itself
+    sends a person down — a plan drafted and then a lean run, a finished bug ticket run again,
+    a structural diagnosis met by the lean head — and each ended with no rule to follow."""
+
+    FINISHED = ("This ticket's work list is complete: nothing was planned and the run is not "
+                'armed.')
+
+    def test_a_plan_this_run_did_not_approve_is_not_a_red_fact(self):
+        # A draft plan left by the full head, or written à la carte, and then a lean or bug
+        # run: the work list was what the person confirmed, so the plan's status is not this
+        # run's to turn green — and no step owns it.
+        gate = between(flat(FD + 'tail.md'), '## Completion gate', '## PR description')
+        contract = between(flat('docs/autonomous-run.md'), '## 7. Completion gate', '## 8.')
+        for text in (gate, contract):
+            self.assertIn('`skipped (plan not approved by this run)`', text)
+        self.assertIn('its status is not `PLAN_APPROVED` while `gates_confirmed` holds '
+                      '`TASKLIST_READY`', gate)
+
+    def test_a_finished_work_list_stops_the_bug_head_too(self):
+        resume = between(flat(FD + 'heads/bug.md'), '**Resume.**', '\0')
+        for phrase in ('a `tasklist.md` with no open box is a finished work list',
+                       'do not go on to `SKILL.md` step 5', self.FINISHED,
+                       '/artel:tasks add <TICKET_ID> "<title>" --iteration <N>',
+                       'in every mode'):
+            self.assertIn(phrase, resume)
+        # one message, the lean head's
+        self.assertIn(self.FINISHED, flat(FD + 'heads/lean.md'))
+
+    def test_the_lean_head_treats_a_structural_diagnosis_as_a_raise(self):
+        raised = between(flat(FD + 'heads/lean.md'), '## Raised by the writer', '\0')
+        for phrase in ('`This diagnosis is structural. Next: /artel:feature-development '
+                       '<TICKET_ID> --head=full`',
+                       '`DIAGNOSED_STRUCTURAL`', 'Treat that line as a raise too'):
+            self.assertIn(phrase, raised)
+        # the skill prints exactly the line the head waits for
+        self.assertIn('`This diagnosis is structural. Next: /artel:feature-development '
+                      '<TICKET_ID> --head=full`', flat('skills/generate-tasklist/SKILL.md'))
+
+
 if __name__ == '__main__':
     unittest.main()

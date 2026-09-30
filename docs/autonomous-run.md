@@ -233,7 +233,9 @@ the autonomous default — confirm between major phases, per-task implementer ap
 A run may set `completed: true` only when its gates all pass. The orchestrator confirms eight
 facts itself, from the artifacts it already
 reads, and journals one line each: `PLAN_APPROVED` (`skipped (no plan)` when the ticket has no
-plan — `gates_confirmed` holding `TASKLIST_READY` is then the approval), `TASKLIST_READY` (the
+plan — `gates_confirmed` holding `TASKLIST_READY` is then the approval — and
+`skipped (plan not approved by this run)` when a plan exists that this run did not approve: a
+draft on a run whose confirmed work list was the approval), `TASKLIST_READY` (the
 tasklist's status, or `gates_confirmed` for a tasklist that declares none), `IMPLEMENT_STEP_OK` (no
 unchecked box in any iteration or fix section, and every fix-section parent closed —
 [task-queue.md](task-queue.md) §6), `REVIEW_OK` (`review.md` with a round line, no

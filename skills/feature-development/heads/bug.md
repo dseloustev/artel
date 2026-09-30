@@ -45,4 +45,10 @@ Do not act on its `Next:` line, and do not invoke the skill again.
 **Resume.** `diagnosis.md` exists → gate B1 is done: read its status and take its row.
 `tasklist.md` exists → gate B2 is done, and its approval was given before the skill wrote the
 file: go to `SKILL.md` step 5, whose run-start entry records
-`plan check: run by generate-tasklist`.
+`plan check: run by generate-tasklist`. One exception: a `tasklist.md` with no open box is a
+finished work list, and it stops this head as it stops the lean one. There is nothing to
+diagnose again and nothing to confirm: do not go on to `SKILL.md` step 5. Print
+
+    This ticket's work list is complete: nothing was planned and the run is not armed. For follow-up work, add tasks to the work list (/artel:tasks add <TICKET_ID> "<title>" --iteration <N>, or by hand) and run this again, or open a new ticket.
+
+and stop, in every mode.

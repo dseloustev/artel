@@ -95,7 +95,7 @@ dispatched here: `/artel:validate` stays à la carte.
 
 | Fact | How it is read |
 |---|---|
-| `PLAN_APPROVED` | the plan's status (the same `spec_store.py status` read the gates use); no plan exists for the ticket → `skipped (no plan)` — `gates_confirmed` holding `TASKLIST_READY` is the approval |
+| `PLAN_APPROVED` | the plan's status (the same `spec_store.py status` read the gates use); no plan exists for the ticket → `skipped (no plan)` — `gates_confirmed` holding `TASKLIST_READY` is the approval; a plan this run did not approve — its status is not `PLAN_APPROVED` while `gates_confirmed` holds `TASKLIST_READY`, which is a draft left by an earlier invocation or written à la carte on a run whose work list was what the person confirmed → `skipped (plan not approved by this run)` |
 | `TASKLIST_READY` | the tasklist's status (`spec_store.py status`); a tasklist that declares none (written by `generate-tasklist` before 0.25.0 — `status` exits `1`) is read from `gates_confirmed` in `run-state.json` |
 | `IMPLEMENT_STEP_OK` | `tasklist_tasks.py` over the tasklist (and each `phase-<N>/tasks.md` on phased tickets) reports no unchecked box in any iteration or fix section — a `## Final Verification` section an older tasklist carries counts too; and, on the queue path, every fix-section parent row is closed (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6) |
 | `REVIEW_OK` | `review.md` exists with a `**Review round:**` line and the tasklist has no unchecked `## Code Review Fixes` box; a `**Verdict:**` line, when the reviewer wrote one, must not read *Needs fixes* |

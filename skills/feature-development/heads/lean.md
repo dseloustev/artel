@@ -100,3 +100,9 @@ the writer's reasons, then read `${CLAUDE_PLUGIN_ROOT}/skills/feature-developmen
 and run it. Do not act on the `Next:` line — it is for a person who ran the skill à la carte —
 and do not invoke `generate-tasklist` again. The full head starts from what the ticket already
 has: `idea.md`, and a `spike.md` or a `diagnosis.md` when present.
+
+The skill ends the same way, with no `RAISE:` line, when the ticket carries a `diagnosis.md`
+whose status is `DIAGNOSED_STRUCTURAL` — one written à la carte, on a ticket then run with
+`--head=lean`. Its output is
+`This diagnosis is structural. Next: /artel:feature-development <TICKET_ID> --head=full`.
+Treat that line as a raise too, with the diagnosis' structural condition as the reason.

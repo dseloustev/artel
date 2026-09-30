@@ -771,5 +771,129 @@ class TestSizing(unittest.TestCase):
             self.assertIn(phrase, opening)
 
 
+class TestLeanHead(unittest.TestCase):
+    """Plan 2, Task 4: the lean head is dev's input ladder without its third branch; the
+    tasklist-writer writes every new work list, and may raise the size (spec §5)."""
+
+    def setUp(self):
+        self.raw = raw(FD + 'heads/lean.md')
+        self.head = flat(FD + 'heads/lean.md')
+        self.ladder = between(self.head, '## The ladder', '## Routes at the confirmation')
+
+    def test_headings_in_order(self):
+        self.assertEqual([line for line in self.raw.split('\n') if line.startswith('#')],
+                         ['# The lean head', '## The ladder', '## Routes at the confirmation',
+                          '## Raised by the writer'])
+
+    def test_it_is_the_unarmed_head_of_a_bounded_size(self):
+        opening = between(self.head, '# The lean head', '## The ladder')
+        for phrase in ('The head for a `bounded` size',
+                       '`feature-development` step 4 '
+                       '(`${CLAUDE_PLUGIN_ROOT}/skills/feature-development/SKILL.md`)',
+                       'No PRD, vision or plan is written here and none is required; one that '
+                       'exists is used.',
+                       'every question here is a plain `AskUserQuestion` with no `pause_reason`',
+                       'first invoke `Skill: sync-phases` with `$0`'):
+            self.assertIn(phrase, opening)
+
+    def test_a_finished_work_list_stops_the_head(self):
+        # Follow-up work on a finished ticket: generate-tasklist skips a tasklist that exists,
+        # so without this rule the run would arm with nothing to do and drop the request.
+        opening = between(self.head, '# The lean head', '## The ladder')
+        for phrase in ('**A finished work list stops the head.**',
+                       'none of its boxes is open',
+                       'Do not invoke `generate-tasklist`',
+                       'do not go on to `SKILL.md` step 5',
+                       "This ticket's work list is complete: nothing was planned and the run is "
+                       'not armed.',
+                       '/artel:tasks add <TICKET_ID> "<title>" --iteration <N>',
+                       'or open a new ticket'):
+            self.assertIn(phrase, opening)
+
+    def test_two_branches_and_no_third(self):
+        self.assertIn('1. **Tasklist with incomplete `- [ ]` tasks exists**', self.ladder)
+        self.assertIn('2. **Otherwise** → `Skill: generate-tasklist` with `$0`, plus `--local` '
+                      'when this run was invoked with it.', self.ladder)
+        self.assertIn('Its questions+approval round IS the mini-interview and the one pause — do '
+                      'not add another.', self.ladder)
+        for gone in ('3. **Else**', 'max two rounds', 'old checkbox format', 'ranch 3',
+                     '`idea.md` + `vision.md` exist', 'artifact_put'):
+            self.assertNotIn(gone, self.head)
+
+    def test_branch_one_checks_then_confirms_once(self):
+        for phrase in ('First run the plan check on it',
+                       'No PRD there (kartoteka path: `spec_store.py exists <prd-path>` exits 3) '
+                       '→ `<requirements>` is `absent`',
+                       'tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> '
+                       '--check --requirements <requirements>',
+                       '**Confirm** / **Adjust** (feedback via "Other")',
+                       "This is the run's one pause.",
+                       'There is no automatic fix round here',
+                       '`plan check: not run (<error.kind>)`'):
+            self.assertIn(phrase, self.ladder)
+
+    def test_an_old_format_tasklist_is_still_the_work_list(self):
+        self.assertIn('An old-format tasklist (`data.format` `legacy`) is still the work list: '
+                      'it has no findings to show and no routes.', self.ladder)
+        self.assertIn('`plan check: skipped (old-format tasklist)`', self.ladder)
+        self.assertIn('An old-format tasklist shows no routes.',
+                      between(self.head, '## Routes at the confirmation',
+                              '## Raised by the writer'))
+
+    def test_the_confirmation_says_what_it_authorises(self):
+        for phrase in ('The confirmed work list is the deviation anchor.',
+                       "confirming authorizes the run's checkpoint commits & pushes to `origin`",
+                       'procedure: `tail.md` `## Checkpoint commits & pushes`',
+                       'the run ends with a pull request: in `plan-gate` a question before it is '
+                       'opened, in `yolo` opened without asking',
+                       'On branch 2, say the same in one line before invoking the skill'):
+            self.assertIn(phrase, self.ladder)
+
+    def test_yolo_keeps_the_finding_guardrail(self):
+        yolo = self.ladder[self.ladder.index('**`yolo` only:**'):]
+        self.assertIn('present nothing — the derived work list stands', yolo)
+        self.assertIn('a Critical or Important plan-check finding still presents the '
+                      'confirmation, findings first', yolo)
+        self.assertIn('a guardrail, not a pause preference', yolo)
+
+    def test_the_check_s_outcome_reaches_the_run_start_entry(self):
+        for phrase in ("The check's outcome goes into the run-start journal entry (`SKILL.md` "
+                       'step 5)',
+                       '`plan check: <c> Critical, <i> Important, <m> Minor`',
+                       '`plan check: run by generate-tasklist`'):
+            self.assertIn(phrase, self.ladder)
+
+    def test_routes_at_the_confirmation(self):
+        routes = between(self.head, '## Routes at the confirmation', '## Raised by the writer')
+        for phrase in ('(`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16.1)',
+                       "the tail's re-mirror command, without `task_create`",
+                       '`<light|full> — set at approval`',
+                       'the run-start journal entry (`SKILL.md` step 5), naming any floor it '
+                       'lowered',
+                       'a route change asked there reaches `tasklist-writer` like any other '
+                       'change',
+                       '`SKILL.md` step 5 announces the routes either way'):
+            self.assertIn(phrase, routes)
+
+    def test_a_raise_is_a_raise_not_a_stop(self):
+        raised = self.head[self.head.index('## Raised by the writer'):]
+        for phrase in ('`RAISE: <reason>; <reason>`',
+                       '`Next: /artel:feature-development <TICKET_ID> --head=full`',
+                       'it stops before its Phase 1b',
+                       'raises in two cases only',
+                       'Inside this run that is a raise, not a stop.',
+                       '`SKILL.md` step 3, "The ratchet"',
+                       '`Size raised: bounded → architectural — full head. Reason: <reason>.`',
+                       '`${CLAUDE_PLUGIN_ROOT}/skills/feature-development/heads/full.md`',
+                       'Do not act on the `Next:` line',
+                       'do not invoke `generate-tasklist` again'):
+            self.assertIn(phrase, raised)
+
+    def test_no_name_of_the_old_skill_is_left(self):
+        for stale in ('`dev`', "dev's", "step 4's", '(step 3)', 'step 3 announces', '.dart',
+                      '`feature-development` `## Checkpoint'):
+            self.assertNotIn(stale, self.head)
+
+
 if __name__ == '__main__':
     unittest.main()

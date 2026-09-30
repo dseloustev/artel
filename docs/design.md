@@ -1055,6 +1055,19 @@ move to the decision log.
   point; designing the nested tail — the orchestrator seat — in the same release (it would tie
   the merge to a measurement that may fail, as model selection's did). Design:
   `docs/superpowers/specs/2026-09-30-one-orchestrator-design.md`.
+  History replay (sizing over AW-3187, AW-3342, AW-3088, AW-3270 and AW-3444, three repeats
+  each; the two lean work lists rewritten without a vision; diagnose mode on AW-3107, AW-3375
+  and AW-2580): FAIL — sizing pass, lean work list FAIL, bug head FAIL. Two of the five ideas were
+  reconstructed from the work lists' own notes, because the `dev` runs took their request from
+  the conversation. Sizing failed its first score on one reason that the ticket's own revision
+  section contradicted; it passed after the sizing step gained the rule that every recorded
+  reason must be true of the ticket as it stands, with that ticket's three sessions run again.
+  The other two misses were accepted by the person. Every unit the rewritten work lists lacked
+  was a question the writer had asked and the replay could not answer — no git history for the
+  commits one request named, no Figma for the other, nobody to reply — while the plan check was
+  green and no writer raised. Two of the three diagnoses named the cause the shipped fix
+  addressed; the third named a real cause of the symptom in other code than the fix changed.
+  In all three no fix was left in the tree and the first task was a failing test for the cause.
 - **2026-09-30 — Size it, say it, keep going.** After the ticket is imported the orchestrator
   sizes the work — `spike`, `bug`, `bounded`, `architectural` — announces the size with its
   reasons in one line and continues without a pause. First match wins: the `--head` flag, a

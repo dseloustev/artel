@@ -565,7 +565,9 @@ The first rule that matches wins:
    `bug`. Else a tasklist with open tasks, or a `vision.md` → `bounded`.
 4. **Judgement** over `idea.md`, by §17.1. In doubt between two sizes the heavier wins:
    `spike` < `bounded` < `architectural`. `bug` wins any doubt it is part of: its head diagnoses
-   first, and can raise itself or hand the ticket to the lean head.
+   first, and can raise itself or hand the ticket to the lean head. Every recorded reason is
+   true of the ticket as it stands: `idea.md` is read to its end, and a later section overrides
+   an earlier one.
 
 An armed run (§2) is not sized. It skips the import, sizing and the head, and a `--head` flag on
 it is answered with `--head ignored: the run is past its head.` when `sizing.json` records a

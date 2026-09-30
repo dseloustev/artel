@@ -1777,5 +1777,24 @@ class TestRelease(unittest.TestCase):
         self.assertIn('- [x] Port `dev` (lean loop', plan)   # the port's own record stays
 
 
+class TestSizingReasons(unittest.TestCase):
+    """The history replay's one sizing defect: a reason that a later section of the ticket
+    contradicts. The size is said aloud so the person can catch a wrong reason; a false one
+    defeats that."""
+
+    def test_the_skill_requires_reasons_true_of_the_whole_ticket(self):
+        step = between(flat(FD + 'SKILL.md'), '### 3. Size the work', '### 4. The head')
+        for phrase in ('Read it to its end', 'a later section',
+                       'overrides an earlier one',
+                       'Every reason you record must be true of the ticket as it stands'):
+            self.assertIn(phrase, step)
+
+    def test_the_run_contract_says_the_same(self):
+        order = between(flat('docs/autonomous-run.md'), '### 17.2 Order of decision',
+                        '### 17.3')
+        self.assertIn('Every recorded reason is true of the ticket as it stands', order)
+        self.assertIn('a later section overrides an earlier one', order)
+
+
 if __name__ == '__main__':
     unittest.main()

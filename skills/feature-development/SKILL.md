@@ -150,6 +150,9 @@ stated here in full because this is the file you act from.
    the paths it names exist; explore nothing else. In doubt between two sizes take the heavier:
    `spike` < `bounded` < `architectural`. `bug` wins any doubt it is part of — its head
    diagnoses first, and can raise itself or hand the ticket to the lean head.
+   Read it to its end: a later section — a revision, a narrowed scope — overrides an earlier
+   one. Every reason you record must be true of the ticket as it stands: the size is said
+   aloud so the person can catch a wrong reason, and one the text contradicts defeats that.
 
 **Record it, then say it.** Before any head, write `.artel/run/<TICKET_ID>/sizing.json` — in
 `--step` runs too: it is not run state. When rule 2 found the file, leave it as it is. The keys,

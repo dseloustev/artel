@@ -1,0 +1,54 @@
+"""Doc contract for per-dispatch models: step-up rounds and the reviewer side.
+
+Spec: docs/superpowers/specs/2026-09-30-model-selection-design.md (gitignored).
+"""
+import re
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def read(rel):
+    return (ROOT / rel).read_text(encoding='utf-8')
+
+
+def flat(text):
+    return re.sub(r'\s+', ' ', text)
+
+
+def frontmatter(rel):
+    return read(rel).split('---')[1]
+
+
+def between(text, start, end=None):
+    head = text.index(start)
+    return text[head:text.index(end, head)] if end else text[head:]
+
+
+class TestImplementerSkill(unittest.TestCase):
+    def setUp(self):
+        self.skill = flat(read('skills/implementer/SKILL.md'))
+
+    def test_the_model_flag(self):
+        self.assertIn('[--model sonnet|opus|fable]', frontmatter('skills/implementer/SKILL.md'))
+        for phrase in ('`--model <sonnet|opus|fable>`: dispatch the agent on this model instead '
+                       'of its frontmatter `opus`',
+                       'Any other value is an invocation error',
+                       'is re-dispatched once without it',
+                       '`model` set to the `--model` value when one was given'):
+            self.assertIn(phrase, self.skill)
+
+    def test_no_per_task_model_rule(self):
+        self.assertNotIn('route --next', self.skill)
+
+    def test_skills_reference(self):
+        ref = flat(read('docs/skills-reference.md'))
+        self.assertIn('`/artel:implementer [ticket-id] or [ticket-id]-[phase] [--local] '
+                      '[--model sonnet|opus|fable]`', ref)
+        self.assertIn("**Model:** the agent's frontmatter `opus`; `--model` overrides it for "
+                      'one dispatch', ref)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -990,5 +990,121 @@ class TestBugHead(unittest.TestCase):
         self.assertNotIn('`dev`', self.head)
 
 
+class TestTailRules(unittest.TestCase):
+    """Plan 2, Task 6: four rules of the tail are keyed on what exists for the ticket, never on
+    the head that ran (spec §7)."""
+
+    def setUp(self):
+        self.raw = raw(FD + 'tail.md')
+        self.gate = between(flat(FD + 'tail.md'), '## Completion gate',
+                            '## PR description and the PR gate')
+
+    def fact(self, name):
+        return between(self.raw, '\n| `' + name + '`', '\n')
+
+    def test_the_docs_stage_is_keyed_on_a_prd(self):
+        row = between(self.raw, '\n| 10 | `DOCS_UPDATED` |', '\n')
+        for phrase in ('Runs only when a PRD exists for the ticket, at either scope',
+                       '`spec_store.py exists`',
+                       'journal `DOCS_UPDATED: skipped (no PRD)` and go on',
+                       'With one: `Skill: docs-update` with `<TICKET_ID>` (ticket-wide)',
+                       'once per ticket, on the last phase only, before its 10.7 checkpoint',
+                       '`DOCS_UPDATED: deferred to the final phase`'):
+            self.assertIn(phrase, row)
+        self.assertNotIn('head', row)
+
+    def test_the_completion_facts_are_keyed_on_what_exists(self):
+        self.assertIn('no plan exists for the ticket → `skipped (no plan)`',
+                      self.fact('PLAN_APPROVED'))
+        self.assertIn('`gates_confirmed` holding `TASKLIST_READY` is the approval',
+                      self.fact('PLAN_APPROVED'))
+        self.assertIn('no PRD exists for the ticket → `skipped (no PRD)`',
+                      self.fact('DOCS_UPDATED'))
+        self.assertIn('A fact that reads `skipped` is green.', self.gate)
+
+    def test_a_tasklist_without_a_status_is_read_from_gates_confirmed(self):
+        row = self.fact('TASKLIST_READY')
+        for phrase in ("the tasklist's status (`spec_store.py status`)",
+                       'a tasklist that declares none',
+                       'written by `generate-tasklist` before 0.25.0',
+                       'is read from `gates_confirmed` in `run-state.json`'):
+            self.assertIn(phrase, row)
+
+    def test_every_fix_section_parent_is_closed(self):
+        row = self.fact('IMPLEMENT_STEP_OK')
+        self.assertIn('on the queue path, every fix-section parent row is closed', row)
+        self.assertIn('`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6', row)
+        self.assertIn('reports no unchecked box in any iteration or fix section', row)
+
+    def test_there_are_still_eight_facts(self):
+        self.assertIn('Confirm the eight facts below yourself', self.gate)
+        self.assertEqual(len(re.findall(r'\| `[A-Z_]+`(?: — the final gate)? \| ', self.gate)), 8)
+
+
+class TestDebugHere(unittest.TestCase):
+    """Plan 2, Task 6: a run halted on a red gate in app code can be debugged where it stands —
+    on three halts, once per halt (spec §10)."""
+
+    LABEL = '**Debug it here first**'
+
+    def setUp(self):
+        self.raw = raw(FD + 'tail.md')
+        self.tail = flat(FD + 'tail.md')
+        self.section = between(self.raw, '\n## Debug it here first\n', '\n## ')
+
+    def test_the_section_sits_between_the_gates_and_the_completion_gate(self):
+        at = [self.raw.index('\n' + heading + '\n')
+              for heading in ('## Gates', '## Debug it here first', '## Completion gate')]
+        self.assertEqual(at, sorted(at))
+
+    def test_three_halts_and_no_other(self):
+        bullets = [line for line in self.section.split('\n') if line.startswith('- ')]
+        self.assertEqual(len(bullets), 3)
+        flat_section = re.sub(r'\s+', ' ', self.section)
+        for phrase in ('- gate 5 — a task aborted when `MAX_VERIFY_ITERATIONS` ran out;',
+                       "- gate 8 — the runtime gate's second RED from a runtime error in app "
+                       'code;',
+                       "- the checkpoint procedure's step 3 — still red after "
+                       '`MAX_CHECKPOINT_VERIFY_ROUNDS`.',
+                       'Nowhere else: not the review cap (findings, answered by guidance), not an '
+                       'environment error, not `MAX_TOTAL_CORRECTION_ROUNDS`, not the wall clock.',
+                       'A headless run journals and stops as before'):
+            self.assertIn(phrase, flat_section)
+
+    def test_each_of_the_three_halts_offers_it_and_the_review_cap_does_not(self):
+        self.assertEqual(self.raw.count(self.LABEL), 4)  # the section and the three halts
+        self.assertIn(self.LABEL, between(self.raw, '\n| 5 | `IMPLEMENT_STEP_OK`', '\n'))
+        self.assertIn(self.LABEL, between(self.raw, '\n| 8 | `RUNTIME_OK` |', '\n'))
+        self.assertIn(self.LABEL, between(self.raw, '3. **Quality gate (phase-end only).**',
+                                          '4. **Stage explicitly.**'))
+        self.assertNotIn(self.LABEL, between(self.raw, '\n| 7 | `REVIEW_OK` |', '\n'))
+        self.assertNotIn(self.LABEL, between(self.raw, '**Budget:**', '\n## '))
+
+    def test_what_the_option_runs(self):
+        flat_section = re.sub(r'\s+', ' ', self.section)
+        for phrase in ('`Skill: debugging` with the red evidence as its argument: the failing '
+                       "stage, its first error lines, the path of the task's report",
+                       '`pause_reason` stays `"cap-escalation"` throughout',
+                       'The skill never commits and never writes run state or the journal'):
+            self.assertIn(phrase, flat_section)
+
+    def test_the_three_outcomes(self):
+        flat_section = re.sub(r'\s+', ' ', self.section)
+        for phrase in ('| fixed | Journal `debugged here: <root cause> — <files>`',
+                       'add those files to `run-state.json` `deviation_files`',
+                       're-run the gate that was red',
+                       'reset that loop\'s counter as a resume with guidance does',
+                       'by dispatching the implementer on it again',
+                       'The next checkpoint commits the fix.',
+                       'Ask the escalation question again, without this option: '
+                       '`MAX_DEBUG_HERE_ATTEMPTS = 1`, one attempt per halt.',
+                       '| structural (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §4) |',
+                       "The skill's own ticket question runs"):
+            self.assertIn(phrase, flat_section)
+
+    def test_it_adds_no_step_up_round(self):
+        self.assertEqual(self.tail.count('--model fable'), 2)
+
+
 if __name__ == '__main__':
     unittest.main()

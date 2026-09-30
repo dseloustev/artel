@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Step-up fix rounds.** The review loop's fix round after review round 2 and a checkpoint's
+  second verify round run the implementer on `fable`. `/artel:implementer` takes
+  `--model sonnet|opus|fable` for one dispatch.
+- `docs/agents.md` gains a `## Models` section: which dispatch runs on which model, and how
+  Claude Code resolves it.
+
+### Changed
+
+- `deep-review`'s whole-branch reviewer runs on `fable`; `review-forecaster` on `sonnet`.
+- `feature-development` and `dev` no longer declare `model: sonnet`: a skill's `model:` applies
+  only when the person types the skill, so the line never applied to them. They run on the
+  session's model, as they always did.
+
 ## [0.23.0] - 2026-09-29
 
 ### Added

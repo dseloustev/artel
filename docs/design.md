@@ -160,9 +160,9 @@ move to the decision log.
   0.14.0): a ticket-level lock so two sessions cannot run the same ticket, and a
   `/artel:worktrees` listing (ticket, branch, path, dirty state) once parallel use is common.
 - **`deep-review`'s forecast constants are placeholders** (from the 0.8.0 design, 2026-09-02).
-  The `0.5` weight for unlisted reviewers is a guess, not a measurement, and whether
-  `review-forecaster` should run on `opus` or `sonnet` was deliberately started at `opus` to be
-  lowered once the evidence rows read well. Both need real runs behind them.
+  The `0.5` weight for unlisted reviewers is a guess, not a measurement, and needs real runs
+  behind it. (`review-forecaster` moved from `opus` to `sonnet` in 0.24.0 — decision log,
+  2026-09-30.)
 - **No GitHub releases have been published.** Eighteen tags through `v0.13.0`, zero releases;
   `bump-version` prints the reminder at the end of every release and it has never been acted on.
   Fine if deliberate — but then it should be a decision here rather than a standing omission.
@@ -179,7 +179,18 @@ move to the decision log.
 - **Sub-project 2b: one orchestrator** (roadmap: the 2026-09-29 task-grammar design, §0). `dev`
   folds into `feature-development`; the head's depth comes from sizing and the classifier; the
   SDD v2 inputs above land there; and `dev`'s mini-interview work list gets the task grammar — it
-  is the last writer of the old tasklist format.
+  is the last writer of the old tasklist format. It also owns the orchestrator seat, the largest
+  cost the 2026-09-30 analysis found (38 % of a run's spend): the post-approval loop one layer
+  down on a mid-tier model, the interview and the approval pause staying on the main thread —
+  to be measured before it is built, as the implementer's model was.
+- **Model selection: what stays parked after 0.24.0** (2026-09-30 design, gitignored
+  `docs/superpowers/specs/2026-09-30-model-selection-design.md`; the replay's record is in the
+  gitignored `.superpowers/evals/2026-09-30-model-selection/`). A cheaper implementer for `light`
+  tasks failed its replay on `sonnet` (decision log, 2026-09-30). The next lever to measure is
+  `effort` — `opus` at a lower effort on the same nine tasks, with the same harness. A `models`
+  block in `.artel/config.json` would let a host set tiers. `tech-writer` and `issue-scout` were
+  `sonnet` candidates, but the replay's `sonnet` wrote thinner documents, which argues against
+  moving the tech-writer.
 - **Sub-project 2c: parallel seats.** `parallel.seats` and dispatch by the parser's
   `data.waves`, after six shared-state collisions are fixed: the `NNN-` report counter, one actor
   name, the whole-tree review snapshot, every task patching one tasklist, the shared
@@ -1009,3 +1020,25 @@ move to the decision log.
   checkbox, promotion by iteration, `review.perTask`, no plan review. First proposed to end
   after one release and corrected during design: `dev`'s mini-interview work list writes the old
   format until 2b redesigns that head. See Open follow-ups.
+- **2026-09-30 — A `sonnet` implementer for `light` tasks was measured and rejected.** Across
+  322 host dispatches (2026-08-31 → 09-30) the `opus` implementer was 59 % of subagent spend,
+  every task at the same tier, so the plan was to let the route pick the model (`light` →
+  `sonnet`). An A/B replay ran AW-3342's nine `light` tasks on both models from the same
+  history-free base tree, judged blind on `fable`: FAIL — objective checks hold; judged no worse
+  on 2 of 9, with sonnet-only Blocking/Important defects; mean cost $0.44 (sonnet) vs $1.63
+  (opus). `sonnet` needed fewer turns on every task and both code tasks passed their checks on
+  both models, but the judges preferred `opus` on seven of nine — mostly documentation, for depth
+  — and unshared Minor defects ran 22 to 8 (Important: 2 each). The replay's first run was
+  discarded: its clones carried the host's git history and arms recovered the original files from
+  it. The route-to-model helper was not built.
+- **2026-09-30 — Per-dispatch models are borrowed for step-ups and the final review only.** A
+  fix round that follows a failed one runs the implementer on `fable` (`/artel:implementer
+  --model`, autonomous-run.md §5), `deep-review`'s whole-branch reviewer runs on `fable`, and
+  `review-forecaster` moves from `opus` to `sonnet` (its `opus` was a starting point to be
+  lowered, 2026-09-02). This narrows the 2026-08-25 "not borrowed: per-dispatch model tiering"
+  item rather than reversing it: every other dispatch keeps its frontmatter model.
+- **2026-09-30 — A skill's `model:` applies only when the person types the skill.** Measured
+  over the same host runs: 156 of 166 typed activations switched model, 0 of 230 through the
+  Skill tool. `feature-development` and `dev` drop their `model: sonnet` and run on the session's
+  model however they are reached; every other skill keeps its line
+  ([agents.md](agents.md) `## Models`).

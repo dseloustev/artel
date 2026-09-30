@@ -50,5 +50,39 @@ class TestImplementerSkill(unittest.TestCase):
                       'one dispatch', ref)
 
 
+FD = 'skills/feature-development/SKILL.md'
+DEV = 'skills/dev/SKILL.md'
+
+
+class TestOrchestrators(unittest.TestCase):
+    def test_no_model_line_on_the_orchestrators(self):
+        for rel in (FD, DEV):
+            self.assertNotRegex(frontmatter(rel), r'(?m)^model:')
+
+    def test_step_up_rounds(self):
+        fd, dev = flat(read(FD)), flat(read(DEV))
+        review = ('`--model fable` when the findings come from a `review.md` whose '
+                  '`**Review round:**` is 2 or more')
+        for text in (fd, dev):
+            self.assertIn(review, text)
+            self.assertEqual(text.count('--model fable'), 2)
+        self.assertIn('plus `--model fable` on the second round', fd)
+        self.assertIn('the second round passes `--model fable`', dev)
+
+    def test_the_route_journal_line_carries_no_model(self):
+        for rel in (FD, DEV):
+            self.assertNotIn('; model <value>', read(rel))
+
+    def test_step_up_rounds_are_documented(self):
+        caps = between(flat(read('docs/autonomous-run.md')), '## 5. Capped loops', '## 6.')
+        for phrase in ('**Step-up rounds.** A fix round that follows a failed one runs one tier '
+                       'up, on `fable`',
+                       '`**Review round:**` 2 or more',
+                       "a checkpoint's second `## Verify Fixes` round",
+                       "every other implementer dispatch runs on the agent's frontmatter `opus`",
+                       'counts toward `MAX_TOTAL_CORRECTION_ROUNDS`'):
+            self.assertIn(phrase, caps)
+
+
 if __name__ == '__main__':
     unittest.main()

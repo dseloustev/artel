@@ -133,8 +133,7 @@ has an unticked step, or exit `2` (`tasklist_malformed` — the grammar was chec
 approval, so the file was edited since), is a `DEVIATION` halt: `Blocked by:` names the open
 tasks and what each waits on, or quotes `error.message`. Then read, besides the block, the
 `Produces:` line of every task its `Depends on:` names: those are the symbols this task may
-use from other tasks. An old-format tasklist — no `### Task` heading — keeps one checkbox as
-one task, exactly as above.
+use from other tasks.
 
 Either way, record which path this run took (`docs/task-queue.md` §4), then read
 the tasklist, `vision` / `idea` files, and the host project's conventions docs
@@ -224,9 +223,8 @@ Run the quality gates **before** claiming completion:
 
 ### Step 5 — Close the task
 
-Only when the last task gate is green or skipped (gates.md §1, rule 1): flip the checkbox to `- [x]` and
-update the Progress Report table when present. On a task-format tasklist tick every step of
-the block and update the Progress Report in the same write — never step by step as you go. On
+Only when the last task gate is green or skipped (gates.md §1, rule 1): tick every step of the
+block and update the Progress Report in the same write — never step by step as you go. On
 the kartoteka path all these edits go in one `artifact_patch`, version bump first
 (spec-storage.md §4.3). The tasklist in scope
 (`tasklist.md`, or `phase-<N>/tasks.md` on a phase-scoped run) is kept current on
@@ -235,10 +233,7 @@ both paths — it is what the fallback reads.
 On the queue path, then `task_update(task_id, status="done")` and run the
 promotion step in `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3: `task_list` the
 ticket scoped to `<project>`, and if no `I<N> · ` sibling is left undone, mark the `I<N>: …` parent
-`done` and promote every `I<N+1> · ` child from `backlog` to `ready`. A fix-section row gets `done`, and its parent gets `done` when it was the section's last open child (task-queue.md §3, `close`) — no iteration promotion.
-
-On a task-format tasklist promotion follows dependencies instead (task-queue.md §3, `promote`
-for task blocks): after `done`, re-run the parser over the tasklist in scope (Step 1's command)
+`done`. A fix-section row gets `done`, and its parent gets `done` when it was the section's last open child (task-queue.md §3, `close`) — no iteration promotion; promotion follows dependencies instead (task-queue.md §3, `promote` for task blocks): after `done`, re-run the parser over the tasklist in scope (Step 1's command)
 and `task_update(<row>, status="ready")` every `data.ready_now` task whose row — found by its
 `title` in `task_list` — is still `backlog`. When no `I<N> · ` sibling is left undone, the
 `I<N>: …` parent goes `done` as before; the next iteration's unblocked tasks are then already

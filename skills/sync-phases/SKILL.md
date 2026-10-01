@@ -40,10 +40,6 @@ operation — never with Read/Write/Edit or a shell file command.
 ### Step 2: Read the tasklist and context files
 
 1. Read `<specs.dir>/<TICKET_ID>/tasklist.md` to understand the current state of all phases.
-2. Note its format (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4): any `### Task <N>.<m>:` heading → the task grammar; none → the old format. Steps 4 and 6 branch on it; a phase file is in the format of the tasklist it was extracted from.
-3. Old format only, also read for context (a task-grammar phase file is copied, not re-derived):
-   - `<specs.dir>/<TICKET_ID>/idea.md` — for feature motivation and scope.
-   - `<specs.dir>/<TICKET_ID>/vision.md` — for technical design and architecture.
 
 ### Step 3: Find existing phase tasks files
 
@@ -56,21 +52,23 @@ Use Glob to find all phase tasks files: `<specs.dir>/<TICKET_ID>/phase-*/tasks.m
 For each existing `phase-N/tasks.md`:
 
 1. Read the file.
-2. Check if ALL tasks in that phase are marked complete (`- [x]`).
+2. Check if ALL tasks in that phase are complete (`- [x]`): a task is a `### Task <N>.<m>:`
+   block and is complete when every step is ticked.
 3. If the phase is complete:
-   - Update the corresponding task checkboxes in the tasklist iteration body section to `[x]`.
-   - Update the Progress Report table row: detect the status convention already used in the table (e.g., `✅ Done`, `🔄 In Progress`, `⬜ Pending`) and set status to the "done" variant; set progress to `X/X`.
+   - Sync step ticks: each step of a `### Task <N>.<m>:` block in the tasklist takes the tick
+     state of its twin in the phase file — matched by task number and step text, never by
+     position; a step with no twin is reported, never guessed.
+   - Update the Progress Report table row: detect the status convention already used in the
+     table (e.g., `✅ Done`, `🔄 In Progress`, `⬜ Pending`) and set status to the "done"
+     variant; set progress to `X/X`. The Progress Report counts tasks: `X/Y` is completed
+     tasks over the phase's tasks.
 4. If the phase is NOT complete but has some progress:
-   - Sync individual task completion status (checkboxes) to the tasklist iteration body section.
-   - Update progress count in the Progress Report table row (e.g., `2/4`) and set status to the "in progress" variant.
+   - Sync the step ticks the same way.
+   - Update progress count in the Progress Report table row (e.g., `2/4`) and set status to
+     the "in progress" variant.
 
-**Task grammar:** the phase file holds the iteration's task blocks (Step 6), so a "task" above is
-a task block and its checkboxes are its steps. Sync step ticks: each step of a
-`### Task <N>.<m>:` block in the tasklist takes the tick state of its twin in the phase file —
-matched by task number and step text, never by position; a step with no twin is reported, never
-guessed. A task is complete when every step is ticked; the phase is complete when every task
-is. The Progress Report counts tasks: `X/Y` is completed tasks over the phase's tasks. Only task
-steps sync — fix-section boxes stay in the file their writer put them in.
+The phase is complete when every task is. Only task steps sync — fix-section boxes stay in the
+file their writer put them in.
 
 On the kartoteka path every checkbox, Progress Report and (Step 7) `**Current Phase:**` change to the tasklist is one `artifact_patch(project=<project>, …)` with the version bump (spec-storage.md §4.1) first and an edit per changed line (spec-storage.md §4.3).
 
@@ -120,72 +118,6 @@ checked.
 
    On the kartoteka path it is `artifact_put(project=<project>, …, name="phase-<N>.tasks.md", expected_version=0)`.
 
-**Old format.** The phase file is derived from the tasklist and the idea and vision files:
-
-1. Create the directory `<specs.dir>/<TICKET_ID>/phase-<N>/` if missing.
-2. Extract from the tasklist:
-   - Phase title (from `## Phase N: Title` or `## Iteration N: Title`).
-   - Goal (from `**Goal:**` line).
-   - All tasks for that phase (`- [ ] N.1 ...`, `- [ ] N.2 ...`, etc.).
-   - Test/acceptance criteria (from `**Test:**` line).
-3. Extract additional context from idea and vision files:
-   - **From idea file**: feature motivation, technical design overview, acceptance criteria, phase-specific requirements.
-   - **From vision file**: class/entity structure, data model details, usage scenarios, logging approach, code examples and patterns.
-4. Create `<specs.dir>/<TICKET_ID>/phase-<N>/tasks.md` with this structure:
-   ```markdown
-   ---
-   type: tasklist
-   ticket: <TICKET_ID>
-   version: <1 on the kartoteka path, 0 on the files path>
-   title: "Phase N: Title"
-   status: <the ticket-wide tasklist's status>
-   schema: 1
-   produced_by: artel:sync-phases
-   ---
-   # Phase N: Title
-
-   **Goal:** [extracted goal]
-
-   ## Context
-
-   [Relevant context extracted from idea and vision files:
-   - Feature motivation (from idea)
-   - Technical approach (from vision)
-   - Related classes/entities
-   - Data flow relevant to this phase]
-
-   ## Tasks
-
-   - [ ] N.1 [task description]
-   - [ ] N.2 [task description]
-   ...
-
-   ## Acceptance Criteria
-
-   **Test:** [extracted test criteria]
-
-   ## Dependencies
-
-   - Phase N-1 complete
-   - [any other dependencies mentioned]
-
-   ## Technical Details
-
-   [Relevant technical details from vision file:
-   - Code examples
-   - Class signatures
-   - Data models
-   - Logging patterns]
-
-   ## Implementation Notes
-
-   [Extract any implementation notes from tasklist for this phase, or leave placeholder]
-   ```
-   The header follows `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2;
-   `tasklist_tasks.py` skips it.
-
-   On the kartoteka path it is `artifact_put(project=<project>, …, name="phase-<N>.tasks.md", expected_version=0)`.
-
 ### Step 7: Update Current Phase (MANDATORY)
 
 **ALWAYS runs regardless of PHASE_NUM.**
@@ -198,7 +130,6 @@ Output a summary:
 - Ticket ID used.
 - Which phases were synced.
 - Which `phase-N/tasks.md` was created (if any).
-- Context sources used (idea/vision).
 - Current phase number.
 - Next actions needed.
 
@@ -208,10 +139,7 @@ Output a summary:
 - The tasklist Progress Report table must stay in sync with actual task completion.
 - Never delete or overwrite existing implementation notes in phase tasks files.
 - Preserve all formatting and extra sections in existing files.
-- **Old format:** always check for and use idea/vision files if they exist, extract relevant
-  context for each phase based on phase number/iteration number, and include code examples from
-  the vision file when applicable. A task-grammar phase file is the iteration copied verbatim —
-  never add derived context to it.
+- A phase file is the iteration copied verbatim — never add derived context to it.
 - Create the ticket directory (`<specs.dir>/<TICKET_ID>/`) and the phase subdirectory (`phase-<N>/`) if they don't exist.
 - **If PHASE_NUM is specified:** only create/extract a phase tasks file for that specific phase (Steps 5–6). Step 4 (sync all existing phase tasks files to tasklist) and Step 7 (Current Phase update) ALWAYS run for all phases.
 - **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.

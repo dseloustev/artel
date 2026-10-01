@@ -185,7 +185,7 @@ before the approval round sees it.
 
        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist .artel/run/<TICKET_ID>/tasklist-draft.md --ticket-key <TICKET_ID> --check --requirements <requirements>
 
-   `data.format` `legacy`, or no Critical or Important finding (exit `0`) → go to Phase 2.
+   No Critical or Important finding (exit `0`) → go to Phase 2.
    Exit `2` from either command → print `error.kind` and `error.message` and go to Phase 2: the
    approval round still runs, and the Completion says the check did not run.
 3. **Fix round.** A Critical or Important finding (exit `1`), and fewer than

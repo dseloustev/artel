@@ -277,7 +277,7 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
         self.assertIn('`queue drained: iteration work complete`', step_one)
 
     def test_the_drained_branch_tolerates_a_parent_left_in_backlog(self):
-        # build_rows mirrors every `I<N>: …` parent `backlog`, and only a child
+        # build_task_rows mirrors every `I<N>: …` parent `backlog`, and only a child
         # completing promotes one to `done`. An iteration already fully `- [x]`
         # at mirror time therefore leaves its parent `backlog` for good. Read on
         # rows rather than children, bullet 1 was false for such a ticket while

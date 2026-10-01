@@ -909,7 +909,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Operate a ticket's kartoteka task queue from the conversation: list and diagnose,
   add, mark done or blocked, release a held task.
-- **Invocation:** `/artel:tasks list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] [--section <name>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]`
+- **Invocation:** `/artel:tasks list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]`
 - **Reads:** `.artel/config.json` (`knowledge.adapter`), `<specs.dir>/.active_ticket`,
   `<specs.dir>/<TICKET_ID>/tasklist.md` (and `phase-<N>/tasks.md` when present); over MCP:
   `task_list`, `task_create`, `task_update`.

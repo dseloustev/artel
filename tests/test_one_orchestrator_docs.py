@@ -826,14 +826,19 @@ class TestLeanHead(unittest.TestCase):
                        '`plan check: not run (<error.kind>)`'):
             self.assertIn(phrase, self.ladder)
 
-    def test_the_orchestrator_keeps_no_old_format_path(self):
+    def test_no_reader_keeps_an_old_format_path(self):
         # The cleanup release deleted every old-format reader path: the work list
         # and the tasklist are task format, and a file without a task block is
-        # refused by the parser.
-        for name in ('SKILL.md', 'heads/full.md', 'heads/lean.md', 'tail.md'):
-            text = raw(FD + name)
-            for phrase in ('old-format tasklist', '`data.format` `legacy`'):
-                self.assertNotIn(phrase, text, name)
+        # refused by the parser. The design log and the CHANGELOG keep the history.
+        offenders = []
+        paths = sorted(ROOT.glob('skills/**/*.md')) + sorted(ROOT.glob('agents/*.md'))
+        for path in paths:
+            rel = str(path.relative_to(ROOT))
+            for phrase in ('old-format tasklist', '`data.format` `legacy`',
+                           'old checkbox format'):
+                if phrase in raw(rel):
+                    offenders.append('{}: {}'.format(rel, phrase))
+        self.assertEqual([], offenders, 'an old-format reader path is left')
 
     def test_the_confirmation_says_what_it_authorises(self):
         for phrase in ('The confirmed work list is the deviation anchor.',

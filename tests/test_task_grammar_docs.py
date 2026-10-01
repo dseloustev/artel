@@ -264,8 +264,7 @@ class TestTaskPlannerWritesTheGrammar(unittest.TestCase):
                        'whose plan is not yet `PLAN_APPROVED`',
                        "the queue's rows are create-only",
                        "the orchestrator's re-mirror before the first implementer dispatch"
-                       ' creates them once the plan is approved',
-                       'or an old-format tasklist, mirrors here as before'):
+                       ' creates them once the plan is approved'):
             self.assertIn(phrase, skill)
 
 
@@ -542,17 +541,12 @@ class TestDevPathPlanCheck(unittest.TestCase):
 
 class TestSyncPhasesCopiesTheIteration(unittest.TestCase):
     """Spec §7: a task-grammar phase file is the iteration, verbatim; write-back syncs step
-    ticks; old-format tasklists keep today's extraction."""
+    ticks."""
 
     def setUp(self):
         self.skill = _w_flat('skills/sync-phases/SKILL.md')
         self.extract = _w_between(self.skill, '### Step 6', '### Step 7')
         self.writeback = _w_between(self.skill, '### Step 4', '### Step 5')
-
-    def test_format_is_detected_per_tasklist(self):
-        step2 = _w_between(self.skill, '### Step 2', '### Step 3')
-        self.assertIn('any `### Task <N>.<m>:` heading → the task grammar', step2)
-        self.assertIn('docs/task-grammar.md` §4', step2)
 
     def test_a_grammar_phase_file_is_the_iteration_verbatim(self):
         for phrase in ('**Task grammar.**', 'copied, never re-derived',
@@ -563,11 +557,6 @@ class TestSyncPhasesCopiesTheIteration(unittest.TestCase):
                        'title: "Phase N: Title"', 'produced_by: artel:sync-phases',
                        'name="phase-<N>.tasks.md"'):
             self.assertIn(phrase, self.extract)
-
-    def test_the_old_format_keeps_its_derived_extraction(self):
-        old = _w_between(self.extract, '**Old format.**')
-        for phrase in ('## Context', '## Technical Details', 'Phase N-1 complete'):
-            self.assertIn(phrase, old)
 
     def test_write_back_syncs_step_ticks_by_task_number(self):
         for phrase in ('matched by task number and step text, never by position',
@@ -582,7 +571,7 @@ class TestTasksAddWritesATaskBlock(unittest.TestCase):
     before the row; `done` ticks a whole task block; `add --fix` is unchanged."""
 
     FLAGS = ('--iteration N [--files <paths>] [--depends <tasks>] [--route <route>]'
-             ' [--test <paths>] [--section <name>]')
+             ' [--test <paths>]')
 
     def setUp(self):
         self.skill = _w_flat('skills/tasks/SKILL.md')
@@ -595,11 +584,11 @@ class TestTasksAddWritesATaskBlock(unittest.TestCase):
         self.assertIn(self.FLAGS, hint)
         self.assertIn('### `add <ticket> "<title>" ' + self.FLAGS, self.skill)
 
-    def test_the_format_decides_the_branch_and_refuses_the_other_flags(self):
+    def test_the_flags_write_a_task_block(self):
         for phrase in ('docs/task-grammar.md` §4',
-                       '`--section` places a checkbox in an old-format tasklist',
                        'those flags write a task block'):
             self.assertIn(phrase, self.add)
+        self.assertNotIn('--section', self.add)
 
     def test_a_task_block_with_its_title_as_its_one_step(self):
         for phrase in ('### Task <N>.<m>: <title>',
@@ -621,7 +610,7 @@ class TestTasksAddWritesATaskBlock(unittest.TestCase):
 
     def test_a_grammar_row_s_status_follows_ready_now(self):
         self.assertIn('`ready` when the new task is in `data.ready_now`', self.add)
-        self.assertIn('`I<N> · <N>.<m> · <title>` in the task grammar', self.add)
+        self.assertIn('the composed `I<N> · <N>.<m> · <title>`', self.add)
 
     def test_done_ticks_every_step_of_a_task_block(self):
         done = _w_between(self.skill, '### `done <task-id>`', '### `block')
@@ -661,8 +650,7 @@ class TestOneTaskPerDispatch(unittest.TestCase):
                        '`I<N> · <N.M> · <title>`', 'take the first task of `data.ready_now`',
                        'never the first unticked box', '`tasklist_malformed`',
                        'is a `DEVIATION` halt',
-                       "the `Produces:` line of every task its `Depends on:` names",
-                       'keeps one checkbox as one task'):
+                       "the `Produces:` line of every task its `Depends on:` names"):
             self.assertIn(phrase, step)
 
     def test_hitl_covers_the_whole_task(self):
@@ -691,8 +679,7 @@ class TestOneTaskPerDispatch(unittest.TestCase):
         for phrase in ('tick every step of the block and update the Progress Report in the same write',
                        'promotion follows dependencies instead',
                        '`data.ready_now` task whose row',
-                       'is still `backlog`',
-                       'every `I<N+1> · ` child from `backlog` to `ready`'):
+                       'is still `backlog`'):
             self.assertIn(phrase, step)
 
     def test_step_six_reports_outside_files_and_deviation_files(self):
@@ -942,7 +929,7 @@ class TestReadersAudit(unittest.TestCase):
 
     def test_reviewer_task_mode_scopes_the_task_block(self):
         task_mode = _between(flat(read('agents/reviewer.md')), '## Task mode', '## Review focus')
-        for phrase in ('the task is its whole `### Task <N.M>:` block, not one checkbox line',
+        for phrase in ('the task is its whole `### Task <N.M>:` block',
                        'every step, its `Files:`, its `Test:` and its `Implements:`',
                        'with the `*Accepts when:*` line as the check',
                        '`**Outside Files:**`',
@@ -976,7 +963,7 @@ class TestReadersAudit(unittest.TestCase):
         tasks = flat(read('skills/tasks/SKILL.md'))
         done = _between(tasks, '### `done <task-id>`', '### `block')
         self.assertIn('names a task block, not a box', done)
-        self.assertIn('tick every unticked step under its `### Task <N.M>:` heading', done)
+        self.assertIn('the file is the fallback the implementer reads', done)
         listing = _between(tasks, '### `list', '### `add')
         self.assertIn('holds its dependents in `backlog` by design', listing)
 

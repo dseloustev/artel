@@ -33,8 +33,7 @@ Use the Agent tool with `subagent_type: "reviewer"`, description `"Review change
 ### Task mode (`--task`)
 
 The per-task gate of `${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16 — an orchestrator
-invokes it after one implementer completion whose task runs on the `full` route (on an
-old-format tasklist, after every one when `review.perTask` is on). All three flags are
+invokes it after one implementer completion whose task runs on the `full` route. All three flags are
 required; a missing one is an invocation error — report it and stop, never fall back to the
 ticket review:
 

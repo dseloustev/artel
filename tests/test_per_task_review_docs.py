@@ -32,7 +32,7 @@ KEY = 'review.perTask'
 CAP = 'MAX_TASK_REVIEW_ROUNDS = 1'
 
 # The implementation loop (gate 5) is feature-development's tail.md since 0.25.0.
-# One orchestrator since 0.25.0 (`dev` is an alias), so one file.
+# One orchestrator since 0.25.0, so one file.
 ORCHESTRATORS = ('skills/feature-development/tail.md',)
 WORKER_AGENTS = ('agents/implementer.md', 'agents/reviewer.md')
 

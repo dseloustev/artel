@@ -1,7 +1,7 @@
 ---
 name: tasks
 description: "Operate the ticket's kartoteka task queue from the conversation: list the queue and diagnose it (drained, promotion pending, blocked, held), add a task through tasklist.md so file and queue stay in step — an iteration task, or a review, runtime or verify fix (`add --fix`) — mark a task done or blocked, or release a task a dead agent left in_progress. Use when the user asks what is in the queue, who holds a task, wants a task or a fix added to a ticket, or wants a stuck task released."
-argument-hint: 'list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] [--section <name>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]'
+argument-hint: 'list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]'
 model: sonnet
 ---
 
@@ -88,7 +88,7 @@ operation — never with Read/Write/Edit or a shell file command.
 4. **Report only.** `list` never promotes, never releases, never edits a file. If the user wants
    a held row cleared, that is `release`.
 
-### `add <ticket> "<title>" --iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] [--section <name>] [--hitl <reason>] [--raw]`
+### `add <ticket> "<title>" --iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] [--hitl <reason>] [--raw]`
 
 `--raw` → skip to **Raw** below — unless `--fix` was given too: `--raw` with `--fix` → print
 the argument hint and stop.
@@ -98,27 +98,8 @@ the argument hint and stop.
    `--raw` for a bare backlog row". `--iteration` missing (and no `--fix`), or iteration `N`
    absent → stop and list the `## Iteration N:` / `## Phase N:` headings the file has.
    **Format** (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4): any `### Task <N>.<m>:` heading
-   in the tasklist → it is in the task grammar. There, `--section` → stop: "`--section` places a
-   checkbox in an old-format tasklist; this one is in the task grammar — pass `--files`,
-   `--depends`, `--route` and `--test` instead". No such heading → the old format, where
-   `--files`, `--depends`, `--route` or `--test` → stop: "those flags write a task block; this
-   tasklist is in the old checkbox format — use `--section`".
+   makes it a task-format tasklist; those flags write a task block.
 2. **Write the task** in the tasklist's format (step 1).
-
-   **Old format** — append the checkbox: the line `- [ ] <title>`, with ` [HITL: <reason>]`
-   appended when `--hitl` was given — under iteration `N`:
-   - under `### <section>` when `--section` names an existing section of that iteration;
-   - else under the iteration's **last** `### ` section;
-   - else create `### Follow-ups` at the end of the iteration and put it there.
-   Inside an iteration, a checkbox outside a `### ` section never becomes a row —
-   `scripts/tasklist_tasks.py` collects only sectioned checkboxes there — so never append one
-   bare.
-   If `<specs.dir>/<TICKET_ID>/phase-<N>/tasks.md` exists, append the identical line under the
-   same section there, so `sync-phases` matches the same text on both sides.
-   If the tasklist has a Progress Report table with a row for iteration `N`, bump that row's
-   total (`X/Y` → `X/Y+1`).
-   On the kartoteka path the append, the phase-file append and the Progress Report bump are
-   `artifact_patch(project=<project>, …)` calls (spec-storage.md §4.3).
 
    **Task grammar** — write a task block (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §1–§2):
    - **Requirements.** `<specs.dir>/<TICKET_ID>/prd.md` absent (kartoteka path:
@@ -185,15 +166,12 @@ the argument hint and stop.
    parent's returned `task_id`, and a partial mirror is how two rows end up in two orders.
    Exit `2` → report `error.kind` and `error.message`. The checkbox is written; the row is not;
    the next orchestrator re-mirror picks it up. Stop.
-4. **Status**: in the task grammar, leave what the parser emitted — `ready` when the new task is
+4. **Status**: leave what the parser emitted — `ready` when the new task is
    in `data.ready_now`, `backlog` otherwise: its `Depends on:` decides, and the implementer's
-   promotion reaches it (`docs/task-queue.md` §3). In the old format the parser emits `ready`
-   for a child of the first iteration and `backlog`
-   otherwise. If the new row came back `backlog` **and** its parent `I<N>: …` row is
+   promotion reaches it (`docs/task-queue.md` §3). If the new row came back `backlog` **and** its parent `I<N>: …` row is
    `in_progress` (the implementer is working that iteration now), promote it:
    `task_update(<task_id>, status="ready")`. Otherwise leave it — normal promotion reaches it.
-5. **Report**: `task_id`, title (the composed `I<N> · <section> · <title>`, or
-   `I<N> · <N>.<m> · <title>` in the task grammar), status — or
+5. **Report**: `task_id`, title (the composed `I<N> · <N>.<m> · <title>`), status — or
    "already mirrored as #<id>" when that title existed — plus the parser warnings.
 
 **Raw** (`--raw`): `task_create(project=<project>, ticket_key=<TICKET_ID>, title=<title>, status="backlog")`.
@@ -204,7 +182,7 @@ implementer will not claim it". No file is edited.
 
 A task for a fix section: `CRF` is `## Code Review Fixes`, `RTF` `## Runtime Fixes`, `VF`
 `## Verify Fixes`, `FV` `## Final Verification` (case-insensitive). `--fix` takes no
-`--iteration` and no `--section`, and a fix is never a bare row (**Raw**, above): `--fix`
+`--iteration`, and a fix is never a bare row (**Raw**, above): `--fix`
 with any of them → print the argument hint and stop.
 
 1. **File in scope**: `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` when the ticket
@@ -252,26 +230,23 @@ with any of them → print the argument hint and stop.
 1. `task_update(<task-id>, status="done")`.
 2. Take the row's title from the `task_update` result — the `## ` header up to ` (#`, since
    kartoteka renders `## <title> (#<id> · <KEY> · <status>)` and ` · ` is also its field
-   separator. The checkbox text is everything after the title's second ` · ` (the
-   `I<N> · <section> · ` prefix, or `<CODE> · <source> · ` for a fix-section row); a `--raw`
-   title has no prefix and no checkbox. A task-grammar row — `I<N> · <N>.<m> · <title>`, its
-   middle segment a task number — has no single checkbox either: tick every step of the
+   separator. A task-grammar row — `I<N> · <N>.<m> · <title>`, its middle segment a task
+   number — names a task block, not a box: tick every step of the
    `### Task <N>.<m>:` block in `<specs.dir>/<TICKET_ID>/tasklist.md` and in
-   `phase-<N>/tasks.md` when it exists (kartoteka path: one `artifact_patch` per document).
-   For any other row, flip the
+   `phase-<N>/tasks.md` when it exists (kartoteka path: one `artifact_patch` per document), and
+   warn the same way when no such heading is found.
+   A fix-section row — `<CODE> · <source> · <text>` — flips the
    matching `- [ ]` to `- [x]` (kartoteka path: `artifact_patch` on each document that holds the box) in `<specs.dir>/<TICKET_ID>/tasklist.md` (and in
    `phase-<N>/tasks.md` when it exists) — the file is the fallback the implementer reads when
-   the daemon is gone, so it must not fall behind the queue. A fix-section row's box may sit in
+   the daemon is gone, so it must not fall behind the queue. The checkbox text is everything
+   after the title's second ` · `; a `--raw` title has no prefix and no checkbox. A fix-section
+   row's box may sit in
    any `phase-*/tasks.md` instead: look in `tasklist.md` and every phase file, under that
    section's heading and beneath its `### <source>` heading (directly under the section
    heading for the source `tasklist`). A fix row whose title is 500 characters long may have
    been cut at that cap (`docs/task-queue.md` §6): flip the unchecked box whose text
    starts with the title's third segment. Not found → warn: "queue
    updated; no matching checkbox in tasklist.md — the file is now behind the queue".
-   A task-format row — `I<N> · <N.M> · <title>`, its middle segment a task number
-   (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §7) — names a task block, not a box: tick
-   every unticked step under its `### Task <N.M>:` heading instead, in the same documents, and
-   warn the same way when no such heading is found.
 3. Do **not** promote the iteration; report whether its siblings are all done and leave the
    promotion to the implementer's loop. A fix-section row has no promotion; when it was its
    section's last open child (`task_list`: no sibling under the same parent left `backlog`,

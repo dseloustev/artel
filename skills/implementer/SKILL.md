@@ -56,9 +56,9 @@ for <TICKET_ID>"`, and a prompt passing TICKET_ID / TICKET_NUM / PHASE_NUM plus:
 Implement the next incomplete task now, per your agent definition's workflow:
 1. Take the next task per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 and §3 — a
    `task_ready` claim on the queue path, the first `- [ ]` in scope on the fallback
-   path (on a task-format tasklist, the first task of the parser's `data.ready_now` —
+   path (the first task of the parser's `data.ready_now` —
    `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §4). The **Task queue** field above is §1's `--local` input.
-   On a task-format tasklist one task is one `### Task <N.M>:` block: work every step of it
+   One task is one `### Task <N.M>:` block: work every step of it
    in this dispatch, reading the `Produces:` lines of the tasks its `Depends on:` names. A dispatch naming
    `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` or Final Verification
    is file-scan work on either path — `task_ready` never offers their rows (§6), so do

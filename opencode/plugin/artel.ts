@@ -1,69 +1,66 @@
 /**
- * artel bridge for OpenCode.
+ * artel bridge for OpenCode 2.x.
  *
- * Adapts OpenCode's plugin events onto artel's existing Python hook contracts
+ * Adapts OpenCode's v2 plugin hooks onto artel's existing Python hook contracts
  * (stdin JSON in, stdout JSON out — hooks/README.md), so the hook layer stays
  * single-sourced. Mapping (details: docs/opencode.md):
  *
- *   tool.execute.before (edit|write|apply_patch) -> hooks/sensitive_guard.py
- *       deny               -> throw (OpenCode's way to deny a tool call)
- *   tool.execute.before (edit|write|apply_patch) -> hooks/spec_store_guard.py (after sensitive_guard.py)
- *       deny               -> throw (OpenCode's way to deny a tool call)
+ *   tool.execute.before (edit|write|patch) -> hooks/sensitive_guard.py
+ *       deny -> throw (v2's documented Tool.Error channel)
+ *   tool.execute.before (edit|write|patch) -> hooks/spec_store_guard.py (after sensitive_guard.py)
+ *       deny -> throw
  *   tool.execute.before (read) -> hooks/spec_store_guard.py (the Read hint for a swept image)
- *       deny               -> throw (the read errors, naming `spec_store.py image fetch`)
- *   tool.execute.before (bash | any non-edit tool whose name carries a platform token:
+ *       deny -> throw (the read errors, naming `spec_store.py image fetch`)
+ *   tool.execute.before (shell | any non-mutation tool whose name carries a platform token:
  *                       bitbucket / github / jira)             -> hooks/vcs_guard.py
- *       deny               -> throw (OpenCode's way to deny a tool call)
- *   tool.execute.after  (edit|write|apply_patch) -> hooks/knowledge_mirror.py (side
- *                       effect only) THEN hooks/fast_verify_post_edit.py
- *       findings          -> throw (the model sees them as the tool's error)
- *       NOTE: this is the reverse of hooks.json's order, deliberately — findings
- *       leave this handler by throwing, and a throw would skip a mirror queued
- *       behind it. Claude Code runs both regardless, so the observable outcome
- *       matches; here the order is what makes it match.
- *   session.created    -> hooks/session_baseline.py                           (Task 5)
- *   session.idle       -> hooks/stop_gate.py + hooks/verify_stop_gate.py      (Task 5)
- *   messages.transform -> hooks/using_artel.py — router + host status prepended
- *                         to the first user message on every model step (Task 8)
+ *       deny -> throw
+ *   tool.execute.after  (edit|write|patch) -> hooks/knowledge_mirror.py (side effect only)
+ *                       THEN hooks/fast_verify_post_edit.py
+ *       findings -> appended to the tool result (v2 has no failure channel here)
+ *   session.hook("context") -> hooks/using_artel.py — router + host status prepended to the
+ *                       first user message in memory, on every model step
+ *   session.created    -> hooks/session_baseline.py (child sessions skip)
+ *   session.execution.succeeded -> hooks/stop_gate.py + hooks/verify_stop_gate.py; a block
+ *                       re-prompts via ctx.session.prompt
+ *   session.compaction.ended -> router cache invalidation (host status refreshes)
+ *   session.deleted    -> cache cleanup
+ *
+ * `patch` carries no file path; its targets are read from the patch grammar's
+ * `*** Add|Delete|Update File:` / `*** Move to:` headers. `edit`/`write` use v2's
+ * `path` input field.
  *
  * Everything is inert unless the project has .artel/config.json. Install root:
  * $ARTEL_ROOT or ~/.config/opencode/artel (scripts/install-opencode.sh).
  *
- * NOTE: never add a non-function named export to this module — OpenCode's plugin
- * loader requires every export to be a function and rejects the whole plugin
- * otherwise ("Plugin export is not a function").
+ * The default export is a plain object: v2 validates it for `id` + `setup`. The
+ * `@opencode/plugin` import is type-only and erased — the package is not resolvable
+ * from the plugin's install directory.
  */
 import { spawn } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import type { Plugin } from "@opencode-ai/plugin"
+import type { Plugin } from "@opencode/plugin"
 
 const CONFIG_HOME = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config")
-// NOT exported on purpose: OpenCode's legacy plugin loader requires every module
-// export to be a function (or {server: fn}); a stray string export makes the
-// whole plugin fail with "Plugin export is not a function".
 const ARTEL_ROOT = process.env.ARTEL_ROOT || path.join(CONFIG_HOME, "opencode", "artel")
 
-const EDIT_TOOLS = new Set(["edit", "write", "apply_patch"])
-// Platform tokens hooks/vcs_guard.py classifies a tool name by. The guard deliberately does
-// NOT test for Claude Code's `mcp__` prefix — OpenCode names MCP tools without it, and a
-// prefix test left the Bitbucket MCP surface entirely unguarded on this host.
+/** v2's file-mutating tools. `patch` is exposed only to GPT-family models. */
+const MUTATION_TOOLS = new Set(["edit", "write", "patch"])
+/** Platform tokens hooks/vcs_guard.py classifies a tool name by. The guard deliberately does
+ * NOT test for Claude Code's `mcp__` prefix — OpenCode names MCP tools without it. */
 const PLATFORM_TOKENS = ["bitbucket", "github", "jira"]
+/** Bridge-side fail-safe on top of the hooks' own consecutive-block caps (5 and 2). */
+const MAX_STOP_BLOCKS = 10
+/** Marker from using_artel.py's header — proves a message already carries the router. */
+const ROUTER_MARKER = "This repository is configured for artel"
 
-/** A non-edit tool whose name carries a platform token — the OpenCode-side reading of the
- * guard's rule ("the tool name names a platform"). `bash` is bound separately: it is matched
- * by name, and its command argument has to travel with the payload. */
-function isPlatformTool(tool: string): boolean {
-  if (EDIT_TOOLS.has(tool)) return false
-  const lower = tool.toLowerCase()
-  return PLATFORM_TOKENS.some((token) => lower.includes(token))
-}
-
-// Bridge-side fail-safe on top of the hooks' own consecutive-block caps (5 and 2).
-// Bounds one runaway block/re-prompt loop, not the session's lifetime: the counter
-// resets on a clean stop (see session.idle) and is dropped with the session.
-const MAX_IDLE_BLOCKS = 10
+const ROUTER_NOTE =
+  "\n\nOpenCode note: the routing tables above name skills as `/artel:<name>`. " +
+  "On this host they are the skills `artel-<name>` (TUI commands `/artel-<name>`), " +
+  "loaded with the `skill` tool; agents are dispatched with the `subagent` tool as " +
+  "`artel-<name>`. `/ast-index:*` commands are not available unless that plugin is " +
+  "installed — otherwise run the `ast-index` CLI directly."
 
 type HookResult = { code: number; stdout: string; stderr: string }
 
@@ -113,72 +110,118 @@ function firstJson(stdout: string): any | null {
   return null
 }
 
-/** Session id from an event's properties; upstream does not document the
- * shape, so try the known candidates (verified in the E2E smoke). */
-function sessionId(properties: unknown): string | undefined {
-  const props = (properties ?? {}) as Record<string, any>
-  return props.info?.id ?? props.sessionID ?? props.session_id ?? undefined
+/** A non-mutation tool whose name carries a platform token — the OpenCode-side reading of
+ * the guard's rule ("the tool name names a platform"). `shell` is bound separately: it is
+ * matched by name, and its command argument has to travel with the payload. */
+function isPlatformTool(tool: string): boolean {
+  if (MUTATION_TOOLS.has(tool) || tool === "read" || tool === "shell") return false
+  const lower = tool.toLowerCase()
+  return PLATFORM_TOKENS.some((token) => lower.includes(token))
 }
 
-/** OpenCode edit-tool args -> the Claude hook payload shape. */
-function claudeEditPayload(sessionID: string, directory: string, tool: string, args: any) {
-  const file_path = args?.filePath ?? args?.file_path
-  return file_path
-    ? { session_id: sessionID, cwd: directory, tool_name: tool, tool_input: { file_path } }
-    : null
+/** v2 `edit`/`write` carry `path`; the fallbacks cover older spellings. */
+function toolPath(input: any): string | undefined {
+  const value = input?.path ?? input?.filePath ?? input?.file_path
+  return typeof value === "string" && value ? value : undefined
 }
 
-/** Session id -> CONSECUTIVE idle blocks. Reset the moment a stop passes both gates,
- * so unrelated blocks spread across a long session never add up to MAX_IDLE_BLOCKS and
- * retire the gate; dropped when the session is deleted. */
-const idleBlocks = new Map<string, number>()
-/** Session id -> router context. Only successful lookups are cached: a failed
- * hook run leaves NO entry, so the next model step retries (the hook is a fast
- * local call — this self-heals transient failures instead of latching them). */
+/** Paths a v2 `patch` call writes, from the patch grammar's file headers. */
+function patchPaths(patchText: string): string[] {
+  const paths: string[] = []
+  for (const line of String(patchText || "").split("\n")) {
+    const file = line.match(/^\*\*\* (?:Add|Delete|Update) File: (.+)$/)
+    const move = line.match(/^\*\*\* Move to: (.+)$/)
+    if (file) paths.push(file[1].trim())
+    if (move) paths.push(move[1].trim())
+  }
+  return [...new Set(paths.filter(Boolean))]
+}
+
+/** The file paths a mutation tool call touches; [] when none can be resolved. */
+function mutationPaths(tool: string, input: any): string[] {
+  if (tool === "patch") return patchPaths(input?.patchText)
+  const one = toolPath(input)
+  return one ? [one] : []
+}
+
+/** artel file path -> the Claude Code hook payload shape. */
+function claudePayload(sessionID: string, directory: string, claudeName: string, filePath: string) {
+  return { session_id: sessionID, cwd: directory, tool_name: claudeName, tool_input: { file_path: filePath } }
+}
+
+function claudeToolName(tool: string): string {
+  return tool === "write" ? "Write" : "Edit"
+}
+
+/** Findings -> the tool result the model sees. v2 has no failure channel for
+ * execute.after, so mutation is the documented path. */
+function appendFindings(event: any, findings: string): void {
+  const result = event?.result
+  if (!result || event.status !== "completed") return
+  if (typeof result.content === "string") {
+    result.content = result.content + "\n\n" + findings
+  } else if (Array.isArray(result.content)) {
+    result.content = [...result.content, { type: "text", text: findings }]
+  } else {
+    result.content = findings
+  }
+  result.metadata = { ...(result.metadata ?? {}), artel_findings: findings }
+}
+
+/** Session id -> CONSECUTIVE stop-gate blocks. Reset when both gates pass. */
+const stopBlocks = new Map<string, number>()
+/** Session id -> router context. Only successful lookups are cached. */
 const routerCache = new Map<string, string>()
-/** Subagent child sessions (task tool) — they get no router. */
+/** Subagent child sessions — they get no router and no stop gate. */
 const childSessions = new Set<string>()
+/** Sessions with a stop-gate run in flight, so two runs never overlap. */
+const stopRuns = new Set<string>()
 
-/** Marker from using_artel.py's header — proves a message already carries the router. */
-const ROUTER_MARKER = "This repository is configured for artel"
+const setup: Plugin["setup"] = async (ctx) => {
+  const directory = ctx.location.directory
+  const controller = new AbortController()
 
-export const ArtelPlugin: Plugin = async ({ client, directory }) => {
-  return {
-    "tool.execute.before": async (input, output) => {
-      if (hasArtelConfig(directory) && (input.tool === "bash" || isPlatformTool(input.tool))) {
-        const payload = {
-          session_id: input.sessionID,
-          cwd: directory,
-          tool_name: input.tool === "bash" ? "Bash" : input.tool,
-          tool_input: input.tool === "bash" ? { command: output.args?.command ?? "" } : {},
-        }
-        const result = await runHook("vcs_guard.py", payload, directory, 10_000)
-        const decision = firstJson(result.stdout)?.hookSpecificOutput
-        if (decision?.permissionDecision === "deny") {
-          throw new Error(
-            `artel vcs guard: ${decision.permissionDecisionReason ?? "this platform is not this project's home"}`,
-          )
-        }
+  await ctx.tool.hook("execute.before", async (event) => {
+    if (!hasArtelConfig(directory)) return
+
+    if (event.tool === "shell" || isPlatformTool(event.tool)) {
+      const payload = {
+        session_id: event.sessionID,
+        cwd: directory,
+        tool_name: event.tool === "shell" ? "Bash" : event.tool,
+        tool_input: event.tool === "shell" ? { command: (event.input as any)?.command ?? "" } : {},
       }
-
-      if (input.tool === "read" && hasArtelConfig(directory)) {
-        // docs/spec-storage.md §6: the old path of an image kartoteka now holds names the
-        // command that fetches it. Payload in Claude Code's casing, as the VCS guard's is.
-        const payload = claudeEditPayload(input.sessionID, directory, "Read", output.args)
-        if (!payload) return
-        const hint = await runHook("spec_store_guard.py", payload, directory, 10_000)
-        const hintDecision = firstJson(hint.stdout)?.hookSpecificOutput
-        if (hintDecision?.permissionDecision === "deny") {
-          throw new Error(
-            `artel spec-store guard: ${hintDecision.permissionDecisionReason ?? "images are stored in kartoteka"}`,
-          )
-        }
-        return
+      const result = await runHook("vcs_guard.py", payload, directory, 10_000)
+      const decision = firstJson(result.stdout)?.hookSpecificOutput
+      if (decision?.permissionDecision === "deny") {
+        throw new Error(
+          `artel vcs guard: ${decision.permissionDecisionReason ?? "this platform is not this project's home"}`,
+        )
       }
+      return
+    }
 
-      if (!EDIT_TOOLS.has(input.tool) || !hasArtelConfig(directory)) return
-      const payload = claudeEditPayload(input.sessionID, directory, input.tool, output.args)
-      if (!payload) return
+    if (event.tool === "read") {
+      const filePath = toolPath(event.input)
+      if (!filePath) return
+      const hint = await runHook(
+        "spec_store_guard.py",
+        claudePayload(event.sessionID, directory, "Read", filePath),
+        directory,
+        10_000,
+      )
+      const hintDecision = firstJson(hint.stdout)?.hookSpecificOutput
+      if (hintDecision?.permissionDecision === "deny") {
+        throw new Error(
+          `artel spec-store guard: ${hintDecision.permissionDecisionReason ?? "images are stored in kartoteka"}`,
+        )
+      }
+      return
+    }
+
+    if (!MUTATION_TOOLS.has(event.tool)) return
+    for (const filePath of mutationPaths(event.tool, event.input)) {
+      const payload = claudePayload(event.sessionID, directory, claudeToolName(event.tool), filePath)
       const result = await runHook("sensitive_guard.py", payload, directory, 30_000)
       const decision = firstJson(result.stdout)?.hookSpecificOutput
       if (decision?.permissionDecision === "deny") {
@@ -186,7 +229,6 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
           `artel sensitive-path guard: ${decision.permissionDecisionReason ?? "this path is protected"}`,
         )
       }
-
       const store = await runHook("spec_store_guard.py", payload, directory, 10_000)
       const storeDecision = firstJson(store.stdout)?.hookSpecificOutput
       if (storeDecision?.permissionDecision === "deny") {
@@ -194,159 +236,128 @@ export const ArtelPlugin: Plugin = async ({ client, directory }) => {
           `artel spec-store guard: ${storeDecision.permissionDecisionReason ?? "spec documents live in kartoteka"}`,
         )
       }
-    },
+    }
+  })
 
-    "tool.execute.after": async (input) => {
-      if (!EDIT_TOOLS.has(input.tool) || !hasArtelConfig(directory)) return
-      const payload = claudeEditPayload(input.sessionID, directory, input.tool, input.args)
-      if (!payload) return
-      // Mirror first, verify second — the reverse of hooks.json, on purpose: the verify
-      // findings leave this handler by throwing, which would skip a mirror queued behind
-      // them. Claude Code runs both regardless; ordering is how that is reproduced here.
+  await ctx.tool.hook("execute.after", async (event) => {
+    if (!hasArtelConfig(directory) || !MUTATION_TOOLS.has(event.tool)) return
+    // Mirror first, verify second (hooks.json's order): nothing throws anymore, so the
+    // ordering hack the v1 bridge needed is gone.
+    for (const filePath of mutationPaths(event.tool, event.input)) {
+      const payload = claudePayload(event.sessionID, directory, claudeToolName(event.tool), filePath)
       await runHook("knowledge_mirror.py", payload, directory, 15_000)
       const result = await runHook("fast_verify_post_edit.py", payload, directory, 150_000)
-      const context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
-      if (context) throw new Error(`artel fast-verify findings:\n${context}`)
-    },
+      const findings = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
+      if (findings) appendFindings(event, findings)
+    }
+  })
 
-    // Router injection (Task 8). Claude Code injects the router as SessionStart
-    // context before the first prompt; OpenCode sessions only come into being
-    // WITH their first prompt, so there is no pre-prompt moment. Injecting via
-    // client.session.prompt({noReply}) races that prompt and leaves the router
-    // as an unanswered trailing user message — the loop then burns a whole turn
-    // acknowledging it (and `opencode run` prints that acknowledgment instead
-    // of the real answer). Prepending to the first user message on every model
-    // step (in-memory, like the superpowers plugin does) avoids both: the model
-    // sees the router together with the first prompt, and compaction cannot
-    // drop it.
-    "experimental.chat.messages.transform": async (_input, output) => {
-      if (!hasArtelConfig(directory)) return
-      const messages = output.messages ?? []
-      const firstUser = messages.find((m) => m.info?.role === "user")
-      const sessionID = firstUser?.info?.sessionID ?? messages[0]?.info?.sessionID
-      if (!firstUser || !firstUser.parts?.length || !sessionID) return
-      // Subagent child sessions get no router: routing is the main session's job
-      // (the router's own <SUBAGENT-STOP> says the same).
-      if (childSessions.has(sessionID)) return
-      if (firstUser.parts.some((p) => (p as any).type === "text" && (p as any).text?.includes(ROUTER_MARKER))) return
-      let context = routerCache.get(sessionID)
-      if (context === undefined) {
-        const result = await runHook("using_artel.py", { session_id: sessionID, cwd: directory }, directory, 10_000)
-        context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
-        if (context) {
-          routerCache.set(sessionID, context)
-        } else {
-          // With .artel/config.json present the hook ALWAYS emits context, so no
-          // output means it failed (timeout, spawn error, internal exception —
-          // details on stderr). Don't cache the failure: retry on the next model
-          // step, but mirror the diagnostic so the missing router stays visible.
-          const diagnostic = result.stderr.trim()
-          if (diagnostic) {
-            await client.app.log({
-              body: {
-                service: "artel",
-                level: "warn",
-                message: "using_artel produced no router context: " + diagnostic,
-              },
-            })
-          }
-          return
-        }
-      }
-      // The injected router body is the canonical (Claude-dialect) text —
-      // append the OpenCode reading of its names.
-      const note =
-        "\n\nOpenCode note: the routing tables above name skills as `/artel:<name>`. " +
-        "On this host they are the skills `artel-<name>` (TUI commands `/artel-<name>`), " +
-        "loaded with the `skill` tool; agents are dispatched with the `task` tool as " +
-        "`artel-<name>`. `/ast-index:*` commands are not available unless that plugin is " +
-        "installed — otherwise run the `ast-index` CLI directly."
-      const ref = firstUser.parts[0]
-      firstUser.parts.unshift({ ...ref, type: "text", text: context + note })
-    },
-
-    event: async ({ event }) => {
-      if (!hasArtelConfig(directory)) return
-      const properties = (event as any).properties ?? {}
-      const id = sessionId(properties)
-
-      if (event.type === "session.created") {
-        // Subagent child sessions get no baseline/router (see the transform hook).
-        if (properties.info?.parentID) {
-          if (id) childSessions.add(id)
-          return
-        }
-        if (!id) return
-        await runHook("session_baseline.py", { session_id: id, cwd: directory }, directory, 120_000)
+  await ctx.session.hook("context", async (event) => {
+    if (!hasArtelConfig(directory)) return
+    const firstUser: any = (event.messages ?? []).find((message: any) => message.role === "user")
+    const sessionID = event.sessionID
+    if (!firstUser || !Array.isArray(firstUser.content) || !sessionID) return
+    // Subagent child sessions get no router: routing is the main session's job.
+    if (childSessions.has(sessionID)) return
+    if (firstUser.content.some((part: any) => part?.type === "text" && part.text?.includes(ROUTER_MARKER))) return
+    let context = routerCache.get(sessionID)
+    if (context === undefined) {
+      const result = await runHook("using_artel.py", { session_id: sessionID, cwd: directory }, directory, 10_000)
+      context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
+      if (context) {
+        routerCache.set(sessionID, context)
+      } else {
+        // With .artel/config.json present the hook ALWAYS emits context, so no output means
+        // it failed. Don't cache the failure: retry on the next model step.
+        const diagnostic = result.stderr.trim()
+        if (diagnostic) console.warn("artel: using_artel produced no router context: " + diagnostic)
         return
       }
+    }
+    firstUser.content.unshift({ type: "text", text: context + ROUTER_NOTE })
+  })
 
-      if (event.type === "session.compacted") {
-        // Claude Code re-fires SessionStart(compact); here the transform hook
-        // recomputes instead — drop the cache so host status refreshes next step.
-        if (id) routerCache.delete(id)
+  const runStopGate = async (sessionID: string) => {
+    for (const script of ["stop_gate.py", "verify_stop_gate.py"]) {
+      const result = await runHook(script, { session_id: sessionID, cwd: directory }, directory, 300_000)
+      const decision = firstJson(result.stdout)
+      if (decision?.decision !== "block" || !decision?.reason) {
+        // The gates' pass-through warnings (cap reached, verify env error) must not become
+        // silent here; v2 has no app-log client, so console carries them.
+        const warning = decision?.systemMessage || result.stderr.trim()
+        if (warning) console.warn("artel: " + warning)
+        continue
+      }
+      const blocks = (stopBlocks.get(sessionID) ?? 0) + 1
+      stopBlocks.set(sessionID, blocks)
+      if (blocks > MAX_STOP_BLOCKS) {
+        console.warn(`artel: stop-gate block cap (${MAX_STOP_BLOCKS}) reached for session ${sessionID}`)
         return
       }
-
-      if (event.type === "session.deleted") {
-        // Bounds both maps in long-lived TUI processes; also drops a deleted
-        // session's no-router marker.
-        if (id) {
-          routerCache.delete(id)
-          childSessions.delete(id)
-          idleBlocks.delete(id)
-        }
-        return
+      try {
+        await ctx.session.prompt({
+          sessionID,
+          text:
+            `artel stop gate blocked this stop:\n${decision.reason}\n` +
+            "Address the findings, then finish again.",
+        })
+      } catch (error) {
+        console.warn("artel: stop-gate re-prompt failed: " + String(error))
       }
+      return
+    }
+    // Both gates passed — the consecutive-block run (if any) is over.
+    stopBlocks.delete(sessionID)
+  }
 
-      if (event.type === "session.idle") {
-        if (!id) return
-        // Claude Code runs stop_gate.py then verify_stop_gate.py on Stop; mirror the
-        // order. A block decision re-prompts the session (OpenCode's idle event is the
-        // closest thing to a Stop hook, and it cannot hard-block).
-        for (const script of ["stop_gate.py", "verify_stop_gate.py"]) {
-          const result = await runHook(script, { session_id: id, cwd: directory }, directory, 300_000)
-          const decision = firstJson(result.stdout)
-          if (decision?.decision !== "block" || !decision?.reason) {
-            // Claude Code shows a hook's systemMessage / stderr to the user — the
-            // gates' pass-through warnings (cap reached, verify env error) must not
-            // become silent here. Mirror them into the app log.
-            const warning = decision?.systemMessage || result.stderr.trim()
-            if (warning) {
-              await client.app.log({ body: { service: "artel", level: "warn", message: warning } })
-            }
+  // The subscription is pull-based and awaits this handler, so a 300 s hook awaited inline
+  // would stall every other event: gate and baseline runs are fire-and-forget, and the
+  // per-session in-flight set keeps two gate runs from overlapping.
+  void (async () => {
+    try {
+      for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+        if (!hasArtelConfig(directory)) continue
+        const data: any = (event as any).data ?? {}
+        const sessionID: string | undefined = data.sessionID
+
+        if (event.type === "session.created") {
+          if (data.parentID) {
+            if (sessionID) childSessions.add(sessionID)
             continue
           }
-          const blocks = (idleBlocks.get(id) ?? 0) + 1
-          idleBlocks.set(id, blocks)
-          if (blocks > MAX_IDLE_BLOCKS) {
-            await client.app.log({
-              body: {
-                service: "artel",
-                level: "warn",
-                message: `stop-gate block cap (${MAX_IDLE_BLOCKS}) reached for session ${id}`,
-              },
-            })
-            return
+          if (sessionID) {
+            void runHook("session_baseline.py", { session_id: sessionID, cwd: directory }, directory, 120_000)
           }
-          await client.session.prompt({
-            path: { id },
-            body: {
-              parts: [{
-                type: "text",
-                text:
-                  `artel stop gate blocked this stop:\n${decision.reason}\n` +
-                  "Address the findings, then finish again.",
-              }],
-            },
-          })
-          return
+          continue
         }
-        // Both gates passed — the consecutive-block run (if any) is over. Without this
-        // the counter only ever grows, and MAX_IDLE_BLOCKS eventually retires the stop
-        // gate for the rest of a long-lived TUI session.
-        idleBlocks.delete(id)
+
+        if (event.type === "session.compaction.ended") {
+          if (sessionID) routerCache.delete(sessionID)
+          continue
+        }
+
+        if (event.type === "session.deleted") {
+          if (sessionID) {
+            routerCache.delete(sessionID)
+            childSessions.delete(sessionID)
+            stopBlocks.delete(sessionID)
+          }
+          continue
+        }
+
+        if (event.type === "session.execution.succeeded") {
+          if (!sessionID || childSessions.has(sessionID) || stopRuns.has(sessionID)) continue
+          stopRuns.add(sessionID)
+          void runStopGate(sessionID).finally(() => stopRuns.delete(sessionID))
+        }
       }
-    },
-  }
+    } catch (error) {
+      if (!controller.signal.aborted) console.warn("artel: event subscription ended: " + String(error))
+    }
+  })()
+
+  return () => controller.abort()
 }
+
+const plugin: Plugin = { id: "artel", setup }
+export default plugin

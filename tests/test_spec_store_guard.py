@@ -220,9 +220,9 @@ class TestWiring(unittest.TestCase):
     def test_the_opencode_bridge_runs_the_hint_on_reads(self):
         # scripts/build_opencode.py never reads hooks.json: the bridge binds each hook by hand.
         bridge = (self.ROOT / 'opencode' / 'plugin' / 'artel.ts').read_text(encoding='utf-8')
-        self.assertIn('input.tool === "read"', bridge)
-        # before the edit-tools early return, or a read never reaches it
-        self.assertLess(bridge.index('input.tool === "read"'),
-                        bridge.index('EDIT_TOOLS.has(input.tool)'))
+        self.assertIn('event.tool === "read"', bridge)
+        # before the mutation-tools early return, or a read never reaches it
+        self.assertLess(bridge.index('event.tool === "read"'),
+                        bridge.index('MUTATION_TOOLS.has(event.tool)'))
         # Claude Code's casing, as the VCS guard's payload carries "Bash"
-        self.assertIn('claudeEditPayload(input.sessionID, directory, "Read", output.args)', bridge)
+        self.assertIn('claudePayload(event.sessionID, directory, "Read", filePath)', bridge)

@@ -70,7 +70,7 @@ class TestBridgeSource(unittest.TestCase):
     def test_binding_precedes_the_mutation_tools_early_return(self):
         # A binding placed after the mutation-tool branch never sees a shell or MCP call,
         # so the guard would look installed and enforce nothing.
-        self.assertLess(self.source.index('vcs_guard.py'),
+        self.assertLess(self.source.index('runHook("vcs_guard.py"'),
                         self.source.index('MUTATION_TOOLS.has(event.tool)'))
 
     def test_binding_is_not_limited_to_the_mcp_prefix(self):

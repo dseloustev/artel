@@ -97,7 +97,6 @@ Everything is inert unless the project has `.artel/config.json`.
 | A sketch on a question's option (`analysis`, `generate-vision`) | the option's `preview` field | the `question` tool has no such field: the sketch goes into the question text as a fenced block |
 | Knowledge-mirror context | injected after edits | side effect only (the mirror still runs) |
 | Invocation | `/artel:<name>` | `/artel-<name>` (command) or the `artel-<name>` skill |
-| Version | 1.18.x (v1 bridge) | 2.x (the bridge plugin requires OpenCode 2.x) |
 
 ## kartoteka behind a token
 

@@ -166,6 +166,9 @@ def build_skill(src_text, root, generated=None):
         'description: ' + yaml_quote(clip(description, MAX_DESCRIPTION)),
         'license: MIT',
     ]
+    if fields.get('disable-model-invocation') == 'true':
+        # v2's manual-only switch: registered, loadable by id, absent from the model's list.
+        frontmatter.extend(['metadata:', '  opencode/autoinvoke: false'])
     return name, assemble(bake(body, root, generated), SKILL_GLOSSARY, frontmatter)
 
 

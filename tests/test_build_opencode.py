@@ -319,6 +319,28 @@ class TestGlossary(BuildBase):
         self.assertIn('`read`, `edit`, `write`, `grep`, `shell`', glossary)
 
 
+class TestAutoinvoke(BuildBase):
+    """`disable-model-invocation: true` becomes v2's `metadata.opencode/autoinvoke: false`,
+    so a manual-only skill stays loadable by id but leaves the model's skill list."""
+
+    def head(self, name):
+        text = (self.out / 'skills' / ('artel-' + name) / 'SKILL.md').read_text(encoding='utf-8')
+        return text.split('---')[1]
+
+    def test_manual_only_skills_hide_from_the_model(self):
+        manual = [p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md')
+                  if 'disable-model-invocation: true' in p.read_text(encoding='utf-8')]
+        self.assertIn('inner-loop', manual)
+        for name in manual:
+            with self.subTest(name):
+                head = self.head(name)
+                self.assertIn('metadata:', head)
+                self.assertIn('opencode/autoinvoke: false', head)
+
+    def test_model_invocable_skills_get_no_metadata_block(self):
+        self.assertNotIn('opencode/autoinvoke', self.head('feature-development'))
+
+
 @unittest.skipUnless(shutil.which('bash'), 'the installer is a bash script')
 class TestInstaller(unittest.TestCase):
     """scripts/install-opencode.sh against a throwaway HOME: the head and tail files are placed

@@ -166,6 +166,10 @@ class TestAgentBuild(BuildBase):
         self.assertIn('the `subagent` tool', text)
         self.assertNotIn('the `task` tool', text)
 
+    def test_agent_glossary_maps_the_v2_tool_names(self):
+        text = (self.out / 'agents' / 'artel-implementer.md').read_text(encoding='utf-8')
+        self.assertIn('`read`, `edit`, `write`, `grep`, `shell`', text)
+
 
 class TestDeterminism(BuildBase):
     def test_rebuild_is_byte_identical(self):

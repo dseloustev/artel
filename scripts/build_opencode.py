@@ -72,7 +72,7 @@ glossary:
 - `AskUserQuestion` — the `question` tool (you never prompt the user directly anyway).
 - `CLAUDE.md` — the host project's conventions doc (on OpenCode that is `AGENTS.md`; OpenCode
   reads no `CLAUDE.md`).
-- Tool names (`Read`, `Edit`, `Grep`, `Bash`) — `read`, `edit`, `grep`, `shell`.
+- Tool names (`Read`, `Edit`, `Write`, `Grep`, `Bash`) — `read`, `edit`, `write`, `grep`, `shell`.
 </OPENCODE-HOST-NOTES>
 """
 

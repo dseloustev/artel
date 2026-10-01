@@ -155,3 +155,16 @@ canonical files. Design: `docs/superpowers/specs/2026-08-26-opencode-host-design
       autonomous-run.md OpenCode headless note.
 - [x] E2E smoke on OpenCode + Claude Code regression.
 - [x] Release `0.7.0`.
+
+## Phase 8 — OpenCode v2
+
+The host moves to the OpenCode 2.x plugin API; v1 is dropped. Design:
+`docs/superpowers/specs/2026-10-01-opencode-v2-design.md` (local).
+
+- [x] Bridge rewritten for the v2 plugin API (`execute.before`/`execute.after` hooks,
+      context-hook router, `session.execution.succeeded` stop gate, `patch` path extraction).
+- [x] Generator: v2 glossary + `metadata.opencode/autoinvoke` mapping.
+- [x] Installer version probe; `tests/test_opencode_bridge.py`.
+- [x] Docs: `docs/opencode.md`, README, design decision log.
+- [ ] E2E smoke on OpenCode 2.0.x (Task 6).
+- [ ] Release.

@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **OpenCode 2.x support.** The OpenCode bridge is rewritten for the v2 plugin API: guards deny
+  through v2's tool hooks, fast-verify findings are appended to the tool result, the router uses
+  the context hook, and the stop gate re-prompts on `session.execution.succeeded`. `patch`
+  targets are read from the patch grammar and guarded per path.
+
+### Changed
+
+- The generated OpenCode build maps `disable-model-invocation: true` to
+  `metadata.opencode/autoinvoke: false`, and its glossary names the `subagent` tool,
+  `AGENTS.md`, the v2 tool names, plan mode and `/init`.
+- The OpenCode installer warns when the installed CLI is older than 2.x.
+
+### Removed
+
+- OpenCode 1.18.x plugin support (the v1 bridge does not run on 2.x).
+
 ## [0.25.0] - 2026-09-30
 
 ### Added

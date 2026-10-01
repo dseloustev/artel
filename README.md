@@ -71,7 +71,7 @@ configuration every skill reads ([docs/config.md](docs/config.md)).
 
 ### OpenCode
 
-From an artel checkout:
+Requires **OpenCode 2.x**. From an artel checkout:
 
 ```bash
 scripts/install-opencode.sh

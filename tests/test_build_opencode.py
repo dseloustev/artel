@@ -454,16 +454,14 @@ class TestInstallerVersionProbe(unittest.TestCase):
 
 
 class TestOperatorDoc(unittest.TestCase):
-    def test_the_doc_says_what_is_generated_and_where_pointers_land(self):
+    def test_the_doc_describes_the_v2_host(self):
         doc = ' '.join((ROOT / 'docs' / 'opencode.md').read_text(encoding='utf-8').split())
-        for phrase in ('| `~/.config/opencode/skills/artel-<name>/` | every artel skill, prefixed: '
-                       "its `SKILL.md`, and beside it the skill's other Markdown files",
-                       'baked the same way but with no frontmatter and no glossary',
-                       'resolves to the generated copy under '
-                       '`~/.config/opencode/artel/opencode/dist/skills/artel-<name>/`',
-                       "The manifest records each generated skill's directory",
-                       'the `question` tool has no such field'):
-            self.assertIn(phrase, doc)
+        for phrase in ('OpenCode 2.x',
+                       'the bridge plugin requires OpenCode 2.x',
+                       '`session.execution.succeeded`',
+                       '`metadata.opencode/autoinvoke: false`',
+                       '`mcp.servers`'):
+            self.assertIn(phrase, doc, phrase)
 
 
 if __name__ == '__main__':

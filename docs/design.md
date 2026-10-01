@@ -116,7 +116,14 @@ move to the decision log.
   `<server>_<tool>`, as something namespaced, or as a name carrying no platform token at all
   cannot be settled from this repository — and if it is the last of those, Bitbucket MCP writes
   stay unguarded on that host. Needs one real OpenCode session with an MCP server attached to
-  confirm the naming, then a line in [opencode.md](opencode.md) recording it.
+  confirm the naming, then a line in [opencode.md](opencode.md) recording it. Verified on
+  OpenCode 2.x that plugin events and the bridge work, but MCP tool naming still needs one real
+  session with an MCP server attached (2026-10-01).
+- **OpenCode v2-native registration is unevaluated.** v2 can register skills, agents and
+  commands at runtime (`ctx.skill/agent/command.transform`), which would retire the generated
+  snapshot, its staleness and the install manifest. The 2026-10-01 v2 adaptation deliberately
+  kept the generator (fix in place); evaluate the transform path once the v2 API has a release
+  or two behind it.
 - **The VCS guard does not cover `git push` or run an entry-point preflight** (from the
   2026-09-16 platform-migration design). A stale `origin` pointing at the old platform still
   pushes there; `set-home` moves it, but nothing enforces that it was run. Both were considered
@@ -1121,3 +1128,15 @@ move to the decision log.
   review of a record, when the HITL pause already puts a person in the loop. On that replay's
   AW-3342 this leaves 1.8, 1.9 and 1.10 on `light` and keeps 3.3 on `full`. Rejected: dropping
   the floor; leaving it and lowering routes by hand at the pause.
+- **2026-10-01 — The OpenCode host moves to the v2 plugin API; v1 support is dropped.**
+  OpenCode 2.x does not run v1 plugin implementations, so `opencode/plugin/artel.ts` was
+  rewritten v2-only: `execute.before` still denies by throwing, `execute.after` findings now
+  mutate the tool result (v2 has no failure channel there), the router uses
+  `session.hook("context")`, and the stop gate runs on `session.execution.succeeded` because
+  `session.idle` has no publisher in 2.0.x. The generated build maps
+  `disable-model-invocation` to `metadata.opencode/autoinvoke: false`, and the glossary names
+  the `subagent` tool and `AGENTS.md`. `patch` targets are read from the patch grammar and
+  guarded per path, closing the v1 `apply_patch` gap. Agent model tiers stay dropped
+  (host-agnostic). Rejected: a dual v1/v2 export; runtime skill/agent/command transforms
+  (parked as a follow-up). Design: `docs/superpowers/specs/2026-10-01-opencode-v2-design.md`
+  (local).

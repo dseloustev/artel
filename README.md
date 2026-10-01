@@ -27,7 +27,7 @@ Flutter host is in [docs/testing-flutter.md](docs/testing-flutter.md).
 
 | Component | What it does |
 |---|---|
-| **Entry points** | `/artel:feature-development` (the one entry point for ticket work: it sizes the work and runs the full, the lean or the bug head, with one approval pause), `/artel:setup` (one-time config interview). `/artel:dev` is an alias for `/artel:feature-development --head=lean` until 0.26.0 |
+| **Entry points** | `/artel:feature-development` (the one entry point for ticket work: it sizes the work and runs the full, the lean or the bug head, with one approval pause), `/artel:setup` (one-time config interview) |
 | **Stage skills** | Each pipeline stage à la carte: `analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `figma-analysis`, `generate-idea`/`-vision`/`-tasklist`, `inner-loop`, `run-app`, `drive-app`, `sync-phases` |
 | **Ops & utility skills** | `debugging` (root cause before a fix), `init-branch`, `merge-conflicts`, `deep-review`, `issue-draft`, `change-digest`, `address-pr-comment`, `add-automation`/`remove-automation`, `save-context`/`restore-context`, `migrate-specs`, `move-to-worktree`/`return-from-worktree`, `agents-md-generator`, `set-home`, `migrate-prs` |
 | **Session & kartoteka** | `using-artel` (turn-one router, hook-injected), `knowledge` (ask the index), `tasks` (operate the queue) |

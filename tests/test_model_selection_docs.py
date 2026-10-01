@@ -52,12 +52,11 @@ class TestImplementerSkill(unittest.TestCase):
 
 FD = 'skills/feature-development/SKILL.md'
 TAIL = 'skills/feature-development/tail.md'
-DEV = 'skills/dev/SKILL.md'
 
 
 class TestOrchestrators(unittest.TestCase):
     def test_no_model_line_on_the_orchestrators(self):
-        for rel in (FD, DEV):
+        for rel in (FD,):
             self.assertNotRegex(frontmatter(rel), r'(?m)^model:')
 
     def test_step_up_rounds(self):
@@ -66,10 +65,9 @@ class TestOrchestrators(unittest.TestCase):
                       '`**Review round:**` is 2 or more', tail)
         self.assertEqual(tail.count('--model fable'), 2)
         self.assertIn('plus `--model fable` on the second round', tail)
-        self.assertNotIn('--model', read(DEV))
 
     def test_the_route_journal_line_carries_no_model(self):
-        for rel in (TAIL, DEV):
+        for rel in (TAIL,):
             self.assertNotIn('; model <value>', read(rel))
 
     def test_step_up_rounds_are_documented(self):

@@ -93,7 +93,7 @@ config nothing is injected.
 | Get from ticket to an approved plan or work list, nothing more | `/artel:feature-development PROJ-XXXX --dry-run` |
 | Same, fully unattended (low-risk only) | `claude -p "/artel:feature-development PROJ-XXXX --mode=yolo" --output-format stream-json --verbose` |
 | Same, supervising every gate | `/artel:feature-development PROJ-XXXX --step` |
-| A small change to an existing flow: a work list, then implement → review → runtime → PR | `/artel:feature-development PROJ-XXXX` — sized `bounded`; `--head=lean` forces it (`/artel:dev` is the alias for that until 0.26.0) |
+| A small change to an existing flow: a work list, then implement → review → runtime → PR | `/artel:feature-development PROJ-XXXX` — sized `bounded`; `--head=lean` forces it |
 | A bug: reproduce it and find the cause before anything is planned | `/artel:feature-development PROJ-XXXX` — sized `bug`; `--head=bug` forces it |
 | A question (can we, is it feasible, which of these) | `/artel:feature-development PROJ-XXXX` — sized `spike`: the researcher answers in `spike.md` and the run stops |
 | Run the next phase of a phased ticket | `/artel:feature-development PROJ-XXXX-<N>` |
@@ -125,8 +125,8 @@ work, says the size aloud with its reasons, and runs the head that size calls fo
 | `spike` | none | `researcher` answers the ticket's question in `spike.md`, and the run stops there |
 
 Every head but the spike ends in the same tail: implement → review → runtime → docs (once, when
-the ticket has a PRD) → PR. `--head=full|lean|bug` overrides the size, and `/artel:dev` is an
-alias for `--head=lean` until 0.26.0. The rules are `autonomous-run.md §17`. Everything else in
+the ticket has a PRD) → PR. `--head=full|lean|bug` overrides the size. The rules are
+`autonomous-run.md §17`. Everything else in
 the table is one stage of that pipeline you can also run à la carte.
 
 ## Concepts

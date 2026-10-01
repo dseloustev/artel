@@ -401,13 +401,10 @@ class TestTail(unittest.TestCase):
                        'The step is create-only and idempotent'):
             self.assertIn(phrase, opening)
 
-    def test_the_gates_keep_the_old_format_path(self):
+    def test_the_gates_keep_no_old_format_path(self):
         gate = between(self.raw, '\n| 5 | `IMPLEMENT_STEP_OK`', '\n| 6 |')
-        for phrase in ('On an old-format tasklist there are no routes',
-                       '`review.perTask: true` (config.md; off by default) wraps every '
-                       'iteration-task dispatch in that procedure, as before',
-                       'Fix-list dispatches are never wrapped'):
-            self.assertIn(phrase, gate)
+        self.assertIn('Fix-list dispatches are never wrapped', gate)
+        self.assertNotIn('old-format tasklist', gate)
         self.assertIn('a `## Final Verification` section an older tasklist carries counts too',
                       between(self.tail, '## Completion gate', '## PR description'))
 
@@ -500,8 +497,7 @@ class TestFullHead(unittest.TestCase):
             self.assertIn(phrase, opening)
 
     def test_it_cites_arming_and_the_tail_by_their_new_homes(self):
-        for phrase in ('for the pause and `SKILL.md` step 5, and end the gate',
-                       '**Abort**. Proceed to `SKILL.md` step 5.',
+        for phrase in ('**Abort**. Proceed to `SKILL.md` step 5.',
                        'the run-start journal entry (`SKILL.md` step 5) lists every change',
                        "the command the tail's re-mirror runs, without `task_create`",
                        'see `tail.md`, `## Checkpoint commits & pushes`'):
@@ -517,8 +513,7 @@ class TestFullHead(unittest.TestCase):
                        'The HITL tags remain armed — yolo removes this pause only',
                        "a guardrail, not a pause preference — the lean head's confirmation makes "
                        'the same exception',
-                       '**Routes at the pause**', '`<light|full> — set at approval`',
-                       'An old-format tasklist shows no routes.'):
+                       '**Routes at the pause**', '`<light|full> — set at approval`'):
             self.assertIn(phrase, pause)
 
     def test_the_skill_keeps_gate_0_and_points_at_the_head(self):
@@ -615,7 +610,6 @@ class TestLayout(unittest.TestCase):
                        '`- size: <size> (<head> head; decided by <decided_by>)`',
                        "When gate 4.2 ran, that is the plan review's outcome",
                        '`plan check: <c> Critical, <i> Important, <m> Minor`',
-                       '`plan check: skipped (old-format tasklist)`',
                        '`plan check: not run (<error.kind>)`',
                        '`plan check: run by generate-tasklist`',
                        'subject `docs: <TICKET_ID> planning artifacts` when a plan exists, '
@@ -832,13 +826,19 @@ class TestLeanHead(unittest.TestCase):
                        '`plan check: not run (<error.kind>)`'):
             self.assertIn(phrase, self.ladder)
 
-    def test_an_old_format_tasklist_is_still_the_work_list(self):
-        self.assertIn('An old-format tasklist (`data.format` `legacy`) is still the work list: '
-                      'it has no findings to show and no routes.', self.ladder)
-        self.assertIn('`plan check: skipped (old-format tasklist)`', self.ladder)
-        self.assertIn('An old-format tasklist shows no routes.',
-                      between(self.head, '## Routes at the confirmation',
-                              '## Raised by the writer'))
+    def test_no_reader_keeps_an_old_format_path(self):
+        # The cleanup release deleted every old-format reader path: the work list
+        # and the tasklist are task format, and a file without a task block is
+        # refused by the parser. The design log and the CHANGELOG keep the history.
+        offenders = []
+        paths = sorted(ROOT.glob('skills/**/*.md')) + sorted(ROOT.glob('agents/*.md'))
+        for path in paths:
+            rel = str(path.relative_to(ROOT))
+            for phrase in ('old-format tasklist', '`data.format` `legacy`',
+                           'old checkbox format'):
+                if phrase in raw(rel):
+                    offenders.append('{}: {}'.format(rel, phrase))
+        self.assertEqual([], offenders, 'an old-format reader path is left')
 
     def test_the_confirmation_says_what_it_authorises(self):
         for phrase in ('The confirmed work list is the deviation anchor.',
@@ -1106,53 +1106,8 @@ class TestDebugHere(unittest.TestCase):
         self.assertEqual(self.tail.count('--model fable'), 2)
 
 
-class TestAlias(unittest.TestCase):
-    """Plan 2, Task 7: /artel:dev is an alias for one release — one printed line, one skill
-    call, nothing else (spec §9)."""
-
-    LINE = '/artel:dev is now /artel:feature-development --head=lean and goes away in 0.26.0.'
-    HINT = ('[ticket-id] or [ticket-id]-[phase] [description-file] '
-            '[--mode=yolo|plan-gate|full-gates]')
-
-    def setUp(self):
-        self.raw = raw('skills/dev/SKILL.md')
-        self.body = self.raw.split('---', 2)[2]
-
-    def test_the_frontmatter_keeps_the_name_and_the_hint(self):
-        head = self.raw.split('---')[1]
-        self.assertIn('\nname: dev\n', head)
-        self.assertIn('\nargument-hint: "' + self.HINT + '"\n', head)
-        self.assertRegex(head, r'(?m)^description: "Alias of /artel:feature-development '
-                               r'--head=lean')
-        self.assertNotRegex(head, r'(?m)^model:')
-
-    def test_the_body_prints_one_line_then_hands_the_arguments_on(self):
-        self.assertEqual(self.body.count(self.LINE), 1)
-        call = '`Skill: feature-development` with `$ARGUMENTS --head=lean`'
-        self.assertEqual(self.body.count(call), 1)
-        self.assertLess(self.body.index(self.LINE), self.body.index(call))
-
-    def test_nothing_else(self):
-        lines = [line for line in self.body.split('\n') if line.strip()]
-        self.assertLessEqual(len(lines), 5)
-        for gone in ('#', 'run-state.json', 'spec_store.py', 'tasklist_tasks.py',
-                     'AskUserQuestion', '--local', '--decided-by', '--author',
-                     '${CLAUDE_PLUGIN_ROOT}'):
-            self.assertNotIn(gone, self.body)
-
-    def test_the_alias_never_resizes_an_armed_run(self):
-        # The alias adds --head=lean on every call, a resume included; the shared start has to
-        # ignore it once the run is armed, or every resume would present the work list again.
-        opening = between(flat(FD + 'SKILL.md'), '## Workflow', '### 0. Config gate')
-        for phrase in ('Skip steps 2–4', 'do not present an approval again',
-                       'A `--head` flag on such a run changes nothing',
-                       '`--head ignored: the run is past its head.`'):
-            self.assertIn(phrase, opening)
-
-
 class TestRouter(unittest.TestCase):
-    """Plan 2, Task 8: the router has one entry point for ticket work and names /artel:dev only
-    as its alias (spec §12)."""
+    """Plan 2, Task 8: the router has one entry point for ticket work (spec §12)."""
 
     ROUTER = 'skills/using-artel/SKILL.md'
     CAP = 10240
@@ -1164,7 +1119,7 @@ class TestRouter(unittest.TestCase):
 
     def test_one_entry_point_for_ticket_work(self):
         self.assertEqual(set(re.findall(r'/artel:([a-z-]+)', self.entry)),
-                         {'feature-development', 'dev', 'setup'})
+                         {'feature-development', 'setup'})
         rows = [line for line in self.entry.split('\n')
                 if line.startswith('| ') and '/artel:' in line]
         self.assertEqual(len(rows), 5)
@@ -1177,13 +1132,6 @@ class TestRouter(unittest.TestCase):
                       'request; it sizes the work and picks the head, one approval pause | '
                       '`/artel:feature-development <ticket> [description-file] '
                       '[--head=full\\|lean\\|bug] [--mode=…] [--dry-run] [--local]` |', self.raw)
-
-    def test_dev_is_named_once_and_only_as_the_alias(self):
-        self.assertEqual(self.raw.count('/artel:dev'), 1)
-        line = [ln for ln in self.raw.split('\n') if '/artel:dev' in ln][0]
-        self.assertIn('`--head=lean` forces it (`/artel:dev` is that, as an alias until 0.26.0)',
-                      line)
-        self.assertNotIn('`dev`', self.raw)
 
     def test_small_work_and_the_next_phase_go_to_the_one_entry_point(self):
         for row in ('| a small change implemented, reviewed and runtime-checked | '
@@ -1338,8 +1286,7 @@ class TestRunContract(unittest.TestCase):
             self.assertIn(phrase, gate)
 
     def test_the_pause_the_checkpoints_and_headless_name_one_orchestrator(self):
-        for phrase in ('(`/artel:dev` is its alias until 0.26.0)',
-                       '**One approval pause.** The full head: plan+tasklist approval. The lean '
+        for phrase in ('**One approval pause.** The full head: plan+tasklist approval. The lean '
                        'head and the bug head: the work-list approval (§17).',
                        "(the full head's pause on approve, the lean head's confirmation, the bug "
                        "head's work-list approval)",
@@ -1356,7 +1303,7 @@ class TestRunContract(unittest.TestCase):
             self.assertIn(phrase, self.run)
 
     def test_no_second_orchestrator_is_left(self):
-        self.assertEqual(self.raw.count('/artel:dev'), 1)
+        self.assertNotIn('/artel:dev', self.raw)
         for gone in ('`dev`', 'dev §2', 'oth orchestrators', 'both entry-point',
                      'feature-development §', '`feature-development` step'):
             self.assertNotIn(gone, self.run)
@@ -1417,9 +1364,6 @@ class TestWholeSkill(unittest.TestCase):
         joined = '\n'.join(self.texts.values())
         self.assertEqual(joined.count('--decided-by feature-development'), 2)
         self.assertEqual(joined.count('--author artel:feature-development'), 2)
-        alias = raw('skills/dev/SKILL.md')
-        for stamp in ('--decided-by', '--author'):
-            self.assertNotIn(stamp, alias)
 
     def test_examples_are_generic(self):
         for name, text in self.texts.items():
@@ -1476,21 +1420,6 @@ class TestReaders(unittest.TestCase):
         self.assertIn('It also adds every path the line names to `run-state.json` '
                       '`deviation_files`', doc)
 
-    def test_task_grammar_keeps_every_old_format_reader(self):
-        section = between(flat('docs/task-grammar.md'),
-                          '## 4. Format detection and the old format', '## 5.')
-        # Detection and the old format's behaviour are untouched: no reader path is deleted.
-        for kept in ('a `### Task N.M:` heading anywhere makes the file a task-format tasklist',
-                     'A file with none is the **old format**',
-                     'keeps that behaviour everywhere, so a ticket already in flight finishes '
-                     'the way it started'):
-            self.assertIn(kept, section)
-        # Only the writers are gone.
-        self.assertIn('No writer of the old format remains', section)
-        self.assertIn('Every reader keeps its old-format path until the cleanup release, 0.26.0',
-                      section)
-        self.assertNotIn('mini-interview', section)
-
     def test_spec_storage_sweep_points(self):
         doc = flat('docs/spec-storage.md')
         self.assertIn("| before each checkpoint's staging | `tail.md` "
@@ -1505,7 +1434,7 @@ class TestReaders(unittest.TestCase):
         self.assertIn('`feature-development`, gate 8 (`tail.md`) |', config)
         self.assertIn('**The entry point** (`feature-development`) finds no '
                       '`.artel/config.json`', config)
-        self.assertIn('its `/artel:dev` alias) declares none', flat('docs/agents.md'))
+        self.assertIn('(`feature-development`) declares none', flat('docs/agents.md'))
         self.assertIn('the orchestrator records the baseline at arm time',
                       flat('docs/gates.md'))
 
@@ -1545,7 +1474,7 @@ class TestReaderSkills(unittest.TestCase):
         doc = flat('skills/README.md')
         self.assertIn('the one entry point for ticket work', doc)
         self.assertIn('`heads/full.md`, `heads/lean.md`, `heads/bug.md`', doc)
-        self.assertIn('`dev` (its alias for one release', doc)
+        self.assertNotIn('`dev`', doc)
         self.assertNotIn('lean loop', doc)
 
 
@@ -1586,18 +1515,6 @@ class TestGuideAndReference(unittest.TestCase):
             self.assertIn(phrase, entry)
         self.assertNotIn('not on `dev`', entry)
 
-    def test_the_alias_entry(self):
-        entry = between(flat('docs/skills-reference.md'), '### dev', '### setup')
-        for phrase in ('Alias, for one release, of `/artel:feature-development --head=lean`',
-                       '/artel:dev is now /artel:feature-development --head=lean and goes away '
-                       'in 0.26.0.',
-                       'in `yolo` it opens the PR unattended',
-                       'takes `--dry-run` and `--local`'):
-            self.assertIn(phrase, entry)
-        for gone in ('Lean autonomous implementation loop', 'never invokes `pr-create`',
-                     'No `--dry-run` flag'):
-            self.assertNotIn(gone, entry)
-
     def test_the_worker_entries(self):
         ref = flat('docs/skills-reference.md')
         writer = between(ref, '### generate-tasklist', '### implementer')
@@ -1624,8 +1541,7 @@ class TestGuideAndReference(unittest.TestCase):
 
     def test_the_readme(self):
         readme = flat('README.md')
-        self.assertIn('`/artel:dev` is an alias for `/artel:feature-development --head=lean` '
-                      'until 0.26.0', readme)
+        self.assertNotIn('/artel:dev', readme)
         self.assertIn('**Sized to the work**', readme)
         self.assertNotIn('(lean loop)', readme)
 
@@ -1641,9 +1557,6 @@ class TestReaderPointers(unittest.TestCase):
 
     # What the port was, not what the plugin is: read and left in plan 3, Task 1.
     HISTORY = {'docs/design.md', 'docs/porting-plan.md', 'docs/source-inventory-workflow.md'}
-    # A sentence about the alias that does not say "alias" next to the name. Add the exact
-    # phrase here after reading it; never add a file.
-    ALIAS_PHRASES = ()
     DEV = re.compile(r"`dev`|/artel:dev|artel:dev|skills/dev/|--decided-by dev")
 
     @staticmethod
@@ -1652,24 +1565,16 @@ class TestReaderPointers(unittest.TestCase):
                  + sorted(ROOT.glob('docs/*.md')) + [ROOT / 'README.md', ROOT / 'hooks/README.md'])
         return [str(p.relative_to(ROOT)) for p in paths]
 
-    def test_dev_is_named_only_as_the_alias(self):
+    def test_dev_is_gone(self):
         offenders = []
         for rel in self.swept():
-            if rel in self.HISTORY or rel == 'skills/dev/SKILL.md':
+            if rel in self.HISTORY:
                 continue
             text = flat(rel)
-            entry = (0, 0)
-            if rel == 'docs/skills-reference.md':
-                start = text.index('### dev ')
-                entry = (start, text.index('### setup ', start))
             for match in self.DEV.finditer(text):
-                around = text[max(0, match.start() - 100):match.end() + 100]
-                if (entry[0] <= match.start() < entry[1] or 'alias' in around.lower()
-                        or any(phrase in around for phrase in self.ALIAS_PHRASES)):
-                    continue
                 offenders.append('{}: …{}…'.format(rel, text[max(0, match.start() - 50):
                                                              match.end() + 50]))
-        self.assertEqual([], offenders, 'names `dev` as something other than the alias')
+        self.assertEqual([], offenders, 'still names the removed `dev` alias')
 
     def test_every_pointer_names_something_the_merged_skill_has(self):
         tail = raw(FD + 'tail.md')
@@ -1760,20 +1665,20 @@ class TestRelease(unittest.TestCase):
     def test_the_open_follow_ups(self):
         follow_ups = between(flat('docs/design.md'), '## Open follow-ups', '## Decision log')
         for phrase in ('**The orchestrator seat**', '`skills/feature-development/tail.md`',
-                       'that file is the unit to move', '**The dev-alias cleanup release**',
-                       'the `/artel:dev` alias',
-                       'no ticket in flight on an old-format tasklist',
+                       'that file is the unit to move',
                        '**Sub-project 2c: parallel seats.**'):
             self.assertIn(phrase, follow_ups)
         for closed in ('**Sub-project 2b: one orchestrator**',
                        '**SDD v2 inputs for sub-project 2**',
-                       '**Old-format tasklists are still read**'):
+                       '**Old-format tasklists are still read**',
+                       '**The dev-alias cleanup release**'):
             self.assertNotIn(closed, follow_ups)
 
     def test_the_porting_plan(self):
         plan = flat('docs/porting-plan.md')
         self.assertIn('- [x] One orchestrator (0.25.0)', plan)
-        self.assertIn('- [ ] Cleanup release: delete the `/artel:dev` alias', plan)
+        self.assertIn('- [x] Cleanup release: delete the `/artel:dev` alias', plan)
+        self.assertIn('Shipped as 0.27.0', plan)
         self.assertIn('- [x] Port `dev` (lean loop', plan)   # the port's own record stays
 
 

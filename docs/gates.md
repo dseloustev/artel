@@ -22,12 +22,12 @@ The full gate — `verify.commands`, with the test suite — runs at the checkpo
 gates and **runs nowhere else**: not per task, not as a tasklist item, not re-derived by an
 agent from evidence.
 
-**A task's `Test:` files join its task gate.** On a task-format tasklist
-([task-grammar.md](task-grammar.md) §2) the implementer adds every file the task's `Test:`
-field lists to `--files`, whether or not the task touched it, so a task that breaks behaviour a
+**A task's `Test:` files join its task gate.** The implementer adds every file the task's
+`Test:` field lists ([task-grammar.md](task-grammar.md) §2) to `--files`, whether or not the
+task touched it, so a task that breaks behaviour a
 listed test pins is red at its own gate rather than at the next checkpoint. `Test: none —
 <reason>` adds nothing. A listed file a later task creates does not exist yet and drops out as
-`data.missing` (§3). An old-format tasklist has no `Test:` field; its gate is unchanged.
+`data.missing` (§3).
 
 ## 2. Invoking the runner
 

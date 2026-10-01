@@ -1,8 +1,7 @@
 """The `--local` flag is spelled identically everywhere it appears.
 
 Not a behaviour test: these are prompts, and there is no code path to exercise.
-It guards one token across nine files -- and its absence from a tenth, the
-`skills/dev/SKILL.md` alias, which names no flag -- the drift this repo has already had once
+It guards one token across nine files -- the drift this repo has already had once
 ("docs: fix stale knowledge-mirror hook counts and the setup interview gap").
 It also guards the promise skills-reference.md opens with, that every Invocation
 line is its skill's own frontmatter hint: asking whether the token appears
@@ -22,11 +21,6 @@ SKILL_FILES = (
     'skills/deep-review/SKILL.md',
     'skills/issue-draft/SKILL.md',
 )
-
-# `dev` is an alias of `feature-development --head=lean` since 0.25.0. It hands `$ARGUMENTS`
-# on and names no flag of its own, so a `--local` typed after it reaches `feature-development`
-# without appearing in this file. It is guarded for the absence, not the presence.
-DEV_SKILL = 'skills/dev/SKILL.md'
 
 DOC_FILES = (
     'docs/config.md',
@@ -84,13 +78,9 @@ class LocalFlagSpelling(unittest.TestCase):
             with self.subTest(rel):
                 self.assertIn('--local', read(rel))
 
-    def test_dev_does_not_carry_the_flag(self):
-        """The alias names no flag: `$ARGUMENTS` carries whatever was typed."""
-        self.assertNotIn('--local', read(DEV_SKILL))
-
     def test_each_invocation_line_is_that_skill_s_own_argument_hint(self):
         """skills-reference.md's own rule: copied verbatim, in slash form."""
-        for rel in SKILL_FILES + (DEV_SKILL,):
+        for rel in SKILL_FILES:
             name = Path(rel).parent.name
             with self.subTest(name):
                 hint = argument_hint(rel)
@@ -99,7 +89,7 @@ class LocalFlagSpelling(unittest.TestCase):
                                  invocation_line(name))
 
     def test_no_near_miss_spellings_anywhere(self):
-        for rel in SKILL_FILES + (DEV_SKILL,) + DOC_FILES:
+        for rel in SKILL_FILES + DOC_FILES:
             with self.subTest(rel):
                 text = read(rel)
                 for wrong in NEAR_MISSES:

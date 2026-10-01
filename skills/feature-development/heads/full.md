@@ -27,14 +27,13 @@ is not yet `PLAN_APPROVED` (its own section follows the table).
 | 3 | plan drafted — `plan.md` exists | `Skill: researcher` then `Skill: planner` (both `$0`; `researcher` also takes `--local` when this run was invoked with it) — **silent**: their questions land in `.artel/run/<TICKET_ID>/open-questions.md` (autonomous-run.md §3). |
 | 3.5 | `PLAN_GROUNDED` — plan-check green | Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan - --strict`), where `<plan-path>` is the phase-aware plan path per ticket-parsing.md §4. Exit 0 → proceed. Exit 1 → append/update `**Plan-check bounces:** N` at the bottom of `<plan-path>` (kartoteka path: `artifact_patch(project=<project>, …)` replacing the existing bounce line, or `append` it), and while `N <= MAX_PLAN_CHECK_BOUNCES = 2`: `SendMessage` the `data.unresolved` list to the `planner` agent ("resolve or declare `new:`"), regenerate, re-run the check. Planner regeneration rewrites `<plan-path>` and drops the bounce line with it; after each regeneration re-append `**Plan-check bounces:** N` (N = bounces performed so far) before re-running the check. Third failure → stop and ask (chatty head — plain `AskUserQuestion`, no `pause_reason`) without writing N=3 — the file shows `**Plan-check bounces:** 2` at the stop. Exit 2 → environment error: stop-and-ask pointing at setup, never a bounce. |
 | 4 | `TASKLIST_READY` — tasklist status `TASKLIST_READY` | `Skill: tasklist` with `$0`, plus `--local` when this run was invoked with it — silent, HITL-tagged; the flag keeps its task-queue mirror from writing rows. |
-| 4.2 | `PLAN_REVIEWED` — the plan review ran (a tasklist in the task grammar, plan not yet `PLAN_APPROVED`) | The plan review before the pause — Gate 4.2, below the table: the mechanical check (`tasklist_tasks.py --check`), then `Skill: run-reviewer --plan`, with at most `MAX_PLAN_REVIEW_ROUNDS = 2` fix rounds to `task-planner`. An old-format tasklist records `PLAN_REVIEWED: skipped (old-format tasklist)`. |
+| 4.2 | `PLAN_REVIEWED` — the plan review ran (the plan is not yet `PLAN_APPROVED`) | The plan review before the pause — Gate 4.2, below the table: the mechanical check (`tasklist_tasks.py --check`), then `Skill: run-reviewer --plan`, with at most `MAX_PLAN_REVIEW_ROUNDS = 2` fix rounds to `task-planner`. |
 | 4.5 | phase extraction (phase runs only) | `Skill: sync-phases` with `$0` — creates `phase-<N>/tasks.md` when missing. |
 
 ### Gate 4.2 — the plan review
 
-Runs only for a tasklist in the task grammar (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4),
-and only while the plan's status is not `PLAN_APPROVED`. A resume after approval never re-runs
-it, and an old-format tasklist never sees it. It belongs to the chatty head: the run is not armed
+Runs while the plan's status is not `PLAN_APPROVED` (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md`
+§4). A resume after approval never re-runs it. It belongs to the chatty head: the run is not armed
 yet, its questions carry no `pause_reason`, and its rounds never count toward
 `counters.correction_rounds`. `<tasklist-path>` is the phase-aware tasklist and `<prd-path>` the
 phase-aware PRD with its read fallback (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5);
@@ -55,9 +54,6 @@ phase-aware PRD with its read fallback (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsi
        python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <requirements>
        set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
 
-   `data.format` `legacy` → the tasklist predates the grammar: record
-   `PLAN_REVIEWED: skipped (old-format tasklist)` for the pause and `SKILL.md` step 5, and end the
-   gate.
    Exit `2` → environment error, as in step 1. Otherwise keep `data.findings` and
    `data.coverage`: exit `1` means a Critical or Important finding, exit `0` none.
 3. **Agent check.** A `.artel/run/<TICKET_ID>/plan-review.md` whose `**Tasklist:**` line names
@@ -85,8 +81,8 @@ Present via `AskUserQuestion` in one interaction: plan summary, the task list wi
 tags called out, every `Status: open` entry from `.artel/run/<TICKET_ID>/open-questions.md`
 (proposed defaults as the first, "(Recommended)" option each), the plan review's open findings
 as their own section — gate 4.2's last check and last `plan-review.md`, Critical and Important
-first, each with where, what and the smallest fix; `none` when nothing is open, or
-`PLAN_REVIEWED: skipped (old-format tasklist)` — plus, when gate 4.2's requirements read gave
+first, each with where, what and the smallest fix; `none` when nothing is open — plus, when gate
+4.2's requirements read gave
 `absent`, the line `no requirement coverage — the PRD predates requirement IDs`, and a note that
 approval also authorizes the run's checkpoint commits & pushes to `origin` (planning docs now,
 one commit+push per completed phase — see `tail.md`, `## Checkpoint commits & pushes`).
@@ -117,7 +113,7 @@ one commit+push per completed phase — see `tail.md`, `## Checkpoint commits & 
   is a guardrail, not a pause preference — the lean head's confirmation makes the same
   exception. Minor findings never stop a `yolo` run; the run-start journal entry lists them.
 
-**Routes at the pause** (task-format tasklists — `${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md`
+**Routes at the pause** (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md`
 §16.1). The same interaction lists every task's effective route with its reasons, one line each
 — `2.3 full — declared: money-movement path; floor: sensitive path (payments): src/payments/refund.py`
 — from the parser's rows (`route`, `route_reason`, `route_reasons`, `route_effective`; the
@@ -125,5 +121,4 @@ command the tail's re-mirror runs, without `task_create`), every task `full` whe
 is `true`. The person may change any route, down as well as up. On approve each change joins the
 fold-back: the `tasklist` agent rewrites that task's `Route:` line as `<light|full> — set at
 approval`, and the run-start journal entry (`SKILL.md` step 5) lists every change, naming any
-floor it lowered. In `yolo` the routes stand as declared and floored. An old-format tasklist shows no
-routes.
+floor it lowered. In `yolo` the routes stand as declared and floored.

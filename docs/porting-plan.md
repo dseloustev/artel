@@ -80,9 +80,9 @@ The rules everything else obeys, plus the config mechanism they will reference.
       one file per head (`heads/full.md`, `heads/lean.md`, `heads/bug.md`) and one `tail.md`;
       sizing picks the head, and `/artel:dev` stays as an alias for one release (design.md
       decision log, 2026-09-30).
-- [ ] Cleanup release: delete the `/artel:dev` alias and the old-format tasklist reader
-      paths, once no old-format ticket is in flight (design.md, Open follow-ups). Planned as
-      0.26.0; that number went to the OpenCode v2 host instead (decision log, 2026-10-01).
+- [x] Cleanup release: delete the `/artel:dev` alias and the old-format tasklist reader
+      paths, once no old-format ticket was in flight (design.md, decision log 2026-10-01).
+      Shipped as 0.27.0.
 
 ## Phase 5 — hooks and gates
 

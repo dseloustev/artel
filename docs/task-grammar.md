@@ -7,8 +7,8 @@ reader cites this file rather than restating it. `scripts/tasklist_tasks.py` is 
 program that parses it (`scripts/task_grammar.py` holds the rules).
 
 Written for sub-project 2a of the workflow redesign (0.23.0; design: the 2026-09-29
-task-grammar spec). Before 0.23.0 a task was one checkbox; a tasklist without a task block
-still is (§4).
+task-grammar spec). Before 0.23.0 a task was one checkbox; the old format is no longer read
+(§4).
 
 ## 1. The task block
 
@@ -101,18 +101,14 @@ row, exactly as `docs/task-queue.md` §6 describes. The fix sections are outside
 standing duties, and a box that runs a gate is a gate task, which no tasklist carries
 (`docs/gates.md`).
 
-## 4. Format detection and the old format
+## 4. Format detection
 
 Per tasklist file: a `### Task N.M:` heading anywhere makes the file a task-format tasklist.
-A file with none is the **old format** — one row per checkbox under `### \`path\`` sections,
-promotion by iteration, `review.perTask` as before, no plan review — and keeps that behaviour
-everywhere, so a ticket already in flight finishes the way it started. A phase file
-(`phase-<N>/tasks.md`) is in the format of the tasklist it was extracted from.
-
-No writer of the old format remains: since 0.25.0 every tasklist a run writes — the full head's,
-and the lean and bug heads' work list from `generate-tasklist` — is in this grammar. Every reader
-keeps its old-format path until the cleanup release, 0.26.0, so a ticket armed on an old-format
-tasklist finishes on the format it started with.
+A file with none is not a work list: a fixes-only tasklist (`deep-review`'s, or a phase
+extract) still mirrors its fix sections alone, and anything else is refused as
+`tasklist_malformed` — an iteration heading with no task block, a `## Final Verification` with
+no task blocks, or nothing to mirror at all. The old format was removed in 0.27.0; no writer of
+it has remained since 0.25.0.
 
 ## 5. IDs stay out of the product
 
@@ -182,12 +178,9 @@ documents are piped from the store, never copied locally:
     set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -
     set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <ids>
 
-An old-format tasklist has nothing to check: `format: "legacy"`, no findings, exit 0.
-
 ## 7. Rows, waves, readiness and route floors
 
-What a mirror run of a task-format tasklist emits beyond the old format's shape
-(`data.format` is `"tasks"`):
+What a mirror run emits (`data.format` is `"tasks"`):
 
 - **Rows.** An iteration parent as before (`I<N>: name`). One child per task, titled
   `I<N> · <N.M> · <task title>` — the idempotency key, capped at 500 characters. Its

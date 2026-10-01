@@ -47,7 +47,7 @@ the way the orchestrator's gates do:
 plan review (gate 4.2) and the approval fold-back can still renumber or retitle its tasks, and
 the queue's rows are create-only, so a row mirrored now could outlive its task; the
 orchestrator's re-mirror before the first implementer dispatch creates them once the plan is
-approved. A tasklist with no plan beside it, or an old-format tasklist, mirrors here as before.
+approved. A tasklist with no plan beside it mirrors here as before.
 Otherwise, per
 `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, decide whether the queue path applies. On the
 fallback path, skip this step silently and continue.

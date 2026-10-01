@@ -36,7 +36,7 @@ it). `<ticket>-<N>` is a phase-scoped run.
 |---|---|
 | a ticket — feature, small change, bug or question — taken to a pull request; it sizes the work and picks the head, one approval pause | `/artel:feature-development <ticket> [description-file] [--head=full\|lean\|bug] [--mode=…] [--dry-run] [--local]` |
 | just the approved work plan, no implementation | `/artel:feature-development <ticket> --dry-run` |
-| a small change implemented, reviewed and runtime-checked | `/artel:feature-development <ticket>` — small work is sized lean; `--head=lean` forces it (`/artel:dev` is that, as an alias until 0.26.0) |
+| a small change implemented, reviewed and runtime-checked | `/artel:feature-development <ticket>` — small work is sized lean; `--head=lean` forces it |
 | the next phase of a phased ticket | `/artel:feature-development <ticket>-<N>` |
 | an interrupted run resumed | re-invoke the same entry-point command |
 | artel configured or reconfigured for this repo | `/artel:setup` |

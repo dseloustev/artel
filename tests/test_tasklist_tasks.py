@@ -4,14 +4,11 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
+import task_grammar  # noqa: E402
 import tasklist_tasks  # noqa: E402
 
 
 TASKLIST = '''# Development Tasklist: Wallet adapter (AW-1234)
-
-Based on specs/.current/AW-1234/vision.md.
-
----
 
 ## Progress Report
 
@@ -20,19 +17,27 @@ Based on specs/.current/AW-1234/vision.md.
 | 1 | Scaffold the adapter | ⬜ Pending |  |
 | 2 | Wire it in | ⬜ Pending |  |
 
-**Legend:** ⬜ Pending | 🔄 In Progress | ✅ Done | ❌ Blocked
-
 ---
 
 ## Iteration 1: Scaffold the adapter
 
 **Goal:** Add the adapter file without wiring it in.
 
-### `lib/wallet/adapter.dart` (new file)
+### Task 1.1: Create the adapter class
+- **Files:** `lib/wallet/adapter.dart` (new)
+- **Depends on:** none
+- **Route:** light
+- **Test:** none — the module compiles
+- **Implements:** R1
 - [ ] Create the adapter class
 - [x] Add the license header
 
-### After changes
+### Task 1.2: Run the fast verify
+- **Files:** `lib/wallet/adapter.dart`
+- **Depends on:** 1.1
+- **Route:** light
+- **Test:** none — no code change
+- **Implements:** R1
 - [ ] Run `verify.fast` (config.md) — must pass clean
 
 **Test:** The module compiles.
@@ -43,11 +48,13 @@ Based on specs/.current/AW-1234/vision.md.
 
 **Goal:** Call the adapter from the wallet screen.
 
-### `lib/wallet/screen.dart`
-- [ ] [HITL: touches a sensitive surface] Swap the provider
-
-### After changes
-- [ ] Run `verify.fast` (config.md) — must pass clean
+### Task 2.1: Swap the provider [HITL: touches a sensitive surface]
+- **Files:** `lib/wallet/screen.dart`
+- **Depends on:** none
+- **Route:** light
+- **Test:** none — the balance renders from the adapter
+- **Implements:** R2
+- [ ] Swap the provider
 
 **Test:** The balance renders from the adapter.
 
@@ -57,262 +64,6 @@ Based on specs/.current/AW-1234/vision.md.
 
 - [ ] Run every command in `verify.commands` (config.md), in order
 '''
-
-# The `iterations` array 0.14.0 printed for TASKLIST, captured before fix sections
-# existed. Existing consumers read it, so no fix-section change may alter a byte.
-GOLDEN_ITERATIONS_0_14_0 = (
-    r'[{"title": "I1: Scaffold the adapter", "status": "backlog", "description": "Goal: Add '
-    r'the adapter file without wiring it in.\n\nTest: The module compiles.", "children": [{"'
-    r'title": "I1 \u00b7 lib/wallet/adapter.dart \u00b7 Create the adapter class", "status":'
-    r' "ready", "description": "Section: lib/wallet/adapter.dart (new file)", "hitl": null},'
-    r' {"title": "I1 \u00b7 lib/wallet/adapter.dart \u00b7 Add the license header", "status"'
-    r': "done", "description": "Section: lib/wallet/adapter.dart (new file)", "hitl": null},'
-    r' {"title": "I1 \u00b7 After changes \u00b7 Run `verify.fast` (config.md) \u2014 must p'
-    r'ass clean", "status": "ready", "description": "Section: After changes", "hitl": null}]'
-    r'}, {"title": "I2: Wire it in", "status": "backlog", "description": "Goal: Call the ada'
-    r'pter from the wallet screen.\n\nTest: The balance renders from the adapter.", "childre'
-    r'n": [{"title": "I2 \u00b7 lib/wallet/screen.dart \u00b7 [HITL: touches a sensitive sur'
-    r'face] Swap the provider", "status": "backlog", "description": "Section: lib/wallet/scr'
-    r'een.dart\nHITL: touches a sensitive surface", "hitl": "touches a sensitive surface"}, '
-    r'{"title": "I2 \u00b7 After changes \u00b7 Run `verify.fast` (config.md) \u2014 must pa'
-    r'ss clean", "status": "backlog", "description": "Section: After changes", "hitl": null}'
-    r']}]'
-)
-
-
-class TestParseTasklist(unittest.TestCase):
-    def setUp(self):
-        self.iterations, self.warnings = tasklist_tasks.parse_tasklist(TASKLIST)
-
-    def test_finds_both_iterations_in_document_order(self):
-        self.assertEqual([(i['number'], i['name']) for i in self.iterations],
-                         [(1, 'Scaffold the adapter'), (2, 'Wire it in')])
-
-    def test_goal_and_test_captured_per_iteration(self):
-        self.assertEqual(self.iterations[0]['goal'],
-                         'Add the adapter file without wiring it in.')
-        self.assertEqual(self.iterations[0]['test'], 'The module compiles.')
-
-    def test_section_strips_backticks_and_new_file_marker(self):
-        child = self.iterations[0]['children'][0]
-        self.assertEqual(child['section'], 'lib/wallet/adapter.dart')
-        self.assertTrue(child['new_file'])
-
-    def test_checked_box_is_done_unchecked_is_not(self):
-        done = [c['done'] for c in self.iterations[0]['children']]
-        self.assertEqual(done, [False, True, False])
-
-    def test_hitl_reason_extracted_and_text_kept_whole(self):
-        child = self.iterations[1]['children'][0]
-        self.assertEqual(child['hitl'], 'touches a sensitive surface')
-        self.assertEqual(child['text'],
-                         '[HITL: touches a sensitive surface] Swap the provider')
-
-    def test_progress_report_table_produces_no_children(self):
-        # The table rows are not checkboxes, and `## Progress Report` closes any
-        # open iteration. Pinned because a looser checkbox regex would eat them.
-        # Counting iterations duplicated the test above and never looked at a
-        # single child, which is where a leaked table row would actually land.
-        texts = [c['text'] for it in self.iterations for c in it['children']]
-        self.assertEqual(5, len(texts))
-        for text in texts:
-            self.assertNotIn('|', text, 'table row leaked into a child: ' + text)
-            for cell in ('Scaffold the adapter', 'Wire it in', '⬜ Pending', 'Legend'):
-                self.assertNotIn(cell, text,
-                                 'table cell leaked into a child: ' + text)
-
-    def test_final_verification_checkboxes_are_not_iteration_children(self):
-        # `## Final Verification` is a `##` heading, so it closes iteration 2.
-        # Its checkbox is the end-of-feature gate, not claimable work.
-        texts = [c['text'] for c in self.iterations[1]['children']]
-        self.assertNotIn('Run every command in `verify.commands` (config.md), in order',
-                         texts)
-
-    def test_after_changes_is_a_section_like_any_other(self):
-        self.assertEqual(self.iterations[0]['children'][2]['section'], 'After changes')
-
-    def test_checkbox_before_any_section_is_skipped_with_a_warning(self):
-        iterations, warnings = tasklist_tasks.parse_tasklist(
-            '## Iteration 1: Loose\n- [ ] Ungrouped task\n')
-        self.assertEqual(iterations[0]['children'], [])
-        self.assertEqual(warnings,
-                         ['iteration 1: checkbox outside any `###` section skipped:'
-                          ' Ungrouped task'])
-
-
-class TestPhaseDialect(unittest.TestCase):
-    """`## Phase N:` and `## Iteration N:` are the same heading.
-
-    sync-phases already reads both (`## Phase N: Title` or `## Iteration N: Title`)
-    and task-planner mandates no template, so a tasklist written with the other
-    keyword parsed as zero iterations and exited 2 -- mirroring nothing while the
-    run carried on believing the queue held its work list.
-    """
-
-    def _rows(self, keyword):
-        text = TASKLIST.replace('## Iteration ', '## {} '.format(keyword))
-        iterations, warnings = tasklist_tasks.parse_tasklist(text)
-        rows, row_warnings = tasklist_tasks.build_rows(iterations)
-        return rows, warnings + row_warnings
-
-    def test_phase_headings_parse_identically_to_iteration_headings(self):
-        self.assertEqual(self._rows('Phase'), self._rows('Iteration'))
-
-    def test_the_title_prefix_stays_i_n_whatever_the_input_dialect(self):
-        # The prefix is the idempotency key. Following the input keyword would
-        # mirror one tasklist as two disjoint row sets after a reworded heading.
-        rows, _ = self._rows('Phase')
-        self.assertEqual(rows[0]['title'], 'I1: Scaffold the adapter')
-        self.assertEqual(rows[0]['children'][0]['title'],
-                         'I1 · lib/wallet/adapter.dart · Create the adapter class')
-
-
-class TestBuildRows(unittest.TestCase):
-    def setUp(self):
-        iterations, _ = tasklist_tasks.parse_tasklist(TASKLIST)
-        self.rows, self.warnings = tasklist_tasks.build_rows(iterations)
-
-    def test_parent_title_carries_the_iteration_number(self):
-        self.assertEqual(self.rows[0]['title'], 'I1: Scaffold the adapter')
-
-    def test_parent_rows_are_never_ready(self):
-        # claim_ready_task filters on status alone and would hand an iteration
-        # row to an agent as if it were work. Nothing in kartoteka enforces this.
-        self.assertEqual([r['status'] for r in self.rows], ['backlog', 'backlog'])
-
-    def test_parent_description_carries_goal_and_test(self):
-        self.assertEqual(self.rows[0]['description'],
-                         'Goal: Add the adapter file without wiring it in.\n\n'
-                         'Test: The module compiles.')
-
-    def test_child_title_is_iteration_section_text(self):
-        self.assertEqual(self.rows[0]['children'][0]['title'],
-                         'I1 · lib/wallet/adapter.dart · Create the adapter class')
-
-    def test_after_changes_block_does_not_collide_across_iterations(self):
-        # The template repeats this line verbatim in every iteration. Mirrored
-        # flat it would resolve to iteration 1's row and create_task would
-        # return it unchanged -- a silent merge of distinct work.
-        first = self.rows[0]['children'][2]['title']
-        second = self.rows[1]['children'][1]['title']
-        self.assertNotEqual(first, second)
-        self.assertEqual(first,
-                         'I1 · After changes · Run `verify.fast` (config.md) — must pass clean')
-        self.assertEqual(second,
-                         'I2 · After changes · Run `verify.fast` (config.md) — must pass clean')
-        self.assertEqual(tasklist_tasks.find_collisions(self.rows), [])
-
-    def test_new_file_marker_lands_in_description_not_title(self):
-        child = self.rows[0]['children'][0]
-        self.assertNotIn('(new file)', child['title'])
-        self.assertEqual(child['description'],
-                         'Section: lib/wallet/adapter.dart (new file)')
-
-    def test_first_iteration_children_are_ready_later_are_backlog(self):
-        self.assertEqual([c['status'] for c in self.rows[0]['children']],
-                         ['ready', 'done', 'ready'])
-        self.assertEqual(self.rows[1]['children'][1]['status'], 'backlog')
-
-    def test_hitl_in_a_later_iteration_is_backlog_not_ready(self):
-        # A HITL tag never changes the iteration gate. It is never mirrored
-        # `blocked` either -- claiming one is what triggers the pause.
-        child = self.rows[1]['children'][0]
-        self.assertEqual(child['status'], 'backlog')
-        self.assertEqual(child['hitl'], 'touches a sensitive surface')
-        self.assertIn('[HITL: touches a sensitive surface]', child['title'])
-        self.assertIn('HITL: touches a sensitive surface', child['description'])
-
-
-class TestTitleCap(unittest.TestCase):
-    def _long_tasklist(self, first, second):
-        return ('## Iteration 1: Long\n\n### `lib/a.dart`\n'
-                '- [ ] {}\n- [ ] {}\n'.format(first, second))
-
-    def test_title_is_capped_and_reported(self):
-        iterations, _ = tasklist_tasks.parse_tasklist(
-            self._long_tasklist('A' * 600, 'B'))
-        rows, warnings = tasklist_tasks.build_rows(iterations)
-        title = rows[0]['children'][0]['title']
-        self.assertEqual(len(title), tasklist_tasks.MAX_TITLE_CHARS)
-        self.assertEqual(len(warnings), 1)
-        self.assertIn('truncated', warnings[0])
-
-    def test_truncation_is_a_plain_prefix_cut(self):
-        # Was: build the same input twice and compare, which no pure function
-        # can fail. What has to hold is WHICH characters survive -- the title is
-        # the idempotency key, so a hash suffix or a mid-string ellipsis would
-        # re-key every long row and mirror it a second time.
-        iterations, _ = tasklist_tasks.parse_tasklist(
-            self._long_tasklist('A' * 600, 'B'))
-        rows, _ = tasklist_tasks.build_rows(iterations)
-        untruncated = 'I1 · lib/a.dart · ' + 'A' * 600
-        self.assertEqual(untruncated[:tasklist_tasks.MAX_TITLE_CHARS],
-                         rows[0]['children'][0]['title'])
-
-    def test_two_titles_colliding_after_truncation_are_found(self):
-        iterations, _ = tasklist_tasks.parse_tasklist(
-            self._long_tasklist('A' * 600 + ' one', 'A' * 600 + ' two'))
-        rows, _ = tasklist_tasks.build_rows(iterations)
-        collisions = tasklist_tasks.find_collisions(rows)
-        self.assertEqual(len(collisions), 1)
-        self.assertTrue(collisions[0].startswith('I1 · lib/a.dart · AAA'))
-
-    def test_duplicate_checkbox_text_in_one_section_is_a_collision(self):
-        iterations, _ = tasklist_tasks.parse_tasklist(
-            self._long_tasklist('Same task', 'Same task'))
-        rows, _ = tasklist_tasks.build_rows(iterations)
-        self.assertEqual(tasklist_tasks.find_collisions(rows),
-                         ['I1 · lib/a.dart · Same task'])
-
-    def test_titles_differing_only_inside_a_whitespace_run_collide(self):
-        # kartoteka normalises whitespace before its UNIQUE check, so this pair
-        # passed the guard here and merged in the store -- the exact silent
-        # merge the guard exists to prevent.
-        iterations, _ = tasklist_tasks.parse_tasklist(
-            self._long_tasklist('Wire  the adapter', 'Wire the adapter'))
-        rows, _ = tasklist_tasks.build_rows(iterations)
-        self.assertEqual(tasklist_tasks.find_collisions(rows),
-                         ['I1 · lib/a.dart · Wire the adapter'])
-
-    def test_a_tab_and_a_space_are_the_same_separator(self):
-        iterations, _ = tasklist_tasks.parse_tasklist(
-            '## Iteration 1: Tabs\n\n### `lib/a.dart`\n'
-            '- [ ] Wire\tthe adapter\n- [ ] Wire the adapter\n')
-        rows, _ = tasklist_tasks.build_rows(iterations)
-        self.assertEqual(len(tasklist_tasks.find_collisions(rows)), 1)
-
-
-class TestFixSectionsAreNotIterationChildren(unittest.TestCase):
-    """A fix section's tasks never land in an iteration.
-
-    `## Code Review Fixes`, `## Runtime Fixes` and `## Verify Fixes` are `##`
-    headings, so they close the iteration above them, and their tasks are emitted
-    in `data.sections` instead (TestFixSections below). Filed as children of the
-    last iteration they would be `ready` or `backlog` behind a promotion, and
-    task_ready would offer them -- docs/task-queue.md §6.
-    """
-
-    SECTIONS = ('## Code Review Fixes', '## Runtime Fixes', '## Verify Fixes')
-
-    def _children(self, extra):
-        iterations, _ = tasklist_tasks.parse_tasklist(TASKLIST + extra)
-        self.assertEqual(2, len(iterations), 'the two real iterations, and no more')
-        return [c['text'] for it in iterations for c in it['children']]
-
-    def test_bare_checkboxes_under_a_fix_heading_are_not_children(self):
-        for heading in self.SECTIONS:
-            with self.subTest(heading):
-                extra = '\n{}\n\n- [ ] **Task 1: fix what the gate found**\n'.format(heading)
-                self.assertNotIn('**Task 1: fix what the gate found**',
-                                 self._children(extra))
-
-    def test_a_fix_heading_with_a_section_is_not_mirrored_either(self):
-        # The `### ` under a fix heading is its source, not an iteration section.
-        for heading in self.SECTIONS:
-            with self.subTest(heading):
-                extra = ('\n{}\n\n### `lib/a.dart`\n'
-                         '- [ ] fix what the gate found\n'.format(heading))
-                self.assertNotIn('fix what the gate found', self._children(extra))
 
 
 # Two review rounds after generation. Round 2 re-uses round 1's checkbox text on
@@ -453,11 +204,75 @@ class TestFixSectionEdges(unittest.TestCase):
         # no iteration; its fix sections live nowhere else.
         text = ('# Phase 2: Wire it in\n\n## Tasks\n\n- [ ] 2.1 Swap the provider\n\n'
                 '## Code Review Fixes\n\n### review-p2-r1\n- [ ] **Task 1: X**\n')
-        iterations, _ = tasklist_tasks.parse_tasklist(text)
         rows, _ = _sections(text)
-        self.assertEqual(iterations, [])
         self.assertEqual([c['title'] for c in rows[0]['children']],
                          ['CRF · review-p2-r1 · **Task 1: X**'])
+
+
+def _titled(*titles):
+    """A task-format body with one iteration holding one task per title."""
+    blocks = []
+    for index, title in enumerate(titles, 1):
+        blocks.append('### Task 1.{}: {}\n'
+                      '- **Files:** `lib/a.dart`\n'
+                      '- **Depends on:** none\n'
+                      '- **Route:** light\n'
+                      '- **Test:** none — no code change\n'
+                      '- [ ] Do it\n'.format(index, title))
+    return '## Iteration 1: Long\n\n**Goal:** g\n\n' + '\n'.join(blocks) + '\n**Test:** t\n'
+
+
+class TestTitleCap(unittest.TestCase):
+    def _rows(self, *titles):
+        iterations, problems, _ = task_grammar.parse(_titled(*titles))
+        self.assertEqual([], problems)
+        rows, _, warnings = tasklist_tasks.build_task_rows(iterations, {'categories': []})
+        return rows, warnings
+
+    def test_title_is_capped_and_reported(self):
+        rows, warnings = self._rows('A' * 600)
+        title = rows[0]['children'][0]['title']
+        self.assertEqual(len(title), tasklist_tasks.MAX_TITLE_CHARS)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn('truncated', warnings[0])
+
+    def test_truncation_is_a_plain_prefix_cut(self):
+        # Was: build the same input twice and compare, which no pure function
+        # can fail. What has to hold is WHICH characters survive -- the title is
+        # the idempotency key, so a hash suffix or a mid-string ellipsis would
+        # re-key every long row and mirror it a second time.
+        rows, _ = self._rows('A' * 600)
+        untruncated = 'I1 · 1.1 · ' + 'A' * 600
+        self.assertEqual(untruncated[:tasklist_tasks.MAX_TITLE_CHARS],
+                         rows[0]['children'][0]['title'])
+
+
+class TestFindCollisions(unittest.TestCase):
+    """Titles are the store's idempotency key: a repeat silently merges two rows."""
+
+    def test_a_duplicated_title_is_found(self):
+        rows = [{'title': 'I1: A', 'children': [{'title': 'I1 · 1.1 · Same'},
+                                                {'title': 'I1 · 1.1 · Same'}]}]
+        self.assertEqual(tasklist_tasks.find_collisions(rows), ['I1 · 1.1 · Same'])
+
+    def test_titles_differing_only_inside_a_whitespace_run_collide(self):
+        # kartoteka normalises whitespace before its UNIQUE check, so this pair
+        # passed the guard here and merged in the store -- the exact silent
+        # merge the guard exists to prevent.
+        rows = [{'title': 'I1: A', 'children': [{'title': 'I1 · 1.1 · Wire  the adapter'},
+                                                {'title': 'I1 · 1.1 · Wire the adapter'}]}]
+        self.assertEqual(tasklist_tasks.find_collisions(rows),
+                         ['I1 · 1.1 · Wire the adapter'])
+
+    def test_a_tab_and_a_space_are_the_same_separator(self):
+        rows = [{'title': 'I1: A', 'children': [{'title': 'I1 · 1.1 · Wire\tthe adapter'},
+                                                {'title': 'I1 · 1.1 · Wire the adapter'}]}]
+        self.assertEqual(len(tasklist_tasks.find_collisions(rows)), 1)
+
+    def test_no_repeat_is_no_collision(self):
+        rows = [{'title': 'I1: A', 'children': [{'title': 'I1 · 1.1 · One'}]},
+                {'title': 'I2: B', 'children': [{'title': 'I2 · 2.1 · One'}]}]
+        self.assertEqual(tasklist_tasks.find_collisions(rows), [])
 
 
 SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'tasklist_tasks.py'
@@ -489,21 +304,15 @@ class TestCli(unittest.TestCase):
         self.assertTrue(out['ok'])
         self.assertEqual(out['verb'], 'tasklist-tasks')
         self.assertEqual(out['data']['ticket_key'], 'AW-1234')
+        self.assertEqual(out['data']['format'], 'tasks')
         self.assertEqual(len(out['data']['iterations']), 2)
         self.assertEqual(out['data']['warnings'], [])
 
-    def test_a_tasklist_without_a_fix_section_prints_exactly_what_0_14_0_did(self):
-        text = TASKLIST.split('\n---\n\n## Final Verification')[0] + '\n'
-        _, out = run_cli('--tasklist', self._write(text), '--ticket-key', 'AW-1234')
-        self.assertEqual(json.dumps(out['data']),
-                         '{"ticket_key": "AW-1234", "warnings": [], "iterations": '
-                         + GOLDEN_ITERATIONS_0_14_0 + '}')
-
     def test_fix_sections_leave_the_iterations_array_untouched(self):
+        _, plain = run_cli('--tasklist', self._write(TASKLIST), '--ticket-key', 'AW-1234')
         code, out = run_cli('--tasklist', self._write(FIX_TASKLIST), '--ticket-key', 'AW-1234')
         self.assertEqual(code, 0)
-        self.assertEqual(json.dumps(out['data']['iterations']), GOLDEN_ITERATIONS_0_14_0)
-        self.assertEqual(list(out['data']), ['ticket_key', 'warnings', 'iterations', 'sections'])
+        self.assertEqual(out['data']['iterations'], plain['data']['iterations'])
         self.assertEqual([s['title'] for s in out['data']['sections']],
                          ['FV: Final Verification', 'CRF: Code Review Fixes'])
 
@@ -523,7 +332,7 @@ class TestCli(unittest.TestCase):
 
     def test_final_verification_with_no_iteration_is_malformed(self):
         # Every generated tasklist ends with `## Final Verification`, so a file
-        # carrying it and no iteration lost its iterations: mirroring its FV row
+        # carrying it and no task block lost its tasks: mirroring its FV row
         # alone would let `/artel:tasks list` read "drained" on an unstarted ticket.
         text = ('# Development Tasklist\n\n## Final Verification\n\n'
                 '- [ ] Run every command in `verify.commands` (config.md), in order\n')
@@ -532,9 +341,27 @@ class TestCli(unittest.TestCase):
         self.assertEqual(out['error']['kind'], 'tasklist_malformed')
         self.assertIn('## Final Verification', out['error']['message'])
 
+    def test_an_old_format_tasklist_is_refused(self):
+        # The old format -- an iteration heading and checkbox tasks -- is no
+        # longer read: its work would mirror as nothing.
+        old = '## Iteration 1: A\n\n### `lib/a.dart`\n- [ ] Do it\n'
+        code, out = run_cli('--tasklist', self._write(old), '--ticket-key', 'AW-1234')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'tasklist_malformed')
+        self.assertIn('## Iteration 1: A', out['error']['message'])
+        self.assertIn('old format', out['error']['message'])
+
+    def test_an_iteration_heading_alone_is_refused(self):
+        code, out = run_cli('--tasklist',
+                            self._write('## Phase 2: Wire it in\n\nNo tasks yet.\n'),
+                            '--ticket-key', 'AW-1234')
+        self.assertEqual((code, out['error']['kind']), (2, 'tasklist_malformed'))
+        self.assertIn('## Phase 2: Wire it in', out['error']['message'])
+
     def test_an_iteration_heading_that_does_not_parse_is_malformed(self):
-        # No colon, so ITERATION_RE misses it; the fix task beside it must not
-        # turn the file into a fixes-only tasklist that mirrors cleanly.
+        # No colon, so the heading is not a `## Iteration N:` one; the fix task
+        # beside it must not turn the file into a fixes-only tasklist that
+        # mirrors cleanly.
         text = ('## Iteration 1 - Scaffold\n\n### `lib/a.dart`\n- [ ] Create the adapter\n\n'
                 '## Code Review Fixes\n\n### review-r1\n- [ ] **Task 1: Guard it**\n')
         code, out = run_cli('--tasklist', self._write(text), '--ticket-key', 'AW-1234')
@@ -562,6 +389,15 @@ class TestCli(unittest.TestCase):
         self.assertEqual([s['title'] for s in out['data']['sections']],
                          ['FV: Final Verification'])
 
+    def test_check_refuses_an_old_format_tasklist(self):
+        # The plan review reads the task grammar; a file without it has nothing
+        # to review and is no longer silently skipped.
+        old = '## Iteration 1: A\n\n### `lib/a.dart`\n- [ ] Do it\n'
+        code, out = run_cli('--tasklist', self._write(old), '--ticket-key', 'AW-1234',
+                            '--check', '--requirements', 'absent')
+        self.assertEqual((code, out['error']['kind']), (2, 'tasklist_malformed'))
+        self.assertIn('old format', out['error']['message'])
+
     def test_missing_file_exits_2_tasklist_not_found(self):
         code, out = run_cli('--tasklist', '/nonexistent/tasklist.md',
                             '--ticket-key', 'AW-1234')
@@ -576,14 +412,6 @@ class TestCli(unittest.TestCase):
                             '--ticket-key', 'AW-1234')
         self.assertEqual(code, 2)
         self.assertEqual(out['error']['kind'], 'tasklist_malformed')
-
-    def test_collision_exits_2_and_names_the_titles(self):
-        text = ('## Iteration 1: Dupes\n\n### `lib/a.dart`\n'
-                '- [ ] Same task\n- [ ] Same task\n')
-        code, out = run_cli('--tasklist', self._write(text), '--ticket-key', 'AW-1234')
-        self.assertEqual(code, 2)
-        self.assertEqual(out['error']['kind'], 'title_collision')
-        self.assertIn('I1 · lib/a.dart · Same task', out['error']['message'])
 
     def test_missing_ticket_key_exits_2_invalid_argument(self):
         code, out = run_cli('--tasklist', self._write(TASKLIST))

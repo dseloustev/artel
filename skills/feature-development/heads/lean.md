@@ -45,9 +45,8 @@ and stop, in every mode.
    Then present a one-screen summary (tasks + any `[HITL: …]` tags + the check's findings,
    Critical and Important first, each as `<task> <severity> <rule>: <message>`) via
    `AskUserQuestion` — **Confirm** / **Adjust** (feedback via "Other"). This is the run's one
-   pause. There is no automatic fix round here: the person reads the findings and decides. An
-   old-format tasklist (`data.format` `legacy`) is still the work list: it has no findings to
-   show and no routes. An exit `2` from either command shows
+   pause. There is no automatic fix round here: the person reads the findings and decides.
+   An exit `2` from either command shows
    `plan check: not run (<error.kind>)` instead.
 2. **Otherwise** → `Skill: generate-tasklist` with `$0`, plus `--local` when this run was
    invoked with it. Its questions+approval round IS the mini-interview and the one pause — do
@@ -69,14 +68,14 @@ or Important plan-check finding still presents the confirmation, findings first:
 finding is a guardrail, not a pause preference.
 
 The check's outcome goes into the run-start journal entry (`SKILL.md` step 5). Branch 1:
-`plan check: <c> Critical, <i> Important, <m> Minor`, `plan check: skipped (old-format tasklist)`
-or `plan check: not run (<error.kind>)`. Branch 2: `plan check: run by generate-tasklist` — the
+`plan check: <c> Critical, <i> Important, <m> Minor` or `plan check: not run (<error.kind>)`.
+Branch 2: `plan check: run by generate-tasklist` — the
 skill checks its own draft and its written tasklist.
 
 ## Routes at the confirmation
 
-On a task-format tasklist (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16.1) branch 1's
-summary lists every task's effective route with its reasons, one line each — `2.3 full —
+Branch 1's summary lists every task's effective route with its reasons
+(`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16.1), one line each — `2.3 full —
 declared: money-movement path; floor: sensitive path (payments): src/payments/refund.py` —
 from a parser run over the work list (the tail's re-mirror command, without `task_create`),
 every task `full` when `review.perTask` is `true`. **Adjust** may change any route, down as well
@@ -84,7 +83,7 @@ as up: write each change into that task's `Route:` line as `<light|full> — set
 (kartoteka path: one `artifact_patch`) and list it in the run-start journal entry (`SKILL.md`
 step 5), naming any floor it lowered. On branch 2 the pause is `generate-tasklist`'s approval round, and
 a route change asked there reaches `tasklist-writer` like any other change; `SKILL.md` step 5
-announces the routes either way. An old-format tasklist shows no routes.
+announces the routes either way.
 
 ## Raised by the writer
 

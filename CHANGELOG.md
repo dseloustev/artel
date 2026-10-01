@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Removed
+
+- **The `/artel:dev` alias.** `skills/dev/` is gone; use `/artel:feature-development`
+  (add `--head=lean` where sizing would not pick it).
+- **Old-format tasklist readers.** A tasklist with no `### Task <N>.<m>:` block is no
+  longer read anywhere: `scripts/tasklist_tasks.py` exits 2 `tasklist_malformed` naming
+  the offending iteration heading, and `feature-development`, `implementer`,
+  `run-reviewer`, `sync-phases`, `tasklist`, `generate-tasklist`, `tasks` and the
+  implementer/reviewer agents carry no old-format path. Fixes-only tasklists and
+  `# Phase N:` extracts still mirror their fix sections.
+
+### Upgrading
+
+- A ticket on an old-format tasklist must be migrated to the task grammar
+  (task-grammar.md §4) before it is read again; no such ticket was in flight when this
+  shipped (AW-3088 was closed on 2026-10-01).
+
 ## [0.26.0] - 2026-10-01
 
 ### Added

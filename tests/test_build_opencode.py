@@ -405,6 +405,34 @@ class TestInstaller(unittest.TestCase):
         self.assertTrue(self.own_left)
 
 
+@unittest.skipUnless(shutil.which('bash'), 'the installer is a bash script')
+class TestInstallerVersionProbe(unittest.TestCase):
+    """The bridge is v2-only: installing on a v1 CLI must warn (and only warn)."""
+
+    def run_installer(self, version):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp).resolve()
+            bindir = home / 'bin'
+            bindir.mkdir()
+            fake = bindir / 'opencode'
+            fake.write_text('#!/bin/sh\necho "{}"\n'.format(version), encoding='utf-8')
+            fake.chmod(0o755)
+            env = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home / 'config'),
+                       PATH=str(bindir) + os.pathsep + os.environ.get('PATH', ''))
+            return subprocess.run(['bash', str(ROOT / 'scripts' / 'install-opencode.sh')],
+                                  capture_output=True, text=True, env=env)
+
+    def test_warns_on_a_v1_cli(self):
+        proc = self.run_installer('opencode v1.18.34')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn('OpenCode 2.x', proc.stderr)
+
+    def test_silent_on_a_v2_cli(self):
+        proc = self.run_installer('opencode v2.0.19')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn('OpenCode 2.x', proc.stderr)
+
+
 class TestOperatorDoc(unittest.TestCase):
     def test_the_doc_says_what_is_generated_and_where_pointers_land(self):
         doc = ' '.join((ROOT / 'docs' / 'opencode.md').read_text(encoding='utf-8').split())

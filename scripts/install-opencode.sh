@@ -62,6 +62,16 @@ if [ ! -f "$SRC/.claude-plugin/plugin.json" ] || [ ! -f "$SRC/opencode/plugin/ar
   exit 1
 fi
 
+# The bridge uses the OpenCode 2.x plugin API; v1 loads none of it. Warn, never block:
+# the artifacts are still valid for a v2 CLI elsewhere, and the CLI may not be on PATH.
+if command -v opencode >/dev/null 2>&1; then
+  oc_version="$(opencode --version 2>/dev/null || true)"
+  case "$oc_version" in
+    *" v2."* | v2.*) ;;
+    *) echo "artel: warning: the bridge plugin requires OpenCode 2.x; found '${oc_version:-unknown}'" >&2 ;;
+  esac
+fi
+
 echo "artel: installing from $SRC into $OC"
 mkdir -p "$OC/skills" "$OC/agents" "$OC/commands" "$OC/plugins"
 

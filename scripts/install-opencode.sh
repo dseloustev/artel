@@ -64,11 +64,13 @@ fi
 
 # The bridge uses the OpenCode 2.x plugin API; v1 loads none of it. Warn, never block:
 # the artifacts are still valid for a v2 CLI elsewhere, and the CLI may not be on PATH.
+# Parse the major out of any version spelling ("opencode v2.0.19", bare "2.0.19"); an
+# unknown version warns rather than staying silent.
 if command -v opencode >/dev/null 2>&1; then
   oc_version="$(opencode --version 2>/dev/null || true)"
-  case "$oc_version" in
-    *" v2."* | v2.*) ;;
-    *) echo "artel: warning: the bridge plugin requires OpenCode 2.x; found '${oc_version:-unknown}'" >&2 ;;
+  oc_major="$(printf '%s\n' "$oc_version" | grep -o '[0-9][0-9]*\.[0-9][0-9]*' | head -n1 | cut -d. -f1 || true)"
+  case "$oc_major" in
+    '' | 0 | 1) echo "artel: warning: the bridge plugin requires OpenCode 2.x; found '${oc_version:-unknown}'" >&2 ;;
   esac
 fi
 

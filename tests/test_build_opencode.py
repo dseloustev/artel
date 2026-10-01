@@ -432,6 +432,26 @@ class TestInstallerVersionProbe(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertNotIn('OpenCode 2.x', proc.stderr)
 
+    def test_silent_on_a_bare_v2_version(self):
+        proc = self.run_installer('2.0.19')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn('OpenCode 2.x', proc.stderr)
+
+    def test_warns_when_a_v1_version_mentions_v2(self):
+        proc = self.run_installer('opencode v1.18.34 (bridge v2.0)')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn('OpenCode 2.x', proc.stderr)
+
+    def test_warns_on_a_v0_cli(self):
+        proc = self.run_installer('opencode v0.9.1')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn('OpenCode 2.x', proc.stderr)
+
+    def test_warns_on_an_unparseable_version(self):
+        proc = self.run_installer('opencode (development build)')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn('OpenCode 2.x', proc.stderr)
+
 
 class TestOperatorDoc(unittest.TestCase):
     def test_the_doc_says_what_is_generated_and_where_pointers_land(self):

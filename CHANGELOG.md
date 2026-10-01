@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-01
+
 ### Removed
 
 - **The `/artel:dev` alias.** `skills/dev/` is gone; use `/artel:feature-development`

@@ -44,7 +44,7 @@ class TestGrammarContract(unittest.TestCase):
     def test_sections(self):
         for heading in ('## 1. The task block', '## 2. Field rules',
                         '## 3. What stays and what goes',
-                        '## 4. Format detection and the old format',
+                        '## 4. Format detection',
                         '## 5. IDs stay out of the product',
                         '## 6. Validation and the plan check',
                         '## 7. Rows, waves, readiness and route floors'):
@@ -98,9 +98,9 @@ class TestGrammarContract(unittest.TestCase):
                        ' floors'):
             self.assertIn(phrase, doc)
 
-    def test_old_format_and_ids(self):
+    def test_the_format_split_and_ids(self):
         doc = flat(self.doc)
-        self.assertIn('No writer of the old format remains', doc)
+        self.assertIn('A file with none is not a work list', doc)
         self.assertIn('never appear in code, tests, identifiers, comments or commit subjects',
                       doc)
         self.assertIn('The fix sections are outside this grammar.', doc)
@@ -745,8 +745,7 @@ class TestPromotionByDependency(unittest.TestCase):
         for phrase in ('**A task-format tasklist mirrors one row per task**',
                        '`I<N> · <N.M> · <task title>`',
                        '`ready` when the task is in `data.ready_now`',
-                       'never claimed ahead of its dependencies',
-                       'An old-format tasklist keeps one row per checkbox, mirrored at gate 4'):
+                       'never claimed ahead of its dependencies'):
             self.assertIn(phrase, mirror)
 
     def test_a_task_format_tasklist_is_first_mirrored_after_approval(self):
@@ -766,13 +765,12 @@ class TestPromotionByDependency(unittest.TestCase):
 
     def test_the_claim_loop_promotes_by_dependency(self):
         claim = _between(self.doc, '## 3. Claiming, reporting and promoting', '## 4.')
-        for phrase in ('promote (task format — rows titled "I<N> · <N.M> · …")',
+        for phrase in ('promote (rows titled "I<N> · <N.M> · …")',
                        'every data.ready_now task whose row is backlog → task_update(row, ready)',
-                       "(task format: the claimed block's heading carries \"[HITL:\"",
+                       "(the claimed block's heading carries \"[HITL:\"",
                        'work every step of the block, then tick them all',
-                       '**Promotion follows dependencies on a task-format tasklist.**',
-                       '`phase-<N>/tasks.md` on a phase-scoped run, where the ticks land first',
-                       'every "I<N+1> · " child: backlog → ready'):
+                       '**Promotion follows dependencies.**',
+                       '`phase-<N>/tasks.md` on a phase-scoped run, where the ticks land first'):
             self.assertIn(phrase, claim)
 
     def test_the_fallback_takes_ready_now(self):
@@ -782,9 +780,8 @@ class TestPromotionByDependency(unittest.TestCase):
 
     def test_the_repair_uses_ready_now(self):
         empty = _between(self.doc, '## 5. When the queue is empty', '## 6.')
-        self.assertIn('On a task-format tasklist the repair is the §3 promotion itself', empty)
+        self.assertIn('the repair is the §3 promotion itself', empty)
         self.assertIn('nothing is promotable', empty)
-        self.assertIn('promote every `I<N> · ` child of the lowest-numbered iteration', empty)
 
 
 class TestRoutes(unittest.TestCase):
@@ -882,8 +879,7 @@ class TestRoutes(unittest.TestCase):
         row = _between(flat(read('docs/config.md')), '| `review.perTask` |',
                        '| `review.forecast.threshold` |')
         for phrase in ('`true` raises every iteration task to the `full` route',
-                       'so `full` tasks are reviewed either way',
-                       'A tasklist written before 0.23.0 has no routes'):
+                       'so `full` tasks are reviewed either way'):
             self.assertIn(phrase, row)
         self.assertIn('every task on the `full` route', flat(read('skills/setup/SKILL.md')))
         reviewer = flat(read('skills/run-reviewer/SKILL.md'))
@@ -1042,10 +1038,9 @@ class TestWholeBranchReviewFixes(unittest.TestCase):
     def test_autonomous_run_leads_with_the_heading_form(self):
         section = flat(read('docs/autonomous-run.md')).split(
             '## 4. AFK / HITL task tags')[1].split('## 5.')[0]
-        self.assertLess(section.index('`### Task 2.3: <title> [HITL: <reason>]`'),
-                        section.index('`- [ ] [HITL: <reason>] <task text>`'))
+        self.assertIn('`### Task 2.3: <title> [HITL: <reason>]`', section)
         self.assertIn('a tag on a step is a grammar problem (`hitl-on-step`)', section)
-        self.assertIn('On an old-format tasklist the tag sits on the checkbox', section)
+        self.assertNotIn('sits on the checkbox', section)
 
     def test_a_red_post_write_check_gets_one_round_then_the_person(self):
         gen = flat(read('skills/generate-tasklist/SKILL.md'))

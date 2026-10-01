@@ -146,9 +146,7 @@ the pause's fold-back can renumber and retitle tasks, and rows are create-only, 
 at gate 4 would go stale. `tasklist` therefore mirrors nothing while the tasklist is
 task-format and the plan is not yet `PLAN_APPROVED`; the rows are created by the orchestrator's
 re-mirror before the first implementer dispatch of gate 5 (`tail.md`).
-`generate-tasklist` mirrors after its own approval round, as before. An old-format tasklist
-keeps one row per checkbox, mirrored at gate 4, with its first iteration's children `ready`
-and every other child `backlog`.
+`generate-tasklist` mirrors after its own approval round, as before.
 
 **The step is create-only and safe to re-run.** `task_create` is idempotent on
 `(ticket_key, title)` *and discards* a changed status or description, returning
@@ -179,23 +177,19 @@ source heading names the phase (§6), so two phases' fixes never share a title.
                 → first child of an iteration: task_update(parent, in_progress)
     guard     title contains "[HITL:" → task_update(task_id, blocked),
                 return `HITL: <reason>`, do not implement
-              (task format: the claimed block's heading carries "[HITL:" — the row's
+              (the claimed block's heading carries "[HITL:" — the row's
                 description has a "HITL:" line — and the guard covers every step)
     phase     claimed row belongs to another phase -> task_update(task_id, ready)
                 the one release that is not blocked; nothing was worked
-    work      implement; flip the checkbox in the tasklist in scope
+    work      implement; work every step of the block, then tick them all
+              and update the Progress Report in one write, in the tasklist in scope
               (tasklist.md, or phase-<N>/tasks.md on a phase-scoped run)
-              and update the Progress Report table, exactly as before
-              (task format: work every step of the block, then tick them all
-                and update the Progress Report in one write)
     report    task_update(task_id, status="done")
     promote   task_list(project=<project>, ticket_key=<TICKET_KEY>)
                 → any "I<N> · " sibling not done?
                 yes → stop here
                 no  → task_update(parent "I<N>: …", done)
-                      every "I<N+1> · " child: backlog → ready
-                no I<N+1> exists → checkbox work is complete; Final Verification
-    promote   (task format — rows titled "I<N> · <N.M> · …")
+    promote   (rows titled "I<N> · <N.M> · …")
                 re-run the parser over the tasklist in scope
                 every data.ready_now task whose row is backlog → task_update(row, ready)
                   (the row found by its title in task_list)
@@ -206,7 +200,7 @@ source heading names the phase (§6), so two phases' fixes never share a title.
                 never left in_progress: task_ready offers `ready` rows only,
                 so a held row wedges the iteration permanently
 
-**Promotion follows dependencies on a task-format tasklist.** `ready_now` is computed from
+**Promotion follows dependencies.** `ready_now` is computed from
 the ticks in the document, so the document stays the source of truth for readiness: the
 promotion needs no memory of what was promoted before, and a crash between the tick and the
 promotion is repaired by the next promotion or by §5's repair, which find the same set. The
@@ -322,11 +316,7 @@ keep it from draining; they are the fifth line, not a variant of the first four:
   drained by this line too: it has no iteration child left undone.
 - iteration children in `backlog` with none `ready` — a promotion did not happen, or an
   iteration was already complete when it was promoted into. Repair it rather than
-  reporting a stall: promote every `I<N> · ` child of the lowest-numbered
-  iteration that still has an unfinished child, then claim again. If every child
-  of that iteration is already `done`, promote the next one and repeat. If no
-  iteration has an unfinished child, there is nothing left to promote — take the
-  first bullet. On a task-format tasklist the repair is the §3 promotion itself: re-run the
+  reporting a stall: the repair is the §3 promotion itself — re-run the
   parser over the tasklist in scope, set every `data.ready_now` task whose row is `backlog`
   to `ready`, then claim again. `ready_now` empty while children stay `backlog` means every
   open task waits on one that is `blocked` or `in_progress`: nothing is promotable, so report

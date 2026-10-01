@@ -147,11 +147,10 @@ Tasklist writers (`task-planner`, `tasklist-writer` agents) tag tasks at generat
 - Untagged task ⇒ **AFK**: runs without any human interaction.
 - A `[HITL: <reason>]` tag ⇒ the orchestrator pauses **before starting** the task, sets
   `pause_reason: "hitl-task"`, asks the pre-declared question via `AskUserQuestion`, then resumes.
-  On a task-format tasklist the tag sits on the task's heading —
+  The tag sits on the task's heading —
   `### Task 2.3: <title> [HITL: <reason>]` ([task-grammar.md](task-grammar.md) §1) — and covers
   the whole task: one question before its first step, none between steps; a tag on a step is a
   grammar problem (`hitl-on-step`), because the route floor and the pause read only the heading.
-  On an old-format tasklist the tag sits on the checkbox: `- [ ] [HITL: <reason>] <task text>`.
 
 Mandatory HITL triggers:
 
@@ -462,9 +461,6 @@ On a task-format tasklist ([task-grammar.md](task-grammar.md) §4) each task has
   A route set at approval is final over floors 1–3; floor 4 still applies, because no one could
   see it at the pause.
 - **`review.perTask: true`** ([config.md](config.md)) raises every task to `full`.
-
-On an old-format tasklist there are no routes: `review.perTask: true` wraps every iteration-task
-dispatch in the procedure of §16.2 and `false` wraps none, exactly as before 0.23.0.
 
 **When the route is decided.** The implementer takes its own task — `task_ready` on the queue
 path, the first of `ready_now` on the fallback ([task-queue.md](task-queue.md) §3, §4) — so the

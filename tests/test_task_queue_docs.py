@@ -289,7 +289,6 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
         self.assertIn('still `backlog` because its iteration was already complete', empty)
         self.assertIn('is not a stall: mark it `done` and treat the queue as drained.',
                       empty)
-        self.assertIn('there is nothing left to promote — take the', empty)
 
 
 class TestFixRowsAreRecordedNeverOffered(unittest.TestCase):

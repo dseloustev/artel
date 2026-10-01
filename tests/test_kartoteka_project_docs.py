@@ -211,5 +211,18 @@ class TestTokenEnv(unittest.TestCase):
         self.assertIn('knowledge.tokenEnv', text)
 
 
+class TestNoDeletedParserSymbols(unittest.TestCase):
+    """The cleanup release deleted the old-format row builder `build_rows`; a live
+    doc that still names it points a reader at nothing."""
+
+    def test_no_live_file_names_the_deleted_row_builder(self):
+        offenders = [rel for rel in LIVE_FILES
+                     if re.search(r'\bbuild_rows\b', read(rel))]
+        self.assertEqual([], offenders, 'names the deleted `build_rows`')
+
+    def test_the_requirements_doc_names_the_current_builder(self):
+        self.assertIn('`build_task_rows`', read(REQUIREMENTS))
+
+
 if __name__ == '__main__':
     unittest.main()

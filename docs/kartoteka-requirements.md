@@ -96,8 +96,8 @@ in the order the planner wrote them.
 ordering parameter and no position column.
 
 **Why it half-suffices.** `format_task_list` (`../kartoteka/src/kartoteka/mcp_server.py:95`)
-does emit `#{task_id}`, and artel's own `build_rows`
-(`scripts/tasklist_tasks.py:123`) mirrors in document order precisely because "insertion order
+does emit `#{task_id}`, and artel's own `build_task_rows`
+(`scripts/tasklist_tasks.py`) mirrors in document order precisely because "insertion order
 IS queue order." So artel *can* sort by `task_id` client-side and recover plan order. That
 makes this non-fatal — but it puts a re-sort in the model's hands on every render, and a
 rendered work list whose order silently churns with activity is the kind of defect nobody

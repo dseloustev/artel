@@ -42,7 +42,7 @@ The plugin follows the standard Claude Code plugin layout. Skills become namespa
 
 | Layer | Contents | Source of truth ported from |
 |---|---|---|
-| Entry points | `feature-development` (full pipeline), `dev` (lean loop) | orchestrator skills |
+| Entry points | `feature-development` (one orchestrator; sizing picks the head) | orchestrator skills |
 | Stage skills | `analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `sync-phases`, `generate-idea`, `generate-vision`, `generate-tasklist`, `figma-analysis`, `inner-loop` (← `flutter-inner-loop`), `deep-review` (← `wallet-review`), `run-app`, `drive-app`, `change-digest`, `address-pr-comment` | orchestrator skills |
 | Ops & utility skills | `init-branch`, `merge-conflicts`, `add-automation`, `remove-automation`, `save-context`, `restore-context`, `issue-draft` (← `jira-issue-ru`), `agents-md-generator` | utility skills |
 | Agents | analyst, figma-analyst, researcher, planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, qa, validator, tech-writer | `.claude/agents/*.md` |

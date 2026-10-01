@@ -53,8 +53,7 @@ step 5 says for a resume, then run the tail (step 6), whose gates skip what is a
 not size, do not read a head file, and do not present an approval again. A `--head` flag on such
 a run changes nothing; answer it with the one line `--head ignored: the run is past its head.`
 — but only when `sizing.json` records a different head. A flag that agrees with the record, or
-a run with no `sizing.json`, gets no line: the one-release alias of this skill adds
-`--head=lean` to every call, resumes included.
+a run with no `sizing.json`, gets no line.
 A run armed before 0.25.0 has no `sizing.json` and needs none.
 
 Every other run — new, or interrupted inside a head — goes on to step 2.

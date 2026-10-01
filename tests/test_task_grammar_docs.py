@@ -921,7 +921,7 @@ class TestReadersAudit(unittest.TestCase):
         'docs/skills-reference.md', 'docs/source-inventory-workflow.md', 'docs/spec-storage.md',
         'docs/task-grammar.md', 'docs/task-queue.md', 'docs/ticket-parsing.md',
         'docs/workflow-guide.md', 'skills/address-pr-comment/SKILL.md',
-        'skills/change-digest/SKILL.md', 'skills/deep-review/SKILL.md', 'skills/dev/SKILL.md',
+        'skills/change-digest/SKILL.md', 'skills/deep-review/SKILL.md',
         'skills/feature-development/SKILL.md', 'skills/feature-development/heads/bug.md',
         'skills/feature-development/heads/full.md', 'skills/feature-development/heads/lean.md',
         'skills/feature-development/tail.md', 'skills/generate-tasklist/SKILL.md',

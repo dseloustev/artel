@@ -92,10 +92,6 @@ class TestQueueDoc(unittest.TestCase):
         self.assertIn('`feature-development` takes it on every head', text)
         self.assertIn('rows 2-4', text)
 
-    def test_dev_skill_still_carries_no_local_flag(self):
-        self.assertNotIn('--local',
-                         (ROOT / 'skills/dev/SKILL.md').read_text(encoding='utf-8'))
-
 
 class TestMirrorStep(unittest.TestCase):
     def test_every_producer_runs_the_mirror_step(self):
@@ -182,7 +178,6 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
         carriers = {rel for rel in (
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
-            'skills/dev/SKILL.md',
             'skills/feature-development/tail.md',
             'skills/run-reviewer/SKILL.md',
             'skills/deep-review/SKILL.md',

@@ -2,8 +2,8 @@
 
 *Status: draft v0.1 · 2026-08-01*
 
-Shared contract for the autonomous `feature-development` orchestrator (`/artel:dev` is its alias
-until 0.26.0) and the skills/agents it drives. Ticket-ID parsing, the spec-trail directory layout, and
+Shared contract for the autonomous `feature-development` orchestrator and the skills/agents it
+drives. Ticket-ID parsing, the spec-trail directory layout, and
 `.active_ticket` are defined in [ticket-parsing.md](ticket-parsing.md) — this document does not
 restate that grammar, only consumes its `<TICKET_ID>` / `<N>` tokens. Config keys referenced
 below are the ones [config.md](config.md) defines. Operator-facing narrative docs:

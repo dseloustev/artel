@@ -50,8 +50,7 @@ is considered, exactly as in `docs/knowledge-consultation.md` §1.
 it — `feature-development`, `analysis`, `researcher`, `deep-review` — and on the
 skills that write or keep rows on an orchestrator's behalf: `tasklist`, `generate-tasklist` and
 `run-reviewer`, and `skills/implementer/SKILL.md`, which receives it from its caller
-rather than from the user. `feature-development` takes it on every head, and its `/artel:dev`
-alias passes its arguments through, the flag included. An
+rather than from the user. `feature-development` takes it on every head. An
 orchestrator holding the flag passes it to each of those it invokes — to the
 implementer skill on every dispatch, fix rounds included — and the implementer skill sets
 the **Task queue:** field of the agent's dispatch to

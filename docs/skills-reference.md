@@ -119,23 +119,6 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   the PR gate close every run, and in `yolo` the PR is opened without asking. On three red-gate
   halts the escalation offers **Debug it here first** (autonomous-run.md §5).
 
-### dev
-
-- **Purpose:** Alias, for one release, of `/artel:feature-development --head=lean`. It goes away
-  in 0.26.0.
-- **Invocation:** `/artel:dev [ticket-id] or [ticket-id]-[phase] [description-file] [--mode=yolo|plan-gate|full-gates]`
-- **Reads:** nothing itself. It prints
-  `/artel:dev is now /artel:feature-development --head=lean and goes away in 0.26.0.` and
-  invokes [`feature-development`](#feature-development) with its arguments and `--head=lean`.
-- **Writes:** nothing itself; whatever the run writes is `feature-development`'s.
-- **Pauses:** as `feature-development` on the lean head — one work-list confirmation, the
-  guardrail pauses, and the PR gate.
-- **Notes:** a run started here is a `feature-development` run in every respect. What changed
-  for it in 0.25.0: the ticket is imported into `idea.md` first; the run ends with a PR
-  description and the PR gate, and in `yolo` it opens the PR unattended; it takes `--dry-run`
-  and `--local`; its work list, when it has to be written, comes from `generate-tasklist` in
-  the task grammar. A run armed before 0.25.0 resumes past its head through either command.
-
 ### setup
 
 - **Purpose:** One-time configuration interview that creates or revises `.artel/config.json` —

@@ -14,8 +14,8 @@
  *   tool.execute.before (shell | any non-mutation tool whose name carries a platform token:
  *                       bitbucket / github / jira)             -> hooks/vcs_guard.py
  *       deny -> throw
- *   tool.execute.after  (edit|write|patch) -> hooks/knowledge_mirror.py (side effect only)
- *                       THEN hooks/fast_verify_post_edit.py
+ *   tool.execute.after  (edit|write|patch) -> hooks/fast_verify_post_edit.py
+ *                       THEN hooks/knowledge_mirror.py (side effect only)
  *       findings -> appended to the tool result (v2 has no failure channel here)
  *   session.hook("context") -> hooks/using_artel.py — router + host status prepended to the
  *                       first user message in memory, on every model step
@@ -241,12 +241,12 @@ const setup: Plugin["setup"] = async (ctx) => {
 
   await ctx.tool.hook("execute.after", async (event) => {
     if (!hasArtelConfig(directory) || !MUTATION_TOOLS.has(event.tool)) return
-    // Mirror first, verify second (hooks.json's order): nothing throws anymore, so the
+    // Verify first, mirror second (hooks.json's order): nothing throws anymore, so the
     // ordering hack the v1 bridge needed is gone.
     for (const filePath of mutationPaths(event.tool, event.input)) {
       const payload = claudePayload(event.sessionID, directory, claudeToolName(event.tool), filePath)
-      await runHook("knowledge_mirror.py", payload, directory, 15_000)
       const result = await runHook("fast_verify_post_edit.py", payload, directory, 150_000)
+      await runHook("knowledge_mirror.py", payload, directory, 15_000)
       const findings = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
       if (findings) appendFindings(event, findings)
     }

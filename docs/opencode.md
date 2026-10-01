@@ -74,7 +74,7 @@ unchanged Python hooks (`hooks/README.md` documents their stdin/stdout contracts
 | `tool.hook("execute.before")` (edit/write/patch) | `sensitive_guard.py`, then `spec_store_guard.py` | deny → the tool call errors naming the guard (`hooks.json`'s order) |
 | `tool.hook("execute.before")` (read) | `spec_store_guard.py` | deny → the read errors with the `image fetch` hint (spec-storage.md §6) |
 | `tool.hook("execute.before")` (shell, platform-named tools) | `vcs_guard.py` | deny → the tool call errors |
-| `tool.hook("execute.after")` (edit/write/patch) | `knowledge_mirror.py`, then `fast_verify_post_edit.py` | findings are appended to the tool result (`hooks.json`'s order; v2 has no failure channel here) |
+| `tool.hook("execute.after")` (edit/write/patch) | `fast_verify_post_edit.py`, then `knowledge_mirror.py` | findings are appended to the tool result (`hooks.json`'s order; v2 has no failure channel here) |
 | `session.hook("context")` | `using_artel.py` | router + host status prepended to the first user message in memory |
 | `session.created` | `session_baseline.py` | baseline captured; child sessions skip |
 | `session.execution.succeeded` | `stop_gate.py`, `verify_stop_gate.py` | block → `ctx.session.prompt` re-prompts the run; pass-through warnings go to the console |

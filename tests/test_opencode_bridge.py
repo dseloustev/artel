@@ -105,6 +105,11 @@ class TestBridgeSource(unittest.TestCase):
         self.assertIn('result.content', self.source)
         self.assertIn('artel_findings', self.source)
 
+    def test_after_hook_order_matches_hooks_json(self):
+        # hooks.json runs fast_verify_post_edit.py before knowledge_mirror.py.
+        self.assertLess(self.source.index('runHook("fast_verify_post_edit.py"'),
+                        self.source.index('runHook("knowledge_mirror.py"'))
+
     def test_uses_console_not_a_client_logger(self):
         self.assertIn('console.warn', self.source)
 

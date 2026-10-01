@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-01
+
 ### Added
 
 - **OpenCode 2.x support.** The OpenCode bridge is rewritten for the v2 plugin API: guards deny

@@ -243,7 +243,7 @@ autonomous-run.md §2: `run_active: true`, `completed: false`, `pause_reason: nu
 a resumed run has no argument list left to read it from), `deviation_files: []` (§2), plus the
 six mode fields (§10), with
 `gates_confirmed: ["TASKLIST_READY"]`. Announce the effective mode and reasons, the same
-external actions, and on a task-format tasklist every task's effective route (§16.1). On resume,
+external actions, and every task's effective route (§16.1). On resume,
 re-derive the mode fields before re-arming — never trust stale ones, and carry `requested_local`
 and `deviation_files` forward unchanged: the first is the user's opt-out, the second the run's
 record of deviations, and neither is a classifier output. From here the run is
@@ -253,10 +253,10 @@ resolution, reasons, HITL tags count, every route changed at the approval, the s
 `- size: <size> (<head> head; decided by <decided_by>)`, from `sizing.json`; a run armed before
 0.25.0 has none and resumes without the line — and the plan check's outcome. When gate 4.2 ran,
 that is the plan review's outcome —
-`PLAN_REVIEWED: <k> round(s), <n> finding(s) left open` with the Minor ones listed, or
-`PLAN_REVIEWED: skipped (old-format tasklist)`. Otherwise it is the parser check's:
-`plan check: <c> Critical, <i> Important, <m> Minor`, `plan check: skipped (old-format tasklist)`
-or `plan check: not run (<error.kind>)` from the lean head's own check, and
+`PLAN_REVIEWED: <k> round(s), <n> finding(s) left open` with the Minor ones listed. Otherwise
+it is the parser check's:
+`plan check: <c> Critical, <i> Important, <m> Minor` or `plan check: not run (<error.kind>)`
+from the lean head's own check, and
 `plan check: run by generate-tasklist` when that skill wrote and checked the work list.
 
 Then run the **planning checkpoint** — read `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/tail.md`

@@ -408,9 +408,9 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
     def test_it_runs_on_the_grammar_before_approval_in_the_chatty_head(self):
         for phrase in ("while the plan's status is not `PLAN_APPROVED`",
                        'A resume after approval never re-runs it',
-                       '`PLAN_REVIEWED: skipped (old-format tasklist)`',
                        'never count toward `counters.correction_rounds`'):
             self.assertIn(phrase, self.gate)
+        self.assertNotIn('old-format tasklist', self.gate)
 
     def test_the_requirements_read_feeds_the_mechanical_check(self):
         for phrase in ('tasklist_tasks.py requirements --prd <prd-path>',
@@ -822,13 +822,11 @@ class TestRoutes(unittest.TestCase):
                        '`run-state.json` `deviation_files` (§2) as it stood when the task was dispatched'):
             self.assertIn(phrase, which)
 
-    def test_override_per_task_and_old_format(self):
+    def test_override_per_task(self):
         which = _between(self.routes, '### 16.1', '### 16.2')
         for phrase in ('`— set at approval`', 'down as well as up',
                        'A route set at approval is final over floors 1–3; floor 4 still applies',
                        '**`review.perTask: true`** ([config.md](config.md)) raises every task to `full`',
-                       'On an old-format tasklist there are no routes',
-                       'exactly as before 0.23.0',
                        'snapshots before **every** iteration-task dispatch'):
             self.assertIn(phrase, which)
 
@@ -869,9 +867,9 @@ class TestRoutes(unittest.TestCase):
                        'before every iteration-task dispatch',
                        'a `Route:` ending `— set at approval` is final over floors 1–3',
                        '`task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]])`',
-                       'a `light` task gets none',
-                       'On an old-format tasklist there are no routes'):
+                       'a `light` task gets none'):
             self.assertIn(phrase, gate)
+        self.assertNotIn('old-format tasklist', gate)
         pause = _between(flat(read('skills/feature-development/heads/full.md')),
                          '**Routes at the pause**')
         for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered',
@@ -884,9 +882,9 @@ class TestRoutes(unittest.TestCase):
     def test_lean_head_routes(self):
         lean = flat(read('skills/feature-development/heads/lean.md'))
         confirm = _between(lean, '## Routes at the confirmation', '## Raised by the writer')
-        for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered',
-                       'An old-format tasklist shows no routes.'):
+        for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered'):
             self.assertIn(phrase, confirm)
+        self.assertNotIn('old-format tasklist', confirm)
         fd = flat(read('skills/feature-development/SKILL.md'))
         arm = _between(fd, '### 5. Arm the run', '### 6.')
         self.assertIn("every task's effective route (§16.1)", arm)

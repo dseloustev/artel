@@ -401,13 +401,10 @@ class TestTail(unittest.TestCase):
                        'The step is create-only and idempotent'):
             self.assertIn(phrase, opening)
 
-    def test_the_gates_keep_the_old_format_path(self):
+    def test_the_gates_keep_no_old_format_path(self):
         gate = between(self.raw, '\n| 5 | `IMPLEMENT_STEP_OK`', '\n| 6 |')
-        for phrase in ('On an old-format tasklist there are no routes',
-                       '`review.perTask: true` (config.md; off by default) wraps every '
-                       'iteration-task dispatch in that procedure, as before',
-                       'Fix-list dispatches are never wrapped'):
-            self.assertIn(phrase, gate)
+        self.assertIn('Fix-list dispatches are never wrapped', gate)
+        self.assertNotIn('old-format tasklist', gate)
         self.assertIn('a `## Final Verification` section an older tasklist carries counts too',
                       between(self.tail, '## Completion gate', '## PR description'))
 
@@ -500,8 +497,7 @@ class TestFullHead(unittest.TestCase):
             self.assertIn(phrase, opening)
 
     def test_it_cites_arming_and_the_tail_by_their_new_homes(self):
-        for phrase in ('for the pause and `SKILL.md` step 5, and end the gate',
-                       '**Abort**. Proceed to `SKILL.md` step 5.',
+        for phrase in ('**Abort**. Proceed to `SKILL.md` step 5.',
                        'the run-start journal entry (`SKILL.md` step 5) lists every change',
                        "the command the tail's re-mirror runs, without `task_create`",
                        'see `tail.md`, `## Checkpoint commits & pushes`'):
@@ -517,8 +513,7 @@ class TestFullHead(unittest.TestCase):
                        'The HITL tags remain armed — yolo removes this pause only',
                        "a guardrail, not a pause preference — the lean head's confirmation makes "
                        'the same exception',
-                       '**Routes at the pause**', '`<light|full> — set at approval`',
-                       'An old-format tasklist shows no routes.'):
+                       '**Routes at the pause**', '`<light|full> — set at approval`'):
             self.assertIn(phrase, pause)
 
     def test_the_skill_keeps_gate_0_and_points_at_the_head(self):
@@ -615,7 +610,6 @@ class TestLayout(unittest.TestCase):
                        '`- size: <size> (<head> head; decided by <decided_by>)`',
                        "When gate 4.2 ran, that is the plan review's outcome",
                        '`plan check: <c> Critical, <i> Important, <m> Minor`',
-                       '`plan check: skipped (old-format tasklist)`',
                        '`plan check: not run (<error.kind>)`',
                        '`plan check: run by generate-tasklist`',
                        'subject `docs: <TICKET_ID> planning artifacts` when a plan exists, '
@@ -832,13 +826,14 @@ class TestLeanHead(unittest.TestCase):
                        '`plan check: not run (<error.kind>)`'):
             self.assertIn(phrase, self.ladder)
 
-    def test_an_old_format_tasklist_is_still_the_work_list(self):
-        self.assertIn('An old-format tasklist (`data.format` `legacy`) is still the work list: '
-                      'it has no findings to show and no routes.', self.ladder)
-        self.assertIn('`plan check: skipped (old-format tasklist)`', self.ladder)
-        self.assertIn('An old-format tasklist shows no routes.',
-                      between(self.head, '## Routes at the confirmation',
-                              '## Raised by the writer'))
+    def test_the_orchestrator_keeps_no_old_format_path(self):
+        # The cleanup release deleted every old-format reader path: the work list
+        # and the tasklist are task format, and a file without a task block is
+        # refused by the parser.
+        for name in ('SKILL.md', 'heads/full.md', 'heads/lean.md', 'tail.md'):
+            text = raw(FD + name)
+            for phrase in ('old-format tasklist', '`data.format` `legacy`'):
+                self.assertNotIn(phrase, text, name)
 
     def test_the_confirmation_says_what_it_authorises(self):
         for phrase in ('The confirmed work list is the deviation anchor.',
@@ -1419,21 +1414,6 @@ class TestReaders(unittest.TestCase):
         # The 0.23.0 rule the paragraph carries is still stated.
         self.assertIn('It also adds every path the line names to `run-state.json` '
                       '`deviation_files`', doc)
-
-    def test_task_grammar_keeps_every_old_format_reader(self):
-        section = between(flat('docs/task-grammar.md'),
-                          '## 4. Format detection and the old format', '## 5.')
-        # Detection and the old format's behaviour are untouched: no reader path is deleted.
-        for kept in ('a `### Task N.M:` heading anywhere makes the file a task-format tasklist',
-                     'A file with none is the **old format**',
-                     'keeps that behaviour everywhere, so a ticket already in flight finishes '
-                     'the way it started'):
-            self.assertIn(kept, section)
-        # Only the writers are gone.
-        self.assertIn('No writer of the old format remains', section)
-        self.assertIn('Every reader keeps its old-format path until the cleanup release, 0.26.0',
-                      section)
-        self.assertNotIn('mini-interview', section)
 
     def test_spec_storage_sweep_points(self):
         doc = flat('docs/spec-storage.md')

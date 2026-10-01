@@ -166,5 +166,7 @@ The host moves to the OpenCode 2.x plugin API; v1 is dropped. Design:
 - [x] Generator: v2 glossary + `metadata.opencode/autoinvoke` mapping.
 - [x] Installer version probe; `tests/test_opencode_bridge.py`.
 - [x] Docs: `docs/opencode.md`, README, design decision log.
-- [ ] E2E smoke on OpenCode 2.0.x (Task 6).
+- [x] E2E smoke on OpenCode 2.0.x (2026-10-01: plugin load, router, baseline, sensitive
+      guard, fast-verify findings, stop-gate hooks, autoinvoke; the live re-prompt is cut off
+      by headless mode, as documented).
 - [ ] Release.

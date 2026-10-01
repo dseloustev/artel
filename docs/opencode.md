@@ -132,6 +132,12 @@ shows one re-prompt whose continuation the CLI may cut off. Use `--continue` fol
 or the TUI, to watch the gate's full block/cap cycle. The gates' pass-through warnings (cap
 reached, verify environment error) go to the console either way.
 
+One more: on a freshly started server (for example `opencode run --standalone`, or the first
+run against a just-booted service), `session.created` can fire before the bridge's event
+subscription is live, so that first session gets no baseline — the verify stop gate then
+fails open for it (it records the current findings as pre-existing). The long-lived service
+and the TUI load plugins before any session and capture it.
+
 ## Verifying an install
 
 The E2E smoke this port was verified with, distilled to a maintainer checklist.

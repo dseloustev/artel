@@ -203,7 +203,8 @@ move to the decision log.
   `data.waves`, after six shared-state collisions are fixed: the `NNN-` report counter, one actor
   name, the whole-tree review snapshot, every task patching one tasklist, the shared
   `implementation-notes.md`, and whole-tree codegen.
-- **The 0.26.0 cleanup release.** Two deletions, neither planned yet: the `/artel:dev` alias
+- **The dev-alias cleanup release** (planned as 0.26.0, which the OpenCode v2 host took —
+  decision log, 2026-10-01). Two deletions, neither planned yet: the `/artel:dev` alias
   (`skills/dev/`), and the old-format tasklist reader paths — a tasklist with no `### Task N.M:`
   heading still gets one row per checkbox, promotion by iteration, `review.perTask` as its only
   per-task review and no plan review, in every reader. No writer of that format remains since
@@ -1149,3 +1150,10 @@ move to the decision log.
   (host-agnostic). Rejected: a dual v1/v2 export; runtime skill/agent/command transforms
   (parked as a follow-up). Design: `docs/superpowers/specs/2026-10-01-opencode-v2-design.md`
   (local).
+- **2026-10-01 — The cleanup release gives its number to OpenCode v2.** The 2026-09-30
+  decision "readers go in 0.26.0" named the version that shipped today as the OpenCode v2
+  host instead, so the dev-alias/old-format-reader cleanup is unnumbered until its
+  precondition clears — AW-3088, armed 2026-09-28 on an old-format tasklist, is still in
+  flight. The 2026-09-30 entry stands as the record of what was decided then; the references
+  that named 0.26.0 for the cleanup (porting-plan Phase 4, the Open follow-ups entry) now
+  point here.

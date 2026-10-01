@@ -1760,7 +1760,7 @@ class TestRelease(unittest.TestCase):
     def test_the_open_follow_ups(self):
         follow_ups = between(flat('docs/design.md'), '## Open follow-ups', '## Decision log')
         for phrase in ('**The orchestrator seat**', '`skills/feature-development/tail.md`',
-                       'that file is the unit to move', '**The 0.26.0 cleanup release.**',
+                       'that file is the unit to move', '**The dev-alias cleanup release**',
                        'the `/artel:dev` alias',
                        'no ticket in flight on an old-format tasklist',
                        '**Sub-project 2c: parallel seats.**'):
@@ -1773,7 +1773,7 @@ class TestRelease(unittest.TestCase):
     def test_the_porting_plan(self):
         plan = flat('docs/porting-plan.md')
         self.assertIn('- [x] One orchestrator (0.25.0)', plan)
-        self.assertIn('- [ ] Cleanup release (0.26.0)', plan)
+        self.assertIn('- [ ] Cleanup release: delete the `/artel:dev` alias', plan)
         self.assertIn('- [x] Port `dev` (lean loop', plan)   # the port's own record stays
 
 

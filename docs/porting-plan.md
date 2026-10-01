@@ -80,8 +80,9 @@ The rules everything else obeys, plus the config mechanism they will reference.
       one file per head (`heads/full.md`, `heads/lean.md`, `heads/bug.md`) and one `tail.md`;
       sizing picks the head, and `/artel:dev` stays as an alias for one release (design.md
       decision log, 2026-09-30).
-- [ ] Cleanup release (0.26.0): delete the `/artel:dev` alias and the old-format tasklist
-      reader paths, once no old-format ticket is in flight (design.md, Open follow-ups).
+- [ ] Cleanup release: delete the `/artel:dev` alias and the old-format tasklist reader
+      paths, once no old-format ticket is in flight (design.md, Open follow-ups). Planned as
+      0.26.0; that number went to the OpenCode v2 host instead (decision log, 2026-10-01).
 
 ## Phase 5 — hooks and gates
 
@@ -169,4 +170,4 @@ The host moves to the OpenCode 2.x plugin API; v1 is dropped. Design:
 - [x] E2E smoke on OpenCode 2.0.x (2026-10-01: plugin load, router, baseline, sensitive
       guard, fast-verify findings, stop-gate hooks, autoinvoke; the live re-prompt is cut off
       by headless mode, as documented).
-- [ ] Release.
+- [x] Release. Shipped as `0.26.0`, tagged 2026-10-01.

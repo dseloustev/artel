@@ -26,42 +26,53 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 SKILL_GLOSSARY = """
 <OPENCODE-HOST-NOTES>
-This is the OpenCode build of artel. The body below is written in artel's Claude Code
+This is the OpenCode 2.x build of artel. The body below is written in artel's Claude Code
 dialect; this glossary translates it. Apply it throughout:
 
 - `Skill: <name>` or "invoke the `<name>` skill" — call the `skill` tool with `artel-<name>`
   and follow it.
 - A `/artel:<name>` command — the `artel-<name>` skill (TUI: `/artel-<name>`); those
   references are already rewritten below.
-- The `Agent` tool with `subagent_type: "<name>"` — the `task` tool with the `artel-<name>`
+- The `Agent` tool with `subagent_type: "<name>"` — the `subagent` tool with the `artel-<name>`
   agent.
-- `SendMessage` to an agent id — dispatch a fresh `task` to the same `artel-<name>` agent
+- `SendMessage` to an agent id — dispatch a fresh `subagent` to the same `artel-<name>` agent
   with the message as its prompt. OpenCode has no resume-by-id: the agent re-reads its
   context files, which are its state.
 - `AskUserQuestion` — the `question` tool. It has no `preview` field: when an option carries
   a `preview`, put that sketch into the question text as a fenced block, under the option's
   label.
+- `EnterPlanMode` / "plan mode" — OpenCode has no plan-mode tool. Present the plan in the
+  conversation and wait for the user's approval; the host's built-in `plan` agent is the
+  user's to switch to, not yours.
 - `EnterWorktree` / `ExitWorktree` — not available on OpenCode; follow the skill's
   **OpenCode:** instruction at that step instead.
 - `$0`, `$1`, ..., `$ARGUMENTS` — the arguments this skill was invoked with (from the
   `/artel-<name>` command or the caller's request).
-- `CLAUDE.md` — the host project's conventions doc (on OpenCode usually `AGENTS.md`).
+- `CLAUDE.md` — the host project's conventions doc (on OpenCode that is `AGENTS.md`; OpenCode
+  reads no `CLAUDE.md`).
+- `/init` — refresh the host project's conventions doc by loading the
+  `artel-agents-md-generator` skill.
+- Tool names in the body (`Read`, `Edit`, `Write`, `Grep`, `Bash`) are Claude Code's; on
+  OpenCode 2.x they are `read`, `edit`, `write`, `grep`, `shell`.
 - MCP tool names (`mcp__tracker__*`, `search_knowledge`, ...) — this session's MCP tools,
-  resolved per `.artel/config.json` exactly as the body says.
+  resolved per `.artel/config.json` exactly as the body says (OpenCode 2.x configures
+  servers under `mcp.servers`).
 </OPENCODE-HOST-NOTES>
 """
 
 AGENT_GLOSSARY = """
 <OPENCODE-HOST-NOTES>
-OpenCode build of artel. The body below is written in artel's Claude Code dialect;
+OpenCode 2.x build of artel. The body below is written in artel's Claude Code dialect;
 glossary:
 
-- The `Agent` tool / `subagent_type` — the `task` tool (artel agents are named
+- The `Agent` tool / `subagent_type` — the `subagent` tool (artel agents are named
   `artel-<name>`).
-- `SendMessage` — a fresh `task` dispatch to the same agent; your context files are your
+- `SendMessage` — a fresh `subagent` dispatch to the same agent; your context files are your
   state, re-read them.
 - `AskUserQuestion` — the `question` tool (you never prompt the user directly anyway).
-- `CLAUDE.md` — the host project's conventions doc (on OpenCode usually `AGENTS.md`).
+- `CLAUDE.md` — the host project's conventions doc (on OpenCode that is `AGENTS.md`; OpenCode
+  reads no `CLAUDE.md`).
+- Tool names (`Read`, `Edit`, `Grep`, `Bash`) — `read`, `edit`, `grep`, `shell`.
 </OPENCODE-HOST-NOTES>
 """
 

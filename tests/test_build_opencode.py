@@ -161,6 +161,11 @@ class TestAgentBuild(BuildBase):
     def test_build_reports_agent_count(self):
         self.assertIn('{} agents'.format(len(source_agents())), self.proc.stdout)
 
+    def test_agent_glossary_names_the_subagent_tool(self):
+        text = (self.out / 'agents' / 'artel-implementer.md').read_text(encoding='utf-8')
+        self.assertIn('the `subagent` tool', text)
+        self.assertNotIn('the `task` tool', text)
+
 
 class TestDeterminism(BuildBase):
     def test_rebuild_is_byte_identical(self):
@@ -283,13 +288,31 @@ class TestCompanionFiles(BuildBase):
 
 
 class TestGlossary(BuildBase):
+    def glossary_of(self, skill):
+        text = (self.out / 'skills' / skill / 'SKILL.md').read_text(encoding='utf-8')
+        return ' '.join(text[text.index(GLOSSARY_MARKER):
+                             text.index('</OPENCODE-HOST-NOTES>')].split())
+
     def test_a_preview_becomes_a_fenced_block_in_the_question(self):
-        text = (self.out / 'skills' / 'artel-analysis' / 'SKILL.md').read_text(encoding='utf-8')
-        glossary = ' '.join(text[text.index(GLOSSARY_MARKER):
-                                 text.index('</OPENCODE-HOST-NOTES>')].split())
+        glossary = self.glossary_of('artel-analysis')
         self.assertIn('`AskUserQuestion` — the `question` tool. It has no `preview` field: when '
                       'an option carries a `preview`, put that sketch into the question text as a '
                       "fenced block, under the option's label.", glossary)
+
+    def test_glossary_names_the_v2_subagent_tool(self):
+        glossary = self.glossary_of('artel-analysis')
+        self.assertIn('the `subagent` tool with the `artel-<name>` agent', glossary)
+        self.assertNotIn('the `task` tool', glossary)
+
+    def test_glossary_maps_plan_mode_and_init(self):
+        glossary = self.glossary_of('artel-merge-conflicts')
+        self.assertIn('`EnterPlanMode` / "plan mode" — OpenCode has no plan-mode tool', glossary)
+        self.assertIn("`/init` — refresh the host project's conventions doc", glossary)
+
+    def test_glossary_names_agents_md_and_v2_tool_names(self):
+        glossary = self.glossary_of('artel-implementer')
+        self.assertIn('OpenCode reads no `CLAUDE.md`', glossary)
+        self.assertIn('`read`, `edit`, `write`, `grep`, `shell`', glossary)
 
 
 @unittest.skipUnless(shutil.which('bash'), 'the installer is a bash script')

@@ -141,7 +141,7 @@ class TestFormatDetection(unittest.TestCase):
     def test_a_task_heading_makes_the_task_format(self):
         self.assertTrue(task_grammar.is_task_format(TASKS))
 
-    def test_a_tasklist_without_task_headings_is_the_old_format(self):
+    def test_a_tasklist_without_task_headings_is_not_task_format(self):
         old = '## Iteration 1: A\n\n### `lib/a.dart`\n- [ ] Do it\n'
         self.assertFalse(task_grammar.is_task_format(old))
 
@@ -786,13 +786,12 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn('has no `## Requirements`', out['data']['findings'][0]['message'])
 
-    def test_check_on_an_old_format_tasklist_has_nothing_to_review(self):
+    def test_check_on_an_old_format_tasklist_is_refused(self):
         old = '## Iteration 1: A\n\n### `lib/a.dart`\n- [ ] Do it\n'
         code, out = run_cli('--tasklist', self.write(old), '--ticket-key', 'AW-9',
                             '--check', '--requirements', 'absent')
-        self.assertEqual(code, 0)
-        self.assertEqual(out['data']['format'], 'legacy')
-        self.assertEqual(out['data']['findings'], [])
+        self.assertEqual((code, out['error']['kind']), (2, 'tasklist_malformed'))
+        self.assertIn('old format', out['error']['message'])
 
     def test_check_needs_requirements_and_requirements_needs_check(self):
         code, out = run_cli('--tasklist', self.write(TASKS), '--ticket-key', 'AW-9', '--check')

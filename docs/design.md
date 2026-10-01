@@ -203,13 +203,6 @@ move to the decision log.
   `data.waves`, after six shared-state collisions are fixed: the `NNN-` report counter, one actor
   name, the whole-tree review snapshot, every task patching one tasklist, the shared
   `implementation-notes.md`, and whole-tree codegen.
-- **The dev-alias cleanup release** (planned as 0.26.0, which the OpenCode v2 host took —
-  decision log, 2026-10-01). Two deletions, neither planned yet: the `/artel:dev` alias
-  (`skills/dev/`), and the old-format tasklist reader paths — a tasklist with no `### Task N.M:`
-  heading still gets one row per checkbox, promotion by iteration, `review.perTask` as its only
-  per-task review and no plan review, in every reader. No writer of that format remains since
-  0.25.0. Precondition: no ticket in flight on an old-format tasklist (one is known, armed
-  2026-09-28 — decision log, 2026-09-30).
 - **Follow-up work on a finished ticket.** A lean run on a ticket whose work list has no open
   task stops before arming and says so (0.25.0, `skills/feature-development/heads/lean.md`):
   `generate-tasklist` skips a tasklist that exists, and before the merge such a request was
@@ -1157,3 +1150,13 @@ move to the decision log.
   flight. The 2026-09-30 entry stands as the record of what was decided then; the references
   that named 0.26.0 for the cleanup (porting-plan Phase 4, the Open follow-ups entry) now
   point here.
+- **2026-10-01 — The cleanup release ships as 0.27.0.** AW-3088 was closed by `user-abort` on
+  2026-10-01 — its phase-7 work is committed and pushed as `bf5beda24`, and the RUNTIME_OK,
+  DOCS_UPDATED, sync-phases, checkpoint, completion, pr-description and PR gates did not run —
+  so no ticket remains in flight on an old-format tasklist. Both deletions landed: the
+  `/artel:dev` alias (`skills/dev/`) and the old-format tasklist reader paths. A file with no
+  `### Task N.M:` block is mirrored only when it is a fixes-only tasklist or a `# Phase N:`
+  extract (its fix sections alone); anything else — an iteration heading, a `## Final
+  Verification` with no task blocks, an empty file — is refused as `tasklist_malformed`.
+  Rejected: keeping the old format for a converter; deleting the readers before the
+  precondition cleared (the 2026-09-30 entry).

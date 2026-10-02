@@ -440,8 +440,7 @@ def route_main(argv, elapsed):
     if data is None:
         data = {'task': None, 'title': None, 'route_declared': None,
                 'route_effective': None, 'route_reasons': [], 'model': None}
-    else:
-        data = {'ticket_key': ticket_key, 'format': 'tasks', **data}
+    data = {'ticket_key': ticket_key, 'format': 'tasks', **data}
     print(envelope(True, elapsed(), data=data, verb='tasklist-route'))
     return 0
 
@@ -456,7 +455,13 @@ def read_per_task(repo, fail):
     except (OSError, ValueError):
         fail('invalid_config', 'unreadable .artel/config.json: {}'.format(path))
         return None
-    review = config.get('review') if isinstance(config, dict) else None
+    if not isinstance(config, dict):
+        fail('invalid_config', 'the config root is not an object: {!r}'.format(config))
+        return None
+    review = config.get('review')
+    if review is not None and not isinstance(review, dict):
+        fail('invalid_config', 'review is not an object: {!r}'.format(review))
+        return None
     value = (review or {}).get('perTask', False)
     if not isinstance(value, bool):
         fail('invalid_config', 'review.perTask is not a boolean: {!r}'.format(value))

@@ -937,6 +937,8 @@ class TestCli(unittest.TestCase):
         code, out = run_cli('route', '--tasklist', self.write(text), '--ticket-key', 'AW-9',
                             '--repo', self.repo.name, '--next')
         self.assertEqual(code, 0)
+        self.assertEqual(out['data']['ticket_key'], 'AW-9')
+        self.assertEqual(out['data']['format'], 'tasks')
         self.assertIsNone(out['data']['task'])
         self.assertIsNone(out['data']['model'])
         self.assertEqual(out['data']['route_reasons'], [])
@@ -969,3 +971,21 @@ class TestCli(unittest.TestCase):
                             '--repo', self.repo.name, '--next')
         self.assertEqual(code, 2)
         self.assertEqual(out['error']['kind'], 'invalid_run_state')
+
+    def test_route_a_non_boolean_review_per_task_exits_2(self):
+        artel = Path(self.repo.name) / '.artel'
+        artel.mkdir()
+        (artel / 'config.json').write_text('{"review": {"perTask": "yes"}}', encoding='utf-8')
+        code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--next')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_config')
+
+    def test_route_a_non_object_review_exits_2(self):
+        artel = Path(self.repo.name) / '.artel'
+        artel.mkdir()
+        (artel / 'config.json').write_text('{"review": true}', encoding='utf-8')
+        code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--next')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_config')

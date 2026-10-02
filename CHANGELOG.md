@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-02
+
 ### Added
 
 - **The orchestrator seat, opt-in.** With `seat.enabled: true`, an armed run's post-approval

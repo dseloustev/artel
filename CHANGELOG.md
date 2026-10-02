@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-10-02
+
+### Changed
+
+- **OpenCode's MCP tool naming is documented, and the VCS guard's reach there confirmed.** An
+  OpenCode MCP tool arrives as `<server>_<tool>` — one underscore, both halves sanitized, no
+  `mcp__` prefix — so `vcs_guard.py`'s `bitbucket`/`github`/`jira` token match holds whenever
+  the server or tool name carries the token.
+
 ## [0.28.0] - 2026-10-02
 
 ### Added

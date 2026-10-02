@@ -621,10 +621,8 @@ class TestLayout(unittest.TestCase):
 
     def test_the_tail_is_the_last_step(self):
         step = between(self.skill, '### 6. The tail', '## Important')
-        for phrase in ('Run `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/tail.md` from '
-                       '`## Phase traversal` to its final report',
-                       'holds every `pause_reason` bracket after the head',
-                       'A resumed armed run enters here'):
+        for phrase in ('The tail — `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/tail.md`',
+                       'Agent(artel:seat', 'seat: unavailable'):
             self.assertIn(phrase, step)
 
     def test_the_rules(self):
@@ -1189,9 +1187,10 @@ class TestRunContract(unittest.TestCase):
 
     def test_section_17_and_its_five_parts(self):
         headings = [line for line in self.raw.split('\n') if line.startswith('#')]
-        self.assertEqual(headings[-6:], ['## 17. Sizing and heads', '### 17.1 The four sizes',
-                                         '### 17.2 Order of decision', '### 17.3 sizing.json',
-                                         '### 17.4 The ratchet', '### 17.5 The spike outcome'])
+        self.assertEqual(headings[-6:], ['### 17.3 sizing.json', '### 17.4 The ratchet',
+                                         '### 17.5 The spike outcome',
+                                         '## 18. The orchestrator seat', '### 18.1 Returns',
+                                         '### 18.2 The pause relay'])
         self.assertIn('(`../skills/feature-development/SKILL.md`, step 3)', self.sizing)
         self.assertIn('never a pause, and no agent is dispatched', self.sizing)
 

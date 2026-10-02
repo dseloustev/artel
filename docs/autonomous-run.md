@@ -212,11 +212,11 @@ the option: `MAX_DEBUG_HERE_ATTEMPTS = 1`, one attempt per halt. The procedure i
 **Step-up rounds.** A fix round that follows a failed one runs one tier up, on `fable`: the
 review loop's fix round whose findings come from a `review.md` with `**Review round:**` 2 or
 more, and a checkpoint's second `## Verify Fixes` round. The orchestrator passes the
-`implementer` skill `--model fable`; every other implementer dispatch runs on the agent's
-frontmatter `opus`. Rounds that exist once — the per-task review's fix round, the runtime retry,
-review fix round 1 — keep the default, and a stepped-up round counts toward
-`MAX_TOTAL_CORRECTION_ROUNDS` like any other. OpenCode ignores the per-dispatch model
-([opencode.md](opencode.md)).
+`implementer` skill `--model fable`. A fix list's first round runs on `opus`, whatever the
+task's route — a fix list is run-level correction, not a task dispatch. Rounds that exist once —
+the per-task review's fix round, the runtime retry, review fix round 1 — keep the default, and a
+stepped-up round counts toward `MAX_TOTAL_CORRECTION_ROUNDS` like any other. OpenCode ignores
+the per-dispatch model ([opencode.md](opencode.md)).
 
 Environment errors (toolchain/dependency mismatches, subprocess failures, missing tools) are **never**
 loop findings — immediate stop-and-ask pointing at setup.
@@ -472,11 +472,11 @@ its own), floor 4 and `review.perTask`. A `light` task's snapshot is never used.
 
 One journal line per dispatched task (§11), in this form:
 
-    task 2.3: route full (declared full; floor: sensitive path (payments): lib/ramps/ramps_bloc.dart)
+    task 2.3: route full (declared full; floor: sensitive path (payments): lib/ramps/ramps_bloc.dart); model opus
 
-— `task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]])`, the reasons
-the row's `route_reasons`, plus `earlier deviation: <path>` for floor 4 and `review.perTask` when
-the key raised it.
+— `task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]]); model <value>`,
+the reasons the row's `route_reasons`, plus `earlier deviation: <path>` for floor 4 and
+`review.perTask` when the key raised it.
 
 ### 16.2 What a route runs
 

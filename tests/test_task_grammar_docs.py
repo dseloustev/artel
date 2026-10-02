@@ -816,9 +816,9 @@ class TestRoutes(unittest.TestCase):
 
     def test_the_journal_line(self):
         for phrase in ('task 2.3: route full (declared full; floor: sensitive path (payments): '
-                       'lib/ramps/ramps_bloc.dart)',
+                       'lib/ramps/ramps_bloc.dart); model opus',
                        '`task <N.M>: route <effective> (declared <route>[; floor: <reason>[, '
-                       '<reason>…]])`',
+                       '<reason>…]]); model <value>`',
                        '`earlier deviation: <path>`'):
             self.assertIn(phrase, self.routes)
 
@@ -850,7 +850,7 @@ class TestRoutes(unittest.TestCase):
                        '**Routes** (autonomous-run.md §16)',
                        'before every iteration-task dispatch',
                        'a `Route:` ending `— set at approval` is final over floors 1–3',
-                       '`task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]])`',
+                       '`task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]]); model <value>`',
                        'a `light` task gets none'):
             self.assertIn(phrase, gate)
         self.assertNotIn('old-format tasklist', gate)

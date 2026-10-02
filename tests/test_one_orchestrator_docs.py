@@ -436,8 +436,8 @@ class TestTail(unittest.TestCase):
                        '`docs: <TICKET_ID> planning artifacts` when a plan exists, '
                        '`docs: <TICKET_ID> work list` otherwise',
                        '--author artel:feature-development',
-                       'plus `--local` when the run holds it, plus `--model fable` on the '
-                       'second round'):
+                       'plus `--local` when the run holds it, naming `## Verify Fixes`, plus '
+                       '`--model fable` on the second round'):
             self.assertIn(phrase, procedure)
         self.assertNotIn('artel:<skill>', self.raw)
 

@@ -77,9 +77,13 @@ class TestOrchestrators(unittest.TestCase):
         self.assertEqual(tail.count('--model fable'), 2)
         self.assertIn('plus `--model fable` on the second round', tail)
 
-    def test_the_route_journal_line_carries_no_model(self):
-        for rel in (TAIL,):
-            self.assertNotIn('; model <value>', read(rel))
+    def test_the_route_journal_line_carries_the_model(self):
+        self.assertIn('; model <value>', read(TAIL))
+
+    def test_the_fix_sections_are_named(self):
+        tail = read(TAIL)
+        self.assertIn('the invocation names `## Runtime Fixes`', flat(tail))
+        self.assertIn('naming `## Verify Fixes`', flat(tail))
 
     def test_step_up_rounds_are_documented(self):
         caps = between(flat(read('docs/autonomous-run.md')), '## 5. Capped loops', '## 6.')
@@ -87,7 +91,7 @@ class TestOrchestrators(unittest.TestCase):
                        'up, on `fable`',
                        '`**Review round:**` 2 or more',
                        "a checkpoint's second `## Verify Fixes` round",
-                       "every other implementer dispatch runs on the agent's frontmatter `opus`",
+                       "A fix list's first round runs on `opus`, whatever the task's route",
                        'counts toward `MAX_TOTAL_CORRECTION_ROUNDS`'):
             self.assertIn(phrase, caps)
 

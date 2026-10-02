@@ -122,6 +122,11 @@ orchestrator adds each path the completion's `Deviations:` line names
 it, so a deviation in phase 1 still raises a phase-3 task on the same file to `full` (§16,
 floor 4). A run armed before 0.23.0 has no such key; read it as `[]`.
 
+`pause-request.json` sits beside `run-state.json` only while a seated run waits on a human
+(§18.2): `{reason, question, options, context}`, written by the seat with the question worded
+exactly as the inline tail words it, deleted when the pause clears. Existence **and**
+`pause_reason != null` together mean "waiting on a human"; either alone is stale and ignored.
+
 ## 3. Question collection — `open-questions.md`
 
 Path: `.artel/run/<TICKET_ID>/open-questions.md`. Between the interview and the approval pause,
@@ -257,6 +262,9 @@ session from ending while
 `run_active` is true, `completed` is false, and `pause_reason` is null. Waiting for a human (any
 `pause_reason`) is a legitimate stop. The hook fails open on infra errors and disarms itself past
 the wall-clock budget (§5).
+Under a seated run (§18) the same file rule holds across two layers: the seat sets
+`pause_reason` before returning its pause; the main thread clears it on the answer. A stop in
+the window between is a legitimate stop.
 
 ## 9. Worker-skill invocation (skip-if-exists)
 
@@ -679,3 +687,29 @@ sizing. Sized `spike` again, it prints
     Already answered: <path to spike.md>. To build on it, re-run with --head=lean or --head=full.
 
 and stops, without a second dispatch.
+
+## 18. The orchestrator seat
+
+With `seat.enabled: true` (config.md) — Claude Code only, never in a `--step` run — the
+post-approval loop runs one layer down: `feature-development` step 6 dispatches the `seat`
+agent (frontmatter `sonnet`) whose procedure is `skills/feature-development/tail.md` unchanged.
+The interview, the approval pause and arming stay on the main thread. OpenCode runs the tail
+inline (no per-dispatch models). One dispatch per run; a resume dispatches a fresh seat.
+
+### 18.1 Returns
+
+- `COMPLETED` — the final report plus the rulings list (deviations, route decisions, relayed
+  pauses and their answers).
+- `PAUSED: <reason> — <summary>` — interactive runs only; §18.2.
+- `STOPPED: <reason> — <journal pointer>` — a headless pause (§12) or an environment error.
+
+A dispatch that fails, or returns none of the three, falls back once to the inline tail,
+journaled `seat: unavailable — running the tail inline`.
+
+### 18.2 The pause relay
+
+Every tail pause (§2's enum) becomes, on the seat: set `pause_reason`; write
+`.artel/run/<TICKET_ID>/pause-request.json`; return `PAUSED`. The main thread asks the question
+verbatim, clears `pause_reason` on the answer, and `SendMessage`s the answer to the same seat.
+A resume that finds both the file and a non-null `pause_reason` re-presents the question from
+the file and dispatches a fresh seat carrying the answer.

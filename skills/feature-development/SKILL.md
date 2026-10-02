@@ -22,8 +22,8 @@ run reaches it — never all at once:
 | `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/tail.md` | phase traversal, gates 5–10.7, the completion gate, the PR close-out, the final report, the checkpoint procedure | step 5, once the run is armed — inline runs only; a seated run never reads it here (it is the seat's procedure) |
 
 Read exactly one head file per run, after sizing, and another only when a head hands the ticket
-on (a raise, or the bug head's **Treat it as a bounded change**). On resume of an armed run read
-`tail.md` and no head file.
+on (a raise, or the bug head's **Treat it as a bounded change**). On resume of an armed run, an
+inline run reads `tail.md` and no head file; a seated run dispatches a fresh seat (step 6).
 
 `--step` flag: run in legacy step-by-step mode — confirm between major phases via
 `AskUserQuestion`, skip all `run-state.json` writes (autonomous-run.md §6). The remainder of this

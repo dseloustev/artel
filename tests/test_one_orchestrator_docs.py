@@ -560,7 +560,7 @@ class TestLayout(unittest.TestCase):
         for phrase in ('each read when the run reaches it — never all at once',
                        'Read exactly one head file per run, after sizing',
                        'and another only when a head hands the ticket on',
-                       'On resume of an armed run read `tail.md` and no head file'):
+                       'On resume of an armed run, an inline run reads `tail.md` and no head file; a seated run dispatches a fresh seat (step 6)'):
             self.assertIn(phrase, opening)
 
     def test_every_flag_applies_to_every_head(self):

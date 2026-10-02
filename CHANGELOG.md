@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-02
+
 ### Added
 
 - **Anchor validation for review findings.** `scripts/validate_findings.py` checks every

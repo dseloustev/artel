@@ -509,6 +509,65 @@ class TestStructuredAndDescription(unittest.TestCase):
                          '- Call `SuccessDialog.show`')
 
 
+class TestNextRoute(unittest.TestCase):
+    def route(self, text, deviation_files=(), per_task=False):
+        iterations, problems, _ = task_grammar.parse(text)
+        self.assertEqual(problems, [])
+        return task_grammar.next_route(iterations, DEFAULT_RULES,
+                                       deviation_files=deviation_files, per_task=per_task)
+
+    def test_the_constant(self):
+        self.assertEqual(task_grammar.MODEL_BY_ROUTE, {'light': 'sonnet', 'full': 'opus'})
+
+    def test_a_light_task_maps_to_sonnet(self):
+        out = self.route(one_iteration(block('1.1')))
+        self.assertEqual(out['task'], '1.1')
+        self.assertEqual(out['title'], 'Task 1.1: Do it')
+        self.assertEqual(out['route_declared'], 'light')
+        self.assertEqual(out['route_effective'], 'light')
+        self.assertEqual(out['route_reasons'], [])
+        self.assertEqual(out['model'], 'sonnet')
+
+    def test_a_full_task_maps_to_opus(self):
+        out = self.route(one_iteration(block('1.1', route='full — money path')))
+        self.assertEqual(out['route_effective'], 'full')
+        self.assertEqual(out['model'], 'opus')
+
+    def test_a_static_floor_raises_the_route(self):
+        out = self.route(one_iteration(block('1.1', files='`.env`')))
+        self.assertEqual(out['route_effective'], 'full')
+        self.assertEqual(out['route_reasons'], ['sensitive path (secrets): .env'])
+        self.assertEqual(out['model'], 'opus')
+
+    def test_an_earlier_deviation_raises_a_light_task(self):
+        out = self.route(one_iteration(block('1.1', files='`a.py`')),
+                         deviation_files=['a.py'])
+        self.assertEqual(out['route_effective'], 'full')
+        self.assertIn('earlier deviation: a.py', out['route_reasons'])
+        self.assertEqual(out['model'], 'opus')
+
+    def test_an_earlier_deviation_overrides_a_route_set_at_approval(self):
+        out = self.route(one_iteration(block('1.1', route='light — set at approval',
+                                             files='`a.py`')),
+                         deviation_files=['a.py'])
+        self.assertEqual(out['route_effective'], 'full')
+        self.assertEqual(out['model'], 'opus')
+
+    def test_review_per_task_raises_every_task(self):
+        out = self.route(one_iteration(block('1.1')), per_task=True)
+        self.assertEqual(out['route_effective'], 'full')
+        self.assertIn('review.perTask', out['route_reasons'])
+        self.assertEqual(out['model'], 'opus')
+
+    def test_no_ready_task_returns_none(self):
+        text = tick(one_iteration(block('1.1')), 'Step one')
+        self.assertIsNone(self.route(text))
+
+    def test_the_title_drops_the_hitl_tag(self):
+        out = self.route(one_iteration(block('1.1', title='Ship it [HITL: sign-off]')))
+        self.assertEqual(out['title'], 'Task 1.1: Ship it')
+
+
 class TestCheck(unittest.TestCase):
     def setUp(self):
         self.repo = make_repo()

@@ -13,6 +13,7 @@ from pathlib import Path
 
 # A task listing more files than this is routed `full` (docs/task-grammar.md §7).
 ROUTE_FULL_FILES = 5
+MODEL_BY_ROUTE = {'light': 'sonnet', 'full': 'opus'}
 # The reason the approval fold-back writes on a route the person changed at the pause
 # (`Route: light — set at approval`): such a route is final over the static floors.
 APPROVAL_REASON = 'set at approval'
@@ -495,6 +496,29 @@ def structured(task, rules, trail=None):
         'implements': implements_of(task),
         'steps': [{'text': step['text'], 'done': step['done']} for step in task['steps']],
     }
+
+
+def next_route(iterations, rules, deviation_files=(), per_task=False, trail=None):
+    """The first ready task's route and model (docs/task-grammar.md §8), or None."""
+    ready = ready_now(iterations)
+    if not ready:
+        return None
+    number = ready[0]
+    task = next(t for iteration in iterations for t in iteration['tasks']
+                if t['number'] == number)
+    info = structured(task, rules, trail=trail)
+    effective = info['route_effective']
+    reasons = list(info['route_reasons'])
+    for entry in info['files']:
+        if entry['path'] in deviation_files:
+            effective = 'full'
+            reasons.append('earlier deviation: {}'.format(entry['path']))
+    if per_task:
+        effective = 'full'
+        reasons.append('review.perTask')
+    return {'task': number, 'title': 'Task {}: {}'.format(number, task['title']),
+            'route_declared': info['route'], 'route_effective': effective,
+            'route_reasons': reasons, 'model': MODEL_BY_ROUTE[effective]}
 
 
 def description(task):

@@ -108,17 +108,6 @@ trace in the repository, and several had already gone invisible by the time they
 here (2026-09-06). Anything parked for later belongs here as well as in its spec. Resolved items
 move to the decision log.
 
-- **What OpenCode names MCP tools is unverified, and the VCS guard's reach there depends on
-  it.** `hooks/vcs_guard.py` and `opencode/plugin/artel.ts` originally required Claude Code's
-  literal `mcp__` prefix before classifying a tool; both now match the platform token in the
-  name instead (`bitbucket`, `github`, `jira`), which is what the design rule always said. That
-  widening is correct on either host, but whether an OpenCode MCP tool actually surfaces as
-  `<server>_<tool>`, as something namespaced, or as a name carrying no platform token at all
-  cannot be settled from this repository — and if it is the last of those, Bitbucket MCP writes
-  stay unguarded on that host. Needs one real OpenCode session with an MCP server attached to
-  confirm the naming, then a line in [opencode.md](opencode.md) recording it. Verified on
-  OpenCode 2.x that plugin events and the bridge work, but MCP tool naming still needs one real
-  session with an MCP server attached (2026-10-01).
 - **OpenCode v2-native registration is unevaluated.** v2 can register skills, agents and
   commands at runtime (`ctx.skill/agent/command.transform`), which would retire the generated
   snapshot, its staleness and the install manifest. The 2026-10-01 v2 adaptation deliberately
@@ -1176,3 +1165,13 @@ move to the decision log.
   Opt-in for one release, then the default flips. Rejected: one dispatch per gate (the main
   thread keeps the churn); the implement loop only (the relay is needed there anyway). Spec:
   `docs/superpowers/specs/2026-10-01-orchestrator-seat-design.md` (local).
+- **2026-10-02 — OpenCode names MCP tools `<server>_<tool>`; the VCS guard's token match
+  holds there.** The parked unknown is settled from the installed 2.0.21 registry: an MCP
+  tool's effective name joins the server namespace and the tool name with one underscore, both
+  halves sanitized to `[A-Za-z0-9_-]` (anything else becomes `_`), and the plugin's
+  `execute.before` payload carries exactly that name — no `mcp__` prefix. The
+  `bitbucket`/`github`/`jira` token `vcs_guard.py` classifies by therefore survives whenever
+  either half carries it (`aiguard_bitbucket_create_pr`); a server whose name and tools carry no
+  token stays unclassified on either host, as the guard's rule says. Corroborated by a live
+  2.0.19 session's recorded tool names (`mcp-compress-router_invoke_tool`) and its permission
+  log; recorded in [opencode.md](opencode.md).

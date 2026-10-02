@@ -85,6 +85,14 @@ unchanged Python hooks (`hooks/README.md` documents their stdin/stdout contracts
 `*** Add|Delete|Update File:` / `*** Move to:` headers and runs the guards per path.
 Everything is inert unless the project has `.artel/config.json`.
 
+An MCP tool reaches these hooks as `<server>_<tool>` — one underscore, no `mcp__` prefix; each
+half is sanitized to `[A-Za-z0-9_-]`, anything else becoming `_`, so a server `aiguard` with a
+tool `bitbucket_create_pr` arrives as `aiguard_bitbucket_create_pr`. That is what the table's
+`platform-named tools` means: the `bitbucket`/`github`/`jira` token `vcs_guard.py` classifies
+by is read from the combined string, and it is found when either half carries it. (Checked
+2026-10-02 against OpenCode 2.0.21's registry source and a live 2.0.19 session's recorded tool
+names.)
+
 ## Differences from Claude Code
 
 | Aspect | Claude Code | OpenCode |
@@ -98,6 +106,7 @@ Everything is inert unless the project has `.artel/config.json`.
 | A sketch on a question's option (`analysis`, `generate-vision`) | the option's `preview` field | the `question` tool has no such field: the sketch goes into the question text as a fenced block |
 | Knowledge-mirror context | injected after edits | side effect only (the mirror still runs) |
 | Invocation | `/artel:<name>` | `/artel-<name>` (command) or the `artel-<name>` skill |
+| MCP tool names | `mcp__<server>__<tool>` | `<server>_<tool>`, both halves sanitized, no `mcp__` prefix |
 
 ## kartoteka behind a token
 

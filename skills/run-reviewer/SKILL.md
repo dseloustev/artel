@@ -1,7 +1,7 @@
 ---
 name: run-reviewer
 description: "Review changes for a ticket — the phase/ticket review, or one task's diff right after its implementer returned"
-argument-hint: "[ticket-id] or [ticket-id]-[phase] [--task \"<task title>\" --report <path> --package <path> | --plan] [--local]"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [--task \"<task title>\" --report <path> --package <path> | --plan] [--local] [--model sonnet|opus|fable]"
 model: sonnet
 ---
 
@@ -13,6 +13,14 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT
 stay in the tasklist file alone, as `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 row 1
 prescribes. It may appear in any position; strip it before reading `$0` and the mode
 flags, and remember that it was passed. An orchestrator invoked with `--local` passes it on.
+
+`--model <sonnet|opus|fable>`: dispatch the agent on this model instead of its frontmatter
+`opus`. It may appear in any position; strip it before reading `$0` and the mode flags. Any
+other value is an invocation error — report it and stop. A dispatch refused for that model
+(not available, or not allowed on this host) is re-dispatched once without it. When one was
+given, every mode's Agent call — ticket, task and plan — carries `model` set to the `--model`
+value; no flag → no `model`, on the frontmatter `opus`. The orchestrator passes it to scale
+the review to its scope (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16.4).
 
 ## Execute
 
@@ -28,7 +36,7 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
-Use the Agent tool with `subagent_type: "reviewer"`, description `"Review changes for <TICKET_ID>"`, and a prompt that passes `TICKET_ID`, `TICKET_NUM`, and `PHASE_NUM` (or "all phases"). The `reviewer` agent already knows the input artifacts, priority taxonomy (Blocking / Important / Nice-to-have), the machine-readable `review/findings.json` lens output, and the `## Code Review Fixes` tasklist write-back format for ticket mode.
+Use the Agent tool with `subagent_type: "reviewer"`, `model` set to the `--model` value when one was given, description `"Review changes for <TICKET_ID>"`, and a prompt that passes `TICKET_ID`, `TICKET_NUM`, and `PHASE_NUM` (or "all phases"). The `reviewer` agent already knows the input artifacts, priority taxonomy (Blocking / Important / Nice-to-have), the machine-readable `review/findings.json` lens output, and the `## Code Review Fixes` tasklist write-back format for ticket mode.
 
 ### Task mode (`--task`)
 
@@ -43,12 +51,12 @@ ticket review:
 - `--report <path>` — the implementer's report, `.artel/run/<TICKET_ID>/reports/NNN-<slug>.md`
 - `--package <path>` — the diff package `scripts/review_package.py diff` wrote
 
-Use the Agent tool with `subagent_type: "reviewer"`, description `"Review task for
-<TICKET_ID>: <task title>"`, and a prompt that states **Mode: task** and passes `TICKET_ID`,
-`TICKET_NUM`, `PHASE_NUM` plus the three values verbatim. The agent's task mode knows the
-rest: read the task text from the tasklist, judge the package against it and the report, write
-`NNN-<slug>-review.md` beside the report, and append Blocking / Important findings under
-`## Code Review Fixes`.
+Use the Agent tool with `subagent_type: "reviewer"`, `model` set to the `--model` value when
+one was given, description `"Review task for <TICKET_ID>: <task title>"`, and a prompt that
+states **Mode: task** and passes `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` plus the three values
+verbatim. The agent's task mode knows the rest: read the task text from the tasklist, judge
+the package against it and the report, write `NNN-<slug>-review.md` beside the report, and
+append Blocking / Important findings under `## Code Review Fixes`.
 
 ### Plan mode (`--plan`)
 
@@ -58,12 +66,13 @@ the approval pause, after the parser's mechanical check. `--plan` takes no value
 accompany it and changes nothing: plan mode records nothing in the queue.
 
 Resolve the spec store exactly as ticket mode's **Spec store.** paragraph says. Then use the
-Agent tool with `subagent_type: "reviewer"`, description `"Review plan for <TICKET_ID>"`, and a
-prompt that states **Mode: plan** and passes `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` (or "all
-phases") and the **Spec store:** field. The agent's plan mode knows the rest: read the PRD,
-vision, plan and the phase-aware tasklist, grade the eight points, write
-`.artel/run/<TICKET_ID>/plan-review.md` with its `**Plan-review round:**` line, and return one
-line. Plan mode appends no `## Code Review Fixes` task, so skip `## Record the fix tasks` below.
+Agent tool with `subagent_type: "reviewer"`, `model` set to the `--model` value when one was
+given, description `"Review plan for <TICKET_ID>"`, and a prompt that states **Mode: plan**
+and passes `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` (or "all phases") and the **Spec store:**
+field. The agent's plan mode knows the rest: read the PRD, vision, plan and the phase-aware
+tasklist, grade the eight points, write `.artel/run/<TICKET_ID>/plan-review.md` with its
+`**Plan-review round:**` line, and return one line. Plan mode appends no
+`## Code Review Fixes` task, so skip `## Record the fix tasks` below.
 
 ## Record the fix tasks
 

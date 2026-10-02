@@ -373,7 +373,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Review the ticket's changes and classify findings as Blocking / Important /
   Nice-to-have; with `--task`, review one task's diff right after its implementer returned.
 - **Invocation:** `/artel:run-reviewer [ticket-id] or [ticket-id]-[phase]
-  [--task "<task title>" --report <path> --package <path>] [--local]`
+  [--task "<task title>" --report <path> --package <path>] [--local] [--model sonnet|opus|fable]`
+- **Model:** by scope — `sonnet` for a task review (the `full` route's wrapper) and for a
+  re-review after a fix round; `opus` (frontmatter) for the ticket/phase review's round 1 and
+  plan mode; `deep-review`'s standalone whole-branch review runs the same agent on `fable`
+  (autonomous-run.md §16.4).
 - **Reads:** input artifacts and the priority taxonomy, resolved internally by the `reviewer`
   agent (PRD/plan/conventions in ticket mode). In task mode: the task's text from the
   tasklist, the implementer's report and the diff package `scripts/review_package.py` wrote

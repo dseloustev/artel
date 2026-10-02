@@ -186,8 +186,8 @@ class TestReviewFixesAreRecorded(unittest.TestCase):
         gate7 = text.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
         self.assertIn('--local', gate7)
         gate5 = text.split('| 5 | `IMPLEMENT_STEP_OK`')[1].split('\n')[0]
-        self.assertIn('`Skill: run-reviewer --task …` (plus `--local` when this run was'
-                      ' invoked with it)', gate5)
+        self.assertIn('`Skill: run-reviewer --task …` with `--model sonnet` (plus `--local`'
+                      ' when this run was invoked with it)', gate5)
 
     def test_section_16_names_the_task_gate_source(self):
         self.assertIn('### task-gate-<NNN>', section(read(CONTRACT), '## 16.'))

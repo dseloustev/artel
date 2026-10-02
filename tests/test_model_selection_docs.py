@@ -107,6 +107,11 @@ class TestReviewerSide(unittest.TestCase):
         self.assertIn('re-dispatch once with the same prompt and model', step3)
         self.assertNotIn('"fable"', between(text, '## Step 4:', '## Step 5:'))
 
+    def test_the_tail_scales_reviews(self):
+        tail = flat(read(TAIL))
+        self.assertIn('`Skill: run-reviewer --task …` with `--model sonnet`', tail)
+        self.assertIn('the re-review passes `--model sonnet`', tail)
+
     def test_the_models_section(self):
         agents = flat(read('docs/agents.md'))
         section = between(agents, '## Models', '## Why this file')
@@ -133,10 +138,12 @@ class TestPinnedDefaults(unittest.TestCase):
         for rel in ('agents/implementer.md', 'agents/reviewer.md'):
             self.assertRegex(frontmatter(rel), r'(?m)^model: opus$')
 
-    def test_run_reviewer_passes_no_model(self):
-        body = read('skills/run-reviewer/SKILL.md').split('---', 2)[2]
-        for token in ('`model`', '--model', '"fable"'):
-            self.assertNotIn(token, body)
+    def test_run_reviewer_takes_a_model_flag(self):
+        body = read('skills/run-reviewer/SKILL.md')
+        self.assertIn('[--model sonnet|opus|fable]', frontmatter('skills/run-reviewer/SKILL.md'))
+        for phrase in ('`--model <sonnet|opus|fable>`', 'is re-dispatched once without it',
+                       '`model` set to the `--model` value'):
+            self.assertIn(phrase, flat(body))
 
 
 class TestChangelog(unittest.TestCase):

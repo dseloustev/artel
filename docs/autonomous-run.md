@@ -548,6 +548,26 @@ Fix lists are the exception: a fix list is correction of a failed gate, not a ta
 its base is `opus` whatever the task's route, with `fable` on the round after a failed one (§5);
 the skill runs no helper for one.
 
+### 16.4 The reviewer's model
+
+The reviewer scales by scope, and `run-reviewer --model` carries the choice to the Agent call
+(no flag → no `model`, on the frontmatter `opus`):
+
+| Review | Model |
+|---|---|
+| task review (the §16.2 wrapper, `full` tasks only) | `sonnet` |
+| ticket / phase review, round 1 | `opus` (frontmatter) |
+| re-review after a fix round | `sonnet` |
+| plan mode (gate 4.2) | `opus` (frontmatter) |
+| `deep-review`'s standalone whole-branch review | `fable` (its own direct dispatch) |
+
+The tail passes `--model sonnet` on the task-review wrapper and on every re-review dispatch,
+and both journal the model (`; model sonnet`); round 1's entries are unchanged. A re-review is
+not a fix-diff-only review — it verdicts the fix batch and repeats on the surface round 1
+already read — so `sonnet` is the mid-tier floor superpowers measured, with the final `fable`
+review and the review cap as the backstops. `deep-review` step 3 is untouched: it dispatches
+the same agent on `fable` directly, with its own refused-model fallback.
+
 ## 17. Sizing and heads
 
 `feature-development` is the one entry point for ticket work. After the ticket is imported

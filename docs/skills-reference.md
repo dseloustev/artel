@@ -397,7 +397,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   of autonomous-run.md §16 (every task with `review.perTask: true`; one fix round,
   `MAX_TASK_REVIEW_ROUNDS = 1`, no per-task re-review — open fix tasks are handed to the phase
   review); on a task-format tasklist it grades the whole task block and the requirements its
-  `Implements:` names. `deep-review` drives
+  `Implements:` names. The orchestrator seat is opt-in — `seat.enabled` defaults to `false`
+  (autonomous-run.md §18). `deep-review` drives
   the same `reviewer` agent in standalone mode once, then the `review-forecaster` agent, for a
   separate, non-pipeline review-and-forecast workflow.
 

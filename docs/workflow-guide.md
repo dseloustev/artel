@@ -380,7 +380,8 @@ start, and each phase closes with the `verify.commands` gate + a checkpoint comm
   under `## Code Review Fixes`, recorded in the task queue on the queue path, for one fix round,
   then the phase review owns whatever is left. The journal says which route each task took and
   why, and which model it ran on — an iteration task's model follows its route (`light` →
-  `sonnet`, `full` → `opus`).
+  `sonnet`, `full` → `opus`). The orchestrator seat is opt-in — `seat.enabled` defaults to
+  `false` (autonomous-run.md §18).
 - *Gate 6 — index.* Optional host index-refresh hook
   ([orchestrator-common.md](orchestrator-common.md) §1); silently absent when the host has not
   wired one up. Refreshing is the only part that is a host hook — how the stages above and

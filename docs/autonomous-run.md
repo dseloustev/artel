@@ -690,7 +690,7 @@ and stops, without a second dispatch.
 
 ## 18. The orchestrator seat
 
-With `seat.enabled: true` (config.md) — Claude Code only, never in a `--step` run — the
+With `seat.enabled: true` (config.md) — Claude Code only, never in a `--step` or `--dry-run` run — the
 post-approval loop runs one layer down: `feature-development` step 6 dispatches the `seat`
 agent (frontmatter `sonnet`) whose procedure is `skills/feature-development/tail.md` unchanged.
 The interview, the approval pause and arming stay on the main thread. OpenCode runs the tail

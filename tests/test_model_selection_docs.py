@@ -115,14 +115,18 @@ class TestReviewerSide(unittest.TestCase):
     def test_the_models_section(self):
         agents = flat(read('docs/agents.md'))
         section = between(agents, '## Models', '## Why this file')
-        for phrase in ('| `implementer` — every task, and a first fix round | `opus` (frontmatter) |',
-                       '| `implementer` — a fix round after a failed one (review round 2 or more, '
-                       'checkpoint verify round 2) | `fable` |',
+        for phrase in ('| `implementer` — an iteration task on route `light` | `sonnet` '
+                       '(route helper) |',
+                       '| `implementer` — an iteration task on route `full` | `opus` '
+                       '(route helper) |',
+                       '| `reviewer` — a task review (route `full` tasks) | `sonnet` '
+                       '(dispatched) |',
+                       '| `reviewer` — a re-review after a fix round | `sonnet` (dispatched) |',
                        "| `reviewer` — `deep-review`'s whole-branch review | `fable` |",
                        '| `review-forecaster` | `sonnet` (frontmatter) |',
                        '`CLAUDE_CODE_SUBAGENT_MODEL`', '`availableModels`',
                        'is re-dispatched once without `model`',
-                       'measured and rejected on 2026-09-30',
+                       "superpowers 6.4.1's Model Selection",
                        "**A skill's `model:` applies only when the person types the skill.**",
                        '156 of 166', '0 of 230'):
             self.assertIn(phrase, section)

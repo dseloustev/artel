@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Model distribution, superpowers-style.** The implementer's model follows the task's route
+  (`light` → `sonnet`, `full` → `opus`) via the new `tasklist-tasks route` helper, and reviews
+  scale by scope: task reviews and re-reviews on `sonnet`, ticket/phase and plan reviews on
+  `opus`, `deep-review` on `fable`. Fix lists keep `opus` / `fable`. The replays were retired;
+  the mapping follows superpowers 6.4.1's published evaluations.
+
+### Upgrading
+
+- A `light` task now runs on `sonnet`; raise a task to `full` at the approval pause to keep it
+  on `opus`. No configuration change.
+
 ## [0.27.0] - 2026-10-01
 
 ### Removed

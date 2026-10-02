@@ -20,16 +20,21 @@ on a call only where it varies:
 
 | Dispatch | Model |
 |---|---|
-| `implementer` — every task, and a first fix round | `opus` (frontmatter) |
-| `implementer` — a fix round after a failed one (review round 2 or more, checkpoint verify round 2) | `fable` |
-| `reviewer` — task, phase and plan mode | `opus` (frontmatter) |
+| `implementer` — an iteration task on route `light` | `sonnet` (route helper) |
+| `implementer` — an iteration task on route `full` | `opus` (route helper) |
+| `implementer` — a fix list, first round | `opus` (frontmatter) |
+| `implementer` — a fix list, a round after a failed one (review round 2 or more, checkpoint verify round 2) | `fable` |
+| `reviewer` — a task review (route `full` tasks) | `sonnet` (dispatched) |
+| `reviewer` — a ticket/phase review, round 1, and plan mode | `opus` (frontmatter) |
+| `reviewer` — a re-review after a fix round | `sonnet` (dispatched) |
 | `reviewer` — `deep-review`'s whole-branch review | `fable` |
 | `review-forecaster` | `sonnet` (frontmatter) |
 | every other agent | its frontmatter |
 
-The step-up rule is [autonomous-run.md](autonomous-run.md) §5. A `sonnet` implementer for
-`light` tasks was measured and rejected on 2026-09-30: about a quarter of the cost, but judged
-no worse than `opus` on only 2 of 9 replayed tasks ([design.md](design.md), decision log).
+An iteration task's model follows its route, and a review's follows its scope — the distribution
+superpowers 6.4.1's Model Selection and its strict-cost evaluations support
+([design.md](design.md), decision log 2026-10-02). Fix lists keep `opus`, and `fable` on the
+round after a failed one; the step-up rule is [autonomous-run.md](autonomous-run.md) §5.
 Models are named by alias (`sonnet`, `opus`, `fable`): Claude Code maps each to a model of that
 family — which one depends on the Claude Code build — and under an `availableModels`
 restriction substitutes the newest permitted one. A call refused for its model is re-dispatched

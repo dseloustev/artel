@@ -191,14 +191,13 @@ move to the decision log.
   `skills/feature-development/tail.md`, which names no head: that file is the unit to move.
   Arming stays in `SKILL.md`, on the main thread, because it can stop and send the person to
   `--step`.
-- **Model selection: what stays parked after 0.24.0** (2026-09-30 design, gitignored
-  `docs/superpowers/specs/2026-09-30-model-selection-design.md`; the replay's record is in the
-  gitignored `.superpowers/evals/2026-09-30-model-selection/`). A cheaper implementer for `light`
-  tasks failed its replay on `sonnet` (decision log, 2026-09-30). The next lever to measure is
-  `effort` — `opus` at a lower effort on the same nine tasks, with the same harness. A `models`
-  block in `.artel/config.json` would let a host set tiers. `tech-writer` and `issue-scout` were
-  `sonnet` candidates, but the replay's `sonnet` wrote thinner documents, which argues against
-  moving the tech-writer.
+- **Model selection: what stays parked** (2026-10-02 design,
+  `docs/superpowers/specs/2026-10-02-model-distribution-design.md`, local). The distribution
+  landed from superpowers 6.4.1's evaluations (decision log, 2026-10-02). Still parked: `effort`
+  per agent or dispatch; a `models` block in `.artel/config.json` that would let a host set
+  tiers; a stronger-model retry after a red task gate. `tech-writer` and `issue-scout` stay
+  `opus`: no superpowers equivalent argues for `sonnet`, and their only measurement points the
+  other way.
 - **Sub-project 2c: parallel seats.** `parallel.seats` and dispatch by the parser's
   `data.waves`, after six shared-state collisions are fixed: the `NNN-` report counter, one actor
   name, the whole-tree review snapshot, every task patching one tasklist, the shared
@@ -1160,3 +1159,14 @@ move to the decision log.
   Verification` with no task blocks, an empty file — is refused as `tasklist_malformed`.
   Rejected: keeping the old format for a converter; deleting the readers before the
   precondition cleared (the 2026-09-30 entry).
+- **2026-10-02 — The replays are retired; the model distribution completes from superpowers'
+  evaluations.** `.superpowers/evals/**` is deleted and no in-repo replay gates a release. The
+  mapping 0.24.0's failed replay had dropped lands: the implementer follows its route
+  (`light` → `sonnet`, `full` → `opus`) via the new `tasklist-tasks route` helper, and reviews
+  scale by scope (task review and re-review `sonnet`, ticket/phase and plan `opus`,
+  `deep-review` `fable`). Fix lists keep `opus` → `fable`. No cheap tier: superpowers' cheap
+  tier needs complete-code plans artel does not write, and its strict-cost experiments killed
+  cheap judgment. Source: superpowers 6.4.1 (`## Model Selection`; strict-cost SDD; release
+  #2320). Rejected: a literal three-tier copy with `haiku` and planner tier hints (machinery
+  for little payoff); a minimal unblock that leaves the reviewer on `opus` everywhere.
+  Spec: `docs/superpowers/specs/2026-10-02-model-distribution-design.md` (local).

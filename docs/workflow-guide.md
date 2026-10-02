@@ -379,14 +379,17 @@ start, and each phase closes with the `verify.commands` gate + a checkpoint comm
   (`autonomous-run.md §16`) — has its diff reviewed before the next task starts: findings land
   under `## Code Review Fixes`, recorded in the task queue on the queue path, for one fix round,
   then the phase review owns whatever is left. The journal says which route each task took and
-  why.
+  why, and which model it ran on — an iteration task's model follows its route (`light` →
+  `sonnet`, `full` → `opus`).
 - *Gate 6 — index.* Optional host index-refresh hook
   ([orchestrator-common.md](orchestrator-common.md) §1); silently absent when the host has not
   wired one up. Refreshing is the only part that is a host hook — how the stages above and
   below *read* an index is [code-navigation.md](code-navigation.md), which needs no wiring.
 - *Gate 7 — review.* [`run-reviewer`](skills-reference.md#run-reviewer) writes `review.md`;
   Blocking / Important findings route to an implementer fix round, then a re-review, with capped
-  review rounds (`autonomous-run.md §5`).
+  review rounds (`autonomous-run.md §5`). The reviewer's model follows its scope — the round-1
+  ticket/phase review on `opus`, a task review and a re-review on `sonnet`, `deep-review`'s
+  whole-branch review on `fable` (`autonomous-run.md §16.4`).
 - *Gate 8 — runtime.* [`run-app`](skills-reference.md#run-app) `--gate` launches the configured
   `runtime.run` command and observes for a `RUNTIME_OK` verdict. No `runtime.run` configured →
   `skipped (not configured)`; `runtime.surface` set and no changed file matches →

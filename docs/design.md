@@ -184,13 +184,9 @@ move to the decision log.
   Fine if deliberate — but then it should be a decision here rather than a standing omission.
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
   the plugin (decision of 2026-07-27, below). No record that the review has been requested.
-- **The orchestrator seat** (its own spec, after 0.25.0). The largest cost the 2026-09-30
-  analysis found (38 % of a run's spend): the post-approval loop one layer down on a mid-tier
-  model, the interview and the approval pause staying on the main thread — to be measured before
-  it is built, as the implementer's model was. 0.25.0 wrote everything after arming once, as
-  `skills/feature-development/tail.md`, which names no head: that file is the unit to move.
-  Arming stays in `SKILL.md`, on the main thread, because it can stop and send the person to
-  `--step`.
+- **The orchestrator seat's remainders** (shipped opt-in; decision log 2026-10-02): flip
+  `seat.enabled`'s default to `true` after one release of opt-in validation on real tickets;
+  the `opus`-at-lower-effort arm stays parked as an unmeasured lever.
 - **Model selection: what stays parked** (2026-10-02 design,
   `docs/superpowers/specs/2026-10-02-model-distribution-design.md`, local). The distribution
   landed from superpowers 6.4.1's evaluations (decision log, 2026-10-02). Still parked: `effort`
@@ -1170,3 +1166,13 @@ move to the decision log.
   #2320). Rejected: a literal three-tier copy with `haiku` and planner tier hints (machinery
   for little payoff); a minimal unblock that leaves the reviewer on `opus` everywhere.
   Spec: `docs/superpowers/specs/2026-10-02-model-distribution-design.md` (local).
+- **2026-10-02 — The orchestrator seat ships opt-in: the tail one layer down on `sonnet`.**
+  `feature-development`'s step 6 dispatches the new `seat` agent (procedure: `tail.md`,
+  unchanged) when `seat.enabled: true`; pauses relay through `pause-request.json` and
+  `SendMessage`; a failed dispatch falls back once to the inline tail. Built on superpowers
+  6.4.1's published measurement of the same shape — one orchestrator subagent on a mid-tier
+  model for a whole plan, opt-in, about half the cost and wall clock (release #2320,
+  `claude-code-tools.md`) — after artel's replays were retired (decision log, 2026-10-02).
+  Opt-in for one release, then the default flips. Rejected: one dispatch per gate (the main
+  thread keeps the churn); the implement loop only (the relay is needed there anyway). Spec:
+  `docs/superpowers/specs/2026-10-01-orchestrator-seat-design.md` (local).

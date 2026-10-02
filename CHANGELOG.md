@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **The orchestrator seat, opt-in.** With `seat.enabled: true`, an armed run's post-approval
+  loop — implement, review, runtime, checkpoints, the PR close-out — runs one layer down on the
+  new `seat` agent (`sonnet`), and every pause relays to the main thread through
+  `pause-request.json`. Claude Code only. Built on superpowers' published measurement of
+  the same shape (one nested orchestrator on a mid-tier model, opt-in, about half the cost —
+  release #2320).
+
 ### Changed
 
 - **Model distribution, superpowers-style.** The implementer's model follows the task's route
@@ -18,6 +27,8 @@ All notable changes to this project are documented here. The format follows
 
 - A `light` task now runs on `sonnet`; raise a task to `full` at the approval pause to keep it
   on `opus`. No configuration change.
+- Nothing changes while `seat.enabled` is absent or `false`. Opt in per host; the default flips
+  in a following release.
 
 ## [0.27.0] - 2026-10-01
 

@@ -1663,8 +1663,9 @@ class TestRelease(unittest.TestCase):
 
     def test_the_open_follow_ups(self):
         follow_ups = between(flat('docs/design.md'), '## Open follow-ups', '## Decision log')
-        for phrase in ('**The orchestrator seat**', '`skills/feature-development/tail.md`',
-                       'that file is the unit to move',
+        for phrase in ("**The orchestrator seat's remainders**",
+                       "`seat.enabled`'s default to `true`",
+                       'the `opus`-at-lower-effort arm stays parked as an unmeasured lever',
                        '**Sub-project 2c: parallel seats.**'):
             self.assertIn(phrase, follow_ups)
         for closed in ('**Sub-project 2b: one orchestrator**',

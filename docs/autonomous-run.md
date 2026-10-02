@@ -710,6 +710,6 @@ journaled `seat: unavailable — running the tail inline`.
 
 Every tail pause (§2's enum) becomes, on the seat: set `pause_reason`; write
 `.artel/run/<TICKET_ID>/pause-request.json`; return `PAUSED`. The main thread asks the question
-verbatim, clears `pause_reason` on the answer, and `SendMessage`s the answer to the same seat.
+verbatim, clears `pause_reason` and deletes `pause-request.json` on the answer, and `SendMessage`s the answer to the same seat.
 A resume that finds both the file and a non-null `pause_reason` re-presents the question from
 the file and dispatches a fresh seat carrying the answer.

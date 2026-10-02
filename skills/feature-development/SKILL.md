@@ -300,7 +300,7 @@ Returns:
 - `COMPLETED` — print its final report and rulings list; the run is done.
 - `PAUSED: <reason>` — the relay (autonomous-run.md §18.2): read
   `.artel/run/<TICKET_ID>/pause-request.json`, ask its question verbatim via `AskUserQuestion`
-  (the seat has already set `pause_reason`; clear it on the answer), then `SendMessage` the
+  (the seat has already set `pause_reason`; clear it and delete `pause-request.json` on the answer), then `SendMessage` the
   seat the answer.
 - `STOPPED: <reason>` — report the line and the journal pointer; the run stays paused.
 

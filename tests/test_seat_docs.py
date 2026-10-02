@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Doc-contract pins for the orchestrator seat (spec §11)."""
 import re
+import sys
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import build_opencode  # noqa: E402
+
 FD = 'skills/feature-development/'
 
 
@@ -42,6 +46,8 @@ class TestSeatDocs(unittest.TestCase):
         doc = flat('docs/autonomous-run.md')
         for phrase in ('## 18. The orchestrator seat', '### 18.2 The pause relay',
                        'pause-request.json',
+                       '{reason, question, options, context}',
+                       'the same file rule holds across two layers',
                        'seat: unavailable — running the tail inline',
                        'never in a `--step` or `--dry-run` run'):
             self.assertIn(phrase, doc)
@@ -60,7 +66,7 @@ class TestSeatDocs(unittest.TestCase):
         self.assertIn('`seat`', between(doc, '## Models', '## Why this file'))
 
     def test_the_generator_excludes_the_seat(self):
-        self.assertIn("'seat'", raw('scripts/build_opencode.py'))
+        self.assertIn('seat', build_opencode.AGENTS_EXCLUDE)
 
 
 if __name__ == '__main__':

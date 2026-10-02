@@ -93,7 +93,7 @@ Everything is inert unless the project has `.artel/config.json`.
 | Router injection | SessionStart hook context, before the first prompt | `session.hook("context")` prepends it to the first user message on every model step (sessions only come into being with their first prompt, so there is no pre-prompt moment) |
 | Two-phase skills (`researcher`, `planner`, …) | `SendMessage` resumes the agent by id | a fresh `subagent` dispatch; the agent re-reads its context files |
 | Agent model tiers | `opus`/`sonnet` frontmatter, plus a per-dispatch `model` for the route helper, the reviewer's scope and the step-up rounds ([agents.md](agents.md) `## Models`) | dropped — subagents inherit the caller's model (override per agent in your `opencode.json`); a per-dispatch model has no effect |
-| Orchestrator seat | `seat.enabled` is inert — the generated `feature-development` runs the tail inline (no per-dispatch models) |
+| Orchestrator seat | `seat.enabled: true` runs the post-approval tail one layer down on the `seat` agent (`sonnet`), every pause relayed to the main thread ([autonomous-run.md](autonomous-run.md) §18) | `seat.enabled` is inert — the generated `feature-development` runs the tail inline (no per-dispatch models) |
 | `inner-loop` model-invocation guard | `disable-model-invocation: true` | `metadata.opencode/autoinvoke: false`: hidden from the model's skill list, still loadable by id |
 | A sketch on a question's option (`analysis`, `generate-vision`) | the option's `preview` field | the `question` tool has no such field: the sketch goes into the question text as a fenced block |
 | Knowledge-mirror context | injected after edits | side effect only (the mirror still runs) |

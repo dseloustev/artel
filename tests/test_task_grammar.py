@@ -880,3 +880,92 @@ class TestCli(unittest.TestCase):
         self.assertEqual((code, out['error']['kind']), (2, 'empty_input'))
         code, out = run_cli('requirements')
         self.assertEqual((code, out['error']['kind']), (2, 'invalid_argument'))
+
+    def test_route_next_emits_the_model(self):
+        code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--next')
+        self.assertEqual(code, 0)
+        self.assertEqual(out['verb'], 'tasklist-route')
+        data = out['data']
+        self.assertEqual(data['ticket_key'], 'AW-9')
+        self.assertEqual(data['format'], 'tasks')
+        self.assertEqual(data['task'], '1.1')
+        self.assertEqual(data['title'], 'Task 1.1: Add the success dialog widget')
+        self.assertEqual(data['route_declared'], 'light')
+        self.assertEqual(data['route_effective'], 'light')
+        self.assertEqual(data['model'], 'sonnet')
+
+    def test_route_next_reads_review_per_task_from_config(self):
+        artel = Path(self.repo.name) / '.artel'
+        artel.mkdir()
+        (artel / 'config.json').write_text('{"review": {"perTask": true}}', encoding='utf-8')
+        _, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                         '--repo', self.repo.name, '--next')
+        self.assertEqual(out['data']['route_effective'], 'full')
+        self.assertEqual(out['data']['model'], 'opus')
+        self.assertIn('review.perTask', out['data']['route_reasons'])
+
+    def test_route_next_reads_deviation_files_from_run_state(self):
+        run = Path(self.repo.name) / '.artel' / 'run' / 'AW-9'
+        run.mkdir(parents=True)
+        (run / 'run-state.json').write_text(
+            json.dumps({'deviation_files': ['lib/ramps/ramps_event.dart']}), encoding='utf-8')
+        _, out = run_cli('route', '--tasklist', self.write(tick(TASKS, 'Add the widget test')),
+                         '--ticket-key', 'AW-9', '--repo', self.repo.name, '--next')
+        self.assertEqual(out['data']['task'], '1.2')
+        self.assertEqual(out['data']['model'], 'opus')
+        self.assertIn('earlier deviation: lib/ramps/ramps_event.dart',
+                      out['data']['route_reasons'])
+
+    def test_route_next_reads_a_phase_scoped_tasklist(self):
+        phase = Path(self.repo.name) / 'specs' / 'AW-9' / 'phase-2'
+        phase.mkdir(parents=True)
+        (phase / 'tasks.md').write_text(one_iteration(block('1.1', route='full — money path')),
+                                        encoding='utf-8')
+        _, out = run_cli('route', '--tasklist', str(phase / 'tasks.md'), '--ticket-key', 'AW-9',
+                         '--repo', self.repo.name, '--next')
+        self.assertEqual(out['data']['model'], 'opus')
+
+    def test_route_next_reads_stdin(self):
+        code, out = run_cli('route', '--tasklist', '-', '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--next', stdin=TASKS)
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data']['model'], 'sonnet')
+
+    def test_route_next_with_no_ready_task_is_null(self):
+        text = tick(one_iteration(block('1.1')), 'Step one')
+        code, out = run_cli('route', '--tasklist', self.write(text), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--next')
+        self.assertEqual(code, 0)
+        self.assertIsNone(out['data']['task'])
+        self.assertIsNone(out['data']['model'])
+        self.assertEqual(out['data']['route_reasons'], [])
+
+    def test_route_needs_the_next_flag(self):
+        code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_argument')
+
+    def test_route_a_malformed_tasklist_exits_2(self):
+        code, out = run_cli('route', '--tasklist', self.write('## Iteration 1: A\n\n- [ ] do\n'),
+                            '--ticket-key', 'AW-9', '--next')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'tasklist_malformed')
+
+    def test_route_an_unreadable_config_exits_2(self):
+        artel = Path(self.repo.name) / '.artel'
+        artel.mkdir()
+        (artel / 'config.json').write_text('{oops', encoding='utf-8')
+        code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--next')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_config')
+
+    def test_route_an_unreadable_run_state_exits_2(self):
+        run = Path(self.repo.name) / '.artel' / 'run' / 'AW-9'
+        run.mkdir(parents=True)
+        (run / 'run-state.json').write_text('{oops', encoding='utf-8')
+        code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--next')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_run_state')

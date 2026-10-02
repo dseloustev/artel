@@ -212,3 +212,22 @@ What a mirror run emits (`data.format` is `"tasks"`):
   the floor). The fourth floor — an earlier deviation in the run touched one of the task's
   files — is known only at runtime and is the orchestrator's (`docs/autonomous-run.md` §16);
   it applies to a route set at approval too.
+
+## 8. The route helper
+
+`scripts/tasklist_tasks.py route` answers the model question before an iteration dispatch.
+It contacts nothing.
+
+    tasklist-tasks route --tasklist <path|-> --ticket-key <KEY> --next [--repo <dir>] [--sensitive-paths <file>]
+
+`--next` is the only selector: `task` is the first entry of `data.ready_now` (§7), `title` its
+`Task <N.M>: <title>` heading with the HITL tag dropped. `route_declared` and `route_effective`
+follow §7's floors, plus two runtime ones: one of the task's `Files:` is in `run-state.json`
+`deviation_files` — `earlier deviation: <path>` per path, applying to a route set at approval
+too — or `review.perTask` is true — `review.perTask`. `model` is
+`MODEL_BY_ROUTE = {'light': 'sonnet', 'full': 'opus'}`, a constant in `scripts/task_grammar.py`;
+`next_route()` is the pure function behind it. No ready task → `task`, `title`, `route_*` and
+`model` are `null`; a non-task-format or malformed tasklist, an unreadable `run-state.json`, or
+a non-boolean `review.perTask` exits `2` with an error envelope. The route decision after
+completion (`autonomous-run.md` §16.1) is unchanged; the helper only chooses the model before
+dispatch.

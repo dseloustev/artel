@@ -23,6 +23,7 @@ Contract: docs/superpowers/specs/2026-08-22-artel-task-queue-design.md, docs/tas
 Usage: tasklist-tasks --tasklist <path|-> --ticket-key <KEY> [--repo <dir>] [--sensitive-paths <file>]
        tasklist-tasks --tasklist <path|-> --ticket-key <KEY> --check --requirements <R1,R2,…|none|absent> [--repo <dir>] [--sensitive-paths <file>]
        tasklist-tasks requirements --prd <path|->
+       tasklist-tasks route --tasklist <path|-> --ticket-key <KEY> --next [--repo <dir>] [--sensitive-paths <file>]
 """
 import json
 import re
@@ -367,6 +368,122 @@ def requirements_main(argv, elapsed):
     return 0
 
 
+def route_main(argv, elapsed):
+    def fail(kind, message, data=None):
+        error = {'kind': kind, 'message': message}
+        if data is not None:
+            error['data'] = data
+        print(envelope(False, elapsed(), error=error, verb='tasklist-route'))
+        return 2
+
+    tasklist_path = None
+    ticket_key = None
+    next_flag = False
+    repo = '.'
+    sensitive_paths = None
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == '--tasklist':
+            i += 1
+            tasklist_path = argv[i] if i < len(argv) else None
+        elif arg == '--ticket-key':
+            i += 1
+            ticket_key = argv[i] if i < len(argv) else None
+        elif arg == '--next':
+            next_flag = True
+        elif arg == '--repo':
+            i += 1
+            repo = argv[i] if i < len(argv) else ''
+        elif arg == '--sensitive-paths':
+            i += 1
+            sensitive_paths = argv[i] if i < len(argv) else ''
+        else:
+            return fail('invalid_argument', 'unknown flag: {}'.format(arg))
+        i += 1
+    if not tasklist_path:
+        return fail('invalid_argument', 'missing required --tasklist <path|->')
+    if not ticket_key:
+        return fail('invalid_argument', 'missing required --ticket-key <KEY>')
+    if not next_flag:
+        return fail('invalid_argument', 'missing required --next')
+    if not repo:
+        return fail('invalid_argument', 'missing value for --repo <dir>')
+    if sensitive_paths == '':
+        return fail('invalid_argument', 'missing value for --sensitive-paths <file>')
+
+    text, label = _read_input(tasklist_path, fail, 'tasklist_not_found', 'tasklist')
+    if text is None:
+        return label
+    body = doc_header.body(text)
+    if not task_grammar.is_task_format(body):
+        return fail('tasklist_malformed',
+                    '{}: no `### Task <N>.<m>:` block — the route helper reads the task'
+                    ' grammar (task-grammar.md §4)'.format(label))
+    offset = text[:len(text) - len(body)].count('\n')
+    iterations, problems, _ = task_grammar.parse(body, line_offset=offset)
+    if problems:
+        first = problems[0]
+        return fail('tasklist_malformed',
+                    '{}: {} problem(s) in the task grammar; first: line {}: {}'.format(
+                        label, len(problems), first['line'], first['message']),
+                    data={'problems': problems})
+    rules = task_grammar.load_sensitive_rules(repo, sensitive_paths)
+    per_task = read_per_task(repo, fail)
+    if per_task is None:
+        return 2
+    deviation_files = read_deviation_files(repo, ticket_key, fail)
+    if deviation_files is None:
+        return 2
+    data = task_grammar.next_route(iterations, rules, deviation_files, per_task,
+                                   trail_prefix(repo, ticket_key))
+    if data is None:
+        data = {'task': None, 'title': None, 'route_declared': None,
+                'route_effective': None, 'route_reasons': [], 'model': None}
+    else:
+        data = {'ticket_key': ticket_key, 'format': 'tasks', **data}
+    print(envelope(True, elapsed(), data=data, verb='tasklist-route'))
+    return 0
+
+
+def read_per_task(repo, fail):
+    """`review.perTask`: absent file/key -> False; unreadable -> exit 2; non-bool -> exit 2."""
+    path = Path(repo) / '.artel' / 'config.json'
+    if not path.is_file():
+        return False
+    try:
+        config = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        fail('invalid_config', 'unreadable .artel/config.json: {}'.format(path))
+        return None
+    review = config.get('review') if isinstance(config, dict) else None
+    value = (review or {}).get('perTask', False)
+    if not isinstance(value, bool):
+        fail('invalid_config', 'review.perTask is not a boolean: {!r}'.format(value))
+        return None
+    return value
+
+
+def read_deviation_files(repo, ticket_key, fail):
+    """`deviation_files`: absent file/key or null -> []; unreadable/non-list -> exit 2."""
+    path = Path(repo) / '.artel' / 'run' / ticket_key / 'run-state.json'
+    if not path.is_file():
+        return []
+    try:
+        state = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        fail('invalid_run_state', 'unreadable run-state.json: {}'.format(path))
+        return None
+    value = state.get('deviation_files') if isinstance(state, dict) else None
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        fail('invalid_run_state',
+             'deviation_files is not a list of strings: {!r}'.format(value))
+        return None
+    return value
+
+
 def main(argv):
     start = time.monotonic()
 
@@ -382,6 +499,8 @@ def main(argv):
 
     if argv and argv[0] == 'requirements':
         return requirements_main(argv[1:], elapsed)
+    if argv and argv[0] == 'route':
+        return route_main(argv[1:], elapsed)
 
     tasklist_path = None
     ticket_key = None

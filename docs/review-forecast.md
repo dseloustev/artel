@@ -76,12 +76,19 @@ is one that exists. Typically five to fifteen per branch. Above twenty, group co
 say so in the record (§7).
 
 **Sorting into the two tables.** Every Critical or Warning finding in the reviewer's report,
-and every `high` or `medium` entry in `review/findings.json` when it exists, attaches to the
-unit its `file:line` falls in. A finding with no anchor — a PR Compliance gap, a
-regression-guard finding about the merge itself — becomes a unit of its own. A unit with at
-least one attached finding belongs to **table 1 (definite issues)**. Every other unit belongs
-to **table 2 (forecast)**; a Suggestion attached to it is listed in its row and does not
-move it.
+and every `high` or `medium` entry in `review/findings.json` when it exists with `scope`
+`diff` (the default), attaches to the unit its `file:line` falls in. A finding with no anchor
+— a PR Compliance gap, a regression-guard finding about the merge itself — becomes a unit of
+its own. An entry with `"scope": "repository"`, and any finding whose anchor falls outside
+every unit's hunks, is a pre-existing issue: it attaches to no unit, becomes no unit of its
+own, and is counted nowhere — it stays in the reviewer's verbatim comments under its own
+heading, never in a table, a proposed fix or the threshold. A unit with at least one attached
+finding belongs to **table 1 (definite issues)**. Every other unit belongs to **table 2
+(forecast)**; a Suggestion attached to it is listed in its row and does not move it.
+
+The reviewer validates every anchor against the diff before returning
+(`scripts/validate_findings.py`, `agents/reviewer.md`); a finding that cannot anchor arrives
+file-level or repository-scoped, never at a guessed line.
 
 ## 3. Lookup
 

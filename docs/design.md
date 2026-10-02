@@ -1175,3 +1175,15 @@ move to the decision log.
   token stays unclassified on either host, as the guard's rule says. Corroborated by a live
   2.0.19 session's recorded tool names (`mcp-compress-router_invoke_tool`) and its permission
   log; recorded in [opencode.md](opencode.md).
+- **2026-10-02 — Review evidence discipline ported from AdGuard's `code-review` plugin.**
+  A comparison against AdGuard's private `ai-plugins/plugins/code-review` (v0.1.0 snapshot,
+  2026-09-28) found four mechanics worth adopting into the `reviewer` agent, and they land as
+  one contract: every finding names its evidence (exact `file:line` plus the observed failure
+  or violated contract, with reading-only correctness claims marked as such);
+  `scripts/validate_findings.py` checks anchors against the reviewed diff's new-side hunks and
+  the finding's `scope`; large diffs get the classify / risk-first / consolidate / coverage
+  triage; and a pre-existing defect in unchanged code is routed via `"scope": "repository"`
+  into its own report section — never a fix task, a forecast unit or a counted finding.
+  Mechanics, not text: the source repo is private and carries no licence file, so the prose
+  is written fresh. Comparison and rationale:
+  [comparisons/adguard-code-review-vs-deep-review.md](comparisons/adguard-code-review-vs-deep-review.md).

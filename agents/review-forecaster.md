@@ -58,21 +58,22 @@ missing rather than deriving it yourself:
   `review.forecast.reviewers`, as the caller read them from `.artel/config.json`.
 - **PR title and description** — when the caller fetched them.
 - `<specs.dir>/<TICKET_ID>/review/findings.json` when it exists — the reviewer's lens
-  findings, each with `file`, `line` and `severity`, which anchor to units cleanly.
+  findings, each with `file`, `line`, `severity` and `scope`, which anchor to units cleanly.
 
 ## Workflow
 
 1. **Read the contract and the report.** Note every Critical / Warning / Suggestion finding
-   with its `file:line`, and every `findings.json` entry with its severity.
+   with its `file:line`, and every `findings.json` entry with its severity and `scope`.
 2. **Build the change inventory** (§2). Determine the default branch
    (`git symbolic-ref refs/remotes/origin/HEAD`, as the reviewer does), run
    `git diff <default-branch>...<branch or HEAD>`, and group the hunks into units. Name each
    unit with its main symbol and path; resolve the symbol through the host's optional
    code-symbol index, index-first per `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §3.
    Above twenty units, group coarser and record it (§7).
-3. **Sort the units** (§2). Findings attach by `file:line`; unanchored findings become units
-   of their own; a unit with an attached Critical / Warning / `high` / `medium` finding goes to
-   table 1, every other unit to table 2.
+3. **Sort the units** (§2). Findings with `scope` `diff` attach by `file:line`; unanchored
+   findings become units of their own; `"scope": "repository"` entries and anchors outside
+   every unit's hunks are pre-existing — no unit, no table, no count; a unit with an attached
+   Critical / Warning / `high` / `medium` finding goes to table 1, every other unit to table 2.
 4. **Forecast mode `off`** — skip to step 8. Table 2 lists its units with `— · no precedent`
    in `Pass` and empty `Confidence` and `Precedents`; section 3 reads `No proposed fixes:
    forecast off.`; the record's `Index:` line reads `not consulted`.
@@ -118,7 +119,7 @@ Threshold: <t>% · Reviewers weighted: <names, or "none (all equal)">
 
 ## Review comments
 <the reviewer's report, verbatim: Critical Issues / Warnings / Suggestions / PR Compliance
- when present>
+ / Pre-existing issues (out of diff) when present>
 
 ## 1. Definite issues
 | # | Change | Files | Finding | Severity | Precedent | Fix |

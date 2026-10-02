@@ -384,7 +384,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   (all three flags required — never a fallback to the ticket review).
 - **Writes:** (via the agent) `review.md` with `**Review round:** N` (always ticket-level, even
   for phase runs); the machine-readable `review/findings.json` (phase-aware —
-  ticket-parsing.md §4); in ticket mode, a tasklist write-back under `## Code Review Fixes`.
+  ticket-parsing.md §4), each entry optionally carrying `"scope": "repository"` for a
+  pre-existing issue in unchanged code — never a fix task; in ticket mode, a tasklist
+  write-back under `## Code Review Fixes`.
   Task mode writes `.artel/run/<TICKET_ID>/reports/NNN-<slug>-review.md` and the same
   `## Code Review Fixes` write-back, and nothing else — no `review.md`, no round bump, no
   lenses. Either mode opens its write-back with a `### <source>` heading, and the skill records
@@ -598,12 +600,14 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   ticket directory; optionally the PR title/body via `vcs.adapter` when a PR link is given;
   `knowledge.adapter` plus the kartoteka MCP tools for the forecast mode
   (`docs/review-forecast.md` §1); `review.forecast.threshold` and `review.forecast.reviewers`.
-- **Writes:** `<specs.dir>/<TICKET_ID>/deep-review.md` — the reviewer's comments verbatim, a
-  table of definite issues, a table of the remaining changes with a pass percentage and cited
-  precedents, proposed fixes for changes under the threshold, and the consultation record. The
-  reviewer's own report lands at `.artel/run/<TICKET_ID>/reports/deep-review-findings.md`. On
-  apply: `## Code Review Fixes` tasks appended to the ticket-wide `tasklist.md` under a
-  `### deep-review-<date>` heading, and recorded as fix rows in the task queue on the queue path.
+- **Writes:** `<specs.dir>/<TICKET_ID>/deep-review.md` — the reviewer's comments verbatim
+  (including its **Pre-existing issues (out of diff)** section when there are any — never
+  counted in the tables or the forecast), a table of definite issues, a table of the remaining
+  changes with a pass percentage and cited precedents, proposed fixes for changes under the
+  threshold, and the consultation record. The reviewer's own report lands at
+  `.artel/run/<TICKET_ID>/reports/deep-review-findings.md`. On apply: `## Code Review Fixes`
+  tasks appended to the ticket-wide `tasklist.md` under a `### deep-review-<date>` heading,
+  and recorded as fix rows in the task queue on the queue path.
 - **Pauses:** on a `verify.commands` failure (stop and report — review does not proceed; an
   empty list degrades the gate to `skipped` and continues); when `deep-review.md` already
   exists (overwrite?); after the file is written, to ask which fixes to apply (definite issues
@@ -611,7 +615,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Notes:** standalone utility, not part of the autonomous pipeline. Orchestrator: dispatches
   the `reviewer` (standalone mode) and then the `review-forecaster`, which always runs — with
   the forecast off (`--local`, adapter not `kartoteka`, or tools absent) the file still carries
-  the comments and the definite-issues table, and its `Forecast:` line says why. Applying
+  the comments and the definite-issues table, and its `Forecast:` line says why. The reviewer
+  validates its anchors against the branch diff (`scripts/validate_findings.py`) before
+  returning; a finding that cannot anchor arrives file-level or repository-scoped. Applying
   fixes means `Skill: implementer` once per appended task, then `verify.commands` once; no
   re-review loop — re-run the skill to refresh the forecast. Ticket-wide only (phase suffix
   discarded). No PR link → no PR Compliance section in the comments.

@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Anchor validation for review findings.** `scripts/validate_findings.py` checks every
+  `review/findings.json` anchor against the reviewed diff's new-side hunks and its `scope`,
+  and the `reviewer` agent runs it before returning — a guessed line now fails loudly instead
+  of flowing into the forecast and `deep-review.md`.
+
+### Changed
+
+- **Review evidence discipline, ported from AdGuard's `code-review` plugin.** The `reviewer`
+  agent's findings now carry an explicit evidence contract (exact `file:line` plus the
+  observed failure or violated contract; a correctness claim that rests on reading says so),
+  a large-diff triage protocol (classify, read risk-first, consolidate, state coverage,
+  staged passes), and an out-of-diff route: a defect in unchanged code is reported in its own
+  **Pre-existing issues (out of diff)** section and marked `"scope": "repository"`, never
+  counted as this change's finding, fix task or forecast unit. Findings files stay
+  compatible — `scope` is optional and defaults to `diff`. The comparison that motivated the
+  work is in `docs/comparisons/adguard-code-review-vs-deep-review.md`.
+
 ## [0.28.1] - 2026-10-02
 
 ### Changed

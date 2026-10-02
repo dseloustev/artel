@@ -151,7 +151,7 @@ If the caller passed a PR description in the prompt, add a **PR Compliance** sec
 
 ### Output
 
-Review report with priority sections: **Critical Issues (must fix)**, **Warnings (should fix)**, **Suggestions (consider improving)**, plus the optional **PR Compliance** section. Include concrete examples of how to fix each issue.
+Review report with priority sections: **Critical Issues (must fix)**, **Warnings (should fix)**, **Suggestions (consider improving)**, the optional **PR Compliance** section, and a **Pre-existing issues (out of diff)** section (`none` when there is nothing) — see `## Evidence and anchoring`. Every finding carries its `file:line`, what is wrong, why it matters, and a concrete fix. A diff past the `## Large changes` thresholds opens the report with a `Coverage:` line naming what was read in depth, what was skimmed and what was left unreviewed.
 
 Save to:
 - `<specs.dir>/<TICKET_ID>/review.md` when a ticket identifier is available (from `<specs.dir>/.active_ticket` or caller).
@@ -328,6 +328,45 @@ Plan mode reviews no code: the review focus and the lenses below are for the cod
   identifiers or comments is a **Minor** convention finding — reported as Nice-to-have, `low`
   in `findings.json`, never a fix task.
 
+## Evidence and anchoring (code modes)
+
+Every finding names the evidence it rests on: the exact `file:line` and the
+observed failure or the violated contract. A correctness finding whose failing code path
+cannot be named is not reported — a plausible worry with no path to the failure is noise in
+a report a human acts on. A correctness claim that could not be confirmed by a run says so
+in the finding ("rests on reading, not a run") rather than implying a run that never
+happened.
+
+Anchors are mechanical, not decorative: `review-forecaster` attaches findings to change units
+by `file:line`, and `deep-review.md` cites them, so a guessed line sends a reader to the
+wrong place with confidence. Before finishing, validate every anchor against the diff you
+actually read:
+
+    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/validate_findings.py \
+      <specs.dir>/<TICKET_ID>/review/findings.json --range <default-branch>...HEAD
+
+Use `--diff <path>` instead when you reviewed a saved patch rather than a branch range. The script
+reports each finding as `ok` or `FAIL` with the file's real hunk ranges and exits `1` when an
+anchor does not hold. Fix what it reports — the right line, no line at all (a file-level
+finding), or `"scope": "repository"` when the anchor is genuinely outside the change — and
+never leave a guessed line in place.
+
+### Out-of-diff findings
+
+While tracing context you read unchanged code. A clear defect there is knowledge worth
+keeping, but it is not this change's finding and it must not be dressed as one:
+
+- In `review/findings.json`, a finding in unchanged code carries `"scope": "repository"` —
+  its anchor must fall outside the diff's new-side hunks, or be omitted for a file-level
+  observation. It is never a fix task, never attaches to a change unit, and is never counted
+  as a Critical, Warning or Suggestion of this change.
+- In the standalone report they go in their own **Pre-existing issues (out of diff)** section,
+  each with `file:line`, the evidence and why it matters.
+- A defect on a changed line is a diff finding even when the behaviour predates the change:
+  report it inline with a "carried over from the old code" note, never as repository scope.
+- A pre-existing defect demoted to silence is the same loss as a suppressed diff finding:
+  scope is a routing decision, not a rejection reason.
+
 ## Review lenses (ticket and standalone modes)
 
 Run three focused passes over the diff (single enriched review — no fan-out). Task mode skips
@@ -381,10 +420,36 @@ an absent file means the lens passes did not run.
 standalone mode. Severity mapping to the existing taxonomy: high → Blocking/Critical,
 medium → Important/Warning, low → Nice-to-have/Suggestion.
 
+`line` may be omitted for a file-level observation, and `"scope": "repository"` marks a
+pre-existing issue in unchanged code — never counted as this change's finding
+(`## Evidence and anchoring`). Everything else is `"scope": "diff"` by default.
+
+## Large changes (code modes)
+
+A diff over 400 changed lines or 30 changed files is triaged before its hunks are read:
+uniform shallow reading of everything finds less than deep reading of what carries risk. Over
+1000 changed lines or 30 changed files, the report also says the change should be split.
+
+- **Classify files first.** Skip generated files (lockfiles, snapshots, minified bundles,
+  vendored code, "DO NOT EDIT" headers), pure renames and formatting-only diffs. Skim tests
+  (do they pin the new behaviour?), docs and mechanical config churn. Full review: source
+  logic, security-sensitive paths, shared modules and public interfaces, concurrency,
+  migrations, and infrastructure with blast radius.
+- **Read risk-first.** Spend the deep reading on the full-review files; the skim keeps the
+  rest from becoming a blind spot.
+- **Consolidate repeated patterns.** The same issue across several files is one finding that
+  lists every affected path — nothing downstream merges cross-file duplicates for you.
+- **Staged passes.** For a diff over ~1000 lines or ~30 files, split at commit boundaries into
+  two or three ranges, review each, and merge into one report. A single squashed giant commit
+  cannot be split by range: run one triaged pass and recommend splitting.
+- **Say what was covered.** The report names what was read in depth, what was skimmed and what
+  was left unreviewed. A truncated review that states its coverage is useful; one that hides
+  it is not.
+
 ## Rules
 
 - Don't nitpick style unless it contradicts the host repo's conventions docs (its CLAUDE.md and any style guides it references).
-- **No subagents** — do all of the review yourself: never spawn a subagent to review part of the diff, and never spawn a second reviewer for another opinion. The pipeline already provides every review seat the work gets (the per-task gate, the phase review, `deep-review`'s single pass); a reviewer you spawn duplicates one of them at full cost and its verdict counts for nothing. A diff too large for one pass is reviewed in passes, and the report says so.
+- **No subagents** — do all of the review yourself: never spawn a subagent to review part of the diff, and never spawn a second reviewer for another opinion. The pipeline already provides every review seat the work gets (the per-task gate, the phase review, `deep-review`'s single pass); a reviewer you spawn duplicates one of them at full cost and its verdict counts for nothing. A diff too large for one pass is reviewed in passes (see `## Large changes`), and the report says so.
 - **Read-only on the checkout** — the tasklist write-back and your report files are the only writes; never touch the working tree, the index, HEAD or branch state. Never call kartoteka's task tools either: `run-reviewer` records your write-back in the task queue.
 - **Skip generated files** — hunks in files the host marks as generated (analyzer/linter exclusion lists, generated-file headers) are codegen output: don't review their style and never recommend editing them directly; the fix is always in the generating source plus the host's codegen step, when it has one.
 - In ticket mode, every blocking/important finding must become a task in the tasklist — not just a suggestion.

@@ -527,6 +527,27 @@ constant, and the person can lower any route at the pause. `review.perTask: true
 `full` — earns its seats when tasks carry judgement throughout, or when phases are long enough
 that drift across tasks has room to compound.
 
+### 16.3 The implementer's model
+
+An iteration task's model follows its effective route: `light` → `sonnet`, `full` → `opus`
+(`MODEL_BY_ROUTE` in `scripts/task_grammar.py`). Before the Agent call the implementer skill runs
+the route helper over the tasklist in scope — the phase tasks file or `tasklist.md`, on the
+kartoteka path through `spec_store.py get … |` ([task-grammar.md](task-grammar.md) §8) — and
+passes a non-null `data.model` as the call's `model`; `null` or exit `2` leaves it off, on the
+frontmatter `opus`. The choice is relayed as a `Model:` line, after `Verify iterations:` and
+before `Deviations:`, and §16.1's journal line takes the line's value verbatim as the
+`; model <value>` suffix.
+
+The prediction can miss — the helper answers for the task that was ready when it ran, while the
+completion's first line names the task actually worked. The relayed line then reads
+`Model: sonnet (predicted task 2.3 at route light; worked task 2.4)`. The worked task's route
+still decides whether its task review runs (§16.2): a task that ran on `sonnet` by a missed
+prediction is wrapped when its effective route came out `full`.
+
+Fix lists are the exception: a fix list is correction of a failed gate, not a task dispatch, so
+its base is `opus` whatever the task's route, with `fable` on the round after a failed one (§5);
+the skill runs no helper for one.
+
 ## 17. Sizing and heads
 
 `feature-development` is the one entry point for ticket work. After the ticket is imported

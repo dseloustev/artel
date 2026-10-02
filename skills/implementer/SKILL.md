@@ -22,8 +22,26 @@ on every spawn. Default is the queue; see
 `--model <sonnet|opus|fable>`: dispatch the agent on this model instead of its frontmatter
 `opus`. It may appear in any position; strip it before reading `$0`. Any other value is an
 invocation error — report it and stop. A dispatch refused for that model (not available, or not
-allowed on this host) is re-dispatched once without it. The orchestrator passes the flag only to
-step up a fix round that follows a failed one (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §5).
+allowed on this host) is re-dispatched once without it. The orchestrator passes the flag to step
+up a fix round that follows a failed one (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §5);
+otherwise the skill chooses the model itself (below).
+
+**Choosing the model** — after the spec-store read and before the Agent call, first match wins:
+
+1. `--model` given → that model.
+2. **Fix-list dispatch** — the invocation names `## Code Review Fixes`, `## Runtime Fixes`,
+   `## Verify Fixes` or Final Verification → no model (the frontmatter `opus`), no helper run.
+3. **Iteration dispatch** → run the route helper (`route --next`) over the tasklist in scope
+   (`<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` on a phase-scoped run,
+   `<specs.dir>/<TICKET_ID>/tasklist.md` otherwise):
+
+       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py route --tasklist <the tasklist> --ticket-key <TICKET_ID> --next
+
+   (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <the tasklist> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py route --tasklist - --ticket-key <TICKET_ID> --next`)
+   A non-null `data.model` → that model; `null` or exit `2` → no model.
+
+The chosen model is passed as the Agent call's `model`. A call refused for its model is
+re-dispatched once without one.
 
 ## Execute
 
@@ -43,9 +61,9 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
-Use the Agent tool with `subagent_type: "implementer"`, `model` set to the `--model` value when
-one was given (left out otherwise, so the frontmatter applies), description `"Implement next task
-for <TICKET_ID>"`, and a prompt passing TICKET_ID / TICKET_NUM / PHASE_NUM plus:
+Use the Agent tool with `subagent_type: "implementer"`, `model` set to the chosen model (left out
+when the choice is `null`), description `"Implement next task for <TICKET_ID>"`, and a prompt
+passing TICKET_ID / TICKET_NUM / PHASE_NUM plus:
 
 ```
 ## Context
@@ -115,7 +133,17 @@ completion's `Deviations:` line names the files each deviation changed (protocol
 ### Completion
 
 Relay the agent's completion message as it is — the short contract: task, changed paths, the
-`Report: <path>` line, and always its `Verify iterations: N` and `Deviations:` lines. Do not open
+`Report: <path>` line, and always its `Verify iterations: N` and `Deviations:` lines.
+
+Add one `Model:` line to the relayed contract, after `Verify iterations:` and before
+`Deviations:`, written so an orchestrator can append its value to a journal line verbatim:
+`Model: sonnet` when the helper's model matched the task worked; `Model: sonnet (predicted task
+2.3 at route light; worked task 2.4)` when it did not (compare the completion's first line);
+`Model: opus (frontmatter: fix list)` — or `no ready task`, `route lookup failed: <kind>`;
+`Model: fable (--model)`; `Model: opus (frontmatter: sonnet refused)` after a refused
+re-dispatch. `HITL:` and `DEVIATION` returns carry no `Model:` line.
+
+Do not open
 the report file to expand it into your own output; the diff and evidence live there so that
 they never enter the caller's context (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §1). When
 the caller is an orchestrator running in autonomous mode, it — not this skill — updates

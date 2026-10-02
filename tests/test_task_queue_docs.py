@@ -175,6 +175,8 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
     """
 
     def test_exactly_the_mirroring_skills_invoke_the_parser(self):
+        # The mirror invocation is `tasklist_tasks.py --tasklist`; the implementer
+        # skill runs the same script in `route` mode, which is not a mirror step.
         carriers = {rel for rel in (
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',
@@ -183,7 +185,7 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
             'skills/deep-review/SKILL.md',
             'skills/implementer/SKILL.md',
             'agents/reviewer.md',
-        ) if 'tasklist_tasks.py' in (ROOT / rel).read_text(encoding='utf-8')}
+        ) if 'tasklist_tasks.py --tasklist' in (ROOT / rel).read_text(encoding='utf-8')}
         self.assertEqual(carriers, {
             'skills/generate-tasklist/SKILL.md',
             'skills/tasklist/SKILL.md',

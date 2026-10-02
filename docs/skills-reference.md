@@ -311,9 +311,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Implement the next incomplete tasklist task, verify it, and flip its checkbox —
   on a task-format tasklist one whole `### Task N.M:` block per dispatch, every step ticked.
 - **Invocation:** `/artel:implementer [ticket-id] or [ticket-id]-[phase] [--local] [--model sonnet|opus|fable]`
-- **Model:** the agent's frontmatter `opus`; `--model` overrides it for one dispatch — the
-  orchestrator passes `fable` on a fix round that follows a failed one
-  ([autonomous-run.md](autonomous-run.md) §5).
+- **Model:** an iteration task follows its route — `sonnet` on `light`, `opus` on `full`, chosen
+  by `tasklist-tasks route`; `--model` overrides it for one dispatch (the orchestrator passes
+  `fable` on a fix round that follows a failed one, `autonomous-run.md` §5).
 - **Reads:** on the queue path a `task_ready` claim from kartoteka, else the phase tasks
   file or `tasklist.md` (first `- [ ]` task in scope; on a task-format tasklist the first task
   of the parser's `ready_now`) — `--local` forces the file

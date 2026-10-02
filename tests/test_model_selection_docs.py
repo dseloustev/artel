@@ -36,18 +36,29 @@ class TestImplementerSkill(unittest.TestCase):
                        'of its frontmatter `opus`',
                        'Any other value is an invocation error',
                        'is re-dispatched once without it',
-                       '`model` set to the `--model` value when one was given'):
+                       '`model` set to the chosen model'):
             self.assertIn(phrase, self.skill)
 
-    def test_no_per_task_model_rule(self):
-        self.assertNotIn('route --next', self.skill)
+    def test_the_model_choice_precedence(self):
+        for phrase in ('**Choosing the model**', 'first match wins',
+                       'Fix-list dispatch', 'Iteration dispatch',
+                       '`## Code Review Fixes`', '`## Runtime Fixes`', '`## Verify Fixes`',
+                       'Final Verification', 'route --next', '`data.model`',
+                       'phase-<PHASE_NUM>/tasks.md', 'spec_store.py get'):
+            self.assertIn(phrase, self.skill)
+
+    def test_the_model_relay_line(self):
+        for phrase in ('`Model:` line', 'after `Verify iterations:` and before `Deviations:`',
+                       'predicted task', 'route lookup failed', '`Model: fable (--model)`',
+                       'carry no `Model:` line'):
+            self.assertIn(phrase, self.skill)
 
     def test_skills_reference(self):
         ref = flat(read('docs/skills-reference.md'))
         self.assertIn('`/artel:implementer [ticket-id] or [ticket-id]-[phase] [--local] '
                       '[--model sonnet|opus|fable]`', ref)
-        self.assertIn("**Model:** the agent's frontmatter `opus`; `--model` overrides it for "
-                      'one dispatch', ref)
+        self.assertIn('**Model:** an iteration task follows its route — `sonnet` on `light`, '
+                      '`opus` on `full`', ref)
 
 
 FD = 'skills/feature-development/SKILL.md'

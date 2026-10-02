@@ -1467,7 +1467,7 @@ class TestReaderSkills(unittest.TestCase):
                       flat('skills/validate/SKILL.md'))
         self.assertIn("iteration rows are the orchestrator's re-mirror",
                       flat('skills/run-reviewer/SKILL.md'))
-        self.assertIn('The orchestrator passes the flag only to step up a fix round',
+        self.assertIn('The orchestrator passes the flag to step up a fix round',
                       flat('skills/implementer/SKILL.md'))
 
     def test_skills_readme(self):

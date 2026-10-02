@@ -2,7 +2,9 @@
 
 The crew — one `.md` per agent (frontmatter + system prompt): analyst, figma-analyst, researcher,
 planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, review-forecaster, qa, validator,
-tech-writer, issue-scout (context for `issue-draft`, outside the pipeline).
+tech-writer, issue-scout (context for `issue-draft`, outside the pipeline), seat (the orchestrator's
+tail one layer down, dispatched by `feature-development` when `seat.enabled` — autonomous-run.md
+§18; never routed to directly).
 
 Agent bodies must stay project-agnostic — host specifics come from `.artel/config.json`
 (see [design.md](design.md#genericization-strategy)). Code navigation is the one
@@ -29,6 +31,7 @@ on a call only where it varies:
 | `reviewer` — a re-review after a fix round | `sonnet` (dispatched) |
 | `reviewer` — `deep-review`'s whole-branch review | `fable` |
 | `review-forecaster` | `sonnet` (frontmatter) |
+| `seat` | `sonnet` (frontmatter) |
 | every other agent | its frontmatter |
 
 An iteration task's model follows its route, and a review's follows its scope — the distribution

@@ -128,8 +128,10 @@ class TestCommandBuild(BuildBase):
 
 
 def source_agents():
-    """Every agent shipped under agents/, by file stem (README.md is not an agent)."""
-    return sorted(p.stem for p in (ROOT / 'agents').glob('*.md') if p.name != 'README.md')
+    """Every agent this build emits, by file stem — README.md is not an agent and
+    build_opencode.AGENTS_EXCLUDE (the seat) is not emitted."""
+    return sorted(p.stem for p in (ROOT / 'agents').glob('*.md')
+                  if p.name != 'README.md' and p.stem not in build_opencode.AGENTS_EXCLUDE)
 
 
 class TestAgentBuild(BuildBase):
@@ -144,6 +146,9 @@ class TestAgentBuild(BuildBase):
 
     def test_readme_is_not_an_agent(self):
         self.assertFalse((self.out / 'agents' / 'artel-README.md').is_file())
+
+    def test_the_seat_is_not_generated(self):
+        self.assertFalse((self.out / 'agents' / 'artel-seat.md').is_file())
 
     def test_frontmatter_is_opencode_shape(self):
         for path in sorted((self.out / 'agents').glob('artel-*.md')):

@@ -80,6 +80,7 @@ VALID_NAME = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
 ARTEL_REF = re.compile(r'/artel:([a-z0-9-]+)')
 SKILL_FILE_REF = re.compile(r'\$\{CLAUDE_PLUGIN_ROOT\}/skills/([a-z0-9-]+)/([\w./-]+)')
 MAX_DESCRIPTION = 1024
+AGENTS_EXCLUDE = frozenset({'seat'})  # Claude Code only: OpenCode runs the tail inline (docs/opencode.md)
 
 
 def parse_frontmatter(text):
@@ -268,7 +269,7 @@ def main(argv=None):
                         encoding='utf-8')
 
     agent_files = sorted(p for p in (source / 'agents').glob('*.md')
-                         if p.name != 'README.md')
+                         if p.name != 'README.md' and p.stem not in AGENTS_EXCLUDE)
 
     for agent_path in agent_files:
         name, text = build_agent(agent_path.read_text(encoding='utf-8'), root, generated)

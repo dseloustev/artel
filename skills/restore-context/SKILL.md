@@ -6,7 +6,10 @@ model: sonnet
 ---
 
 Restore the working context from the `.artel/context/` store back to its working-tree locations.
-Files are copied, not moved — the store is the authoritative mirror. Store layout, "newer wins"
+Files are copied, not moved — the store is the authoritative mirror. `AGENTS.md` is the one
+exception in direction: `save-context` mirrors it but never removes it from the working tree, so
+here it is restored only when the working tree lacks it — a live `AGENTS.md` is never overwritten
+by a store copy. Store layout, "newer wins"
 semantics, and exactly what gets saved are defined in
 `${CLAUDE_PLUGIN_ROOT}/skills/save-context/SKILL.md` — this skill reads exactly what that one
 writes, same paths, same names.
@@ -48,7 +51,11 @@ Substitute the literal `<specs.dir>` value (`${CLAUDE_PLUGIN_ROOT}/docs/config.m
 
 ```bash
 STORE_ROOT=".artel/context"
-[ -f "$STORE_ROOT/root/AGENTS.md" ] && cp "$STORE_ROOT/root/AGENTS.md" AGENTS.md
+# AGENTS.md — fill the gap only: a live working-tree AGENTS.md is never overwritten
+# by a store copy (it may be older than a working copy agents-md-generator refreshed).
+if [ ! -f AGENTS.md ] && [ -f "$STORE_ROOT/root/AGENTS.md" ]; then
+  cp "$STORE_ROOT/root/AGENTS.md" AGENTS.md
+fi
 [ -f "$STORE_ROOT/root/CHANGELOG.md" ] && cp "$STORE_ROOT/root/CHANGELOG.md" CHANGELOG.md
 mkdir -p "<specs.dir>"
 [ -f "$STORE_ROOT/.active_ticket" ] && cp "$STORE_ROOT/.active_ticket" "<specs.dir>/.active_ticket"
@@ -71,12 +78,23 @@ Restores common files + ONLY the requested ticket's artifacts. Other tickets' fo
 touched. Substitute the resolved `TICKET_ID` and the literal `<specs.dir>` value.
 
 1. **Common root files** — ticket snapshot preferred, shared latest as fallback (covers tickets
-   saved before per-ticket snapshots existed):
+   saved before per-ticket snapshots existed). `CHANGELOG.md` is restored unconditionally;
+   `AGENTS.md` is restored only when the working tree lacks it — a live working-tree `AGENTS.md`
+   is never overwritten by a store copy:
 
    ```bash
    STORE_ROOT=".artel/context"
    TICKET_ID="PROJ-XXXX"  # substitute
-   for f in AGENTS.md CHANGELOG.md; do
+   if [ ! -f AGENTS.md ]; then
+     if [ -f "$STORE_ROOT/tickets/${TICKET_ID}/root/AGENTS.md" ]; then
+       cp "$STORE_ROOT/tickets/${TICKET_ID}/root/AGENTS.md" AGENTS.md
+       echo "restored AGENTS.md (ticket snapshot)"
+     elif [ -f "$STORE_ROOT/root/AGENTS.md" ]; then
+       cp "$STORE_ROOT/root/AGENTS.md" AGENTS.md
+       echo "restored AGENTS.md (shared latest — no ticket snapshot)"
+     fi
+   fi
+   for f in CHANGELOG.md; do
      if [ -f "$STORE_ROOT/tickets/${TICKET_ID}/root/${f}" ]; then
        cp "$STORE_ROOT/tickets/${TICKET_ID}/root/${f}" "${f}"
        echo "restored ${f} (ticket snapshot)"
@@ -147,6 +165,8 @@ Report based on `FOUND`:
 ## Invariants
 
 - **Copy, don't move** — the store stays authoritative.
+- **`AGENTS.md` fills the gap only** — restored when the working tree lacks it; a live
+  working-tree copy is never overwritten by a store copy.
 - **Root-file fallback:** ticket snapshot (`tickets/<ID>/root/`) wins; `root/` shared latest is
   used only when the snapshot is absent.
 - **Skip `.DS_Store`** in every copy step. **Idempotent** — re-running with the same argument

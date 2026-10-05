@@ -1194,3 +1194,13 @@ move to the decision log.
   above and `CHANGELOG.md` — keeps its `CLAUDE.md` mentions as written. The local untracked
   `opencode.json` needed no edit (its `skills` entry is a documented v2 field). Resolves the
   2026-10-01 Open follow-up.
+- **2026-10-05 — `save-context` mirrors `AGENTS.md` but never clears it.** The same-day rename
+  of the mirrored root doc from `CLAUDE.md` to `AGENTS.md` carried the save-and-clear semantics
+  over unchanged — a porting slip, since `AGENTS.md` is not a declutter target but the live
+  conventions doc OpenCode and Claude Code 2.1.277+ read from the working tree. `save-context`
+  now mirrors it (ticket snapshot + shared latest, newer wins) and leaves the working-tree copy
+  in place; `restore-context` restores it only when the working tree lacks it, so a live copy is
+  never overwritten by an older store copy — under the mtime known limitation that clobber would
+  otherwise be routine. `CHANGELOG.md` keeps the save-and-clear behaviour. Locked in by
+  `tests/test_context_store_docs.py`, whose sweep forbids any shipped skill body from removing
+  `AGENTS.md`.

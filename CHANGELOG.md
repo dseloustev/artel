@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`save-context` no longer deletes `AGENTS.md`.** The 0.30.0 rename of the mirrored root doc
+  from `CLAUDE.md` to `AGENTS.md` carried the save-and-clear semantics over unchanged, but
+  `AGENTS.md` is the live conventions doc OpenCode and Claude Code read — removing it silenced
+  the host project's own instructions. It is now mirrored into the store (ticket snapshot +
+  shared latest, newer wins) and stays in the working tree; `restore-context` fills it back in
+  only when the working tree lacks it, so a live `AGENTS.md` is never overwritten by an older
+  store copy. `CHANGELOG.md` keeps its save-and-clear behaviour.
+
 ## [0.30.0] - 2026-10-05
 
 ### Changed

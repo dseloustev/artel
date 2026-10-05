@@ -844,13 +844,16 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### save-context
 
 - **Purpose:** Mirror the working context — root `AGENTS.md`/`CHANGELOG.md` plus every ticket's
-  spec trail — into the host-local `.artel/context/` store, then clear the working-tree copies.
+  spec trail — into the host-local `.artel/context/` store, then clear the working-tree spec
+  trail and `CHANGELOG.md`. `AGENTS.md` is mirrored but stays in the working tree — it is the
+  conventions doc OpenCode and Claude Code read, not a declutter target.
 - **Invocation:** `/artel:save-context`
 - **Reads:** `AGENTS.md`, `CHANGELOG.md`, `<specs.dir>/.active_ticket`, and every ticket
   directory under `<specs.dir>/`.
 - **Writes:** `.artel/context/root/` (shared latest), `.artel/context/.active_ticket`,
   `.artel/context/tickets/<TICKET_ID>/{root,spec-trail}/` — newer-wins; then removes the
-  working-tree copies (only after every store copy succeeded).
+  working-tree `CHANGELOG.md` and `<specs.dir>/` (only after every store copy succeeded).
+  `AGENTS.md` is never removed.
 - **Pauses:** never.
 - **Notes:** worker; user-invoked only (`disable-model-invocation`). The store is
   host-repo-local and gitignored (config.md, "Purpose and location") — unlike the source
@@ -866,7 +869,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Invocation:** `/artel:restore-context [ticket-id]`
 - **Reads:** the `.artel/context/` store (`root/`, `.active_ticket`,
   `tickets/<TICKET_ID>/{root,spec-trail}/`).
-- **Writes:** `AGENTS.md`, `CHANGELOG.md` (ticket snapshot preferred, shared latest as
+- **Writes:** `AGENTS.md` (only when the working tree lacks it — a live copy is never
+  overwritten by a store copy), `CHANGELOG.md` (ticket snapshot preferred, shared latest as
   fallback), `<specs.dir>/.active_ticket`, and either `<specs.dir>/<TICKET_ID>/` (ticket mode)
   or every saved ticket's folder (full restore, no argument).
 - **Pauses:** never.

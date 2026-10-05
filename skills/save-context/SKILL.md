@@ -1,12 +1,14 @@
 ---
 name: save-context
-description: "Save the working context — root AGENTS.md/CHANGELOG.md plus every ticket's <specs.dir>/<TICKET_ID>/ spec trail — into the host-writable .artel/context/ store (newer wins), then clear the corresponding working-tree copies. Use to declutter or archive the working tree before a branch switch or cleanup; bring everything back with /artel:restore-context."
+description: "Save the working context — root AGENTS.md/CHANGELOG.md plus every ticket's <specs.dir>/<TICKET_ID>/ spec trail — into the host-writable .artel/context/ store (newer wins), then clear the working-tree spec trail and CHANGELOG.md; AGENTS.md is mirrored but stays in the working tree. Use to declutter or archive the working tree before a branch switch or cleanup; bring everything back with /artel:restore-context."
 disable-model-invocation: true
 model: sonnet
 ---
 
 Save the working context into the host-writable `.artel/context/` store, then clear the
-working-tree copies. Working tree → store flow is "newer wins": `rsync --update` for directory
+working-tree spec trail and `CHANGELOG.md`. **`AGENTS.md` is mirrored, never removed** — it is
+the live conventions doc OpenCode and Claude Code 2.1.277+ read, so it stays in the working
+tree. Working tree → store flow is "newer wins": `rsync --update` for directory
 trees, an explicit `-nt` test for single files. The store — not the working tree — is the durable
 home of these workflow files once saved.
 
@@ -47,13 +49,26 @@ mkdir -p "$STORE_ROOT/root" "$STORE_ROOT/tickets"
 
 ## Step 2: Root files → ticket snapshot + shared latest
 
-Substitute the resolved `ACTIVE` value literally. When `ACTIVE` is **non-empty**:
+`AGENTS.md` is mirrored, never removed — the live conventions doc stays in the working tree.
+Only `CHANGELOG.md` is cleared after its store copies succeed. Substitute the resolved `ACTIVE`
+value literally. When `ACTIVE` is **non-empty**:
 
 ```bash
 STORE_ROOT=".artel/context"
 ACTIVE="PROJ-XXXX"  # substitute the resolved ticket id
 mkdir -p "$STORE_ROOT/tickets/${ACTIVE}/root"
-for f in AGENTS.md CHANGELOG.md; do
+
+# AGENTS.md — mirror only; never removed from the working tree.
+if [ -f AGENTS.md ]; then
+  if [ ! -f "$STORE_ROOT/tickets/${ACTIVE}/root/AGENTS.md" ] || [ AGENTS.md -nt "$STORE_ROOT/tickets/${ACTIVE}/root/AGENTS.md" ]; then
+    cp AGENTS.md "$STORE_ROOT/tickets/${ACTIVE}/root/AGENTS.md" || echo "WARN: AGENTS.md ticket snapshot copy failed" >&2
+  fi
+  if [ ! -f "$STORE_ROOT/root/AGENTS.md" ] || [ AGENTS.md -nt "$STORE_ROOT/root/AGENTS.md" ]; then
+    cp AGENTS.md "$STORE_ROOT/root/AGENTS.md" || echo "WARN: AGENTS.md shared copy failed" >&2
+  fi
+fi
+
+for f in CHANGELOG.md; do
   if [ -f "$f" ]; then
     ok=1
     if [ ! -f "$STORE_ROOT/tickets/${ACTIVE}/root/$f" ] || [ "$f" -nt "$STORE_ROOT/tickets/${ACTIVE}/root/$f" ]; then
@@ -67,11 +82,20 @@ for f in AGENTS.md CHANGELOG.md; do
 done
 ```
 
-When `ACTIVE` is **empty**, run the same loop without the ticket-snapshot branch:
+When `ACTIVE` is **empty**, mirror `AGENTS.md` into the shared copy only and run the same
+`CHANGELOG.md` loop without the ticket-snapshot branch:
 
 ```bash
 STORE_ROOT=".artel/context"
-for f in AGENTS.md CHANGELOG.md; do
+
+# AGENTS.md — mirror only; never removed from the working tree.
+if [ -f AGENTS.md ]; then
+  if [ ! -f "$STORE_ROOT/root/AGENTS.md" ] || [ AGENTS.md -nt "$STORE_ROOT/root/AGENTS.md" ]; then
+    cp AGENTS.md "$STORE_ROOT/root/AGENTS.md" || echo "WARN: AGENTS.md shared copy failed" >&2
+  fi
+fi
+
+for f in CHANGELOG.md; do
   if [ -f "$f" ]; then
     ok=1
     if [ ! -f "$STORE_ROOT/root/$f" ] || [ "$f" -nt "$STORE_ROOT/root/$f" ]; then
@@ -82,8 +106,9 @@ for f in AGENTS.md CHANGELOG.md; do
 done
 ```
 
-The working-tree copy is removed only after every attempted store copy succeeded; an older working
-copy (no copy attempted) is simply dropped — the store already holds a newer one.
+A `CHANGELOG.md` working copy is removed only after every attempted store copy succeeded; an
+older working copy (no copy attempted) is simply dropped — the store already holds a newer one.
+`AGENTS.md` is never removed, so a failed mirror copy costs nothing but the warning.
 
 ## Step 3: Active-ticket pointer
 
@@ -129,7 +154,8 @@ that did not reach the store.
 STORE_ROOT=".artel/context"
 ls "$STORE_ROOT/root/" && echo "---" \
   && ls "$STORE_ROOT/tickets/" && echo "---" \
-  && { [ ! -d "<specs.dir>" ] && echo "OK: <specs.dir> cleared" || echo "WARNING: <specs.dir> still present"; }
+  && { [ ! -d "<specs.dir>" ] && echo "OK: <specs.dir> cleared" || echo "WARNING: <specs.dir> still present"; } \
+  && { [ -f AGENTS.md ] && echo "OK: AGENTS.md kept" || echo "WARNING: AGENTS.md missing from the working tree"; }
 ```
 
 IMPORTANT:
@@ -147,5 +173,6 @@ IMPORTANT:
   ported vocabulary — root docs and the `<specs.dir>` spec trail — is saved. See
   `${CLAUDE_PLUGIN_ROOT}/docs/design.md`'s decision log.
 
-Report: files per store target, confirmation that `<specs.dir>` was cleared, and which ticket
-folder received the root-file snapshot (or "shared only — no active ticket").
+Report: files per store target, confirmation that `<specs.dir>` was cleared and `AGENTS.md` kept
+in the working tree, and which ticket folder received the root-file snapshot (or "shared only —
+no active ticket").

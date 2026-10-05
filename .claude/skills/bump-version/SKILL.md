@@ -100,7 +100,7 @@ Finally, verify `git tag -l "v<NEW_VERSION>"` is empty. An existing tag for that
    `git commit -m "chore(release): v<NEW_VERSION>"`.
    Name the paths explicitly rather than using `git add -A` or `git commit -a` — the tree was clean
    at Step 1, so the two are equivalent today, but an explicit stage keeps that true if a later
-   step ever writes something else. **Subject line only, no trailers** — CLAUDE.md's commit
+   step ever writes something else. **Subject line only, no trailers** — AGENTS.md's commit
    convention overrides the harness default of appending `Co-Authored-By:` / `Claude-Session:`
    lines.
 

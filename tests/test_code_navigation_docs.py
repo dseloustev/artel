@@ -10,7 +10,7 @@ exactly the failure no "does the file mention X" assertion can see. So every
 `code-navigation.md` §N citation in the repo is resolved against the sections
 that file actually has.
 
-**The genericization rule.** `CLAUDE.md` forbids project literals in ported
+**The genericization rule.** `AGENTS.md` forbids project literals in ported
 bodies; `docs/design.md` records two sanctioned exceptions, the `using-artel`
 router and §2 of this contract. An agent body or a second skill body reaching for
 `ast-index` by name is the drift that rule exists to stop, and it would read as
@@ -170,7 +170,7 @@ class DeliberateSilences(unittest.TestCase):
 class GenericizationHolds(unittest.TestCase):
 
     def test_only_the_router_names_the_tool_in_a_body(self):
-        """`CLAUDE.md`: never copy project literals. The contract carries the
+        """`AGENTS.md`: never copy project literals. The contract carries the
         concrete names so the bodies do not have to."""
         for path in body_files():
             rel = path.relative_to(ROOT).as_posix()

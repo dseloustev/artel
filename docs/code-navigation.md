@@ -16,7 +16,7 @@ mechanics defined by the plugin. This file is about reading one that exists.
 
 **This file names one tool.** Everywhere else in the plugin a code-symbol index
 is "the host's optional code-symbol index", because artel must run against a
-host it knows nothing about (`CLAUDE.md`, "genericize"). An index-first rule is
+host it knows nothing about (`AGENTS.md`, "genericize"). An index-first rule is
 worthless without the commands that make it actionable, though, so the concrete
 names live here — and only here, in the two sections that are about mechanics:
 §1's probe and §2's command table. **The rules — §3, §4, §5 — name no tool**,

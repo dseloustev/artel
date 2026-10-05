@@ -177,7 +177,7 @@ content-hash idempotence check still runs first and is unaffected.
 
 **The failure.** One shared daemon serving several host repositories has no way to keep them
 apart. Two repos that share a `ticket.projectKey` — or two checkouts of the same repo, one of
-them a scratch host used for artel smoke tests per `CLAUDE.md` — write into each other's trail.
+them a scratch host used for artel smoke tests per `AGENTS.md` — write into each other's trail.
 On a best-effort mirror that is noise; on the system of record it is data loss.
 
 **Proposed change.** Either a `workspace`/`project` column participating in both unique keys,

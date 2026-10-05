@@ -118,10 +118,6 @@ move to the decision log.
   captured and the verify stop gate fails open for that session; documented in
   [opencode.md](opencode.md). The long-lived service and the TUI are unaffected. Capture the
   baseline on the session's first context-hook call if it ever matters.
-- **This repo's own OpenCode config is v1-shaped.** The untracked `opencode.json` sets
-  `instructions`, which v2 does not resolve, and there is no root `AGENTS.md`, so the repo's
-  `CLAUDE.md` guidance is invisible to OpenCode sessions. Parked in the 2026-10-01 spec; move it
-  to `AGENTS.md` when the repo is next dogfooded on OpenCode.
 - **The VCS guard does not cover `git push` or run an entry-point preflight** (from the
   2026-09-16 platform-migration design). A stale `origin` pointing at the old platform still
   pushes there; `set-home` moves it, but nothing enforces that it was run. Both were considered
@@ -1187,3 +1183,11 @@ move to the decision log.
   Mechanics, not text: the source repo is private and carries no licence file, so the prose
   is written fresh. Comparison and rationale:
   [comparisons/adguard-code-review-vs-deep-review.md](comparisons/adguard-code-review-vs-deep-review.md).
+- **2026-10-05 — This repo dogfoods OpenCode: the working guidance moves to a root `AGENTS.md`.**
+  The guidance lived only in `CLAUDE.md`, which OpenCode does not read; the local untracked
+  `opencode.json`'s `instructions` key is accepted but not loaded (v2 reads `AGENTS.md` only).
+  `AGENTS.md` is now the canonical text, and `CLAUDE.md` is a pointer that imports it, so Claude
+  Code — including builds before 2.1.277, which do not fall back to `AGENTS.md` — reads the same
+  guidance. The local `opencode.json` needed no edit: the `instructions` key is already gone, and
+  its `skills` entry (the ast-index skill directory) is a documented v2 field. Resolves the
+  2026-10-01 Open follow-up.

@@ -1,6 +1,6 @@
 ---
 name: init-branch
-description: "Bootstrap work on a ticket in one shot: make sure the ticket has a working branch (the current one when its name already carries a ticket ID; otherwise only what the user picks — never a branch created without asking), optionally move that work into its own git worktree so other sessions can work in parallel, run the project's configured post-branch setup commands (setup.commands), restore that ticket's context via /artel:restore-context, and refresh CLAUDE.md via /init. Use when starting work on a ticket, or whenever someone says 'set up a branch for this ticket', 'init the branch', 'prepare a branch for work', or 'start work on <ticket>'."
+description: "Bootstrap work on a ticket in one shot: make sure the ticket has a working branch (the current one when its name already carries a ticket ID; otherwise only what the user picks — never a branch created without asking), optionally move that work into its own git worktree so other sessions can work in parallel, run the project's configured post-branch setup commands (setup.commands), restore that ticket's context via /artel:restore-context, and refresh AGENTS.md via agents-md-generator. Use when starting work on a ticket, or whenever someone says 'set up a branch for this ticket', 'init the branch', 'prepare a branch for work', or 'start work on <ticket>'."
 argument-hint: "[ticket-id]"
 disable-model-invocation: true
 model: sonnet
@@ -9,15 +9,15 @@ model: sonnet
 ## Overview
 
 `init-branch` takes a ticket from "nothing local yet" to "work happening on a branch for it, with
-its prior context restored and `CLAUDE.md` refreshed" in one shot: check the current branch (and
+its prior context restored and `AGENTS.md` refreshed" in one shot: check the current branch (and
 only when it carries no ticket ID, ask which branch to work on), offer to move the work into its
 own git worktree, run the configured post-branch setup commands, restore the ticket's spec trail
-from the context store, and reconcile `CLAUDE.md` against the current tree.
+from the context store, and reconcile `AGENTS.md` against the current tree.
 
 It is a **worker that runs inline** (like `sync-phases` / `generate-idea`) — it runs `git` and
 chains a couple of sub-skills directly rather than delegating to an agent. Because it mutates the
 working tree (may switch or create a branch, may move the session into a worktree, restores
-files, rewrites `CLAUDE.md`), it is user-invoked only (`disable-model-invocation: true`) — never
+files, rewrites `AGENTS.md`), it is user-invoked only (`disable-model-invocation: true`) — never
 auto-triggered.
 
 ## Ticket Resolution
@@ -107,7 +107,7 @@ failure handling for when to stop.
    - **A typed name:** check it out if it already exists locally or on `origin` (as above);
      otherwise create it from `origin/<BASE_BRANCH>`.
    - **Stay:** run no git command. `BRANCH_NAME` = `CURRENT_BRANCH`. Continue with Step 3 — the
-     setup, restore and `/init` are still useful on the current branch.
+     setup, restore and conventions refresh are still useful on the current branch.
 
    Set `BRANCH_NAME` to the branch now checked out, then go to Step 3.
 7. **The checkout is fatal on failure.** Any `git` error in step 6 — including one caused by
@@ -149,7 +149,7 @@ its output and stop. Note the outcome (ran / skipped) for the report.
 
 ### Step 4: Restore the ticket's context
 
-Invoke `Skill: restore-context` with `TICKET_ID` as its argument. This copies `CLAUDE.md`,
+Invoke `Skill: restore-context` with `TICKET_ID` as its argument. This copies `AGENTS.md`,
 `CHANGELOG.md`, and that ticket's `<specs.dir>/<TICKET_ID>/` artifacts back out of the
 `.artel/context/` store (`${CLAUDE_PLUGIN_ROOT}/skills/restore-context/SKILL.md`).
 
@@ -166,14 +166,14 @@ Invoke `Skill: restore-context` with `TICKET_ID` as its argument. This copies `C
 > Do **not** reimplement the restore by hand — the context store is the source of truth and the
 > copy logic lives in that one skill on purpose.
 
-### Step 5: Refresh `CLAUDE.md`
+### Step 5: Refresh `AGENTS.md`
 
-Invoke `Skill: init`. Run it unconditionally — even though Step 4 may have just restored
-`CLAUDE.md` from the store, `/init` reconciles it against the *current* state of the codebase
-(commands, structure, conventions that may have drifted on this branch). Running it after the
-restore means it refines the canonical file rather than starting from nothing.
+Invoke `Skill: agents-md-generator`. Run it unconditionally — even though Step 4 may have just
+restored `AGENTS.md` from the store, the refresh reconciles it against the *current* state of the
+codebase (commands, structure, conventions that may have drifted on this branch). Running it
+after the restore means it refines the canonical file rather than starting from nothing.
 
-If `/init` makes no changes, that's a fine outcome — note it and move on.
+If the refresh makes no changes, that's a fine outcome — note it and move on.
 
 ### Step 6: Refresh the code-symbol index (optional host hook)
 
@@ -195,9 +195,9 @@ Print a concise summary:
 - Whether the setup commands ran or were skipped (none configured).
 - What Step 4 restored (ticket artifacts vs. common root files only, or "nothing found — new
   ticket").
-- Whether `/init` changed `CLAUDE.md`.
+- Whether the refresh changed `AGENTS.md`.
 - Whether the index was refreshed, skipped (no hook wired up), or not applicable.
-- Any follow-up the user should know about — e.g. if `/init` modified `CLAUDE.md`, mention that
+- Any follow-up the user should know about — e.g. if the refresh modified `AGENTS.md`, mention that
   `/artel:save-context` will save that change back into the context store (this skill intentionally
   does not, to keep its scope to setup only).
 
@@ -208,13 +208,13 @@ Print a concise summary:
   branch carrying this ticket's ID is used as-is, whatever its prefix, phase or slug; one
   carrying another ticket's ID stops the skill.
 - **Scope is setup, nothing else.** This skill settles the branch (and, when asked, its
-  worktree), restores context, refreshes `CLAUDE.md`, and refreshes the index. It does not commit,
+  worktree), restores context, refreshes `AGENTS.md`, and refreshes the index. It does not commit,
   push, run the quality gate, or save changes back to the context store — those are separate,
   deliberate operations (`/artel:save-context` for the last one).
-- **Order matters and is fixed:** branch → worktree → setup commands → restore → `/init` →
+- **Order matters and is fixed:** branch → worktree → setup commands → restore → refresh →
   reindex. The worktree move comes before setup so dependencies and generated code land in the
-  checkout that will use them. `/init` runs after the restore so it refines the restored
-  `CLAUDE.md`; the reindex runs last so it picks up whatever the restore or `/init` changed.
+  checkout that will use them. The refresh runs after the restore so it refines the restored
+  `AGENTS.md`; the reindex runs last so it picks up whatever the restore or the refresh changed.
 - **Stop on a fatal step.** Another ticket's branch (Step 1), a failed checkout (Step 2), a
   worktree move that did not end `ok` (Step 2b), a failed setup command (Step 3), or a missing
   context store (Step 4) halts the skill — report and stop. A ticket with no saved artifacts
@@ -223,13 +223,13 @@ Print a concise summary:
   logic and the store is authoritative.
 - **Idempotent — safe to re-run.** A re-run on the branch an earlier run created or checked out
   takes Step 1's stay route — no git command, and no worktree question inside a worktree — then
-  re-runs restore/`init`/reindex in place; `restore-context` overwrites with identical store
-  content, `/init` reconciles in place, and an index refresh is incremental.
+  re-runs restore/refresh/reindex in place; `restore-context` overwrites with identical store
+  content, the refresh reconciles in place, and an index refresh is incremental.
 
 ## Examples
 
 - On `feature/PROJ-3085-adding-accounts`: `init-branch PROJ-3085` — stays on it (no git change),
-  then setup, restore, `/init`, reindex.
+  then setup, restore, refresh, reindex.
 - On `main`: `init-branch 3085` (numeric form normalized via `ticket.pattern`) — no ticket in the
   branch name, so it asks: check out an existing `feature/PROJ-3085-…` branch if one exists,
   create `feature/PROJ-3085-adding-accounts` (slug from the tracker summary), or stay on `main`.
@@ -240,4 +240,4 @@ Print a concise summary:
   `PROJ-1000`.
 - On `main`: `init-branch 3085`, answering **Create** and **Move to `.claude/worktrees/PROJ-3085`**
   — the main checkout stays on `main`; `feature/PROJ-3085-adding-accounts` is created inside the
-  worktree, this session moves there, and setup, restore, `/init` and reindex run in it.
+  worktree, this session moves there, and setup, restore, refresh and reindex run in it.

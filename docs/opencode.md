@@ -51,8 +51,6 @@ prepended `<OPENCODE-HOST-NOTES>` glossary translating it to the v2 host:
 - `$0`/`$1`/`$ARGUMENTS` → the arguments the skill was invoked with.
 - `AskUserQuestion` → the `question` tool.
 - plan mode → present the plan and wait for approval (OpenCode has no plan-mode tool).
-- `/init` → the `artel-agents-md-generator` skill.
-- `CLAUDE.md` → `AGENTS.md` (OpenCode reads no `CLAUDE.md`).
 - the v2 tool names: `Read`/`Edit`/`Write`/`Grep`/`Bash` → `read`/`edit`/`write`/`grep`/`shell`.
 
 `disable-model-invocation: true` becomes `metadata.opencode/autoinvoke: false`, so a

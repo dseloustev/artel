@@ -1183,11 +1183,14 @@ move to the decision log.
   Mechanics, not text: the source repo is private and carries no licence file, so the prose
   is written fresh. Comparison and rationale:
   [comparisons/adguard-code-review-vs-deep-review.md](comparisons/adguard-code-review-vs-deep-review.md).
-- **2026-10-05 — This repo dogfoods OpenCode: the working guidance moves to a root `AGENTS.md`.**
-  The guidance lived only in `CLAUDE.md`, which OpenCode does not read; the local untracked
-  `opencode.json`'s `instructions` key is accepted but not loaded (v2 reads `AGENTS.md` only).
-  `AGENTS.md` is now the canonical text, and `CLAUDE.md` is a pointer that imports it, so Claude
-  Code — including builds before 2.1.277, which do not fall back to `AGENTS.md` — reads the same
-  guidance. The local `opencode.json` needed no edit: the `instructions` key is already gone, and
-  its `skills` entry (the ast-index skill directory) is a documented v2 field. Resolves the
+- **2026-10-05 — The repo drops the Claude Code dev layout; `AGENTS.md` is the only conventions
+  doc, for the plugin too.** `CLAUDE.md` is removed (the same-day pointer is retired), `.claude/`
+  is gone — its `bump-version` skill moves to `.opencode/skills/` as a native v2 project skill
+  (`metadata.opencode/autoinvoke: false`) — and every live skill and agent body that named the
+  host project's `CLAUDE.md` now names `AGENTS.md`, the file OpenCode and Claude Code 2.1.277+
+  read. `init-branch` refreshes `AGENTS.md` through `agents-md-generator` instead of the `/init`
+  built-in, so the OpenCode build's `CLAUDE.md` and `/init` glossary entries are retired;
+  `save-context`/`restore-context` mirror root `AGENTS.md`. History — the decision-log entries
+  above and `CHANGELOG.md` — keeps its `CLAUDE.md` mentions as written. The local untracked
+  `opencode.json` needed no edit (its `skills` entry is a documented v2 field). Resolves the
   2026-10-01 Open follow-up.

@@ -48,10 +48,6 @@ dialect; this glossary translates it. Apply it throughout:
   **OpenCode:** instruction at that step instead.
 - `$0`, `$1`, ..., `$ARGUMENTS` — the arguments this skill was invoked with (from the
   `/artel-<name>` command or the caller's request).
-- `CLAUDE.md` — the host project's conventions doc (on OpenCode that is `AGENTS.md`; OpenCode
-  reads no `CLAUDE.md`).
-- `/init` — refresh the host project's conventions doc by loading the
-  `artel-agents-md-generator` skill.
 - Tool names in the body (`Read`, `Edit`, `Write`, `Grep`, `Bash`) are Claude Code's; on
   OpenCode 2.x they are `read`, `edit`, `write`, `grep`, `shell`.
 - MCP tool names (`mcp__tracker__*`, `search_knowledge`, ...) — this session's MCP tools,
@@ -70,8 +66,6 @@ glossary:
 - `SendMessage` — a fresh `subagent` dispatch to the same agent; your context files are your
   state, re-read them.
 - `AskUserQuestion` — the `question` tool (you never prompt the user directly anyway).
-- `CLAUDE.md` — the host project's conventions doc (on OpenCode that is `AGENTS.md`; OpenCode
-  reads no `CLAUDE.md`).
 - Tool names (`Read`, `Edit`, `Write`, `Grep`, `Bash`) — `read`, `edit`, `write`, `grep`, `shell`.
 </OPENCODE-HOST-NOTES>
 """

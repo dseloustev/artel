@@ -89,6 +89,7 @@ artel/
 ├── .claude-plugin/
 │   ├── plugin.json        # plugin manifest
 │   └── marketplace.json   # single-plugin marketplace (install straight from this repo)
+├── .opencode/skills/      # repo-local dev skills (bump-version — not shipped)
 ├── skills/                # workflow skills (one folder per skill, SKILL.md inside)
 ├── agents/                # agent definitions only — one .md per agent, no prose (docs/agents.md)
 ├── hooks/                 # hooks.json + Python gate scripts + default sensitive-paths policy

@@ -66,7 +66,7 @@ is a summary of promises, not of the change.
   or ask if ambiguous — the same resolution `${CLAUDE_PLUGIN_ROOT}/agents/reviewer.md`'s standalone mode uses); call it
   `<default-branch>` below.
 - Establish scope: `git diff <default-branch>...HEAD --stat` and `git log <default-branch>..HEAD --oneline`.
-- Exclude workflow noise from the *code* analysis: `<specs.dir>`, `.artel/`, `CLAUDE.md`, and any
+- Exclude workflow noise from the *code* analysis: `<specs.dir>`, `.artel/`, `AGENTS.md`, and any
   files the host repo marks as generated (analyzer/linter exclusion lists, generated-file
   headers). Focus on the host's own source and test directories, plus `CHANGELOG.md`
   (user-visible).

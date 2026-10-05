@@ -1,6 +1,6 @@
 ---
 name: restore-context
-description: "Restore the working context — root CLAUDE.md/CHANGELOG.md and the spec trail — from the host-writable .artel/context/ store back into the project. With a ticket arg, restores ONLY that ticket's <specs.dir>/<TICKET_ID>/ artifacts plus common root files; omit the argument for a full restore of every saved ticket. Counterpart to /artel:save-context."
+description: "Restore the working context — root AGENTS.md/CHANGELOG.md and the spec trail — from the host-writable .artel/context/ store back into the project. With a ticket arg, restores ONLY that ticket's <specs.dir>/<TICKET_ID>/ artifacts plus common root files; omit the argument for a full restore of every saved ticket. Counterpart to /artel:save-context."
 argument-hint: "[ticket-id]"
 model: sonnet
 ---
@@ -17,7 +17,7 @@ repo-relative path.
 
 Store layout reminder:
 
-- `root/{CLAUDE.md,CHANGELOG.md}` — latest shared copies; `tickets/<TICKET_ID>/root/` — per-ticket
+- `root/{AGENTS.md,CHANGELOG.md}` — latest shared copies; `tickets/<TICKET_ID>/root/` — per-ticket
   snapshots (preferred in ticket mode).
 - `.active_ticket` — the active-ticket pointer.
 - `tickets/<TICKET_ID>/spec-trail/` — that ticket's `<specs.dir>/<TICKET_ID>/` artifacts.
@@ -48,7 +48,7 @@ Substitute the literal `<specs.dir>` value (`${CLAUDE_PLUGIN_ROOT}/docs/config.m
 
 ```bash
 STORE_ROOT=".artel/context"
-[ -f "$STORE_ROOT/root/CLAUDE.md" ] && cp "$STORE_ROOT/root/CLAUDE.md" CLAUDE.md
+[ -f "$STORE_ROOT/root/AGENTS.md" ] && cp "$STORE_ROOT/root/AGENTS.md" AGENTS.md
 [ -f "$STORE_ROOT/root/CHANGELOG.md" ] && cp "$STORE_ROOT/root/CHANGELOG.md" CHANGELOG.md
 mkdir -p "<specs.dir>"
 [ -f "$STORE_ROOT/.active_ticket" ] && cp "$STORE_ROOT/.active_ticket" "<specs.dir>/.active_ticket"
@@ -59,7 +59,7 @@ while IFS= read -r -d '' t; do
   # kartoteka as the spec store: add --exclude={idea,vision,prd,research,spike,diagnosis,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md --exclude='*.[pP][nN][gG]' --exclude='*.[jJ][pP][gG]' --exclude='*.[jJ][pP][eE][gG]' --exclude='*.[gG][iI][fF]' --exclude='*.[wW][eE][bB][pP]' (see above)
   rsync -av --exclude='.DS_Store' "$t/spec-trail/" "<specs.dir>/${ID}/"
 done < <(find "$STORE_ROOT/tickets" -mindepth 1 -maxdepth 1 -type d -print0)
-ls -la CLAUDE.md CHANGELOG.md 2>/dev/null; ls -la "<specs.dir>"
+ls -la AGENTS.md CHANGELOG.md 2>/dev/null; ls -la "<specs.dir>"
 ```
 
 Report: "Full restore — copied root docs and every saved ticket's spec trail from the context
@@ -76,7 +76,7 @@ touched. Substitute the resolved `TICKET_ID` and the literal `<specs.dir>` value
    ```bash
    STORE_ROOT=".artel/context"
    TICKET_ID="PROJ-XXXX"  # substitute
-   for f in CLAUDE.md CHANGELOG.md; do
+   for f in AGENTS.md CHANGELOG.md; do
      if [ -f "$STORE_ROOT/tickets/${TICKET_ID}/root/${f}" ]; then
        cp "$STORE_ROOT/tickets/${TICKET_ID}/root/${f}" "${f}"
        echo "restored ${f} (ticket snapshot)"
@@ -126,7 +126,7 @@ touched. Substitute the resolved `TICKET_ID` and the literal `<specs.dir>` value
 
    ```bash
    TICKET_ID="PROJ-XXXX"  # substitute
-   ls -la CLAUDE.md CHANGELOG.md 2>/dev/null
+   ls -la AGENTS.md CHANGELOG.md 2>/dev/null
    ls -la "<specs.dir>"
    [ -d "<specs.dir>/${TICKET_ID}" ] && ls -la "<specs.dir>/${TICKET_ID}/"
    ```
@@ -136,7 +136,7 @@ Report based on `FOUND`:
 - **`FOUND=1`** — "Ticket restore for ${TICKET_ID} — copied common root files + ${TICKET_ID}
   artifacts into <specs.dir>/${TICKET_ID}/."
 - **`FOUND=0`** — "Ticket restore for ${TICKET_ID} — no ticket artifacts in the store; common root
-  files (`CLAUDE.md`, `CHANGELOG.md`, `.active_ticket`) restored."
+  files (`AGENTS.md`, `CHANGELOG.md`, `.active_ticket`) restored."
 
 ## Examples
 

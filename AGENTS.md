@@ -9,9 +9,10 @@ single-plugin marketplace (`.claude-plugin/marketplace.json`), installable strai
 
 ## Where things live
 
-`skills/` (workflow skills, one folder per skill) · `agents/` (the crew; definitions only —
-see [docs/agents.md](docs/agents.md)) · `hooks/` (quality gates) · `scripts/` (deterministic
-gate engines) · `tests/` (stdlib unittest suite) · `docs/` (contracts and operator docs) ·
+`.opencode/skills/` (repo-local dev skills — not shipped) · `skills/` (workflow skills, one
+folder per skill) · `agents/` (the crew; definitions only — see
+[docs/agents.md](docs/agents.md)) · `hooks/` (quality gates) · `scripts/` (deterministic gate
+engines) · `tests/` (stdlib unittest suite) · `docs/` (contracts and operator docs) ·
 `opencode/plugin/artel.ts` (OpenCode bridge) · `.claude-plugin/` (manifest + marketplace).
 
 ## Tooling and commands
@@ -20,7 +21,7 @@ gate engines) · `tests/` (stdlib unittest suite) · `docs/` (contracts and oper
   snapshot is generated at install time by `scripts/build_opencode.py`. CI runs the suite on
   3.9 / 3.11 / 3.13 ([.github/workflows/tests.yml](.github/workflows/tests.yml)).
 - Test: `python3 -m unittest discover -s tests -p 'test_*.py'`
-- Release: [.claude/skills/bump-version/SKILL.md](.claude/skills/bump-version/SKILL.md) — bumps
+- Release: [.opencode/skills/bump-version/SKILL.md](.opencode/skills/bump-version/SKILL.md) — bumps
   `.claude-plugin/plugin.json` + `CHANGELOG.md`, then tags.
 - Smoke-test a plugin change in a scratch host repo: `/plugin marketplace add` with this
   checkout's path, then `/plugin install artel@artel`; a hands-on Flutter guide is

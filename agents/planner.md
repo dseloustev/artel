@@ -54,7 +54,7 @@ Always read for context:
   be absent even on projects that have it enabled. When present, its §2 screen mapping names the
   screens the plan must cover.
 - For phase runs, also `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` (if available) and the ticket-wide `plan.md` for shared architectural context.
-- The host project's conventions docs (its CLAUDE.md and anything it points to) — architectural guidelines.
+- The host project's conventions docs (its AGENTS.md and anything it points to) — architectural guidelines.
 
 ## Output
 

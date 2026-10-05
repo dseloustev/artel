@@ -38,7 +38,7 @@ Orchestrators:
   identifier so the phase is preserved.
 - **Index refresh** (optional): if the host project maintains a code-symbol index, refreshing it
   after implementation is an optional host hook, not an `.artel/config.json` key — the plugin
-  defines no mechanics for it; the host wires one up itself (its own hooks or CLAUDE.md
+  defines no mechanics for it; the host wires one up itself (its own hooks or AGENTS.md
   instructions). Silently absent when the host has not wired one up; nothing is reported as
   missing. **Refreshing is this bullet; querying is not.** How agents *read* an index that
   exists — the availability probe, the index-before-grep rule, staleness, and the grounding

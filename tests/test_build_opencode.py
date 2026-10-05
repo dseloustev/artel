@@ -313,14 +313,14 @@ class TestGlossary(BuildBase):
         self.assertIn('the `subagent` tool with the `artel-<name>` agent', glossary)
         self.assertNotIn('the `task` tool', glossary)
 
-    def test_glossary_maps_plan_mode_and_init(self):
+    def test_glossary_maps_plan_mode(self):
         glossary = self.glossary_of('artel-merge-conflicts')
         self.assertIn('`EnterPlanMode` / "plan mode" — OpenCode has no plan-mode tool', glossary)
-        self.assertIn("`/init` — refresh the host project's conventions doc", glossary)
+        self.assertNotIn('`/init`', glossary)
 
-    def test_glossary_names_agents_md_and_v2_tool_names(self):
+    def test_glossary_drops_the_retired_conventions_entries_and_names_v2_tools(self):
         glossary = self.glossary_of('artel-implementer')
-        self.assertIn('OpenCode reads no `CLAUDE.md`', glossary)
+        self.assertNotIn('`CLAUDE.md`', glossary)
         self.assertIn('`read`, `edit`, `write`, `grep`, `shell`', glossary)
 
 

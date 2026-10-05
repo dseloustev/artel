@@ -57,7 +57,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 Produce exactly these seven numbered top-level sections, in order. Any section fully covered by repo
 defaults closes with the single line `Standard — no deviations.` plus one line of justification.
 Repo-pinned topics (stack and versions, code style, logging rules — per the host repo's conventions
-docs, its CLAUDE.md and anything it points to) are NOT sections — only deviations from them belong in
+docs, its AGENTS.md and anything it points to) are NOT sections — only deviations from them belong in
 Section 7.
 
 1. **Architecture & module placement** — feature module choice (new module vs. extending an

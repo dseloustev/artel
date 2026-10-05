@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The crew reads `AGENTS.md`, not `CLAUDE.md`.** Every skill and agent body that named the
+  host project's conventions doc now names `AGENTS.md` — the file OpenCode and Claude Code
+  2.1.277+ read. `save-context`/`restore-context` mirror root `AGENTS.md` and `CHANGELOG.md`;
+  `init-branch` refreshes `AGENTS.md` through the `agents-md-generator` skill instead of the
+  Claude Code `/init` built-in, so the OpenCode build's `CLAUDE.md` and `/init` glossary entries
+  are retired.
+
+### Upgrading
+
+- A host repo whose conventions live in a legacy `CLAUDE.md` is no longer read by the crew —
+  rename it to `AGENTS.md` (or make `AGENTS.md` point at it). Existing context stores keep any
+  `root/CLAUDE.md` they hold; new saves write `root/AGENTS.md`.
+
 ## [0.29.0] - 2026-10-02
 
 ### Added

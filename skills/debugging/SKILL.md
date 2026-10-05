@@ -17,7 +17,7 @@ knows. With `--diagnose` the process stops before the fix: section 6.
 
 - Read `.artel/config.json` when it exists: `verify.fast`, `verify.test` and `knowledge.adapter`
   decide steps 2 and 3. No config → the host's own test command, from its conventions docs (its
-  CLAUDE.md and anything it points to); skip step 3.
+  AGENTS.md and anything it points to); skip step 3.
 - The symptom is `$ARGUMENTS`, or what the person described. Missing → ask once: what happened,
   what should have happened, and how to trigger it.
 

@@ -214,7 +214,7 @@ class TestMoveInEnvironment(RepoCase):
         self.write('.artel/sensitive-paths.json', '{}\n')
         self.write('.artel/templates/issue-draft.md', '# t\n')
         self.write('.artel/run/T-9/run-state.json', '{}\n')
-        self.write('.artel/context/root/CLAUDE.md', '# c\n')
+        self.write('.artel/context/root/AGENTS.md', '# c\n')
         code, report = self.move_in()
         self.assertEqual(code, 0, report)
         for rel in ('.artel/config.json', '.artel/sensitive-paths.json',
@@ -224,7 +224,7 @@ class TestMoveInEnvironment(RepoCase):
         self.assertTrue(self.root.joinpath('.artel/run/T-9').is_dir(), 'other tickets stay')
 
     def test_links_the_context_store(self):
-        self.write('.artel/context/root/CLAUDE.md', '# c\n')
+        self.write('.artel/context/root/AGENTS.md', '# c\n')
         code, report = self.move_in()
         self.assertTrue(report['contextLinked'])
         link = self.target / '.artel' / 'context'
@@ -481,10 +481,10 @@ class TestHandBack(HandBackCase):
         self.assertEqual(self.read('.artel/run/.hooks/baseline-s1.json'), 'main\n')
 
     def test_merges_a_store_the_worktree_grew(self):
-        self.write('.artel/context/root/CLAUDE.md', '# saved in the worktree\n', self.target)
+        self.write('.artel/context/root/AGENTS.md', '# saved in the worktree\n', self.target)
         code, report = self.hand_back()
         self.assertEqual(code, 0, report)
-        self.assertEqual(self.read('.artel/context/root/CLAUDE.md'), '# saved in the worktree\n')
+        self.assertEqual(self.read('.artel/context/root/AGENTS.md'), '# saved in the worktree\n')
 
     def test_reports_environment_changes_without_copying_them(self):
         self.write('.claude/settings.local.json', '{"allow": ["Bash(make:*)"]}\n', self.target)

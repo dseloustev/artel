@@ -58,7 +58,7 @@ Path resolution follows `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. In summa
 - PRD: `<specs.dir>/<TICKET_ID>/prd.md` (ticket-wide) or `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/prd.md` (phase-scoped, with ticket-wide as read-only fallback).
 - Plan: `<specs.dir>/<TICKET_ID>/plan.md` (ticket-wide) or `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/plan.md` (phase-scoped).
 - Tasklist: `<specs.dir>/<TICKET_ID>/tasklist.md` (ticket-wide) or `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` (phase-scoped).
-- The host project's conventions docs (its CLAUDE.md and anything it points to)
+- The host project's conventions docs (its AGENTS.md and anything it points to)
 - `<specs.dir>/<TICKET_ID>/idea.md`, `<specs.dir>/<TICKET_ID>/vision.md` (use the phase section when phase is set)
 - diff of changes related to the ticket/phase
 - Implementation notes: `<specs.dir>/<TICKET_ID>/implementation-notes.md` (ticket-wide) or `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/implementation-notes.md` (phase-scoped) — recorded deviations from the approved plan; a missing file means no deviations were recorded (not an error)
@@ -143,7 +143,7 @@ below:
 - `git diff <default-branch> HEAD` — two-dot diff showing the actual state difference between branch tip and the default branch's tip (reveals if the branch missed or reverted default-branch changes).
 - `git log <default-branch> --not HEAD --oneline` — commits on the default branch not reachable from HEAD (new upstream work that could conflict).
 
-Also read the host repo's conventions docs (its CLAUDE.md and any style guides it references). Run
+Also read the host repo's conventions docs (its AGENTS.md and any style guides it references). Run
 `verify.fast` (config.md) for static analysis when configured; an empty `verify.fast` degrades this
 check to `skipped`.
 
@@ -190,7 +190,7 @@ substituting the phase diff:
   judge is cut off mid-function, and say so in the report. Do not derive your own diff with
   git — the package is what the orchestrator snapshotted, and the working tree may already
   hold the next task's edits by the time you run.
-- The host project's conventions docs (its CLAUDE.md and anything it points to).
+- The host project's conventions docs (its AGENTS.md and anything it points to).
 
 Do not re-run the tests: the report carries the verify evidence (iteration count and the
 envelope path in the ticket's `verify/` dir) for exactly this code. Run a focused test only when
@@ -251,7 +251,7 @@ Paths per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4, phase-aware, with 
   `tasklist.md` — in the task grammar (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md`);
 - the PRD — its `## Requirements` first, then its Resolved Questions and Out of Scope;
 - `vision.md` and `plan.md`;
-- the host project's conventions docs (its CLAUDE.md and anything it points to);
+- the host project's conventions docs (its AGENTS.md and anything it points to);
 - `.artel/run/<TICKET_ID>/plan-review.md` when it exists — your previous round.
 
 Open a source file only to settle a doubt a task raises — that a symbol a step names exists, or
@@ -382,7 +382,7 @@ and `callers` tells you who reaches a function whose contract moved. A finding m
 that exists (§5): a layer violation asserted against a class nobody can find is noise in a gate a
 human trusts.
 
-1. **convention-fit** — apply the host project's conventions docs (its CLAUDE.md and anything it
+1. **convention-fit** — apply the host project's conventions docs (its AGENTS.md and anything it
    points to). Findings already caught by `verify.fast` / `verify.commands` (config.md) are
    enforced by the gate — never re-report them. Default severity: medium.
 2. **architecture-fit** — layer boundaries (e.g. presentation → domain → data), the project's
@@ -448,11 +448,11 @@ uniform shallow reading of everything finds less than deep reading of what carri
 
 ## Rules
 
-- Don't nitpick style unless it contradicts the host repo's conventions docs (its CLAUDE.md and any style guides it references).
+- Don't nitpick style unless it contradicts the host repo's conventions docs (its AGENTS.md and any style guides it references).
 - **No subagents** — do all of the review yourself: never spawn a subagent to review part of the diff, and never spawn a second reviewer for another opinion. The pipeline already provides every review seat the work gets (the per-task gate, the phase review, `deep-review`'s single pass); a reviewer you spawn duplicates one of them at full cost and its verdict counts for nothing. A diff too large for one pass is reviewed in passes (see `## Large changes`), and the report says so.
 - **Read-only on the checkout** — the tasklist write-back and your report files are the only writes; never touch the working tree, the index, HEAD or branch state. Never call kartoteka's task tools either: `run-reviewer` records your write-back in the task queue.
 - **Skip generated files** — hunks in files the host marks as generated (analyzer/linter exclusion lists, generated-file headers) are codegen output: don't review their style and never recommend editing them directly; the fix is always in the generating source plus the host's codegen step, when it has one.
 - In ticket mode, every blocking/important finding must become a task in the tasklist — not just a suggestion.
 - In standalone mode, group findings by priority and include specific fix examples.
 - **Paths in output: repo-relative only** (e.g., `src/auth/session.ts:47`, not `/Users/.../src/auth/session.ts:47`). Applies to every section including any "Files referenced" footer. See `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
-- **Transient automation artifacts are not findings:** artifacts introduced by the host's `runtime.scaffold.add` command (config.md) are the transient automation harness — expected on automation-enabled branches, removed before merge (validated by the `AUTOMATION_REMOVED` gate; `/artel:remove-automation`); do not flag them. Same convention as `CLAUDE.md`/`<specs.dir>/**` ticket artifacts: do not flag.
+- **Transient automation artifacts are not findings:** artifacts introduced by the host's `runtime.scaffold.add` command (config.md) are the transient automation harness — expected on automation-enabled branches, removed before merge (validated by the `AUTOMATION_REMOVED` gate; `/artel:remove-automation`); do not flag them. Same convention as `AGENTS.md`/`<specs.dir>/**` ticket artifacts: do not flag.

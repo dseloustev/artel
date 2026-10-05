@@ -35,7 +35,7 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   defined separately, alongside the autonomous-run rules). Not committed; add it to the host
   `.gitignore`.
 - `.artel/context/` — the `save-context`/`restore-context` store: a durable, host-repo-local
-  mirror of root docs (`CLAUDE.md`, `CHANGELOG.md`) and the spec trail (`<specs.dir>/<TICKET_ID>/`,
+  mirror of root docs (`AGENTS.md`, `CHANGELOG.md`) and the spec trail (`<specs.dir>/<TICKET_ID>/`,
   `<specs.dir>/.active_ticket`), used to declutter or archive the working tree and bring it back
   later. Not committed; add it to the host `.gitignore`, same as `.artel/run/`.
 - `.artel/worktree.json` — only inside a ticket worktree under `.claude/worktrees/`: the manifest

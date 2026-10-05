@@ -52,7 +52,7 @@ You are creating the architecture and implementation plan for ticket <TICKET_ID>
 3. Read input:
    - PRD at the corresponding scope (phase-scoped → `phase-<PHASE_NUM>/prd.md` with ticket-wide `prd.md` as read-only fallback; ticket-wide → `prd.md`).
    - Research at the corresponding scope (`phase-<PHASE_NUM>/research.md` or `research.md`).
-   - The host project's conventions docs (its CLAUDE.md and anything it points to) for architectural guidelines.
+   - The host project's conventions docs (its AGENTS.md and anything it points to) for architectural guidelines.
    - `<specs.dir>/<TICKET_ID>/idea.md` and `vision.md` — focus on Phase/Iteration <PHASE_NUM> when phase is set.
    - For phase runs, `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` if it exists.
 4. Draft the plan. Phase-scoped plans use the structure: Phase Scope, Components, API contract, Data flows, NFR, Risks, Dependencies, Open questions. Ticket-wide plans omit Phase Scope/Dependencies.

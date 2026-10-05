@@ -252,7 +252,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Draft the architecture and implementation plan for the ticket.
 - **Invocation:** `/artel:planner [ticket-id] or [ticket-id]-[phase]`
-- **Reads:** PRD, `research.md`, the host project's conventions docs (its CLAUDE.md and whatever
+- **Reads:** PRD, `research.md`, the host project's conventions docs (its AGENTS.md and whatever
   it points to), `idea.md`, `vision.md`, and the phase tasks file when one exists.
 - **Writes:** (via the agent) `plan.md` (or `phase-<N>/plan.md`) with
   status `PLAN_APPROVED`/`PLAN_DRAFTED`; optionally `adr.md`; unresolved questions to
@@ -694,7 +694,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### init-branch
 
 - **Purpose:** Bootstrap work on a ticket in one shot: branch check, optional move into a
-  worktree, post-branch setup, context restore, CLAUDE.md refresh.
+  worktree, post-branch setup, context restore, AGENTS.md refresh.
 - **Invocation:** `/artel:init-branch [ticket-id]`
 - **Reads:** the current branch name; `setup.commands`; the ticket grammar (`ticket.projectKey`
   for the branch-name token scan); the tracker summary or `idea.md` title (branch slug); the
@@ -702,8 +702,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Writes:** nothing to git when the current branch already carries the ticket's ID. Otherwise,
   only at the user's choice: an existing branch for the ticket checked out, or a new
   `feature/<TICKET_ID>-<slug>` (phase runs: `feature/<TICKET_ID>-<N>-<slug>`) created from the
-  detected base branch. Then restored `CLAUDE.md` / `CHANGELOG.md` / ticket spec trail (via
-  `restore-context`) and a refreshed `CLAUDE.md` (via the built-in `/init`). At the user's
+  detected base branch. Then restored `AGENTS.md` / `CHANGELOG.md` / ticket spec trail (via
+  `restore-context`) and a refreshed `AGENTS.md` (via `agents-md-generator`). At the user's
   choice, the branch is checked out or created in `.claude/worktrees/<name>` instead and the
   session moves there (`scripts/worktree.py move-in`, [worktrees.md](worktrees.md)).
 - **Pauses:** when the current branch carries no ticket ID (check out an existing ticket branch /
@@ -714,7 +714,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   from another ticket's branch on its own.
 - **Notes:** worker, not orchestrator; user-invoked only (`disable-model-invocation`). Never
   creates a branch without asking. Fixed order: branch → `setup.commands` (fatal on failure,
-  silently skipped when empty) → restore → `/init` → optional host index refresh, with the
+  silently skipped when empty) → restore → `agents-md-generator` → optional host index refresh, with the
   optional worktree move right after the branch step. Scope is setup, nothing else — it never
   commits, pushes, or runs the quality gate. Idempotent — safe to re-run.
 
@@ -843,10 +843,10 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 ### save-context
 
-- **Purpose:** Mirror the working context — root `CLAUDE.md`/`CHANGELOG.md` plus every ticket's
+- **Purpose:** Mirror the working context — root `AGENTS.md`/`CHANGELOG.md` plus every ticket's
   spec trail — into the host-local `.artel/context/` store, then clear the working-tree copies.
 - **Invocation:** `/artel:save-context`
-- **Reads:** `CLAUDE.md`, `CHANGELOG.md`, `<specs.dir>/.active_ticket`, and every ticket
+- **Reads:** `AGENTS.md`, `CHANGELOG.md`, `<specs.dir>/.active_ticket`, and every ticket
   directory under `<specs.dir>/`.
 - **Writes:** `.artel/context/root/` (shared latest), `.artel/context/.active_ticket`,
   `.artel/context/tickets/<TICKET_ID>/{root,spec-trail}/` — newer-wins; then removes the
@@ -866,7 +866,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Invocation:** `/artel:restore-context [ticket-id]`
 - **Reads:** the `.artel/context/` store (`root/`, `.active_ticket`,
   `tickets/<TICKET_ID>/{root,spec-trail}/`).
-- **Writes:** `CLAUDE.md`, `CHANGELOG.md` (ticket snapshot preferred, shared latest as
+- **Writes:** `AGENTS.md`, `CHANGELOG.md` (ticket snapshot preferred, shared latest as
   fallback), `<specs.dir>/.active_ticket`, and either `<specs.dir>/<TICKET_ID>/` (ticket mode)
   or every saved ticket's folder (full restore, no argument).
 - **Pauses:** never.

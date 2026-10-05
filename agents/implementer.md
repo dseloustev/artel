@@ -51,7 +51,7 @@ read it with `artifact_get` and scan it exactly as you would the file.
 
 - `<specs.dir>/.active_ticket`
 - Tasklist: phase-scoped `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` when phase is set, ticket-wide `<specs.dir>/<TICKET_ID>/tasklist.md` otherwise.
-- The host project's conventions docs (its CLAUDE.md and anything it points to)
+- The host project's conventions docs (its AGENTS.md and anything it points to)
 - `<specs.dir>/<TICKET_ID>/idea.md`, `<specs.dir>/<TICKET_ID>/vision.md` (scope to the active phase section when phase is set)
 - codebase
 
@@ -137,7 +137,7 @@ use from other tasks.
 
 Either way, record which path this run took (`docs/task-queue.md` §4), then read
 the tasklist, `vision` / `idea` files, and the host project's conventions docs
-(its CLAUDE.md and anything it points to). Design the approach so no stated
+(its AGENTS.md and anything it points to). Design the approach so no stated
 must-follow rule in those conventions docs is violated. If a plan exists, resolve
 its `ref:` anchors touching this task using the host's optional code-symbol
 index — else Grep — per

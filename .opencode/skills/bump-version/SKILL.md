@@ -1,9 +1,8 @@
 ---
 name: bump-version
 description: "Cut a release of artel itself: pick the next semver from the CHANGELOG's Unreleased section (or an explicit argument), bump .claude-plugin/plugin.json, roll [Unreleased] into a dated release section, commit as chore(release), and tag. Use when releasing artel, bumping its version, or cutting a new plugin version."
-argument-hint: "[major|minor|patch|x.y.z] (optional; inferred from the Unreleased section when omitted)"
-disable-model-invocation: true
-model: sonnet
+metadata:
+  opencode/autoinvoke: false
 ---
 
 ## Overview
@@ -13,7 +12,8 @@ logic is specific to artel's two version carriers — `.claude-plugin/plugin.jso
 `CHANGELOG.md` — and it is not part of the shipped plugin. It never runs against a host project.
 
 It is a **worker that runs inline** — plain `git` and file edits, no agent delegation. Because it
-writes files, commits, and tags, it is user-invoked only (`disable-model-invocation: true`).
+writes files, commits, and tags, it is hidden from the model's skill list
+(`metadata.opencode/autoinvoke: false`): load it yourself with `@bump-version`.
 
 The skill stops at the tag. Pushing and publishing a GitHub release stay a deliberate manual step.
 
@@ -50,13 +50,14 @@ All four checks are **fatal** — report what failed and stop, changing nothing:
 
 ### Step 3: Decide the new version
 
-`$0` decides how `NEW_VERSION` is reached:
+The argument the user attached when loading this skill (`@bump-version <argument>`) decides how
+`NEW_VERSION` is reached:
 
-| `$0` | Behaviour |
+| Argument | Behaviour |
 |------|-----------|
 | `x.y.z` | Used verbatim. Validate: well-formed semver, and strictly greater than `CURRENT_VERSION`. Either check failing is fatal. |
 | `major` / `minor` / `patch` | Computed from `CURRENT_VERSION`. Honoured **verbatim, including pre-1.0** — an explicit `major` on `0.x` yields `1.0.0`. That is the user overriding the inference below, on purpose. |
-| *(empty)* | Inferred from `UNRELEASED_BODY`, per the table below. |
+| *(none)* | Inferred from `UNRELEASED_BODY`, per the table below. |
 
 Inference, when no argument was given:
 
@@ -69,8 +70,8 @@ Inference, when no argument was given:
 
 Then, before writing anything: **present the proposed version and the reasoning that produced it**
 — which subsections were seen, which rule fired — and **wait for an explicit yes**. This is the
-skill's only pause, and it is not optional, including when `$0` named the version explicitly
-(confirming a typo'd `1.2.3` costs one line; an unwanted tag costs more).
+skill's only pause, and it is not optional, including when the argument named the version
+explicitly (confirming a typo'd `1.2.3` costs one line; an unwanted tag costs more).
 
 Finally, verify `git tag -l "v<NEW_VERSION>"` is empty. An existing tag for that version is fatal.
 
@@ -101,8 +102,7 @@ Finally, verify `git tag -l "v<NEW_VERSION>"` is empty. An existing tag for that
    Name the paths explicitly rather than using `git add -A` or `git commit -a` — the tree was clean
    at Step 1, so the two are equivalent today, but an explicit stage keeps that true if a later
    step ever writes something else. **Subject line only, no trailers** — AGENTS.md's commit
-   convention overrides the harness default of appending `Co-Authored-By:` / `Claude-Session:`
-   lines.
+   convention.
 
 ### Step 6: Tag
 
@@ -152,8 +152,8 @@ Print a concise summary:
 
 ## Examples
 
-- `bump-version` — read `[Unreleased]`, propose (e.g.) `0.1.0 → 0.2.0` because it contains an
+- `@bump-version` — read `[Unreleased]`, propose (e.g.) `0.1.0 → 0.2.0` because it contains an
   `Added` section, confirm, then write, commit, tag.
-- `bump-version patch` — force `0.1.0 → 0.1.1` regardless of what the section contains.
-- `bump-version 1.0.0` — the first stable release: validated as semver and greater than current,
+- `@bump-version patch` — force `0.1.0 → 0.1.1` regardless of what the section contains.
+- `@bump-version 1.0.0` — the first stable release: validated as semver and greater than current,
   then confirmed like any other.

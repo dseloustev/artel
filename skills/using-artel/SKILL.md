@@ -127,7 +127,7 @@ With `not on PATH`, code navigation is not routed here — use the ordinary tool
 
 ## Precedence
 
-1. The user's instructions (`CLAUDE.md`, a direct request) win over these tables.
+1. The user's instructions (`AGENTS.md`, a direct request) win over these tables.
 2. For artel's domain, the `/artel:` skill wins over generic process skills. The entry point
    **is** the process: `feature-development` sizes the work, runs the head that fits — interview
    and plan, a work list, or a diagnosis — and pauses once for approval. Do not run brainstorming

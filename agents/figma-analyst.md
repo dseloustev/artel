@@ -101,7 +101,7 @@ supports one (§2), and read only the targeted slice via offset/limit.
 
 For each logical screen, produce a verdict: **exists as-is** (repo path) / **needs modification**
 (repo path + what changes) / **new screen** (proposed location per the host project's conventions
-docs — its CLAUDE.md and anything it points to). Check the routing and state-management surfaces
+docs — its AGENTS.md and anything it points to). Check the routing and state-management surfaces
 the flow would attach to, per those same conventions.
 
 ### 6. Classify findings

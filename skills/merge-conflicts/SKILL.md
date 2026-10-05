@@ -186,5 +186,5 @@ Present the final summary:
   regenerates deterministically (compiled bindings, build artifacts, generated localization,
   lockfiles, etc.) and one of them conflicts, take either side of the conflict and regenerate it via
   the host's own generation step rather than hand-resolving the markers — check the host's
-  `AGENTS.md`/`CLAUDE.md`/README for its regeneration command, and note in the report if none can
+  `AGENTS.md`/README for its regeneration command, and note in the report if none can
   be found.

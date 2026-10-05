@@ -1,6 +1,6 @@
 ---
 name: save-context
-description: "Save the working context — root CLAUDE.md/CHANGELOG.md plus every ticket's <specs.dir>/<TICKET_ID>/ spec trail — into the host-writable .artel/context/ store (newer wins), then clear the corresponding working-tree copies. Use to declutter or archive the working tree before a branch switch or cleanup; bring everything back with /artel:restore-context."
+description: "Save the working context — root AGENTS.md/CHANGELOG.md plus every ticket's <specs.dir>/<TICKET_ID>/ spec trail — into the host-writable .artel/context/ store (newer wins), then clear the corresponding working-tree copies. Use to declutter or archive the working tree before a branch switch or cleanup; bring everything back with /artel:restore-context."
 disable-model-invocation: true
 model: sonnet
 ---
@@ -21,10 +21,10 @@ plain repo-relative path — no toplevel lookup needed.
 
 ```
 .artel/context/
-├── root/                       # latest CLAUDE.md, CHANGELOG.md (newer wins)
+├── root/                       # latest AGENTS.md, CHANGELOG.md (newer wins)
 ├── .active_ticket               # mirror of <specs.dir>/.active_ticket
 └── tickets/<TICKET_ID>/
-    ├── root/                    # per-ticket CLAUDE.md/CHANGELOG.md snapshot
+    ├── root/                    # per-ticket AGENTS.md/CHANGELOG.md snapshot
     └── spec-trail/              # that ticket's <specs.dir>/<TICKET_ID>/ artifacts
 ```
 
@@ -53,7 +53,7 @@ Substitute the resolved `ACTIVE` value literally. When `ACTIVE` is **non-empty**
 STORE_ROOT=".artel/context"
 ACTIVE="PROJ-XXXX"  # substitute the resolved ticket id
 mkdir -p "$STORE_ROOT/tickets/${ACTIVE}/root"
-for f in CLAUDE.md CHANGELOG.md; do
+for f in AGENTS.md CHANGELOG.md; do
   if [ -f "$f" ]; then
     ok=1
     if [ ! -f "$STORE_ROOT/tickets/${ACTIVE}/root/$f" ] || [ "$f" -nt "$STORE_ROOT/tickets/${ACTIVE}/root/$f" ]; then
@@ -71,7 +71,7 @@ When `ACTIVE` is **empty**, run the same loop without the ticket-snapshot branch
 
 ```bash
 STORE_ROOT=".artel/context"
-for f in CLAUDE.md CHANGELOG.md; do
+for f in AGENTS.md CHANGELOG.md; do
   if [ -f "$f" ]; then
     ok=1
     if [ ! -f "$STORE_ROOT/root/$f" ] || [ "$f" -nt "$STORE_ROOT/root/$f" ]; then

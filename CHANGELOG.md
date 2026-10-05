@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-10-05
+
 ### Changed
 
 - **The crew reads `AGENTS.md`, not `CLAUDE.md`.** Every skill and agent body that named the

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-10-05
+
 ### Fixed
 
 - **`save-context` no longer deletes `AGENTS.md`.** The 0.30.0 rename of the mirrored root doc

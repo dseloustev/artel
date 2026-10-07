@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-10-07
+
 ### Changed
 
 - **`setup` derives `verify.surface` from the project's own exclusion settings.** The Round 4

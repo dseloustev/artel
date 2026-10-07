@@ -296,6 +296,86 @@ class TestCompanionFiles(BuildBase):
                       agent)
 
 
+class TestModelTransforms(BuildBase):
+    """The build translates the canonical model passages and the glossary; the canonical
+    Claude Code text itself stays untouched (pinned by test_model_selection_docs)."""
+
+    def text_of(self, *parts):
+        return self.out.joinpath(*parts).read_text(encoding='utf-8')
+
+    def flat(self, *parts):
+        return ' '.join(self.text_of(*parts).split())
+
+    def test_the_canonical_sources_keep_the_claude_dialect(self):
+        for rel, phrase in (('skills/implementer/SKILL.md', '`--model <sonnet|opus|fable>`'),
+                            ('skills/run-reviewer/SKILL.md', '`--model <sonnet|opus|fable>`'),
+                            ('skills/feature-development/tail.md', '--model fable'),
+                            ('skills/deep-review/SKILL.md', '- `model`: `"fable"`')):
+            self.assertIn(phrase, (ROOT / rel).read_text(encoding='utf-8'), rel)
+
+    def test_the_glossary_states_the_model_rule(self):
+        glossary = self.flat('skills', 'artel-implementer', 'SKILL.md')
+        self.assertIn('aliases (`sonnet`, `opus`, `fable`) do not resolve here', glossary)
+        self.assertIn("an omitted model inherits your session's model", glossary)
+        self.assertIn('scripts/models.py resolve --site <key>', glossary)
+        self.assertIn('reviewForecaster', glossary)
+
+    def test_the_glossary_bakes_the_resolver_path(self):
+        self.assertIn(str(self.root.resolve()) + '/scripts/models.py resolve --site <key>',
+                      self.flat('skills', 'artel-implementer', 'SKILL.md'))
+
+    def test_the_implementer_resolves_sites(self):
+        text = self.flat('skills', 'artel-implementer', 'SKILL.md')
+        root = str(self.root.resolve())
+        self.assertIn(root + '/scripts/models.py resolve --site implementer.fix', text)
+        self.assertIn(root + '/scripts/models.py resolve --site implementer.<route_effective>',
+                      text)
+        for gone in ('--model <sonnet|opus|fable>', 'frontmatter `opus`', 'Model: sonnet',
+                     'Model: fable', 'Model: opus'):
+            self.assertNotIn(gone, text)
+
+    def test_the_reviewer_resolves_sites(self):
+        text = self.flat('skills', 'artel-run-reviewer', 'SKILL.md')
+        root = str(self.root.resolve())
+        self.assertIn(root + '/scripts/models.py resolve --site', text)
+        for site in ('reviewer.task', 'reviewer.phase', 'reviewer.plan'):
+            self.assertIn(site, text)
+        self.assertNotIn('--model <sonnet|opus|fable>', text)
+        self.assertNotIn('frontmatter `opus`', text)
+
+    def test_the_tail_resolves_sites(self):
+        text = self.flat('skills', 'artel-feature-development', 'tail.md')
+        root = str(self.root.resolve())
+        for site in ('reviewer.task', 'reviewer.reReview', 'implementer.stepUp'):
+            self.assertIn(root + '/scripts/models.py resolve --site ' + site, text)
+        self.assertNotRegex(text, r'\b(sonnet|opus|fable)\b')
+
+    def test_deep_review_resolves_its_site(self):
+        text = self.flat('skills', 'artel-deep-review', 'SKILL.md')
+        self.assertIn(str(self.root.resolve()) + '/scripts/models.py resolve --site '
+                      'reviewer.deepReview', text)
+        self.assertNotIn('- `model`: `"fable"`', text)
+
+    def test_missing_transform_source_stops_the_build(self):
+        source_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(source_dir.cleanup)
+        source = source_dir.name
+        stub = Path(source) / 'skills' / 'implementer'
+        stub.mkdir(parents=True)
+        (stub / 'SKILL.md').write_text(
+            '---\nname: implementer\ndescription: "stub"\n---\n\nStub body.\n',
+            encoding='utf-8')
+        out_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(out_dir.cleanup)
+        out = out_dir.name
+        proc = subprocess.run(
+            [sys.executable, str(BUILD), '--root', out, '--source', source, '--out', out],
+            capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('transform source absent', proc.stderr)
+        self.assertIn('implementer/SKILL.md', proc.stderr)
+
+
 class TestGlossary(BuildBase):
     def glossary_of(self, skill):
         text = (self.out / 'skills' / skill / 'SKILL.md').read_text(encoding='utf-8')

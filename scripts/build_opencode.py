@@ -203,13 +203,18 @@ def build_agent(src_text, root, generated=None):
 
 def build_command(name, description, hint):
     description = ARTEL_REF.sub(r'artel-\1', description)
+    # OpenCode shows only the description in its command list, so the skill's hint
+    # travels there too; room is reserved for it inside MAX_DESCRIPTION (clip() needs
+    # at least three characters) and the hint itself is never clipped.
+    suffix = ' · args: ' + hint if hint else ''
+    display = clip(description, max(3, MAX_DESCRIPTION - len(suffix))) + suffix
     if hint:
         args = ('Arguments (positional, per the skill\'s argument-hint `' + hint + '`):')
     else:
         args = 'Arguments (if any):'
     lines = [
         '---',
-        'description: ' + yaml_quote(clip(description, MAX_DESCRIPTION)),
+        'description: ' + yaml_quote(display),
         'agent: build',
         '---',
         '',

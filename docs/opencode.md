@@ -62,7 +62,10 @@ but with no frontmatter and no glossary: their reader already has the glossary t
 `SKILL.md`. A pointer into a skill's directory (`${CLAUDE_PLUGIN_ROOT}/skills/<name>/<file>`)
 resolves to the generated copy under
 `~/.config/opencode/artel/opencode/dist/skills/artel-<name>/`, never to the Claude-dialect
-source.
+source. Every skill also gets a `/artel-<name>` command wrapper: its body loads the skill and
+passes `$ARGUMENTS`, and its `description` carries the skill's `argument-hint` (for example
+`· args: [ticket-id]`), so the TUI command list shows what arguments the skill expects before
+you invoke it.
 
 **Bridge plugin.** `opencode/plugin/artel.ts` adapts OpenCode 2.x's plugin API onto the
 unchanged Python hooks (`hooks/README.md` documents their stdin/stdout contracts):

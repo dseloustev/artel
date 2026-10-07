@@ -126,6 +126,48 @@ class TestCommandBuild(BuildBase):
         text = (self.out / 'commands' / 'artel-researcher.md').read_text(encoding='utf-8')
         self.assertIn('[ticket-id]', text)
 
+    def test_command_description_shows_the_argument_hint(self):
+        # The TUI command list reads the wrapper's description, so the hint travels there.
+        text = (self.out / 'commands' / 'artel-researcher.md').read_text(encoding='utf-8')
+        head = text.split('---')[1]
+        self.assertIn('args: [ticket-id]', head)
+
+    def test_commands_without_a_hint_get_no_args_suffix(self):
+        # using-artel and agents-md-generator declare no hint; setup declares "".
+        for name in ('using-artel', 'agents-md-generator', 'setup'):
+            with self.subTest(name):
+                text = (self.out / 'commands' / ('artel-' + name + '.md')).read_text(
+                    encoding='utf-8')
+                self.assertNotIn('args:', text.split('---')[1])
+
+
+class TestCommandDescription(unittest.TestCase):
+    """The wrapper description carries the skill's argument hint (the TUI shows only the
+    description), within the OpenCode limit and never clipped."""
+
+    def test_a_hint_is_appended_verbatim(self):
+        command = build_opencode.build_command('artel-demo', 'Demo the thing', '[ticket-id]')
+        self.assertIn('description: "Demo the thing · args: [ticket-id]"', command)
+
+    def test_no_hint_keeps_the_description_alone(self):
+        command = build_opencode.build_command('artel-demo', 'Demo the thing', '')
+        head = command.split('---')[1]
+        self.assertIn('description: "Demo the thing"', head)
+        self.assertNotIn('args:', head)
+
+    def test_the_hint_survives_a_long_description(self):
+        hint = '[ticket-id] or [ticket-id]-[phase]'
+        command = build_opencode.build_command('artel-demo', 'x' * 2000, hint)
+        line = next(l for l in command.splitlines() if l.startswith('description: '))
+        display = line[len('description: "'):-1]
+        self.assertLessEqual(len(display), MAX_DESCRIPTION)
+        self.assertTrue(display.endswith(' · args: ' + hint), display[-60:])
+
+    def test_a_hint_with_quotes_is_yaml_escaped(self):
+        # tasks' hint carries "<title>"; the description must stay valid YAML.
+        command = build_opencode.build_command('artel-demo', 'Demo', '"<title>"')
+        self.assertIn(r'args: \"<title>\"', command)
+
 
 def source_agents():
     """Every agent this build emits, by file stem — README.md is not an agent and
@@ -571,7 +613,8 @@ class TestOperatorDoc(unittest.TestCase):
                        'the bridge plugin requires OpenCode 2.x',
                        '`session.execution.succeeded`',
                        '`metadata.opencode/autoinvoke: false`',
-                       '`mcp.servers`'):
+                       '`mcp.servers`',
+                       'the TUI command list shows what arguments the skill expects'):
             self.assertIn(phrase, doc, phrase)
 
 

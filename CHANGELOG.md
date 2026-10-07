@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The OpenCode command list shows each skill's arguments.** The generated
+  `/artel-<name>` command wrappers carry the skill's `argument-hint` in their description
+  (for example `· args: [ticket-id]`), so the TUI lists what a skill expects before you invoke
+  it. The wrapper bodies, the canonical sources and the Claude Code build are unchanged.
+
 ## [0.31.0] - 2026-10-07
 
 ### Added

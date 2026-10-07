@@ -45,6 +45,12 @@ class TestConfigKey(unittest.TestCase):
         self.assertIn('provider/model', body)
         self.assertIn('ignored', body)
 
+    def test_models_section_pins_the_call_time_read_and_the_fallbacks(self):
+        body = section(read(CONFIG), SECTION, r'^### ')
+        self.assertIn('the resolver reads this block at call time', body)
+        self.assertIn('leaves the first-round rule (`implementer.fix`) in effect', body)
+        self.assertIn("leaves ticket mode's `reviewer.phase` in effect", body)
+
     def test_filled_example_shows_the_block_on(self):
         example = section(read(CONFIG), '## A filled example')
         self.assertIn('"models": {\n    "opencode": {\n      "implementer": {', example)

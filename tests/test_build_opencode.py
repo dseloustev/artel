@@ -356,6 +356,32 @@ class TestModelTransforms(BuildBase):
                       'reviewer.deepReview', text)
         self.assertNotIn('- `model`: `"fable"`', text)
 
+    def test_a_resolver_error_is_not_an_inherit(self):
+        text = self.flat('skills', 'artel-implementer', 'SKILL.md')
+        self.assertIn('an error (exit `2`, e.g. `invalid_config`) is reported and stops the run',
+                      text)
+        self.assertIn('a resolver exit `2` is reported and stops the run', text)
+        self.assertNotIn('a `null` route, a `null` model or exit `2` → no model', text)
+
+    def test_an_undecodable_transform_source_is_reported(self):
+        source_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(source_dir.cleanup)
+        source = Path(source_dir.name)
+        stub = source / 'skills' / 'implementer'
+        stub.mkdir(parents=True)
+        (stub / 'SKILL.md').write_bytes(
+            b'---\nname: implementer\ndescription: "stub"\n---\n\xff\n')
+        out_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(out_dir.cleanup)
+        proc = subprocess.run(
+            [sys.executable, str(BUILD), '--root', out_dir.name, '--source', str(source),
+             '--out', out_dir.name],
+            capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('transform source absent', proc.stderr)
+        self.assertIn('implementer/SKILL.md', proc.stderr)
+        self.assertNotIn('Traceback', proc.stderr)
+
     def test_missing_transform_source_stops_the_build(self):
         source_dir = tempfile.TemporaryDirectory()
         self.addCleanup(source_dir.cleanup)

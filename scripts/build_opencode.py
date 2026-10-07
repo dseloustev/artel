@@ -42,8 +42,9 @@ dialect; this glossary translates it. Apply it throughout:
   session's model, often the most expensive one.
 - Resolve a site from the host's `.artel/config.json` `models.opencode` with
   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/models.py resolve --site <key>`; `null` means pass no
-  model. The key is the site the skill text names, or `agents.<name>` for an agent dispatch —
-  the review-forecaster's is `reviewForecaster`.
+  model; an error (exit `2`, e.g. `invalid_config`) is reported and stops the run — it is not
+  an inherit. The key is the site the skill text names, or `agents.<name>` for an agent dispatch
+  — the review-forecaster's is `reviewForecaster`.
 - `SendMessage` to an agent id — dispatch a fresh `subagent` to the same `artel-<name>` agent
   with the message as its prompt. OpenCode has no resume-by-id: the agent re-reads its
   context files, which are its state.
@@ -270,7 +271,8 @@ wins:
    take its `route_effective` (the helper's `model` alias is not used here) and resolve
    `implementer.<route_effective>`
    (`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/models.py resolve --site implementer.<route_effective>`);
-   a `null` route, a `null` model or exit `2` → no model.
+   a `null` route, a route-helper exit `2` or a `null` model → no model; a resolver exit `2` is
+   reported and stops the run.
 
 The chosen model is passed as the `subagent` call's `model`. A call refused for its model is
 re-dispatched once without one."""),
@@ -381,7 +383,7 @@ def missing_transforms(source):
     for folder, rel, src, _ in TRANSFORMS:
         try:
             text = (source / 'skills' / folder / rel).read_text(encoding='utf-8')
-        except OSError:
+        except (OSError, UnicodeError):
             missing.append((folder, rel, src))
             continue
         if src not in text:

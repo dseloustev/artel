@@ -28,26 +28,26 @@ import sys
 import time
 from pathlib import Path
 
-VALUE_RE = re.compile(r'^[^\s/#]+/[^\s/#]+(#[^\s#]+)?$')
+VALUE_RE = re.compile(r'[^\s/#]+/[^\s/#]+(#[^\s#/]+)?')
 
 SITES = frozenset({
     'implementer.light', 'implementer.full', 'implementer.fix', 'implementer.stepUp',
     'reviewer.task', 'reviewer.phase', 'reviewer.reReview', 'reviewer.plan',
     'reviewer.deepReview', 'reviewForecaster',
 })
-AGENT_SITE = re.compile(r'^agents\.([a-z0-9-]+)$')
+AGENT_SITE = re.compile(r'agents\.([a-z0-9-]+)')
 RESERVED_AGENTS = frozenset({'implementer', 'reviewer', 'review-forecaster'})
 
 
 def value_ok(value):
-    return isinstance(value, str) and VALUE_RE.match(value) is not None
+    return isinstance(value, str) and VALUE_RE.fullmatch(value) is not None
 
 
 def site_key(site):
     """`site` as the key tuple resolve_site walks, or None for an unknown site."""
     if site in SITES:
         return tuple(site.split('.')) if '.' in site else (site,)
-    match = AGENT_SITE.match(site)
+    match = AGENT_SITE.fullmatch(site)
     if match:
         return ('agents', match.group(1))
     return None
@@ -66,8 +66,9 @@ def read_models(repo, fail):
     """`models.opencode` as a dict, or None after reporting the failure.
 
     Missing file -> {} (no sites configured). Unreadable/malformed JSON, or a
-    config root / `models` / `models.opencode` / `agents` that is present
-    (non-null) and not an object -> invalid_config and None.
+    config root that is not an object (including `null`) -> invalid_config and
+    None. For the nested `models` / `models.opencode` / `agents` keys `null`
+    still counts as absent; a present non-object value -> invalid_config and None.
     """
     path = Path(repo) / '.artel' / 'config.json'
     if not path.is_file():
@@ -77,10 +78,10 @@ def read_models(repo, fail):
     except (OSError, ValueError):
         fail('invalid_config', 'unreadable .artel/config.json: {}'.format(path))
         return None
-    if config is not None and not isinstance(config, dict):
+    if not isinstance(config, dict):
         fail('invalid_config', 'the config root is not an object: {!r}'.format(config))
         return None
-    models = (config or {}).get('models')
+    models = config.get('models')
     if models is not None and not isinstance(models, dict):
         fail('invalid_config', 'models is not an object: {!r}'.format(models))
         return None

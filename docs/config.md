@@ -272,7 +272,8 @@ weigh.
 The generated OpenCode build resolves every dispatch it covers from this block, through
 `scripts/models.py`; Claude Code ignores it — aliases, frontmatter and `--model` are unchanged
 ([agents.md](agents.md) `## Models`). A site left unset passes no model, and the dispatch
-inherits the caller's model.
+inherits the caller's model. Unlike the rest of the config (reading rule 4),
+the resolver reads this block at call time: a mid-run edit is picked up by the next resolve.
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
@@ -280,10 +281,10 @@ inherits the caller's model.
 | `models.opencode.implementer.light` | string | `null` | An iteration task whose effective route is `light`. | `scripts/models.py`, site `implementer.light` |
 | `models.opencode.implementer.full` | string | `null` | An iteration task whose effective route is `full`. | `scripts/models.py`, site `implementer.full` |
 | `models.opencode.implementer.fix` | string | `null` | A fix list, first round. | `scripts/models.py`, site `implementer.fix` |
-| `models.opencode.implementer.stepUp` | string | `null` | A fix list round after a failed one ([autonomous-run.md](autonomous-run.md) §5). | `scripts/models.py`, site `implementer.stepUp` |
+| `models.opencode.implementer.stepUp` | string | `null` | A fix list round after a failed one ([autonomous-run.md](autonomous-run.md) §5). An unset `stepUp` leaves the first-round rule (`implementer.fix`) in effect. | `scripts/models.py`, site `implementer.stepUp` |
 | `models.opencode.reviewer.task` | string | `null` | A task review (`full` tasks only). | `scripts/models.py`, site `reviewer.task` |
 | `models.opencode.reviewer.phase` | string | `null` | A ticket / phase review, round 1. | `scripts/models.py`, site `reviewer.phase` |
-| `models.opencode.reviewer.reReview` | string | `null` | A re-review after a fix round. | `scripts/models.py`, site `reviewer.reReview` |
+| `models.opencode.reviewer.reReview` | string | `null` | A re-review after a fix round. An unset `reReview` leaves ticket mode's `reviewer.phase` in effect. | `scripts/models.py`, site `reviewer.reReview` |
 | `models.opencode.reviewer.plan` | string | `null` | Plan mode (gate 4.2). | `scripts/models.py`, site `reviewer.plan` |
 | `models.opencode.reviewer.deepReview` | string | `null` | `deep-review`'s standalone whole-branch review. | `scripts/models.py`, site `reviewer.deepReview` |
 | `models.opencode.reviewForecaster` | string | `null` | The review-forecaster dispatch. | `scripts/models.py`, site `reviewForecaster` |

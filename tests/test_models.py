@@ -95,6 +95,12 @@ class TestResolve(ResolverCase):
         self.assertEqual(out['error']['kind'], 'invalid_argument')
         self.assertIn('unknown site: reviewer.review', out['error']['message'])
 
+    def test_a_site_with_a_trailing_newline_is_invalid_argument(self):
+        code, out = run_cli('resolve', '--site', 'agents.analyst\n', '--repo', self.repo.name)
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_argument')
+        self.assertIn('unknown site', out['error']['message'])
+
     def test_missing_site_flag_is_invalid_argument(self):
         code, out = run_cli('resolve', '--repo', self.repo.name)
         self.assertEqual(code, 2)
@@ -117,6 +123,13 @@ class TestResolve(ResolverCase):
             self.assertEqual(code, 2, bad)
             self.assertEqual(out['error']['kind'], 'invalid_config', bad)
 
+    def test_the_grammar_regressions_are_invalid_config(self):
+        for bad in ('p/m#high/extra', 'p/m\n'):
+            self.write_config({'models': {'opencode': {'reviewer': {'task': bad}}}})
+            code, out = self.resolve('reviewer.task')
+            self.assertEqual(code, 2, repr(bad))
+            self.assertEqual(out['error']['kind'], 'invalid_config', repr(bad))
+
     def test_non_string_site_value_is_invalid_config(self):
         self.write_config({'models': {'opencode': {'reviewer': {'task': 3}}}})
         code, out = self.resolve('reviewer.task')
@@ -125,6 +138,12 @@ class TestResolve(ResolverCase):
 
     def test_non_object_intermediate_is_invalid_config(self):
         self.write_config({'models': {'opencode': {'reviewer': []}}})
+        code, out = self.resolve('reviewer.task')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_config')
+
+    def test_null_config_root_is_invalid_config(self):
+        self.write_config(None)
         code, out = self.resolve('reviewer.task')
         self.assertEqual(code, 2)
         self.assertEqual(out['error']['kind'], 'invalid_config')
@@ -179,7 +198,8 @@ class TestValueForm(unittest.TestCase):
     def test_the_value_form(self):
         for good in ('p/m', 'provider/model#variant', 'a-b_c/d.e#f'):
             self.assertTrue(models.value_ok(good), good)
-        for bad in ('sonnet', 'a/b/c', 'a b/c', '/b', 'a/', 'a/b#', 'a/b#c#d', '', None, 3):
+        for bad in ('sonnet', 'a/b/c', 'a b/c', '/b', 'a/', 'a/b#', 'a/b#c#d', '',
+                    'p/m#high/extra', 'p/m\n', None, 3):
             self.assertFalse(models.value_ok(bad), bad)
 
 

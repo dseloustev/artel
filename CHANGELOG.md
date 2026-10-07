@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **`setup` derives `verify.surface` from the project's own exclusion settings.** The Round 4
+  interview scans the linter/analyzer's exclusion settings, the formatter's ignore settings and
+  generated-code signals (gitignored generated outputs, generated-file headers, the host's
+  conventions doc), proposes positives plus `!`-excludes and confirms the list instead of asking
+  for hand-typed globs; Revise re-derives and shows the diff, and the report names the sources.
+  The same scan seeds `verify.testSurface` `!`-excludes for generated test code.
+
 ## [0.31.1] - 2026-10-07
 
 ### Changed

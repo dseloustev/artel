@@ -1217,3 +1217,16 @@ move to the decision log.
   `model:` and the seat stays out (excluded from the build, `seat.enabled` inert). `effort` and
   the stronger-model retry stay parked. Spec:
   `docs/superpowers/specs/2026-10-07-opencode-model-selection-design.md` (local).
+- **2026-10-07 — `setup` derives `verify.surface` from the project's own exclusion settings.**
+  The surface was hand-typed globs, so it could drift from the settings the project actually
+  maintains: a host run's surface excluded two generated families while its own analyzer excludes
+  covered five, and a generated package stayed in scope by the configured surface (recorded as a
+  review finding). The Round 4 interview now scans the linter/analyzer's exclusion settings, the
+  formatter's ignore settings where the ecosystem has one, and generated-code signals (gitignored
+  generated outputs, generated-file headers, the host's conventions doc), proposes positives plus
+  `!`-excludes, and confirms the list before writing; Revise re-derives and shows the diff, and
+  the setup report names the sources. The same scan seeds `verify.testSurface` `!`-excludes for
+  generated test code. The engine is untouched — the runtime contract stays `verify.surface`
+  globs; reading the settings at gate time was rejected (per-ecosystem readers inside a
+  deliberately language-agnostic engine, and it would not reach the checkpoint gate, which runs
+  the host's own command unscoped). Locked in by `tests/test_gates_docs.py`.

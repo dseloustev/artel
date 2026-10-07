@@ -250,6 +250,18 @@ non-zero exit is findings (exit 1).
 `verify.surface` filters which changed files the hooks act on, e.g.
 `["lib/**/*.dart", "!*.g.dart", "!*.freezed.dart"]` for the source project's behavior.
 
+`setup` derives that list instead of asking for globs: it scans the project's own exclusion
+settings — the linter/analyzer's exclusion settings (a Dart project's `analyzer.exclude`, an
+ESLint project's ignore file or `ignorePatterns`, a TypeScript project's `tsconfig` `exclude`),
+the formatter's ignore settings where the ecosystem has one (`.prettierignore`), and
+generated-code signals under the source tree (gitignored generated outputs, generated-file
+headers, the host's conventions doc) — proposes positives for the files the configured
+`verify.fast`/`verify.test` commands cover with `!`-excludes for what those settings exclude,
+and confirms the result before writing. Re-running `setup` (Revise) re-derives and shows the
+diff; the setup report names the sources. With no such settings found it falls back to the
+free-form question. The same scan seeds `verify.testSurface` `!`-excludes when the project has
+generated test code.
+
 ### `review` — the review gates
 
 | Key | Type | Default | Allowed values / notes | Consumed by |

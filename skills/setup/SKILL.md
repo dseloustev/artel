@@ -51,7 +51,17 @@ arrive via the "Other" option.
   tasks the planner or a floor routes `full` — one extra reviewer seat per task; the phase
   review runs either way), and a `.artel/sensitive-paths.json` scaffold (a copy of the plugin's default sensitive-paths policy, for projects that want to
   extend it). Ask follow-up value questions only for the selected ones; everything skipped keeps
-  its inert default.
+  its inert default. `verify.surface` is **derived, not hand-typed**: when it is selected — or
+  already present on Revise — scan the project's own exclusion settings rather than asking for
+  globs: the linter/analyzer's exclusion settings, the formatter's ignore settings where the
+  ecosystem has them, and generated-code signals under the source tree (gitignored generated
+  outputs, generated-file headers, the host's conventions doc — config.md's `verify` section
+  names the shapes). Propose the source globs the configured `verify.fast`/`verify.test`
+  commands cover, with `!`-excludes for everything those settings exclude; show the list and
+  confirm it before writing it. On Revise, re-derive and show what changed against the stored
+  value, and say in the report which sources fed it. No such settings found → fall back to
+  asking for the globs. The same scan seeds `verify.testSurface` `!`-excludes when the project
+  has generated test code.
 - **Round 5 — knowledge mirror** (optional): "Do you run a kartoteka daemon that should receive
   this project's spec trail? If so, its base URL (e.g. `http://127.0.0.1:8734`, or a hosted
   daemon's `https://` origin)." Empty answer → `knowledge.adapter: "none"`,
@@ -118,6 +128,7 @@ and location"); append whichever is missing, touch nothing when both are present
 - Path written and the chosen adapters.
 - Which gates are armed vs will record `skipped` (verify, runtime, design).
 - The `.gitignore` outcome.
+- When `verify.surface` was derived in Round 4: the sources the scan read.
 - With `knowledge.tokenEnv` set: a reminder to export that variable in every shell and launcher
   that runs artel, and to give the MCP registration the same token (`--header`), because the
   config carries the name only.

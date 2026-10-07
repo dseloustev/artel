@@ -103,7 +103,10 @@ Notes on the choices:
   armed, use something that builds-and-exits, e.g. `"run": "flutter build apk --debug"` (or
   `flutter build macos --debug`), or an integration-test command.
 - **`verify.fast` carries `{files}`** so the per-edit hook analyzes only what changed;
-  `verify.surface` keeps generated files out of the hooks' sight.
+  `verify.surface` keeps generated files out of the hooks' sight — `setup` derives it from
+  `analysis_options.yaml`'s `analyzer.exclude` plus the gitignored generated families
+  (`**.freezed.dart`, `**.g.dart`, `*.mocks.dart`, `lib/common/localization/generated/`), so you
+  confirm the proposed list instead of hand-writing globs.
 - **`verify.test` carries `{files}` too** — `fvm flutter test {files}` runs only the test files
   a task touched; the task gate ([gates.md](gates.md) §1) never runs the suite.
 - **`tracker.adapter: "none"`** keeps the whole test local — the ticket description comes from

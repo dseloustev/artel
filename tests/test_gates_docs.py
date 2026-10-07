@@ -244,6 +244,19 @@ class TestSurroundingDocsConversion(unittest.TestCase):
         self.assertNotIn('A generated ticket never reads fully done', design)
         self.assertIn('2026-09-24 — The gate diet.', design)
 
+    def test_setup_derives_the_surface_from_the_projects_settings(self):
+        setup = read('skills/setup/SKILL.md')
+        self.assertIn('derived, not hand-typed', setup)
+        self.assertIn("the project's own exclusion settings", setup)
+        self.assertIn('re-derive', setup)
+        self.assertIn('No such settings found', setup)
+        self.assertIn('asking for the globs', setup)
+        self.assertIn('verify.testSurface', setup)
+        config = read('docs/config.md')
+        self.assertIn('derives that list instead of asking for globs', config)
+        self.assertIn('generated-code signals', config)
+        self.assertIn('free-form question', config)
+
     def test_no_live_file_keeps_a_retired_name(self):
         live = PROMPT_FILES + [
             str(p.relative_to(ROOT)) for p in (ROOT / 'docs').glob('*.md')

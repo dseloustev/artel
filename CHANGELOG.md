@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Per-dispatch model selection on OpenCode.** The host's `.artel/config.json` gains an
+  optional `models.opencode` block, and the generated OpenCode build resolves each dispatch
+  site — `implementer.*`, `reviewer.*`, `reviewForecaster`, `agents.<name>` — through the new
+  `scripts/models.py`, passing the concrete `provider/model` on the `subagent` call. A site
+  left unset passes no model and the child inherits the caller's. Claude Code is unchanged.
+
+### Changed
+
+- **The OpenCode build translates the model prose.** Exact-text transforms in
+  `scripts/build_opencode.py` rewrite the implementer's, reviewer's, tail's and `deep-review`'s
+  model passages in the generated copies (the build stops if a source passage is missing), and
+  the host glossary gains the model rule. The canonical Claude Code sources stay untouched.
+
+### Upgrading
+
+- On OpenCode, configure `models.opencode` — re-run `setup`, or edit `.artel/config.json` — to
+  get the model distribution; every site left unset inherits the caller's model. Re-run
+  `scripts/install-opencode.sh` to regenerate the build.
+
 ## [0.30.1] - 2026-10-05
 
 ### Fixed

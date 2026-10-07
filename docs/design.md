@@ -174,9 +174,9 @@ move to the decision log.
   the `opus`-at-lower-effort arm stays parked as an unmeasured lever.
 - **Model selection: what stays parked** (2026-10-02 design,
   `docs/superpowers/specs/2026-10-02-model-distribution-design.md`, local). The distribution
-  landed from superpowers 6.4.1's evaluations (decision log, 2026-10-02). Still parked: `effort`
-  per agent or dispatch; a `models` block in `.artel/config.json` that would let a host set
-  tiers; a stronger-model retry after a red task gate. `tech-writer` and `issue-scout` stay
+  landed from superpowers 6.4.1's evaluations (decision log, 2026-10-02); the OpenCode
+  `models` block followed on 2026-10-07 (decision log). Still parked: `effort` per agent or
+  dispatch; a stronger-model retry after a red task gate. `tech-writer` and `issue-scout` stay
   `opus`: no superpowers equivalent argues for `sonnet`, and their only measurement points the
   other way.
 - **Sub-project 2c: parallel seats.** `parallel.seats` and dispatch by the parser's
@@ -1204,3 +1204,16 @@ move to the decision log.
   otherwise be routine. `CHANGELOG.md` keeps the save-and-clear behaviour. Locked in by
   `tests/test_context_store_docs.py`, whose sweep forbids any shipped skill body from removing
   `AGENTS.md`.
+- **2026-10-07 — Per-dispatch models land for OpenCode, resolved from `models.opencode`.** The
+  host's `.artel/config.json` gains an optional `models.opencode` block; the generated OpenCode
+  build resolves each dispatch site (`implementer.light|full|fix|stepUp`,
+  `reviewer.task|phase|reReview|plan|deepReview`, `reviewForecaster`, `agents.<name>`) through
+  the new `scripts/models.py` and passes the concrete model on the `subagent` call; an unset
+  site passes no model and the child inherits the caller's. The build translates the canonical
+  model passages with ordered exact-text transforms (it exits 2 when a source text is absent, so
+  a canonical edit cannot silently skip one) and the host glossary gains the model rule; the
+  canonical Claude Code text, aliases, frontmatter and `--model` are unchanged. This revises the
+  2026-10-01 "tiers stay dropped" for per-dispatch models only; generated agents still carry no
+  `model:` and the seat stays out (excluded from the build, `seat.enabled` inert). `effort` and
+  the stronger-model retry stay parked. Spec:
+  `docs/superpowers/specs/2026-10-07-opencode-model-selection-design.md` (local).

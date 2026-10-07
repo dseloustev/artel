@@ -220,8 +220,10 @@ more, and a checkpoint's second `## Verify Fixes` round. The orchestrator passes
 `implementer` skill `--model fable`. A fix list's first round runs on `opus`, whatever the
 task's route — a fix list is run-level correction, not a task dispatch. Rounds that exist once —
 the per-task review's fix round, the runtime retry, review fix round 1 — keep the default, and a
-stepped-up round counts toward `MAX_TOTAL_CORRECTION_ROUNDS` like any other. OpenCode ignores
-the per-dispatch model ([opencode.md](opencode.md)).
+stepped-up round counts toward `MAX_TOTAL_CORRECTION_ROUNDS` like any other.
+**OpenCode:** the generated build resolves the stepped-up round from `models.opencode`'s
+`implementer.stepUp` — and a first fix round from `implementer.fix` — via `scripts/models.py`;
+unset → no flag ([opencode.md](opencode.md)).
 
 Environment errors (toolchain/dependency mismatches, subprocess failures, missing tools) are **never**
 loop findings — immediate stop-and-ask pointing at setup.
@@ -556,6 +558,11 @@ Fix lists are the exception: a fix list is correction of a failed gate, not a ta
 its base is `opus` whatever the task's route, with `fable` on the round after a failed one (§5);
 the skill runs no helper for one.
 
+**OpenCode:** the generated build drops the helper's alias `model`; it still runs the helper for
+`route_effective` and the reasons, then resolves `implementer.<route_effective>` from
+`models.opencode` via `scripts/models.py` and passes it on the `subagent` call — unset → no
+model, and the child inherits the caller's.
+
 ### 16.4 The reviewer's model
 
 The reviewer scales by scope, and `run-reviewer --model` carries the choice to the Agent call
@@ -575,6 +582,11 @@ not a fix-diff-only review — it verdicts the fix batch and repeats on the surf
 already read — so `sonnet` is the mid-tier floor superpowers measured, with the final `fable`
 review and the review cap as the backstops. `deep-review` step 3 is untouched: it dispatches
 the same agent on `fable` directly, with its own refused-model fallback.
+
+**OpenCode:** the generated build resolves the scope's site from `models.opencode` via
+`scripts/models.py` — task → `reviewer.task`, ticket → `reviewer.phase`, re-review →
+`reviewer.reReview`, plan → `reviewer.plan`; `deep-review` resolves `reviewer.deepReview` — and
+passes it on the `subagent` call; unset → no model.
 
 ## 17. Sizing and heads
 
@@ -694,7 +706,7 @@ With `seat.enabled: true` (config.md) — Claude Code only, never in a `--step` 
 post-approval loop runs one layer down: step 6 of `feature-development` dispatches the `seat`
 agent (frontmatter `sonnet`) whose procedure is `skills/feature-development/tail.md` unchanged.
 The interview, the approval pause and arming stay on the main thread. OpenCode runs the tail
-inline (no per-dispatch models). One dispatch per run; a resume dispatches a fresh seat.
+inline (no seat dispatch). One dispatch per run; a resume dispatches a fresh seat.
 
 ### 18.1 Returns
 

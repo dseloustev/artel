@@ -50,8 +50,9 @@ in 156 of 166 activations, Skill-tool invocations in 0 of 230. So the orchestrat
 (`feature-development`) declares none and runs on the session's
 model however it is reached; a stage skill's line matters only when that skill is typed on its own.
 
-OpenCode drops the tiers and ignores per-dispatch models; `disable-model-invocation: true`
-maps to v2's `metadata.opencode/autoinvoke: false` ([opencode.md](opencode.md)).
+OpenCode drops the frontmatter tiers; per-dispatch models are resolved from `models.opencode`
+in the host's `.artel/config.json` and passed on the `subagent` call; `disable-model-invocation:
+true` maps to v2's `metadata.opencode/autoinvoke: false` ([opencode.md](opencode.md)).
 
 ## Why this file is in `docs/`, not `agents/`
 

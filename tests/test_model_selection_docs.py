@@ -132,7 +132,17 @@ class TestReviewerSide(unittest.TestCase):
             self.assertIn(phrase, section)
 
     def test_the_opencode_row(self):
-        self.assertIn('a per-dispatch model has no effect', flat(read('docs/opencode.md')))
+        text = flat(read('docs/opencode.md'))
+        self.assertIn('per-dispatch models are resolved from `models.opencode`', text)
+        self.assertIn("unset → the child inherits the caller's model", text)
+        self.assertNotIn('a per-dispatch model has no effect', text)
+
+    def test_no_doc_still_denies_per_dispatch_models(self):
+        for rel in ('docs/opencode.md', 'docs/agents.md', 'docs/autonomous-run.md'):
+            text = flat(read(rel))
+            for stale in ('ignores per-dispatch models', 'a per-dispatch model has no effect',
+                          'no per-dispatch models', 'OpenCode ignores the per-dispatch model'):
+                self.assertNotIn(stale, text, rel + ' still says: ' + stale)
 
 
 class TestPinnedDefaults(unittest.TestCase):

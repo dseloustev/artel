@@ -97,6 +97,9 @@ placeholder the init interview replaces.
   "review": {
     "perTask": false
   },
+  "models": {
+    "opencode": {}
+  },
   "guard": {
     "extraReadTools": []
   },
@@ -263,6 +266,33 @@ error under reading rule 3. The two `review.forecast.*` keys belong to `deep-rev
 the pipeline's gates never read them — and they only matter when `knowledge.adapter` is
 `kartoteka`: with the forecast off, the threshold has nothing to cut and the list nothing to
 weigh.
+
+### `models` — the OpenCode dispatch models
+
+The generated OpenCode build resolves every dispatch it covers from this block, through
+`scripts/models.py`; Claude Code ignores it — aliases, frontmatter and `--model` are unchanged
+([agents.md](agents.md) `## Models`). A site left unset passes no model, and the dispatch
+inherits the caller's model.
+
+| Key | Type | Default | Allowed values / notes | Consumed by |
+|---|---|---|---|---|
+| `models.opencode` | object | `{}` | The OpenCode build's dispatch sites; every site below is optional. A `models.claude-code` section is ignored, as any unknown key (reading rule 2). | The generated OpenCode build, via `scripts/models.py` |
+| `models.opencode.implementer.light` | string | `null` | An iteration task whose effective route is `light`. | `scripts/models.py`, site `implementer.light` |
+| `models.opencode.implementer.full` | string | `null` | An iteration task whose effective route is `full`. | `scripts/models.py`, site `implementer.full` |
+| `models.opencode.implementer.fix` | string | `null` | A fix list, first round. | `scripts/models.py`, site `implementer.fix` |
+| `models.opencode.implementer.stepUp` | string | `null` | A fix list round after a failed one ([autonomous-run.md](autonomous-run.md) §5). | `scripts/models.py`, site `implementer.stepUp` |
+| `models.opencode.reviewer.task` | string | `null` | A task review (`full` tasks only). | `scripts/models.py`, site `reviewer.task` |
+| `models.opencode.reviewer.phase` | string | `null` | A ticket / phase review, round 1. | `scripts/models.py`, site `reviewer.phase` |
+| `models.opencode.reviewer.reReview` | string | `null` | A re-review after a fix round. | `scripts/models.py`, site `reviewer.reReview` |
+| `models.opencode.reviewer.plan` | string | `null` | Plan mode (gate 4.2). | `scripts/models.py`, site `reviewer.plan` |
+| `models.opencode.reviewer.deepReview` | string | `null` | `deep-review`'s standalone whole-branch review. | `scripts/models.py`, site `reviewer.deepReview` |
+| `models.opencode.reviewForecaster` | string | `null` | The review-forecaster dispatch. | `scripts/models.py`, site `reviewForecaster` |
+| `models.opencode.agents.<name>` | string | `null` | Every other agent dispatch, by agent name (`[a-z0-9-]+`). An entry for `implementer`, `reviewer` or `review-forecaster` is ignored — those resolve by their own sites. | `scripts/models.py`, site `agents.<name>` |
+
+Every value is a concrete `provider/model` with an optional `#variant`: exactly one `/`, no
+whitespace, non-empty halves, at most one `#` after the model half with a non-empty variant —
+`tokenguard/opus-5.5`, `tokenguard/deepseek-flash#xhigh`. A malformed value is a configuration
+error under reading rule 3, caught when that site resolves.
 
 ### `guard` — the platform guard's escape hatch
 
@@ -551,6 +581,27 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
   "review": {
     "perTask": true
   },
+  "models": {
+    "opencode": {
+      "implementer": {
+        "light": "tokenguard/sonnet-5",
+        "full": "tokenguard/opus-5.5",
+        "fix": "tokenguard/opus-5.5",
+        "stepUp": "tokenguard/fable-5#high"
+      },
+      "reviewer": {
+        "task": "tokenguard/sonnet-5",
+        "phase": "tokenguard/opus-5.5",
+        "reReview": "tokenguard/sonnet-5",
+        "plan": "tokenguard/opus-5.5",
+        "deepReview": "tokenguard/fable-5"
+      },
+      "reviewForecaster": "tokenguard/sonnet-5",
+      "agents": {
+        "analyst": "tokenguard/opus-5.5"
+      }
+    }
+  },
   "guard": {
     "extraReadTools": []
   },
@@ -588,7 +639,8 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
 
 The command strings are illustrations, not requirements. A Makefile-driven project would write
 `"commands": ["make verify"]` instead; any toolchain works as long as the commands are
-non-interactive and exit non-zero on failure.
+non-interactive and exit non-zero on failure. The `models.opencode` values are illustrations too —
+any `provider/model` the OpenCode host serves works.
 
 ## When the config is missing
 

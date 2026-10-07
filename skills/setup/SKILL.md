@@ -71,6 +71,15 @@ arrive via the "Other" option.
   "Authorization: Bearer …"`, or `${KARTOTEKA_TOKEN}` in `.mcp.json`). Mention that the mirror
   is additive and best-effort: the spec-trail files stay primary and a daemon that is down never
   fails a run.
+- **Round 6 — OpenCode models** (optional): if this project also runs the generated OpenCode
+  build, which model should each `models.opencode` dispatch site use? Offer the sites of
+  config.md's `models` section — `implementer.light` / `full` / `fix` / `stepUp`,
+  `reviewer.task` / `phase` / `reReview` / `plan` / `deepReview`, `reviewForecaster`, and
+  `agents.<name>` for any other agent — and ask for a value only for the sites the person wants
+  to set; every site left unset keeps its inert default and the dispatch inherits the caller's
+  model. Values are `provider/model` with an optional `#variant` — exactly one `/`, no
+  whitespace, at most one `#` with a non-empty variant (e.g. `tokenguard/opus-5.5`,
+  `tokenguard/deepseek-flash#xhigh`). Claude Code ignores the block.
 
 ## 3. Validate
 
@@ -82,6 +91,9 @@ empty or an environment-variable name (`^[A-Za-z_][A-Za-z0-9_]*$`) — an answer
 token (`ktk_…`) is re-asked, never written;
 `verify.commands` / `setup.commands` / `runtime.surface` / `verify.surface` are arrays of
 strings; `review.perTask` and `design.figma` are booleans;
+`models.opencode` is an object whose site values are `provider/model` strings in the value form
+of config.md's `models` section (exactly one `/`, no whitespace, at most one `#` with a
+non-empty variant);
 MCP-adapter prefixes non-empty; language codes plausible BCP 47. A violation re-asks that round — never write a config that config.md's reading rules
 would reject at run start.
 

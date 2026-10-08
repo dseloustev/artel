@@ -456,6 +456,20 @@ class TestGlossary(BuildBase):
                       'an option carries a `preview`, put that sketch into the question text as a '
                       "fenced block, under the option's label.", glossary)
 
+    def test_a_mermaid_sketch_keeps_its_fence_in_the_question(self):
+        glossary = self.glossary_of('artel-analysis')
+        self.assertIn('A sketch the agent wrote as a ```mermaid block keeps that fence — the '
+                      'client renders the diagram; a `preview` sketch stays a monospace block.',
+                      glossary)
+
+    def test_a_shape_sketch_is_a_mermaid_block_on_the_agent_side(self):
+        text = (self.out / 'agents' / 'artel-analyst.md').read_text(encoding='utf-8')
+        flat = ' '.join(text.split())
+        self.assertIn('A `preview` sketch for a flow, a structure or a chart is written as a '
+                      '```mermaid block (fence `mermaid`, not `preview`)', flat)
+        self.assertIn('A screen-layout sketch stays plain ASCII: Mermaid cannot draw a wireframe.',
+                      flat)
+
     def test_glossary_names_the_v2_subagent_tool(self):
         glossary = self.glossary_of('artel-analysis')
         self.assertIn('the `subagent` tool with the `artel-<name>` agent', glossary)
@@ -614,7 +628,8 @@ class TestOperatorDoc(unittest.TestCase):
                        '`session.execution.succeeded`',
                        '`metadata.opencode/autoinvoke: false`',
                        '`mcp.servers`',
-                       'the TUI command list shows what arguments the skill expects'):
+                       'the TUI command list shows what arguments the skill expects',
+                       'a flow, structure or chart sketch is a `mermaid` block'):
             self.assertIn(phrase, doc, phrase)
 
 

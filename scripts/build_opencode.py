@@ -50,7 +50,8 @@ dialect; this glossary translates it. Apply it throughout:
   context files, which are its state.
 - `AskUserQuestion` — the `question` tool. It has no `preview` field: when an option carries
   a `preview`, put that sketch into the question text as a fenced block, under the option's
-  label.
+  label. A sketch the agent wrote as a ```mermaid block keeps that fence — the client renders
+  the diagram; a `preview` sketch stays a monospace block.
 - `EnterPlanMode` / "plan mode" — OpenCode has no plan-mode tool. Present the plan in the
   conversation and wait for the user's approval; the host's built-in `plan` agent is the
   user's to switch to, not yours.
@@ -76,7 +77,12 @@ glossary:
 - A frontmatter `model` — no default on OpenCode; the dispatcher names your model.
 - `SendMessage` — a fresh `subagent` dispatch to the same agent; your context files are your
   state, re-read them.
-- `AskUserQuestion` — the `question` tool (you never prompt the user directly anyway).
+- `AskUserQuestion` — the `question` tool (you never prompt the user directly anyway). A
+  `preview` sketch for a flow, a structure or a chart is written as a ```mermaid block (fence
+  `mermaid`, not `preview`) — `flowchart`, `stateDiagram-v2`, `sequenceDiagram`, `classDiagram`,
+  `erDiagram` or `xychart-beta`, kept small (about 12 nodes) — and the OpenChamber client
+  renders it inside the question; other clients show the source. A screen-layout sketch stays
+  plain ASCII: Mermaid cannot draw a wireframe.
 - Tool names (`Read`, `Edit`, `Write`, `Grep`, `Bash`) — `read`, `edit`, `write`, `grep`, `shell`.
 </OPENCODE-HOST-NOTES>
 """

@@ -1230,3 +1230,19 @@ move to the decision log.
   globs; reading the settings at gate time was rejected (per-ecosystem readers inside a
   deliberately language-agnostic engine, and it would not reach the checkpoint gate, which runs
   the host's own command unscoped). Locked in by `tests/test_gates_docs.py`.
+- **2026-10-08 — Mermaid sketches land on OpenCode; the whiteboard stays staged behind them.**
+  SDD v2's whiteboard was assessed again for OpenCode, where the client — not the plugin —
+  supplies the browser: the third-party OpenChamber workspace renders Mermaid inline, including
+  inside question prompts (its form card runs the same `renderMermaidSVG`/`renderMermaidASCII`
+  pipeline as chat), and its browser panel can show a locally served page next to the chat, so
+  the 2026-09-29 "No whiteboard" cost picture (2,600 clean-room lines, a CDN dependency, a
+  launcher, remote mode) does not hold for this host. Stage 1 lands first: on the OpenCode build
+  a question's flow, structure or chart sketch is written as a `mermaid` block — only the six
+  types the client draws (`flowchart`, `stateDiagram-v2`, `sequenceDiagram`, `classDiagram`,
+  `erDiagram`, `xychart-beta`) — while a screen-layout sketch stays plain ASCII and other
+  clients show the block's source; the host glossary carries the rule on both the authoring and
+  the placement side, and the canonical Claude Code briefs are unchanged. Stage 2 — a small
+  stdlib server serving mockup screens into the OpenChamber browser panel with click-back —
+  waits until real use shows the visual-question volume Stage 1 now measures. Rejected: porting
+  the whiteboard outright (the 2026-09-29 reasons stand outside OpenChamber); report visuals
+  first (no interaction there).

@@ -104,7 +104,7 @@ names.)
 | Agent model tiers | `opus`/`sonnet` frontmatter, plus a per-dispatch `model` for the route helper, the reviewer's scope and the step-up rounds ([agents.md](agents.md) `## Models`) | frontmatter tiers dropped; per-dispatch models are resolved from `models.opencode` in the host's `.artel/config.json` (via `scripts/models.py`) and passed to the `subagent` tool; unset → the child inherits the caller's model |
 | Orchestrator seat | `seat.enabled: true` runs the post-approval tail one layer down on the `seat` agent (`sonnet`), every pause relayed to the main thread ([autonomous-run.md](autonomous-run.md) §18) | `seat.enabled` is inert — the generated `feature-development` runs the tail inline (no seat dispatch) |
 | `inner-loop` model-invocation guard | `disable-model-invocation: true` | `metadata.opencode/autoinvoke: false`: hidden from the model's skill list, still loadable by id |
-| A sketch on a question's option (`analysis`, `generate-vision`) | the option's `preview` field | the `question` tool has no such field: the sketch goes into the question text as a fenced block |
+| A sketch on a question's option (`analysis`, `generate-vision`) | the option's `preview` field | the `question` tool has no such field: the sketch goes into the question text as a fenced block; a flow, structure or chart sketch is a `mermaid` block, which the OpenChamber client renders inline |
 | Knowledge-mirror context | injected after edits | side effect only (the mirror still runs) |
 | Invocation | `/artel:<name>` | `/artel-<name>` (command) or the `artel-<name>` skill |
 | MCP tool names | `mcp__<server>__<tool>` | `<server>_<tool>`, both halves sanitized, no `mcp__` prefix |

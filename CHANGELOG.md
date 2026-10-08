@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Question sketches render as Mermaid on OpenCode.** On the OpenCode build an interview
+  question's flow, structure or chart sketch (`analysis`, `generate-vision`) is written as a
+  `mermaid` block instead of the ASCII `preview` block, and the OpenChamber client renders it
+  inline in the question card — limited to the six types its renderer draws (`flowchart`,
+  `stateDiagram-v2`, `sequenceDiagram`, `classDiagram`, `erDiagram`, `xychart-beta`). A
+  screen-layout sketch stays plain ASCII, other clients show the source, and the canonical
+  Claude Code briefs are unchanged.
+
 ## [0.31.2] - 2026-10-07
 
 ### Changed

@@ -268,16 +268,11 @@ generated test code.
 |---|---|---|---|---|
 | `review.perTask` | boolean | `false` | `true` raises every iteration task to the `full` route ([autonomous-run.md](autonomous-run.md) §16) — every task is then `full`, so every task also runs on `opus`. A review of its diff runs right after its implementer returns — the `reviewer` agent in task mode, Blocking / Important findings written under `## Code Review Fixes`, one fix round, no per-task re-review. `false` leaves each task on its own route — declared by the planner, raised to `full` by a sensitive path, a HITL tag on a task that reaches outside the spec trail, more than five files or an earlier deviation on its files — so `full` tasks are reviewed either way. Adds one reviewer seat per `full` task; the phase review still runs. | `feature-development`, gate 5 (`tail.md`) |
 | `seat.enabled` | boolean | `false` | `true` runs the post-approval tail one layer down on the `seat` agent (`sonnet`), every pause relayed to the main thread ([autonomous-run.md](autonomous-run.md) §18). Claude Code only; inert on OpenCode; a `--step` run never seats. `false` runs the tail inline. | `feature-development`, step 6 |
-| `review.forecast.threshold` | integer | `70` | 1–99. `deep-review`'s cut between `likely to pass` and `at risk` ([review-forecast.md](review-forecast.md) §5): a change whose forecast pass percentage is below it gets a proposed fix. Any other value is a configuration error under reading rule 3. | `deep-review` step 2c, `review-forecaster` |
-| `review.forecast.reviewers` | array of strings | `[]` | Reviewer display names as kartoteka renders them. Empty: every precedent thread weighs `1`. Non-empty: a thread whose root comment is by a listed name weighs `1`, any other `0.5` (review-forecast.md §4). Kept in config because the roster changes. | `review-forecaster` |
 
 The phase review (`run-reviewer` after every task in the phase is done) is not configurable
 here — it always runs. `review.perTask` only decides whether every task is also gated on its
 own before the next one is dispatched, or only the tasks whose route is `full`. Any value other than a JSON boolean is a configuration
-error under reading rule 3. The two `review.forecast.*` keys belong to `deep-review` alone —
-the pipeline's gates never read them — and they only matter when `knowledge.adapter` is
-`kartoteka`: with the forecast off, the threshold has nothing to cut and the list nothing to
-weigh.
+error under reading rule 3.
 
 ### `models` — the OpenCode dispatch models
 
@@ -299,8 +294,7 @@ the resolver reads this block at call time: a mid-run edit is picked up by the n
 | `models.opencode.reviewer.reReview` | string | `null` | A re-review after a fix round. An unset `reReview` leaves ticket mode's `reviewer.phase` in effect. | `scripts/models.py`, site `reviewer.reReview` |
 | `models.opencode.reviewer.plan` | string | `null` | Plan mode (gate 4.2). | `scripts/models.py`, site `reviewer.plan` |
 | `models.opencode.reviewer.deepReview` | string | `null` | `deep-review`'s standalone whole-branch review. | `scripts/models.py`, site `reviewer.deepReview` |
-| `models.opencode.reviewForecaster` | string | `null` | The review-forecaster dispatch. | `scripts/models.py`, site `reviewForecaster` |
-| `models.opencode.agents.<name>` | string | `null` | Every other agent dispatch, by agent name (`[a-z0-9-]+`). An entry for `implementer`, `reviewer` or `review-forecaster` is ignored — those resolve by their own sites. | `scripts/models.py`, site `agents.<name>` |
+| `models.opencode.agents.<name>` | string | `null` | Every other agent dispatch, by agent name (`[a-z0-9-]+`). An entry for `implementer` or `reviewer` is ignored — those resolve by their own sites. | `scripts/models.py`, site `agents.<name>` |
 
 Every value is a concrete `provider/model` with an optional `#variant`: exactly one `/`, no
 whitespace, non-empty halves, at most one `#` after the model half with a non-empty variant —
@@ -390,7 +384,7 @@ evidence text ([spec-storage.md](spec-storage.md)).
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook; the read half below (`analyst`, `researcher`, `deep-review`, `issue-draft` through `issue-scout`); the task queue |
+| `knowledge.adapter` | string | `"none"` | `"none"` \| `"kartoteka"` | The `knowledge_mirror` hook; the read half below (`analyst`, `researcher`, `issue-draft` through `issue-scout`); the task queue |
 | `knowledge.baseUrl` | string | `""` | Required when `adapter` is `"kartoteka"`. Origin only, no trailing path — e.g. `http://127.0.0.1:8734`, or a hosted daemon's `https://` origin. | The `knowledge_mirror` hook's request addressing; `scripts/spec_store.py` |
 | `knowledge.project` | string | `""` | Required when `adapter` is `"kartoteka"`. The kartoteka project this repository's trail, queue and consultations belong to: lowercase kebab-case, `^[a-z0-9][a-z0-9-]*$`, e.g. `adguard-wallet`. Must be registered in the daemon's database — `kartoteka project add <name>`, once, on the daemon machine. No default; see below. | Every kartoteka call: the `knowledge_mirror` hook's request body, `related`, the scoped reads, `task_create` / `task_ready`; the `issue-draft` consultation (`issue-scout`) |
 | `knowledge.tokenEnv` | string | `""` | Optional. The **name** of the environment variable holding a kartoteka bearer token — never the token itself; `[A-Za-z_][A-Za-z0-9_]*`, conventionally `KARTOTEKA_TOKEN`. Needed when the daemon has `[auth] enabled = true` (kartoteka 0.32.0; every hosted daemon). Empty, or naming a variable that is unset, sends the request unauthenticated. See below. | The `knowledge_mirror` hook's `Authorization` header; the `using-artel` host status (set or not, never the value); `scripts/spec_store.py` — which needs a CLI-minted token even where the MCP session signs in with GitHub (kartoteka 0.42.0) |
@@ -468,9 +462,8 @@ those go over MCP, whose token is wired where the server is (`docs/opencode.md` 
 `knowledge.adapter` gates three things, not one. Beyond the mirror above, it declares that this
 project's agents may **consult** kartoteka before working: the `analyst` before its interview,
 the `researcher` during its scan, and `issue-draft` before it drafts, through the `issue-scout` agent — the
-full contract is `docs/knowledge-consultation.md` — and `deep-review`'s forecast of how a branch
-will fare in review, which has its own contract and its own, larger lookup budget:
-`docs/review-forecast.md`. The third is the task queue — `#### The task queue` below.
+full contract is `docs/knowledge-consultation.md`. The third is the task queue —
+`#### The task queue` below.
 
 Reading goes over kartoteka's **MCP tools** (`search_knowledge`, `related`, `index_status`),
 not over `baseUrl`. There is no MCP URL in this config: the host wires the kartoteka MCP server
@@ -609,7 +602,6 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
         "plan": "tokenguard/opus-5.5",
         "deepReview": "tokenguard/fable-5"
       },
-      "reviewForecaster": "tokenguard/sonnet-5",
       "agents": {
         "analyst": "tokenguard/opus-5.5"
       }

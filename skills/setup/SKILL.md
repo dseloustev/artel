@@ -84,7 +84,7 @@ arrive via the "Other" option.
 - **Round 6 — OpenCode models** (optional): if this project also runs the generated OpenCode
   build, which model should each `models.opencode` dispatch site use? Offer the sites of
   config.md's `models` section — `implementer.light` / `full` / `fix` / `stepUp`,
-  `reviewer.task` / `phase` / `reReview` / `plan` / `deepReview`, `reviewForecaster`, and
+  `reviewer.task` / `phase` / `reReview` / `plan` / `deepReview`, and
   `agents.<name>` for any other agent — and ask for a value only for the sites the person wants
   to set; every site left unset keeps its inert default and the dispatch inherits the caller's
   model. Values are `provider/model` with an optional `#variant` — exactly one `/`, no

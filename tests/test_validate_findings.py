@@ -1,8 +1,8 @@
 """`scripts/validate_findings.py`: anchors that hold, anchors that don't, scope that lies.
 
-The reviewer's evidence contract says a guessed line number is worse than none — the
-forecaster attaches findings to change units by `file:line`, and `deep-review.md` cites
-them. This suite pins the mechanical half: diff parsing that reads new-side hunks (and
+The reviewer's evidence contract says a guessed line number is worse than none — `deep-review.md`
+cites the `file:line`, so a guessed anchor propagates into a document a human acts on. This
+suite pins the mechanical half: diff parsing that reads new-side hunks (and
 never mistakes an added line for a file header), the per-finding checks, and the CLI's
 exit codes. Contract: agents/reviewer.md, `## Evidence and anchoring`.
 """

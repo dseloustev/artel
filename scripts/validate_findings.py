@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Anchor validation for the reviewer's machine-readable findings.
 
-A finding with a wrong line number is worse than one with no line number: the
-forecaster attaches findings to change units by `file:line` and `deep-review.md` cites
-them, so a guessed anchor propagates into a document a human acts on. This script is
-the mechanical half of the reviewer's evidence contract — it matches every finding in
+A finding with a wrong line number is worse than one with no line number: `deep-review.md`
+cites the `file:line`, so a guessed anchor propagates into a document a human acts on. This
+script is the mechanical half of the reviewer's evidence contract — it matches every finding in
 `review/findings.json` against the new-side hunks of the diff that was actually
 reviewed, and reports what cannot anchor together with the file's real hunk ranges.
 

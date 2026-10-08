@@ -66,8 +66,8 @@ def between(text, start, end):
 
 
 class TestAgents(unittest.TestCase):
-    def test_there_are_thirteen_agents(self):
-        self.assertEqual(len(AGENTS), 13, AGENTS)
+    def test_there_are_twelve_agents(self):
+        self.assertEqual(len(AGENTS), 12, AGENTS)
 
     def test_every_spec_store_section_carries_the_image_paragraph(self):
         for name in AGENTS:

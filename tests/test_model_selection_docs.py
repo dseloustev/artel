@@ -97,9 +97,6 @@ class TestOrchestrators(unittest.TestCase):
 
 
 class TestReviewerSide(unittest.TestCase):
-    def test_the_forecaster_runs_on_sonnet(self):
-        self.assertRegex(frontmatter('agents/review-forecaster.md'), r'(?m)^model: sonnet$')
-
     def test_deep_review_runs_its_reviewer_on_fable(self):
         text = flat(read('skills/deep-review/SKILL.md'))
         step3 = between(text, '## Step 3:', '## Step 4:')
@@ -123,7 +120,6 @@ class TestReviewerSide(unittest.TestCase):
                        '(dispatched) |',
                        '| `reviewer` — a re-review after a fix round | `sonnet` (dispatched) |',
                        "| `reviewer` — `deep-review`'s whole-branch review | `fable` |",
-                       '| `review-forecaster` | `sonnet` (frontmatter) |',
                        '`CLAUDE_CODE_SUBAGENT_MODEL`', '`availableModels`',
                        'is re-dispatched once without `model`',
                        "superpowers 6.4.1's Model Selection",

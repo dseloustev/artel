@@ -160,10 +160,6 @@ move to the decision log.
 - **Worktrees: two extensions are parked** (from the 2026-09-17 worktree design, released in
   0.14.0): a ticket-level lock so two sessions cannot run the same ticket, and a
   `/artel:worktrees` listing (ticket, branch, path, dirty state) once parallel use is common.
-- **`deep-review`'s forecast constants are placeholders** (from the 0.8.0 design, 2026-09-02).
-  The `0.5` weight for unlisted reviewers is a guess, not a measurement, and needs real runs
-  behind it. (`review-forecaster` moved from `opus` to `sonnet` in 0.24.0 — decision log,
-  2026-09-30.)
 - **No GitHub releases have been published.** Eighteen tags through `v0.13.0`, zero releases;
   `bump-version` prints the reminder at the end of every release and it has never been acted on.
   Fine if deliberate — but then it should be a decision here rather than a standing omission.
@@ -1260,3 +1256,14 @@ move to the decision log.
   event's top-level `location` (execution events have none); a session-id set built from local
   tool calls (misses sessions created before the instance loaded). Locked in by
   `tests/test_opencode_bridge.py` (`TestLocationScoping`).
+- **2026-10-08 — `deep-review` drops the forecast; the whole-branch review stays.** The forecast
+  (`review-forecaster`, `docs/review-forecast.md`, the `review.forecast.*` keys, the
+  `reviewForecaster` model site) cost a second agent dispatch and a kartoteka lookup budget per
+  run, and its pass-percentage tables were rarely acted on — user call after living with it.
+  `deep-review` is now one `reviewer` dispatch in standalone mode, which writes the ticket's
+  `deep-review.md` directly: the report plus a `## Proposed fixes` section whose
+  `### Tasks (Critical)` / `### Tasks (Warning)` blocks feed the unchanged `## Code Review
+  Fixes` hand-off (append, queue rows, one implementer per task, re-verify). The `reviewer`
+  agent's standalone contract gains that output shape; `reviewer.deepReview` still sets the
+  dispatch, and the `--local` flag keeps its queue meaning. The comparison with AdGuard's
+  `code-review` (2026-10-02) keeps its forecast rows as history, with a status note.

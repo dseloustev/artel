@@ -43,8 +43,7 @@ dialect; this glossary translates it. Apply it throughout:
 - Resolve a site from the host's `.artel/config.json` `models.opencode` with
   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/models.py resolve --site <key>`; `null` means pass no
   model; an error (exit `2`, e.g. `invalid_config`) is reported and stops the run — it is not
-  an inherit. The key is the site the skill text names, or `agents.<name>` for an agent dispatch
-  — the review-forecaster's is `reviewForecaster`.
+  an inherit. The key is the site the skill text names, or `agents.<name>` for an agent dispatch.
 - `SendMessage` to an agent id — dispatch a fresh `subagent` to the same `artel-<name>` agent
   with the message as its prompt. OpenCode has no resume-by-id: the agent re-reads its
   context files, which are its state.

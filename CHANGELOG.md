@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Removed
+
+- **`deep-review` no longer forecasts.** The `review-forecaster` agent, `docs/review-forecast.md`
+  and the `review.forecast.threshold` / `review.forecast.reviewers` keys are gone: the forecast
+  cost a second agent dispatch and a kartoteka lookup budget per run, and its pass-percentage
+  tables were rarely acted on. `deep-review` is now one `reviewer` dispatch in standalone mode —
+  the agent writes the whole-branch report straight to `deep-review.md` (document header
+  `type: deep-review`, `produced_by: artel:reviewer`) with a `## Proposed fixes` section whose
+  `### Tasks (Critical)` / `### Tasks (Warning)` blocks feed the same `## Code Review Fixes`
+  hand-off. The `reviewForecaster` model site is gone; `reviewer.deepReview` still sets the
+  dispatch. If `.artel/config.json` carries the two removed keys or `reviewForecaster`, re-run
+  `/artel:setup` (Revise) or delete them — unknown keys are ignored.
+
 ## [0.31.3] - 2026-10-08
 
 ### Changed

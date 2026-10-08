@@ -158,6 +158,23 @@ Save to:
 - `<specs.dir>/review-claude.md` otherwise (or another path the caller specifies).
   (always a file, on both paths: it has no ticket to file it under — spec-storage.md §1.)
 
+**The `deep-review` output.** A caller may ask for the report as the ticket's `deep-review.md`
+instead — `deep-review` does, naming `<specs.dir>/<TICKET_ID>/deep-review.md` as the output path
+and asking for the fix tasks. Same report, with two additions:
+
+1. It opens with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2):
+   `type: deep-review`, `produced_by: artel:reviewer`.
+2. It closes with `## Proposed fixes`: a `### Tasks (Critical)` block and a `### Tasks (Warning)`
+   block, each holding its findings' fixes in the ticket-mode task format — one checkbox item per
+   finding, `**Task N (Critical): …**` / `**Task N (Warning): …**`, numbered within its block,
+   the body and acceptance criteria beneath, and the `behavior` marker applied as in ticket mode.
+   Suggestions never become tasks. A block with no findings reads `- none`. The blocks hold the
+   checkbox items only; `deep-review` copies them under its own `### deep-review-<YYYY-MM-DD>`
+   source heading (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6).
+
+Return one line:
+`Deep review: <c> Critical, <w> Warning, <s> Suggestion — <path>`.
+
 ### Regression guard (standalone)
 
 Compare the three-dot diff against the two-dot diff. If the two-dot diff shows deletions that aren't intentional removals in the three-dot diff, flag as **Critical** (likely rollback from a bad merge resolution). Check for additions that already exist on the default branch (redundant changes — **Warning**). Check that existing functions/classes from the default branch haven't been accidentally altered or removed (**Critical**).
@@ -337,10 +354,9 @@ a report a human acts on. A correctness claim that could not be confirmed by a r
 in the finding ("rests on reading, not a run") rather than implying a run that never
 happened.
 
-Anchors are mechanical, not decorative: `review-forecaster` attaches findings to change units
-by `file:line`, and `deep-review.md` cites them, so a guessed line sends a reader to the
-wrong place with confidence. Before finishing, validate every anchor against the diff you
-actually read:
+Anchors are mechanical, not decorative: a finding's `file:line` is what a reader follows into
+the diff — `deep-review.md` cites them — so a guessed line sends a reader to the wrong place
+with confidence. Before finishing, validate every anchor against the diff you actually read:
 
     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/validate_findings.py \
       <specs.dir>/<TICKET_ID>/review/findings.json --range <default-branch>...HEAD

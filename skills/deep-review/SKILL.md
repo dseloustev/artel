@@ -1,18 +1,16 @@
 ---
 name: deep-review
-description: "Review a branch once, forecast from kartoteka precedents which changes will draw reviewer comments, write deep-review.md, and offer to work the fixes"
+description: "Review a branch once with the whole-branch reviewer, write deep-review.md, and offer to work its fixes"
 argument-hint: "[ticket-id] [branch] [pr-link] [--local]"
 model: sonnet
 ---
 
-This skill is a multi-step orchestrator — run the steps in order. It dispatches two agents,
-the `reviewer` and the `review-forecaster`, and never reviews, forecasts or edits anything
-itself. The forecast's contract is `${CLAUDE_PLUGIN_ROOT}/docs/review-forecast.md`; the steps
-below cite it as `§N`.
+This skill is a multi-step orchestrator — run the steps in order. It dispatches the `reviewer`
+agent once and never reviews or edits anything itself.
 
-`--local` flag: skip the kartoteka lookup and record why. It short-circuits §1 before
-capability is considered, exactly as it does for `analysis` and `researcher`. It may appear
-in any position — strip it before reading `$0`, `$1`, `$2`, and remember that it was passed.
+`--local` flag: record nothing in the kartoteka task queue — the fix tasks still land in the
+tasklist file. It is the same meaning the flag has in `run-reviewer`. It may appear in any
+position — strip it before reading `$0`, `$1`, `$2`, and remember that it was passed.
 
 ## Step 0: Quality gate (`verify.commands`)
 
@@ -82,7 +80,7 @@ If `<specs.dir>/<TICKET_ID>/deep-review.md` exists (kartoteka path: `spec_store.
 > "`deep-review.md` already exists for <TICKET_ID>. Overwrite it with a fresh review?" — Yes / No.
 
 On "No", display `Keeping the existing <specs.dir>/<TICKET_ID>/deep-review.md.` and terminate.
-On "Yes", continue; the file is replaced in Step 4.
+On "Yes", continue; the file is replaced in Step 3.
 
 ## Step 2: Parse arguments
 
@@ -123,35 +121,6 @@ Store the result as `PR_TITLE` and `PR_DESCRIPTION` for use in subsequent steps.
 Fetched PR #<prId or prNumber>: <PR_TITLE>
 ```
 
-### 2c: Forecast mode and forecast config
-
-Resolve the **forecast mode** per `${CLAUDE_PLUGIN_ROOT}/docs/review-forecast.md` §1, in
-this order:
-
-1. `--local` was passed → `off: local-only run requested`.
-2. Read `knowledge.adapter` from `.artel/config.json` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`).
-   `none` or absent → `off: knowledge.adapter is not kartoteka for this project` — whether or
-   not kartoteka tools happen to be present (an undeclared index is not this project's).
-   Any value other than `none` or `kartoteka` → configuration error (config.md reading rule 3):
-   display `Error: knowledge.adapter has an unrecognised value (<value>).` and terminate.
-   `kartoteka` with `knowledge.project` empty or outside `^[a-z0-9][a-z0-9-]*$` →
-   `off: kartoteka is configured for this project but knowledge.project is not set` — the
-   forecaster gets no project to name, so it cannot consult (review-forecast.md §1).
-3. `kartoteka`, and `search_knowledge`, `related` and `index_status` are among the tools
-   available to you in this session → `on`. Otherwise →
-   `off: kartoteka is configured for this project but its MCP tools are not available in this session`.
-
-Display `Forecast: <mode>`.
-
-Then read the forecast config (config.md, `review` section):
-
-- `review.forecast.threshold` — default `70`. Anything but an integer from 1 to 99 is a
-  configuration error: display `Error: review.forecast.threshold must be an integer from 1 to 99 (got <value>).`
-  and terminate. Store as `THRESHOLD`.
-- `review.forecast.reviewers` — default `[]`. Anything but an array of strings is a
-  configuration error: display `Error: review.forecast.reviewers must be an array of strings.`
-  and terminate. Store as `REVIEWERS`.
-
 ## Step 3: Dispatch the reviewer (standalone mode)
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
@@ -165,9 +134,9 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
 Use the Agent tool to spawn the `reviewer` agent (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer.md`) in
-standalone mode — no ticket mode; the report goes to run-state evidence at
-`.artel/run/<TICKET_ID>/reports/deep-review-findings.md` (the agent's standalone-mode Output
-section accepts a caller-specified path). Ticket files are passed as additional context only.
+standalone mode — no ticket mode. Its report is the ticket's `deep-review.md`: the agent's
+standalone-mode Output section carries the deep-review shape (the document header and the
+`## Proposed fixes` tasks). Ticket files are passed as additional context only.
 
 - `subagent_type: "reviewer"`
 - `model`: `"fable"` — the whole-branch review before a pull request, the one review on the most
@@ -184,7 +153,7 @@ section accepts a caller-specified path). Ticket files are passed as additional 
 ```
 Run in **standalone mode** — no ticket context.
 <branch targeting line>
-Save your review report to .artel/run/<TICKET_ID>/reports/deep-review-findings.md (create the directory if needed).
+Write the ticket's deep review to <specs.dir>/<TICKET_ID>/deep-review.md (create the directory if needed) in your deep-review output — the document header and the `## Proposed fixes` tasks included. Return the deep-review count line.
 
 Additional ticket context:
 - Active ticket: <TICKET_ID>
@@ -201,7 +170,7 @@ PR Compliance section whenever a PR description is present in the prompt, so jus
 ```
 Run in **standalone mode** — no ticket context.
 <branch targeting line>
-Save your review report to .artel/run/<TICKET_ID>/reports/deep-review-findings.md (create the directory if needed).
+Write the ticket's deep review to <specs.dir>/<TICKET_ID>/deep-review.md (create the directory if needed) in your deep-review output — the document header and the `## Proposed fixes` tasks included. Return the deep-review count line.
 
 PR Compliance Check — the PR claims to implement the following:
 Title: <PR_TITLE>
@@ -209,40 +178,6 @@ Description: <PR_DESCRIPTION>
 
 Additional ticket context:
 [... same five bullets as above ...]
-```
-
-Wait for the agent to complete, then verify the file exists:
-```bash
-test -f .artel/run/<TICKET_ID>/reports/deep-review-findings.md && echo "Found deep-review-findings.md" || echo "File not found"
-```
-
-If the file is missing, re-dispatch once with the same prompt and model. If it is still missing, display
-`Error: the reviewer produced no report after two attempts.` and terminate — never write the
-review yourself.
-
-## Step 4: Dispatch the forecaster
-
-Use the Agent tool to spawn the `review-forecaster` agent
-(`${CLAUDE_PLUGIN_ROOT}/agents/review-forecaster.md`). It always runs — with the forecast off
-it still writes the file, with the definite-issues table filled from the reviewer's report and
-the forecast table listed without numbers.
-
-- `subagent_type: "review-forecaster"`
-- `description`: `"Forecast review outcome for <TICKET_ID>"`
-- `prompt`:
-
-```
-<branch targeting line — the same line Step 3 used>
-Reviewer's report: .artel/run/<TICKET_ID>/reports/deep-review-findings.md
-Ticket directory: <specs.dir>/<TICKET_ID>/
-Forecast mode: <mode, verbatim from Step 2c>
-Threshold: <THRESHOLD>
-Reviewers: <REVIEWERS as a JSON array, e.g. [] or ["Name One", "Name Two"]>
-Output path: <specs.dir>/<TICKET_ID>/deep-review.md
-[PR title: <PR_TITLE> — only when Step 2b fetched PR context]
-[PR description: <PR_DESCRIPTION> — only when Step 2b fetched PR context]
-
-Follow ${CLAUDE_PLUGIN_ROOT}/docs/review-forecast.md. Write the output file and return the three-line completion.
 ```
 
 Wait for the agent to complete, then verify the file exists:
@@ -255,32 +190,32 @@ Kartoteka path:
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py exists <specs.dir>/<TICKET_ID>/deep-review.md && echo "Found deep-review.md" || echo "File not found"
 ```
 
-If the file is missing, re-dispatch once with the same prompt. If it is still missing, display
-`Error: the forecaster produced no file after two attempts.` and terminate.
+If the file is missing, re-dispatch once with the same prompt and model. If it is still missing,
+display `Error: the reviewer produced no report after two attempts.` and terminate — never write
+the review yourself.
 
-Read the three counts from the agent's completion (`Table 1 … <n> rows`, `Table 2 … <m> rows`,
-`At risk … <k> rows`). Do not open the file to recount — bulk stays in files
-(`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §1).
+Read the counts from the agent's completion line
+(`Deep review: <c> Critical, <w> Warning, <s> Suggestion — <path>`). Do not open the file to recount
+— bulk stays in files (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §1).
 
-## Step 5: Offer to apply
+## Step 4: Offer to apply
 
 Display:
 ```
 Deep review written to <specs.dir>/<TICKET_ID>/deep-review.md
-Forecast: <mode>
-Definite issues: <n> · Forecast rows: <m> · At risk (below <THRESHOLD>%): <k>
+Critical: <c> · Warnings: <w> · Suggestions: <s>
 ```
 
-If `n` and `k` are both `0`, display `Nothing to apply.` and terminate.
+If `c` and `w` are both `0`, display `Nothing to apply.` and terminate.
 
 Otherwise ask via `AskUserQuestion` which fixes to work. Offer only the options that have rows:
 
-- **Definite issues only** — the `### Tasks` block under `## 1. Definite issues` (when `n > 0`).
-- **Definite issues and at-risk changes** — that block plus the `### Tasks` block under
-  `## 3. Proposed fixes` (when `k > 0`; with `n = 0` label it **At-risk changes only**).
+- **Critical only** — the `### Tasks (Critical)` block under `## Proposed fixes` (when `c > 0`).
+- **Critical and warnings** — that block plus the `### Tasks (Warning)` block (when `w > 0`;
+  with `c = 0` label it **Warnings only**).
 - **Not now** — display `Fixes are in <specs.dir>/<TICKET_ID>/deep-review.md; re-run /artel:deep-review <TICKET_ID> to apply them later.` and terminate.
 
-## Step 6: Apply
+## Step 5: Apply
 
 1. Copy the checkbox items of the chosen `### Tasks` block(s) from `deep-review.md` — not their
    `### Tasks` heading — under `## Code Review Fixes` in the ticket-wide
@@ -297,7 +232,7 @@ Otherwise ask via `AskUserQuestion` which fixes to work. Offer only the options 
      a task-format tasklist, the highest under `## Code Review Fixes`: its `### Task N.M:`
      headings number iteration tasks and never count.
      Renumbering changes the number only: a `(behavior)` marker stays in place
-     (`${CLAUDE_PLUGIN_ROOT}/agents/review-forecaster.md`).
+     (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer.md`).
    - A block reading `- none` copies nothing, and no heading.
 
    Display `Appended <count> tasks under ## Code Review Fixes in <specs.dir>/<TICKET_ID>/tasklist.md.`
@@ -338,17 +273,16 @@ Otherwise ask via `AskUserQuestion` which fixes to work. Offer only the options 
    - Tasks appended: <count>
    - Tasks completed: <checked count> of <count>
    - Quality gate: <passed | failed | skipped>
-   Re-run /artel:deep-review <TICKET_ID> to refresh the forecast.
+   Re-run /artel:deep-review <TICKET_ID> to re-review the branch.
    ```
 
 ## Rules
 
 - **Orchestrator only.** This skill never reads the diff, never judges code, never writes a
-  review or a forecast, and never edits code. Copying task blocks between two files under
-  `<specs.dir>` is the only text it moves, and the rows Step 6 records are its only writes to
+  review, and never edits code. Copying task blocks between two files under
+  `<specs.dir>` is the only text it moves, and the rows Step 5 records are its only writes to
   kartoteka.
 - **Read-only on the VCS host** — the PR is fetched, never commented on or edited.
 - **Ticket-wide only** — a phase suffix is accepted and discarded.
-- **Two agents, one seat each** — the `reviewer` is dispatched once; there is no second
-  reviewer and no merged summary. Independence between reviewers was the old design's
-  purpose; precedent from kartoteka is this one's.
+- **One agent, one pass** — the `reviewer` is dispatched once; there is no second reviewer and
+  no merged summary. The whole-branch review before a pull request is this skill's only seat.

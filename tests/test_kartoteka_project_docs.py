@@ -28,17 +28,15 @@ LIVE_FILES = tuple(sorted(
 CONFIG = 'docs/config.md'
 CONSULTATION = 'docs/knowledge-consultation.md'
 QUEUE = 'docs/task-queue.md'
-FORECAST = 'docs/review-forecast.md'
 SETUP = 'skills/setup/SKILL.md'
 HOOKS_README = 'hooks/README.md'
 OPENCODE = 'docs/opencode.md'
 REQUIREMENTS = 'docs/kartoteka-requirements.md'
 KNOWLEDGE_SKILL = 'skills/knowledge/SKILL.md'
 TASKS_SKILL = 'skills/tasks/SKILL.md'
-DEEP_REVIEW_SKILL = 'skills/deep-review/SKILL.md'
 
 # The one record line for "adapter on, project missing", inherited byte for
-# byte by the forecast's `off:` mode, the same way the tools-absent reason is.
+# byte by the reading contracts, the same way the tools-absent reason is.
 PROJECT_UNSET = 'kartoteka is configured for this project but knowledge.project is not set'
 # What the implementer records when the daemon refuses the project it names.
 PROJECT_REFUSED = 'kartoteka refused knowledge.project as unregistered; continued from tasklist.md'
@@ -118,14 +116,10 @@ class TestAttachmentRoutes(unittest.TestCase):
 
 class TestGateMessages(unittest.TestCase):
 
-    def test_the_three_contracts_spell_the_unset_line_identically(self):
-        for rel in (CONSULTATION, QUEUE, FORECAST):
+    def test_the_two_read_contracts_spell_the_unset_line_identically(self):
+        for rel in (CONSULTATION, QUEUE):
             with self.subTest(rel):
                 self.assertIn(PROJECT_UNSET, read(rel))
-
-    def test_the_forecast_has_an_off_mode_for_it(self):
-        self.assertIn('`off: ' + PROJECT_UNSET + '`', read(FORECAST))
-        self.assertIn('off: ' + PROJECT_UNSET, read(DEEP_REVIEW_SKILL))
 
     def test_the_queue_doc_records_a_refused_project_distinctly(self):
         self.assertIn(PROJECT_REFUSED, read(QUEUE))

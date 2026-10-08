@@ -105,7 +105,7 @@ class TestCrew(unittest.TestCase):
 
     def test_agents_doc_and_readme_list_the_scout(self):
         self.assertIn('issue-scout', read('docs/agents.md'))
-        self.assertIn('crew of 15', read('README.md'))
+        self.assertIn('crew of 14', read('README.md'))
         self.assertIn('issue-scout', read('README.md'))
 
 

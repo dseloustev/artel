@@ -360,7 +360,7 @@ class TestModelTransforms(BuildBase):
         self.assertIn('aliases (`sonnet`, `opus`, `fable`) do not resolve here', glossary)
         self.assertIn("an omitted model inherits your session's model", glossary)
         self.assertIn('scripts/models.py resolve --site <key>', glossary)
-        self.assertIn('reviewForecaster', glossary)
+        self.assertNotIn('reviewForecaster', glossary)
 
     def test_the_glossary_bakes_the_resolver_path(self):
         self.assertIn(str(self.root.resolve()) + '/scripts/models.py resolve --site <key>',

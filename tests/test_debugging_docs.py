@@ -18,7 +18,6 @@ NOTICES = 'THIRD_PARTY_NOTICES.md'
 INNER_LOOP = 'skills/inner-loop/SKILL.md'
 IMPLEMENTER = 'agents/implementer.md'
 REVIEWER = 'agents/reviewer.md'
-FORECASTER = 'agents/review-forecaster.md'
 DEEP_REVIEW = 'skills/deep-review/SKILL.md'
 TASKS = 'skills/tasks/SKILL.md'
 SKILL = 'skills/debugging/SKILL.md'
@@ -167,9 +166,10 @@ class TestFixWriters(unittest.TestCase):
                        'The `behavior` marker applies as in ticket mode'):
             self.assertIn(phrase, doc)
 
-    def test_forecaster_marks_behavior(self):
-        doc = flat(read(FORECASTER))
-        self.assertIn('`**Task N (behavior): …**`', doc)
+    def test_the_deep_review_tasks_mark_behavior(self):
+        doc = flat(read(REVIEWER))
+        self.assertIn('`**Task N (Critical): …**`', doc)
+        self.assertIn('the `behavior` marker applied as in ticket mode', doc)
         self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/debugging.md', doc)
 
     def test_deep_review_keeps_the_marker_on_renumbering(self):
@@ -192,7 +192,7 @@ class TestReviewer(unittest.TestCase):
             self.assertIn(phrase, self.doc)
 
     def test_only_marked_rows_are_checked(self):
-        # The implementer's own grammar: priority rows, forecaster rows and manual rows alike.
+        # The implementer's own grammar: priority rows, deep-review rows and manual rows alike.
         self.assertIn('whose checkbox text carries `behavior` in its parenthetical', self.doc)
         self.assertIn('this check does not read them', self.doc)
 

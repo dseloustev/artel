@@ -128,7 +128,7 @@ class TestGateWriters(unittest.TestCase):
 
 OTHER_WRITERS = {
     'skills/generate-idea/SKILL.md': '$VERSION', 'agents/researcher.md': 'type: research',
-    'agents/reviewer.md': 'type: review', 'agents/review-forecaster.md': 'type: deep-review',
+    'agents/reviewer.md': 'type: review',
     'agents/qa.md': 'type: qa', 'agents/tech-writer.md': 'type: summary',
     'skills/pr-description/SKILL.md': 'type: pr-description',
     'docs/deviation-protocol.md': 'type: implementation-notes',
@@ -145,6 +145,11 @@ class TestOtherWriters(unittest.TestCase):
                 self.assertIn('spec-storage.md` §3.2' if rel != 'docs/deviation-protocol.md'
                               else 'spec-storage.md) §3.2', text)
                 self.assertIn(field, text)
+
+    def test_the_reviewer_names_the_deep_review_type(self):
+        text = read('agents/reviewer.md')
+        self.assertIn('spec-storage.md` §3.2', text)
+        self.assertIn('type: deep-review', text)
 
     def test_the_idea_template_opens_with_the_header(self):
         self.assertTrue(read('skills/generate-idea/assets/templates/idea.template.md')
@@ -210,7 +215,7 @@ class TestReleaseDocs(unittest.TestCase):
 HEADER_TEMPLATES = ('skills/generate-idea/assets/templates/idea.template.md',
                     'skills/figma-analysis/assets/templates/design-analysis.template.md',
                     'skills/sync-phases/SKILL.md', 'agents/tasklist-writer.md',
-                    'agents/review-forecaster.md', STORAGE)
+                    STORAGE)
 
 
 class TestFinalReviewFixes(unittest.TestCase):
@@ -240,8 +245,7 @@ class TestFinalReviewFixes(unittest.TestCase):
         text = flat(read('docs/deviation-protocol.md'))
         self.assertIn('On the kartoteka path every append is a patch that bumps its version line',
                       text)
-        for rel in ('agents/tasklist-writer.md', 'agents/review-forecaster.md',
-                    'docs/deviation-protocol.md'):
+        for rel in ('agents/tasklist-writer.md', 'docs/deviation-protocol.md'):
             with self.subTest(rel):
                 self.assertNotIn('version: <per spec-storage.md §4.1>', read(rel))
 

@@ -38,7 +38,7 @@ class TestConfigKey(unittest.TestCase):
                     '`models.opencode.implementer.stepUp`', '`models.opencode.reviewer.task`',
                     '`models.opencode.reviewer.reReview`',
                     '`models.opencode.reviewer.deepReview`',
-                    '`models.opencode.reviewForecaster`', '`models.opencode.agents.<name>`'):
+                    '`models.opencode.agents.<name>`'):
             self.assertIn(key, body)
         self.assertIn('`null`', body)
         self.assertIn('scripts/models.py', body)

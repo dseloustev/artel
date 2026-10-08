@@ -3,6 +3,11 @@
 A comparison of two review systems, written 2026-10-02, and the source of the review-evidence
 discipline artel adopted the same day ([design.md](../design.md), decision log 2026-10-02).
 
+> **Status (2026-10-08):** artel's forecast layer — the `review-forecaster` agent,
+> `docs/review-forecast.md` and the precedent tables — has since been removed; `deep-review` is
+> now a whole-branch review with a fix hand-off only (decision log, 2026-10-08). The forecast
+> rows below describe the 2026-10-02 system.
+
 ## Provenance
 
 The AdGuard plugin lives in a **private** repository

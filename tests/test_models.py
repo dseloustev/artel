@@ -41,14 +41,13 @@ class TestResolve(ResolverCase):
         sites = {'implementer': {'light': 'p/light', 'full': 'p/full', 'fix': 'p/fix',
                                  'stepUp': 'p/step-up'},
                  'reviewer': {'task': 'p/task', 'phase': 'p/phase', 'reReview': 'p/review',
-                              'plan': 'p/plan', 'deepReview': 'p/deep'},
-                 'reviewForecaster': 'p/forecast'}
+                              'plan': 'p/plan', 'deepReview': 'p/deep'}}
         self.write_config({'models': {'opencode': dict(sites, agents={'analyst': 'p/analyst'})}})
         expected = {'implementer.light': 'p/light', 'implementer.full': 'p/full',
                     'implementer.fix': 'p/fix', 'implementer.stepUp': 'p/step-up',
                     'reviewer.task': 'p/task', 'reviewer.phase': 'p/phase',
                     'reviewer.reReview': 'p/review', 'reviewer.plan': 'p/plan',
-                    'reviewer.deepReview': 'p/deep', 'reviewForecaster': 'p/forecast',
+                    'reviewer.deepReview': 'p/deep',
                     'agents.analyst': 'p/analyst'}
         for site, model in expected.items():
             code, out = self.resolve(site)
@@ -73,11 +72,17 @@ class TestResolve(ResolverCase):
 
     def test_reserved_agent_names_are_ignored(self):
         self.write_config({'models': {'opencode': {'agents': {
-            'implementer': 'p/x', 'reviewer': 'p/y', 'review-forecaster': 'p/z'}}}})
-        for name in ('implementer', 'reviewer', 'review-forecaster'):
+            'implementer': 'p/x', 'reviewer': 'p/y'}}}})
+        for name in ('implementer', 'reviewer'):
             code, out = self.resolve('agents.' + name)
             self.assertEqual(code, 0, name)
             self.assertIsNone(out['data']['model'], name)
+
+    def test_the_forecast_site_is_gone(self):
+        code, out = self.resolve('reviewForecaster')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_argument')
+        self.assertIn('unknown site: reviewForecaster', out['error']['message'])
 
     def test_unknown_keys_are_ignored(self):
         self.write_config({'models': {'opencode': {

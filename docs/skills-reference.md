@@ -401,8 +401,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   review); on a task-format tasklist it grades the whole task block and the requirements its
   `Implements:` names. The orchestrator seat is opt-in — `seat.enabled` defaults to `false`
   (autonomous-run.md §18). `deep-review` drives
-  the same `reviewer` agent in standalone mode once, then the `review-forecaster` agent, for a
-  separate, non-pipeline review-and-forecast workflow.
+  the same `reviewer` agent in standalone mode once, for a separate, non-pipeline whole-branch
+  review-and-fix workflow.
 
 ### run-app
 
@@ -593,34 +593,31 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 ### deep-review
 
-- **Purpose:** Review a branch once with the `reviewer` agent, then forecast from kartoteka's
-  review history which of its changes will draw reviewer comments, and offer to work the fixes.
+- **Purpose:** Review a branch once with the `reviewer` agent — the whole-branch review before a
+  pull request — write `deep-review.md`, and offer to work its fixes.
 - **Invocation:** `/artel:deep-review [ticket-id] [branch] [pr-link] [--local]`
 - **Reads:** the `verify.commands` gate output (step 0 — a hard gate when configured); the
-  ticket directory; optionally the PR title/body via `vcs.adapter` when a PR link is given;
-  `knowledge.adapter` plus the kartoteka MCP tools for the forecast mode
-  (`docs/review-forecast.md` §1); `review.forecast.threshold` and `review.forecast.reviewers`.
-- **Writes:** `<specs.dir>/<TICKET_ID>/deep-review.md` — the reviewer's comments verbatim
-  (including its **Pre-existing issues (out of diff)** section when there are any — never
-  counted in the tables or the forecast), a table of definite issues, a table of the remaining
-  changes with a pass percentage and cited precedents, proposed fixes for changes under the
-  threshold, and the consultation record. The reviewer's own report lands at
-  `.artel/run/<TICKET_ID>/reports/deep-review-findings.md`. On apply: `## Code Review Fixes`
-  tasks appended to the ticket-wide `tasklist.md` under a `### deep-review-<date>` heading,
-  and recorded as fix rows in the task queue on the queue path.
+  ticket directory; optionally the PR title/body via `vcs.adapter` when a PR link is given.
+- **Writes:** `<specs.dir>/<TICKET_ID>/deep-review.md` — the reviewer's standalone report with
+  the document header (`type: deep-review`, `produced_by: artel:reviewer`): its Critical /
+  Warnings / Suggestions findings, the optional PR Compliance section, the **Pre-existing
+  issues (out of diff)** section, and a `## Proposed fixes` section whose `### Tasks (Critical)`
+  and `### Tasks (Warning)` blocks carry one fix task per finding. On apply: `## Code Review
+  Fixes` tasks appended to the ticket-wide `tasklist.md` under a `### deep-review-<date>`
+  heading, and recorded as fix rows in the task queue on the queue path.
 - **Pauses:** on a `verify.commands` failure (stop and report — review does not proceed; an
   empty list degrades the gate to `skipped` and continues); when `deep-review.md` already
-  exists (overwrite?); after the file is written, to ask which fixes to apply (definite issues
-  only / definite plus at-risk / none).
+  exists (overwrite?); after the file is written, to ask which fixes to apply (critical only /
+  critical and warnings / none).
 - **Notes:** standalone utility, not part of the autonomous pipeline. Orchestrator: dispatches
-  the `reviewer` (standalone mode) and then the `review-forecaster`, which always runs — with
-  the forecast off (`--local`, adapter not `kartoteka`, or tools absent) the file still carries
-  the comments and the definite-issues table, and its `Forecast:` line says why. The reviewer
-  validates its anchors against the branch diff (`scripts/validate_findings.py`) before
-  returning; a finding that cannot anchor arrives file-level or repository-scoped. Applying
-  fixes means `Skill: implementer` once per appended task, then `verify.commands` once; no
-  re-review loop — re-run the skill to refresh the forecast. Ticket-wide only (phase suffix
-  discarded). No PR link → no PR Compliance section in the comments.
+  the `reviewer` once, in standalone mode, on `fable`; the agent writes the file directly and
+  returns the count line the skill offers from (`Deep review: <c> Critical, <w> Warning,
+  <s> Suggestion — <path>`). The reviewer validates its anchors against the branch diff
+  (`scripts/validate_findings.py`) before returning; a finding that cannot anchor arrives
+  file-level or repository-scoped. Applying fixes means `Skill: implementer` once per appended
+  task, then `verify.commands` once; no re-review loop — re-run the skill to re-review.
+  `--local` records nothing in the task queue. Ticket-wide only (phase suffix discarded). No
+  PR link → no PR Compliance section in the report.
 
 ### change-digest
 

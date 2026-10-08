@@ -8,9 +8,9 @@ else from this module.
 
 Site vocabulary: `implementer.light`, `implementer.full`, `implementer.fix`,
 `implementer.stepUp`, `reviewer.task`, `reviewer.phase`, `reviewer.reReview`,
-`reviewer.plan`, `reviewer.deepReview`, `reviewForecaster`, `agents.<name>`
-(`[a-z0-9-]+`; `implementer`, `reviewer` and `review-forecaster` are reserved
-under `agents` -- those three resolve by their own fixed sites instead).
+`reviewer.plan`, `reviewer.deepReview`, `agents.<name>` (`[a-z0-9-]+`;
+`implementer` and `reviewer` are reserved under `agents` -- those two resolve
+by their own fixed sites instead).
 
 A configured value is a non-empty string `provider/model` with an optional
 `#variant`: exactly one `/`, no whitespace, non-empty halves, at most one `#`
@@ -33,10 +33,10 @@ VALUE_RE = re.compile(r'[^\s/#]+/[^\s/#]+(#[^\s#/]+)?')
 SITES = frozenset({
     'implementer.light', 'implementer.full', 'implementer.fix', 'implementer.stepUp',
     'reviewer.task', 'reviewer.phase', 'reviewer.reReview', 'reviewer.plan',
-    'reviewer.deepReview', 'reviewForecaster',
+    'reviewer.deepReview',
 })
 AGENT_SITE = re.compile(r'agents\.([a-z0-9-]+)')
-RESERVED_AGENTS = frozenset({'implementer', 'reviewer', 'review-forecaster'})
+RESERVED_AGENTS = frozenset({'implementer', 'reviewer'})
 
 
 def value_ok(value):

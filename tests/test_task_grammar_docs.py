@@ -877,7 +877,7 @@ class TestRoutes(unittest.TestCase):
 
     def test_config_setup_and_run_reviewer(self):
         row = _between(flat(read('docs/config.md')), '| `review.perTask` |',
-                       '| `review.forecast.threshold` |')
+                       '| `seat.enabled` |')
         for phrase in ('`true` raises every iteration task to the `full` route',
                        'so `full` tasks are reviewed either way'):
             self.assertIn(phrase, row)
@@ -894,11 +894,11 @@ class TestReadersAudit(unittest.TestCase):
     # docs/*.md README.md`, each hit read and ruled on in plan 3, Task 4.
     AUDITED = {
         'README.md', 'agents/implementer.md', 'agents/planner.md', 'agents/qa.md',
-        'agents/researcher.md', 'agents/review-forecaster.md', 'agents/reviewer.md',
+        'agents/researcher.md', 'agents/reviewer.md',
         'agents/task-planner.md', 'agents/tasklist-writer.md', 'agents/tech-writer.md',
         'agents/validator.md', 'docs/autonomous-run.md', 'docs/config.md', 'docs/design.md',
         'docs/deviation-protocol.md', 'docs/kartoteka-requirements.md',
-        'docs/orchestrator-common.md', 'docs/porting-plan.md', 'docs/review-forecast.md',
+        'docs/orchestrator-common.md', 'docs/porting-plan.md',
         'docs/skills-reference.md', 'docs/source-inventory-workflow.md', 'docs/spec-storage.md',
         'docs/task-grammar.md', 'docs/task-queue.md', 'docs/ticket-parsing.md',
         'docs/workflow-guide.md', 'skills/address-pr-comment/SKILL.md',

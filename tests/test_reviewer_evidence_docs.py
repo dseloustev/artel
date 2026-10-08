@@ -4,8 +4,8 @@ Four mechanics ported from AdGuard's `code-review` plugin (see
 docs/comparisons/adguard-code-review-vs-deep-review.md) land in prose, not code: the
 reviewer names its evidence, validates anchors mechanically, triages large diffs, and
 routes pre-existing defects instead of dressing them as this change's findings. These
-pins hold the contract across the reviewer, the forecast contract and the forecaster --
-the same guard tests/test_deep_review_docs.py runs for the deep-review file itself.
+pins hold the contract across the reviewer and its deep-review output -- the same guard
+tests/test_deep_review_docs.py runs for the deep-review file itself.
 """
 import unittest
 from pathlib import Path
@@ -13,8 +13,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 REVIEWER = 'agents/reviewer.md'
-CONTRACT = 'docs/review-forecast.md'
-FORECASTER = 'agents/review-forecaster.md'
 SCRIPT = 'scripts/validate_findings.py'
 
 
@@ -50,21 +48,6 @@ class TestReviewerEvidence(unittest.TestCase):
                        'left unreviewed'):
             with self.subTest(phrase):
                 self.assertIn(phrase, self.text)
-
-
-class TestForecastRoutesPreExisting(unittest.TestCase):
-
-    def test_the_contract_routes_repository_scope_away_from_the_tables(self):
-        text = read(CONTRACT)
-        self.assertIn('"scope": "repository"', text)
-        self.assertIn('attaches to no unit', text)
-        self.assertIn('pre-existing issue', text)
-
-    def test_the_contract_says_anchors_are_validated(self):
-        self.assertIn('scripts/validate_findings.py', read(CONTRACT))
-
-    def test_the_forecaster_template_carries_the_pre_existing_section(self):
-        self.assertIn('Pre-existing issues (out of diff)', read(FORECASTER))
 
 
 class TestValidatorScript(unittest.TestCase):

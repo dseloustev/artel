@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-10-08
+
 ### Fixed
 
 - **PR titles are always English.** `pr-create` composed the title from the raw tracker

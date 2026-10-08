@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **PR titles are always English.** `pr-create` composed the title from the raw tracker
+  summary, so a Russian Jira summary produced a Russian PR title, and the `language.pr` key —
+  documented as governing the title — never reached it. Titles now come out as `<TICKET_ID>:
+  <tracker summary translated to English>` (falling back to the branch name) whatever
+  `language.pr` says; the key keeps the PR body, tracker comments and drafted issues.
+
 ## [0.32.0] - 2026-10-08
 
 ### Removed

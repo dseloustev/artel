@@ -1267,3 +1267,12 @@ move to the decision log.
   agent's standalone contract gains that output shape; `reviewer.deepReview` still sets the
   dispatch, and the `--local` flag keeps its queue meaning. The comparison with AdGuard's
   `code-review` (2026-10-02) keeps its forecast rows as history, with a status note.
+- **2026-10-08 — PR titles are always English.** `pr-create` composed the title from the raw
+  tracker summary, so a Russian Jira summary produced a Russian PR title — and `language.pr`
+  was documented as governing the title, but no component applied it: the one title
+  instruction, in `pr-description`, had no output channel (the title is deliberately not part
+  of `pr-description.md`, and `pr-create` reads only the header-stripped body). Titles are now
+  composed by `pr-create` alone, as `<TICKET_ID>: <tracker summary translated to English>`
+  (falling back to the branch name), whatever `language.pr` says; `language.pr` keeps the PR
+  body, tracker comments and drafted issues. A title carries the ticket key and stays
+  searchable across the team, like a branch name.

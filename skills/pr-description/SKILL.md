@@ -125,7 +125,7 @@ You are writing a short, plain-language PR description for ticket <TICKET_ID>. A
 
 2. **Markup.** Use bold-text headings on their own line, matching the sample's own heading set and phrasing — **not** markdown `#` / `##` headings. Do **not** include an H1 title in the body; the PR title is a separate field. The file opens with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2) — `type: pr-description`, `produced_by: artel:tech-writer` — which `pr-create` drops before posting; the body starts after it. Reproduce any recurring sub-bullet convention (e.g. italic major/minor-changes labels) exactly as the sample uses it.
 
-3. **Title** (for the PR title field, not the body). Use the ticket summary as the source, translated to `<language.pr>` if it is in another language. If the sampled PRs prefix titles with `<TICKET_ID>` or similar, match that convention; otherwise omit the prefix. Keep the title under 80 characters. Do not put it inside the output `.md` file as an H1 — the body should start with the style sample's own first heading.
+3. **Title.** The PR title is not this document's: `pr-create` composes it from the ticket summary, always in English — never `<language.pr>`. Do not put a title in the body or the header; the body starts with the style sample's own first heading.
 
 4. **Language.** Body must be `<language.pr>`. Translate any content in another language (e.g. tracker fields, local docs, code comments paraphrased in prose) into it. Keep code identifiers, file paths, class/method names, branch names, and commit hashes verbatim — do not transliterate them.
 

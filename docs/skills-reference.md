@@ -489,7 +489,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `TICKET_SUMMARY_UNAVAILABLE`, continue); `idea.md` / `vision.md` / `tasklist.md`; the git log
   and merge-base diff against the base branch; 3–5 recent merged PRs via `vcs.adapter` for
   structural style.
-- **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/pr-description.md`, in `language.pr`.
+- **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/pr-description.md`, in `language.pr` (the
+  body; the PR title is `pr-create`'s, always English).
 - **Pauses:** never — prompt-free; every external dependency (tracker, style sample, local
   docs) is optional and degrades to a fallback template rather than blocking.
 - **Notes:** the deliberate exception to skip-if-exists (autonomous-run.md §9) — an existing
@@ -508,7 +509,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   existing-PR check via `gh pr list` or `<vcs.mcpToolPrefix>bitbucket_list_my_prs`.
 - **Writes:** a commit + push (only when the tree is dirty; kartoteka path: sweeps spec-trail
   images into kartoteka first and never commits one — spec-storage.md §4.6), the PR (title
-  `<TICKET_ID>: <tracker summary>`, body from `pr-description.md`), a tracker comment with the
+  `<TICKET_ID>: <tracker summary translated to English>` — always English, `language.pr` never
+  applies; body from `pr-description.md`), a tracker comment with the
   PR URL — or `<specs.dir>/<TICKET_ID>/pr-pending.md` when an adapter identity check fails
   (report and stop, never fabricate).
 - **Pauses:** never directly — the PR gate (`tail.md`) of `feature-development` wraps the

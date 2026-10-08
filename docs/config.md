@@ -350,10 +350,12 @@ switch simply leaves it unset.
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `language.docs` | string | `"en"` | IETF BCP 47 code, e.g. `"en"`, `"es"`, `"de"` | Spec-trail artifacts under `specs.dir` |
-| `language.pr` | string | `"en"` | Same | PR title and body, tracker comments, drafted issues |
+| `language.pr` | string | `"en"` | Same | PR body, tracker comments, drafted issues |
 
 Neither key affects commit messages or code identifiers — those follow the host repo's own
 conventions.
+
+The PR **title** is always English — `language.pr` never applies to it.
 
 ### `design` — optional design stage
 

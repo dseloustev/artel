@@ -41,7 +41,8 @@ arrive via the "Other" option.
   `verify.test` (one scoped test command with `{files}`, run on the test files a task touched —
   `fvm flutter test {files}`, `npm test -- --run {files}`, `python3 -m pytest {files}`; empty =
   the task gate runs the fast check only; without the token the whole suite runs per task), and
-  `language.docs` / `language.pr` (IETF BCP 47 codes, default `en`).
+  `language.docs` / `language.pr` (IETF BCP 47 codes, default `en`; the PR title is always
+  English regardless).
 - **Round 4 — optional extras**, one multi-select question ("configure now, or leave inert?")
   offering: `setup.commands` (post-branch install/codegen), `design.figma` (the design-analysis
   stage), the `runtime.*` commands (`run`, `drive`, `scaffold.add`, `scaffold.remove`),

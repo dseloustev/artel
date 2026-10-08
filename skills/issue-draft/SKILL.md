@@ -12,8 +12,8 @@ follows the template for its issue type** (task, bug or epic), saved to one loca
 description block pastes into the tracker's description field as-is. Creating or submitting
 the issue is out of scope: this skill writes a file and posts nothing.
 
-The written file is in `language.pr` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`: "PR title and
-body, tracker comments, **drafted issues**"), in the markup dialect the destination renders
+The written file is in `language.pr` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`: "PR body,
+tracker comments, **drafted issues**"), in the markup dialect the destination renders
 (§0) — what you say in the conversation (questions, the report, the abort line) follows the
 language of the user's own words, or `language.pr` when the invocation carries none beyond the
 source. Retrieved facts are paraphrased in `language.pr` too, attributed (§6).

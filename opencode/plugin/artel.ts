@@ -29,6 +29,10 @@
  * `*** Add|Delete|Update File:` / `*** Move to:` headers. `edit`/`write` use v2's
  * `path` input field.
  *
+ * The event stream is server-wide: session events are filtered to sessions whose own
+ * location is this checkout (`session.created` carries the location; execution events
+ * carry none, so the session is read once and cached).
+ *
  * Everything is inert unless the project has .artel/config.json. Install root:
  * $ARTEL_ROOT or ~/.config/opencode/artel (scripts/install-opencode.sh).
  *
@@ -176,10 +180,29 @@ const routerCache = new Map<string, string>()
 const childSessions = new Set<string>()
 /** Sessions with a stop-gate run in flight, so two runs never overlap. */
 const stopRuns = new Set<string>()
+/** Session id -> its own location directory. The event stream is server-wide, so every
+ * event-driven hook checks this before touching this location's state. */
+const sessionLocations = new Map<string, string>()
 
 const setup: Plugin["setup"] = async (ctx) => {
   const directory = ctx.location.directory
   const controller = new AbortController()
+
+  /** The session's own location directory, or '' when it cannot be resolved. Cached:
+   * `session.created` carries the location, execution events do not. A failed lookup is
+   * not cached, so a transient error never pins a session as foreign. */
+  const sessionDirectory = async (sessionID: string): Promise<string> => {
+    const known = sessionLocations.get(sessionID)
+    if (known !== undefined) return known
+    try {
+      const session: any = await ctx.session.get({ sessionID })
+      const resolved = String((session?.data ?? session)?.location?.directory ?? "")
+      sessionLocations.set(sessionID, resolved)
+      return resolved
+    } catch {
+      return ""
+    }
+  }
 
   await ctx.tool.hook("execute.before", async (event) => {
     if (!hasArtelConfig(directory)) return
@@ -278,6 +301,9 @@ const setup: Plugin["setup"] = async (ctx) => {
   })
 
   const runStopGate = async (sessionID: string) => {
+    // The stream is server-wide and execution events carry no location: a session from
+    // another checkout must never run this location's gates.
+    if ((await sessionDirectory(sessionID)) !== directory) return
     for (const script of ["stop_gate.py", "verify_stop_gate.py"]) {
       const result = await runHook(script, { session_id: sessionID, cwd: directory }, directory, 300_000)
       const decision = firstJson(result.stdout)
@@ -321,6 +347,11 @@ const setup: Plugin["setup"] = async (ctx) => {
         const sessionID: string | undefined = data.sessionID
 
         if (event.type === "session.created") {
+          // The session's own location rides on the event; cache it, and act only when it
+          // is this checkout (the stream is server-wide).
+          const sessionDir = String(data.location?.directory ?? "")
+          if (sessionID) sessionLocations.set(sessionID, sessionDir)
+          if (sessionDir !== directory) continue
           if (data.parentID) {
             if (sessionID) childSessions.add(sessionID)
             continue
@@ -328,6 +359,12 @@ const setup: Plugin["setup"] = async (ctx) => {
           if (sessionID) {
             void runHook("session_baseline.py", { session_id: sessionID, cwd: directory }, directory, 120_000)
           }
+          continue
+        }
+
+        if (event.type === "session.moved") {
+          // A move changes a session's location; a stale cache entry would misroute it.
+          if (sessionID) sessionLocations.set(sessionID, String(data.location?.directory ?? ""))
           continue
         }
 
@@ -341,6 +378,7 @@ const setup: Plugin["setup"] = async (ctx) => {
             routerCache.delete(sessionID)
             childSessions.delete(sessionID)
             stopBlocks.delete(sessionID)
+            sessionLocations.delete(sessionID)
           }
           continue
         }

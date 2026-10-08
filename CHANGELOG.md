@@ -16,6 +16,16 @@ All notable changes to this project are documented here. The format follows
   screen-layout sketch stays plain ASCII, other clients show the source, and the canonical
   Claude Code briefs are unchanged.
 
+### Fixed
+
+- **The OpenCode bridge no longer acts on other checkouts' sessions.** The plugin event
+  stream is server-wide, so a location with an active run used to baseline and stop-gate
+  sessions from every other location — and spend the run's shared stop-gate block budget on
+  them. Session events are now filtered to sessions whose own `location.directory` is this
+  checkout: `session.created` carries it, execution events are resolved once via
+  `ctx.session.get` and cached, `session.moved` refreshes the cache and `session.deleted`
+  clears it.
+
 ## [0.31.2] - 2026-10-07
 
 ### Changed

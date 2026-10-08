@@ -629,7 +629,8 @@ class TestOperatorDoc(unittest.TestCase):
                        '`metadata.opencode/autoinvoke: false`',
                        '`mcp.servers`',
                        'the TUI command list shows what arguments the skill expects',
-                       'a flow, structure or chart sketch is a `mermaid` block'):
+                       'a flow, structure or chart sketch is a `mermaid` block',
+                       "never baselines or stop-gates another checkout's sessions"):
             self.assertIn(phrase, doc, phrase)
 
 

@@ -85,6 +85,10 @@ unchanged Python hooks (`hooks/README.md` documents their stdin/stdout contracts
 `patch` (GPT-family models) carries no file path; the bridge reads the patch grammar's
 `*** Add|Delete|Update File:` / `*** Move to:` headers and runs the guards per path.
 Everything is inert unless the project has `.artel/config.json`.
+The event stream is server-wide, so the bridge filters session events to sessions whose own
+`location.directory` is this checkout — `session.created` carries it, execution events do not
+(the session is read once via `ctx.session.get` and cached) — and never baselines or
+stop-gates another checkout's sessions.
 
 An MCP tool reaches these hooks as `<server>_<tool>` — one underscore, no `mcp__` prefix; each
 half is sanitized to `[A-Za-z0-9_-]`, anything else becoming `_`, so a server `aiguard` with a

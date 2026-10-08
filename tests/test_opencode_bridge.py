@@ -114,5 +114,41 @@ class TestBridgeSource(unittest.TestCase):
         self.assertIn('console.warn', self.source)
 
 
+class TestLocationScoping(unittest.TestCase):
+    """The event stream is server-wide, but the hooks it drives are not. OpenCode's docs
+    say `ctx.location` is "not the location of every session it can access or event it
+    receives", so every event-driven hook must check the session's own location first —
+    otherwise a location with an active run baselines and stop-gates sessions in other
+    checkouts (observed 2026-10-08: a wallet run re-prompted a session in the artel
+    checkout, and the shared block counter ate the run's own budget)."""
+
+    def setUp(self):
+        self.source = BRIDGE.read_text(encoding='utf-8')
+
+    def test_the_location_guard_exists(self):
+        self.assertIn('sessionLocations', self.source)
+        self.assertIn('sessionDirectory', self.source)
+        self.assertIn('ctx.session.get', self.source)
+
+    def test_created_sessions_cache_and_check_their_location(self):
+        # Placement, not presence: the location check must sit before the baseline hook,
+        # and the cached value is what execution events — which carry no location — read.
+        created = self.source[self.source.index('event.type === "session.created"'):]
+        self.assertIn('data.location?.directory', created)
+        self.assertLess(created.index('data.location?.directory'),
+                        created.index('runHook("session_baseline.py"'))
+
+    def test_the_stop_gate_resolves_the_location_before_any_hook(self):
+        gate = self.source[self.source.index('const runStopGate'):]
+        self.assertLess(gate.index('sessionDirectory(sessionID)'),
+                        gate.index('runHook(script'))
+
+    def test_moved_sessions_refresh_the_cache_and_deletes_clear_it(self):
+        moved = self.source[self.source.index('event.type === "session.moved"'):]
+        self.assertIn('sessionLocations.set(sessionID', moved)
+        deleted = self.source[self.source.index('event.type === "session.deleted"'):]
+        self.assertIn('sessionLocations.delete(sessionID)', deleted)
+
+
 if __name__ == '__main__':
     unittest.main()

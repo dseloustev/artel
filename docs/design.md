@@ -1246,3 +1246,17 @@ move to the decision log.
   waits until real use shows the visual-question volume Stage 1 now measures. Rejected: porting
   the whiteboard outright (the 2026-09-29 reasons stand outside OpenChamber); report visuals
   first (no interaction there).
+- **2026-10-08 — The OpenCode bridge scopes the event stream to its own location.** OpenCode's
+  stream is server-wide (`ctx.location` is "not the location of every session it can access or
+  event it receives"), so a location with an active run baselined and stop-gated sessions in
+  other checkouts: the wallet's AW-2981 run re-prompted an unrelated session in the artel
+  checkout with its stop-gate reason, wrote that session's baseline into its own
+  `.artel/run/.hooks/`, and spent the shared per-ticket block counter — the run's own budget —
+  on the foreign stops (all observed live). The bridge now caches each session's own
+  `location.directory` (`session.created` carries it; execution events carry none, so an
+  unknown session is read once via `ctx.session.get` and a failed lookup is not cached) and
+  runs `session_baseline.py` / `stop_gate.py` / `verify_stop_gate.py` only for this checkout's
+  sessions; `session.moved` refreshes the cache and `session.deleted` clears it. Rejected: the
+  event's top-level `location` (execution events have none); a session-id set built from local
+  tool calls (misses sessions created before the instance loaded). Locked in by
+  `tests/test_opencode_bridge.py` (`TestLocationScoping`).

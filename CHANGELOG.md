@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.31.3] - 2026-10-08
+
 ### Changed
 
 - **Question sketches render as Mermaid on OpenCode.** On the OpenCode build an interview

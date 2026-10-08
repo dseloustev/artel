@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-08
+
 ### Removed
 
 - **`deep-review` no longer forecasts.** The `review-forecaster` agent, `docs/review-forecast.md`

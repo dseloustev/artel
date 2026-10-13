@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-13
+
 ### Added
 
 - **PR descriptions get their own OpenCode model site.** `models.opencode.pr-description` sets the

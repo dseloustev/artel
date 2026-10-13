@@ -26,6 +26,12 @@ def flat(path):
     return re.sub(r'\s+', ' ', raw(path))
 
 
+def between(text, start, end):
+    """From `start` up to the first `end` after it."""
+    i = text.index(start)
+    return text[i:text.index(end, i + len(start))]
+
+
 class TestTaskCommitProcedure(unittest.TestCase):
     """Spec §1: the trigger, the subjects, and what the procedure never does."""
 
@@ -69,6 +75,56 @@ class TestOpencodeTransforms(unittest.TestCase):
 
     def test_every_transform_source_is_present(self):
         self.assertEqual(build_opencode.missing_transforms(ROOT), [])
+
+
+class TestTheRunUsesIt(unittest.TestCase):
+    """Spec §3: gate 5's commit, the boundary check, the halts and the report."""
+
+    def setUp(self):
+        self.tail = flat(FD + 'tail.md')
+        self.raw = raw(FD + 'tail.md')
+
+    def test_gate_5_commits_and_checks_the_boundary(self):
+        gate5 = self.raw.split('| 5 | `IMPLEMENT_STEP_OK`')[1].split('\n')[0]
+        self.assertIn('`## Task commits`', gate5)
+        self.assertIn('task-commit: recovered', gate5)
+
+    def test_the_debug_fix_lands_in_the_next_cycle(self):
+        self.assertNotIn('The next checkpoint commits the fix.', self.tail)
+        self.assertIn('the next cycle commits the fix', self.tail)
+
+    def test_the_report_names_the_task_commits(self):
+        report = between(self.raw, '## Final report', '\n## Checkpoint commits & pushes\n')
+        self.assertIn('task commits: <n> (<first>..<last>)', report)
+
+    def test_the_checkpoint_no_longer_claims_to_be_the_only_procedure(self):
+        self.assertNotIn('The one commit and push procedure of a run.', self.tail)
+        self.assertIn('the phase-level commit and push procedure of a run', self.tail)
+
+    def test_the_push_follows_a_green_or_skipped_gate(self):
+        procedure = self.raw[self.raw.index('\n## Checkpoint commits & pushes\n'):]
+        self.assertIn('green or `skipped`', procedure)
+
+    def test_the_halts_commit_the_in_flight_cycle(self):
+        section = self.raw[self.raw.index('\n## Task commits\n'):]
+        for phrase in ('MAX_VERIFY_ITERATIONS', 'MAX_TOTAL_CORRECTION_ROUNDS = 8',
+                       'a deviation escalation', 'task-commit: wip <hash> (<reason>)'):
+            self.assertIn(phrase, section)
+
+    def test_a_task_commit_is_not_a_gate(self):
+        gates = raw('docs/gates.md')
+        self.assertIn('a task commit is not a gate', gates)
+
+
+class TestNoNinthCompletionFact(unittest.TestCase):
+    """Spec non-goals: the completion gate still reads exactly eight facts."""
+
+    def test_the_fact_list_is_unchanged(self):
+        completion = between(raw(FD + 'tail.md'), '## Completion gate', '## PR description')
+        self.assertEqual(re.findall(r'(?m)^\| `([A-Z_]+)`', completion),
+                         ['PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK',
+                          'RUNTIME_OK', 'CHECKPOINT_OK', 'DOCS_UPDATED', 'AUTOMATION_REMOVED'])
+        self.assertNotIn('TASK_COMMIT', completion)
 
 
 if __name__ == '__main__':

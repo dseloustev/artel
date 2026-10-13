@@ -20,7 +20,9 @@ checkpoint.
 
 The full gate — `verify.commands`, with the test suite — runs at the checkpoint and final
 gates and **runs nowhere else**: not per task, not as a tasklist item, not re-derived by an
-agent from evidence.
+agent from evidence. `## Task commits` in the orchestrator's tail commits each completed
+implementer cycle, and a task commit is not a gate: nothing here changes, and a task's own gate
+stays the scoped one above.
 
 **A task's `Test:` files join its task gate.** The implementer adds every file the task's
 `Test:` field lists ([task-grammar.md](task-grammar.md) §2) to `--files`, whether or not the

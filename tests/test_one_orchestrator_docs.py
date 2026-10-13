@@ -432,7 +432,7 @@ class TestTail(unittest.TestCase):
         at = [procedure.index(step) for step in steps]
         self.assertEqual(at, sorted(at))
         self.assertNotIn('8. **', procedure)
-        for phrase in ('The one commit and push procedure of a run.',
+        for phrase in ('This is the phase-level commit and push procedure of a run.',
                        '`docs: <TICKET_ID> planning artifacts` when a plan exists, '
                        '`docs: <TICKET_ID> work list` otherwise',
                        '--author artel:feature-development',
@@ -1093,7 +1093,7 @@ class TestDebugHere(unittest.TestCase):
                        're-run the gate that was red',
                        'reset that loop\'s counter as a resume with guidance does',
                        'by dispatching the implementer on it again',
-                       'The next checkpoint commits the fix.',
+                       'the next cycle commits the fix.',
                        'Ask the escalation question again, without this option: '
                        '`MAX_DEBUG_HERE_ATTEMPTS = 1`, one attempt per halt.',
                        '| structural (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §4) |',

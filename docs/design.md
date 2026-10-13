@@ -191,6 +191,14 @@ move to the decision log.
   renders as a diagram only on the files path. kartoteka's decision; recorded here because artel
   writes the diagram.
 
+- **A `Stop`-hook safety net for uncommitted work was considered and declined** (from the
+  2026-10-13 task-commits design). A hook that refused to hand back a session whose armed run had
+  left the tree dirty would catch a missed task commit deterministically — but `PostToolUse` fires
+  per edit and `Stop` only at session end, so neither can see a task completing, and it would fire
+  on the person's own edits during an armed run. The orchestrator's `## Task commits` procedure and
+  gate 5's boundary check are the mechanism; revisit only if a real run is ever seen to skip a
+  commit.
+
 ## Decision log
 
 - **2026-07-27 — Name: `artel`.** Chosen over `slipway`, `greenlight`, `baton`, `ticket-to-pr`.
@@ -1276,3 +1284,22 @@ move to the decision log.
   (falling back to the branch name), whatever `language.pr` says; `language.pr` keeps the PR
   body, tracker comments and drafted issues. A title carries the ticket key and stays
   searchable across the team, like a branch name.
+- **2026-10-13 — Every completed cycle leaves a commit, and a push still follows a build gate.**
+  A phase's work was unprotected for its whole duration: nothing was committed until the phase-end
+  checkpoint, so an accidental edit or a clobbering fix round could destroy reviewed, verified work
+  with nothing to recover from — and `agents/implementer.md` never said it did not commit, leaving
+  the rule only in prose around it. The tail gains `## Task commits`: one commit per completed
+  implementer cycle (an iteration task, or a review/runtime/verify fix round), orchestrator-owned
+  and pre-authorized at the pause exactly as the checkpoints are, staged by the checkpoint
+  procedure's rule 4, never pushed on its own, and skipped when nothing is staged so a resume
+  cannot duplicate it; gate 5 checks the boundary before the next dispatch, and every halt commits
+  the in-flight cycle as `wip: <TICKET_ID> - <task> (run stopped: <reason>)`. The push side is
+  unchanged in substance and now stated as a rule: a push happens only after a checkpoint gate that
+  is green or `skipped`, the arm-time planning checkpoint is the named exception (docs only, no
+  code), and a completed task's commits may sit locally until its phase's build gate passes.
+  Rejected: the implementer committing itself (it would break the invariant four files state, put an
+  unpoliced `git add` inside an agent, and empty `review_package.py`'s working-tree snapshot,
+  forcing the per-task review onto `BASE..HEAD`); committing at the implementer's return, for the
+  same snapshot reason; per-task pushes; and a hook — `PostToolUse` fires per edit and `Stop` only
+  at session end, so neither can see a task completing (parked in Open follow-ups). Spec:
+  `docs/superpowers/specs/2026-10-13-task-commits-design.md` (local).

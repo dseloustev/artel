@@ -213,3 +213,52 @@ Procedure:
 
 `pr-create` remains the PR-opening close-out; after phase checkpoints its own commit step usually
 finds a clean tree and skips — it is idempotent by design.
+
+## Task commits
+
+The rule: one commit per completed implementer cycle. The cycle — not the tasklist box — is the
+completion unit, because the tick and the queue update are written by the same return: the work is
+committed exactly when the run learns it is done. The section above is the phase-level procedure;
+this is the second of the run's two commit kinds.
+
+| Cycle | Commit |
+|---|---|
+| An iteration task (gate 5) — after its tick, and after a `full` task's §16.2 per-task review round when that ran | one |
+| A `## Code Review Fixes` round (gate 7) | one |
+| A `## Runtime Fixes` round (gate 8) | one |
+| A `## Verify Fixes` round (checkpoint step 3) | one |
+| A cycle that changed nothing — verification only, or a resumed re-run | none |
+| A `Routes` return, or a HITL pause before the person's answer | none — the task is not complete |
+
+A fix round that closes five fix tasks is one commit, not five: the same return ticks them all.
+
+**Contents.** The cycle's changed files, plus the tasklist tick (on a phase run, the phase-aware
+tasklist). The file set comes from the working tree, never from a report — you never open one
+(`autonomous-run.md` §1, "Bulk stays in files"): the task's declared `Files:` from the parser's row,
+plus every other path the cycle left dirty. A fix row declares no `Files:`, so the dirty set alone
+is its set — exactly as the checkpoint procedure's step 4 reads a phase's changed files. Staging is
+`the checkpoint procedure's rule 4` by reference: never `git add -A`, never `.artel/**`, never
+generated files, the kartoteka path's per-image-extension excludes, and the guard for a pathspec
+that matches nothing. A task commit runs no image sweep and no verify gate — it is not a gate.
+
+**Subject.** `<type>: <TICKET_ID> - <task title>` — conventional, English, subject line only, no
+trailers, and neither a requirement ID nor a task number. The type is what the cycle did: `feat` for
+an iteration task that adds behaviour, `fix` for a fix round, `refactor`, `test`, `docs` or `chore`
+when that is what it did. A fix round names its section: `fix: <TICKET_ID> - review fixes`,
+`- runtime fixes`, `- checkpoint verify fixes`.
+
+**It never pushes.** A task commit reaches `origin` at `the next phase-end checkpoint`, or at
+`pr-create`'s close-out — never on its own.
+
+**Idempotence.** Stage, then `git diff --cached --quiet` exits 0 → skip the commit and write no
+journal entry, so a resumed run cannot commit the same cycle twice. Rule 1's branch guard applies: a
+task commit is never made on the default branch — that is a stop-and-ask.
+
+**Halt.** Every path that hands the session back with an unresolved in-flight cycle commits what
+that cycle left, as `wip: <TICKET_ID> - <task> (run stopped: <reason>)`, journaled
+`task-commit: wip <hash> (<reason>)`, and does not push it: gate 5's `MAX_VERIFY_ITERATIONS`
+exhausted, gate 7's review cap, gate 8's second RED, `MAX_TOTAL_CORRECTION_ROUNDS = 8`, checkpoint
+step 3's verify cap, a deviation escalation, a stop-and-ask, or the person stopping the run. When the
+tree is clean — nothing dirty — there is nothing to commit, and the escalation proceeds unchanged.
+
+**Journal.** One entry per commit — hash, subject, cycle — as a checkpoint's is.

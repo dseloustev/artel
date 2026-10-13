@@ -346,7 +346,7 @@ class TestTail(unittest.TestCase):
 
     HEADINGS = ('# The tail', '## Phase traversal', '## Gates', '## Completion gate',
                 '## PR description and the PR gate', '## Description-file sync',
-                '## Final report', '## Checkpoint commits & pushes')
+                '## Final report', '## Checkpoint commits & pushes', '## Task commits')
     FACTS = ('PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK', 'RUNTIME_OK',
              'CHECKPOINT_OK', 'DOCS_UPDATED', 'AUTOMATION_REMOVED')
 

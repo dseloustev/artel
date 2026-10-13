@@ -181,6 +181,53 @@ class TestTheOperatorDocs(unittest.TestCase):
         self.assertIn('task and checkpoint commits', flat('docs/orchestrator-common.md'))
 
 
+class TestTheReviewFindings(unittest.TestCase):
+    """The five Important findings of the whole-branch review, pinned so they cannot regress."""
+
+    def setUp(self):
+        self.raw = raw(FD + 'tail.md')
+        self.section = self.raw[self.raw.index('\n## Task commits\n'):]
+        self.procedure = self.raw[self.raw.index('\n## Checkpoint commits & pushes\n'):]
+
+    def test_a_task_commit_never_sweeps_in_pre_staged_work(self):
+        # Finding 1: `git commit` commits the whole index, so a person's pre-staged work would
+        # ride into a run commit unless the staging rule forbids it.
+        self.assertIn('git diff --cached --name-only', self.procedure)
+        self.assertIn('never swept into a run commit', self.procedure)
+
+    def test_a_cycle_that_died_before_its_commit_lands_on_resume(self):
+        # Finding 2: the tick is written before the commit, so a dead session leaves a task that
+        # resume skips — and its work uncommitted.
+        self.assertIn('a session that died between the tick and the commit', self.section)
+        self.assertIn('lands as its own commit', self.section)
+
+    def test_a_refused_commit_does_not_recurse(self):
+        # Finding 3: the halt rule cannot demand a commit the branch guard or a host hook refuses.
+        self.assertIn('task-commit: failed (<first error line>)', self.section)
+        self.assertIn('never attempt another commit', self.section)
+
+    def test_the_fix_cycles_are_per_dispatch_and_cited(self):
+        # Finding 4: a fix round is a loop of dispatches (autonomous-run.md §16.2 step 4), so each
+        # return is its own cycle — and every fix callsite must cite the procedure.
+        self.assertIn('one per dispatch', self.section)
+        self.assertNotIn('the same return ticks them all', self.section)
+        for gate in ('| 7 | `REVIEW_OK` |', '| 8 | `RUNTIME_OK` |'):
+            row = self.raw.split(gate)[1].split('\n')[0]
+            self.assertIn('`## Task commits`', row, gate)
+
+    def test_the_trigger_clauses_are_whole(self):
+        # Finding 5: the earlier pins asserted tokens, so four in-memory reversals passed the suite.
+        self.assertIn('exits 0 → skip the commit and write no journal entry', self.section)
+        self.assertIn('a task commit is never made on the default branch', self.section)
+        self.assertIn("`git status --porcelain` over that cycle's paths", self.raw)
+
+    def test_the_non_goals_hold(self):
+        # Finding 5's missing guards: no hook, and the à la carte skills unchanged.
+        self.assertNotIn('task-commit', raw('hooks/hooks.json'))
+        self.assertIn('Never commits, pushes or opens a PR', flat('skills/debugging/SKILL.md'))
+        self.assertNotIn('git commit', flat('skills/implementer/SKILL.md'))
+
+
 class TestNoNinthCompletionFact(unittest.TestCase):
     """Spec non-goals: the completion gate still reads exactly eight facts."""
 

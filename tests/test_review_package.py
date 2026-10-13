@@ -1,10 +1,11 @@
 """`scripts/review_package.py`: snapshots that never touch the index, packages that carry
 the whole task diff.
 
-The implementer does not commit, so the per-task review has no BASE..HEAD to read. The
-script's whole contract is: a snapshot before the dispatch, a package after it, and no
-side effect on the checkout in between — the phase checkpoint stages explicitly, and a
-snapshot that staged files would silently widen that commit.
+The implementer does not commit, so the per-task review has no BASE..HEAD to read. Commits happen
+at each completed cycle and at the phase checkpoints, a cycle's own landing only after its review.
+The script's whole contract is: a snapshot before the dispatch, a package after it, and no side
+effect on the checkout in between — the phase checkpoint stages explicitly, and a snapshot that
+staged files would silently widen that commit.
 """
 import os
 import subprocess

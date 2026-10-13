@@ -130,6 +130,20 @@ class TestTheAuthorizationCoversThem(unittest.TestCase):
         self.assertIn('task and checkpoint commits, and the checkpoint pushes', text)
 
 
+class TestTheImplementerNeverCommits(unittest.TestCase):
+    """Spec §4.2: the invariant lives in the agent body, not only in prose around it."""
+
+    def test_the_agent_says_so(self):
+        text = flat('agents/implementer.md')
+        self.assertIn('never commit, never stage and never push', text)
+        self.assertIn('the orchestrator commits your cycle', text)
+
+    def test_the_snapshot_rationale_is_current(self):
+        for rel in ('scripts/review_package.py', 'tests/test_review_package.py'):
+            with self.subTest(rel=rel):
+                self.assertIn('at each completed cycle and at the phase checkpoints', raw(rel))
+
+
 class TestNoNinthCompletionFact(unittest.TestCase):
     """Spec non-goals: the completion gate still reads exactly eight facts."""
 

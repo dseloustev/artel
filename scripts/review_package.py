@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Working-tree snapshots and review packages for the per-task review.
 
-artel's implementer does not commit — commits happen at the phase checkpoints — so a task's
-diff cannot be `BASE..HEAD`. Instead the orchestrator snapshots the working tree before each
-implementer dispatch and diffs against that snapshot after the completion:
+artel's implementer does not commit, so a task's diff cannot be `BASE..HEAD`. Commits happen
+at each completed cycle and at the phase checkpoints, a cycle's own landing only after its review;
+instead the orchestrator snapshots the working tree before each implementer dispatch and diffs
+against that snapshot after the completion:
 
     snapshot              print a tree id of the working tree as it is now: tracked and
                           untracked files, .gitignore respected, written through a temporary

@@ -1289,7 +1289,8 @@ move to the decision log.
   checkpoint, so an accidental edit or a clobbering fix round could destroy reviewed, verified work
   with nothing to recover from — and `agents/implementer.md` never said it did not commit, leaving
   the rule only in prose around it. The tail gains `## Task commits`: one commit per completed
-  implementer cycle (an iteration task, or a review/runtime/verify fix round), orchestrator-owned
+  implementer cycle (an iteration task, or a fix task from a review/runtime/verify round — one per
+  dispatch), orchestrator-owned
   and pre-authorized at the pause exactly as the checkpoints are, staged by the checkpoint
   procedure's rule 4, never pushed on its own, and skipped when nothing is staged so a resume
   cannot duplicate it; gate 5 checks the boundary before the next dispatch, and every halt commits

@@ -235,8 +235,8 @@ Run the risk classifier (autonomous-run.md §10) over what the head produced: pl
 or the confirmed work list with `idea.md` and `vision.md` when present. `forced_floor:
 "full-gates"` ⇒ stop here: report the matched sensitive categories and instruct the user to
 re-run with `--step`. `--dry-run` ⇒ stop here too: print the resolved mode, its reasons and the
-intended external actions — the checkpoint commits & pushes, and the pull request the run ends
-with (opened without asking in `yolo`) — and write nothing. Otherwise write
+intended external actions — the task and checkpoint commits, the checkpoint pushes, and the pull
+request the run ends with (opened without asking in `yolo`) — and write nothing. Otherwise write
 `.artel/run/<TICKET_ID>/run-state.json` per
 autonomous-run.md §2: `run_active: true`, `completed: false`, `pause_reason: null`, fresh
 `started_at`, zeroed counters, `requested_local` (§2 — the `--local` opt-out, recorded because
@@ -264,7 +264,9 @@ now, the run is armed, and follow its `## Checkpoint commits & pushes`: commit
 `<specs.dir>/<TICKET_ID>/**` + `<specs.dir>/.active_ticket` and push — subject `docs: <TICKET_ID>
 planning artifacts` when a plan exists, `docs: <TICKET_ID> work list` otherwise (phase runs:
 `docs: <TICKET_ID> phase <N> planning artifacts` / `docs: <TICKET_ID> phase <N> work list`).
-Journal it as an external action. No verify gate here (`verify.commands`) — docs only, no code
+Journal it as an external action. The same pre-authorization covers the run's `## Task commits` —
+one commit per completed implementer cycle, never pushed on its own — so no later commit pauses
+either. No verify gate here (`verify.commands`) — docs only, no code
 yet. On the kartoteka path the procedure sweeps images first and never stages one (its steps 2
 and 4); when, images aside, only `.active_ticket` changed, skip the commit and journal `planning checkpoint: skipped — the spec trail is in kartoteka`.
 
@@ -331,9 +333,9 @@ A dispatch that fails to start, or returns none of the three shapes: journal `se
   Under a seated run the gate-time writes move with the seat: this list then covers steps 0–5
   plus the `pause-request.json` relay handling, and the seat body owns the rest (autonomous-run.md
   §18).
-- Checkpoint commits & pushes are the only direct git mutations this orchestrator performs; every
-  other external action goes through `pr-create`. The checkpoint branch guard and no-force rules
-  are absolute.
+- The run's task and checkpoint commits, and the checkpoint pushes, are the only direct git
+  mutations this orchestrator performs; every other external action goes through `pr-create`. The
+  checkpoint branch guard and no-force rules are absolute.
 - **`STORE_UNAVAILABLE`** from a sub-skill or agent, or a failing store call of your own, is the
   environment error of `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §5.2: set
   `pause_reason: "store-unavailable"` and ask Retry (resume the agent) / Save it locally and pause

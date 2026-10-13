@@ -57,8 +57,9 @@ and stop, in every mode.
 On the kartoteka path these existence checks are one `spec_store.py list <TICKET_ID>`.
 
 The confirmed work list is the deviation anchor. The confirmation presentation also notes that
-confirming authorizes the run's checkpoint commits & pushes to `origin` (work-list docs now, one
-commit+push per completed phase — procedure: `tail.md` `## Checkpoint commits & pushes`), and
+confirming authorizes the run's task and checkpoint commits, and the checkpoint pushes, to
+`origin` (work-list docs now, one commit+push per completed phase, plus one commit per completed
+task cycle — procedures: `tail.md` `## Task commits` and `## Checkpoint commits & pushes`), and
 that the run ends with a pull request: in `plan-gate` a question before it is opened, in `yolo`
 opened without asking. On branch 2, say the same in one line before invoking the skill — its
 approval round is the confirmation.

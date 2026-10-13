@@ -116,6 +116,20 @@ class TestTheRunUsesIt(unittest.TestCase):
         self.assertIn('a task commit is not a gate', gates)
 
 
+class TestTheAuthorizationCoversThem(unittest.TestCase):
+    """Spec §4.1: the pause authorises the task commits too, in every head."""
+
+    def test_every_head_widens_the_note(self):
+        for head in ('full', 'lean', 'bug'):
+            text = flat(FD + 'heads/{}.md'.format(head))
+            with self.subTest(head=head):
+                self.assertIn('task and checkpoint commits, and the checkpoint pushes', text)
+
+    def test_the_skill_says_the_same(self):
+        text = flat(FD + 'SKILL.md')
+        self.assertIn('task and checkpoint commits, and the checkpoint pushes', text)
+
+
 class TestNoNinthCompletionFact(unittest.TestCase):
     """Spec non-goals: the completion gate still reads exactly eight facts."""
 

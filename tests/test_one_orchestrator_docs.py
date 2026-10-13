@@ -840,8 +840,10 @@ class TestLeanHead(unittest.TestCase):
 
     def test_the_confirmation_says_what_it_authorises(self):
         for phrase in ('The confirmed work list is the deviation anchor.',
-                       "confirming authorizes the run's checkpoint commits & pushes to `origin`",
-                       'procedure: `tail.md` `## Checkpoint commits & pushes`',
+                       "confirming authorizes the run's task and checkpoint commits, and the "
+                       'checkpoint pushes, to `origin`',
+                       'procedures: `tail.md` `## Task commits` and `## Checkpoint commits & '
+                       'pushes`',
                        'the run ends with a pull request: in `plan-gate` a question before it is '
                        'opened, in `yolo` opened without asking',
                        'On branch 2, say the same in one line before invoking the skill'):

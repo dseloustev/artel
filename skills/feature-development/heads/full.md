@@ -84,8 +84,9 @@ as their own section — gate 4.2's last check and last `plan-review.md`, Critic
 first, each with where, what and the smallest fix; `none` when nothing is open — plus, when gate
 4.2's requirements read gave
 `absent`, the line `no requirement coverage — the PRD predates requirement IDs`, and a note that
-approval also authorizes the run's checkpoint commits & pushes to `origin` (planning docs now,
-one commit+push per completed phase — see `tail.md`, `## Checkpoint commits & pushes`).
+approval also authorizes the run's task and checkpoint commits, and the checkpoint pushes, to
+`origin` (planning docs now, one commit+push per completed phase, plus one commit per completed
+task cycle — see `tail.md`, `## Checkpoint commits & pushes`, and `## Task commits`).
 
 - **Approve** → `SendMessage`/re-invoke `planner` and `tasklist` agents to fold any answer that
   overrides a default back into `plan.md` / the tasklist — the tasklist's fields as well as its

@@ -34,7 +34,8 @@ evidence, the fix origin, and whether the fault is structural. Its last line is
 | `NOT_REPRODUCED` | Ask (plain `AskUserQuestion`): **Give more detail** — run gate B1's skill again with what the person adds / **Treat it as a bounded change** — rewrite `sizing.json` (`size` `bounded`, `head` `lean`, `decided_by` `flag`) and read `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/heads/lean.md` / **Stop**. Headless: print the diagnosis' path and stop. |
 
 **Before gate B2's skill runs**, say in one line what its approval will authorise: the run's
-checkpoint commits & pushes to `origin` (`tail.md` `## Checkpoint commits & pushes`), and a pull
+task and checkpoint commits, and the checkpoint pushes, to `origin` (`tail.md` `## Checkpoint commits & pushes`),
+a task commit per completed implementer cycle on top of them (`## Task commits`), and a pull
 request at the end — asked first in `plan-gate`, opened without asking in `yolo`. The approved
 work list is the deviation anchor.
 

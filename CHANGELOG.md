@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-10-13
+
 ### Added
 
 - **A run commits every completed cycle.** The orchestrator's tail gains `## Task commits`: one

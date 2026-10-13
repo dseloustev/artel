@@ -457,7 +457,7 @@ wait for migration, and `restore-context` never puts an image back on the kartot
 | Point | Where |
 |---|---|
 | after the design-analysis stage returns | `figma-analysis` |
-| before each checkpoint's staging | `tail.md` `## Checkpoint commits & pushes` — the planning or work-list checkpoint, and every phase checkpoint |
+| before each checkpoint's staging | `tail.md` `## Checkpoint commits & pushes` — the planning or work-list checkpoint, and every phase checkpoint (a task commit stages no image: `## Task commits` reuses this staging by reference) |
 | before staging | `pr-create` |
 | at run completion, before the final report | `feature-development` (`tail.md`) |
 

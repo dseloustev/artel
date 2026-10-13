@@ -84,8 +84,10 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   distinct from `run-app`'s `runtime/observation.md` evidence in the spec trail), the
   `open-questions.md` status flips, and the description-file sync — everything else (`prd.md`,
   `vision.md`, `plan.md`, `tasklist.md`, `review.md`, `pr-description.md`, …) is
-  delegated to sub-skills/agents. Also performs the checkpoint commits & pushes to `origin`
-  (autonomous-run.md §14: the planning or work-list checkpoint + one per completed phase).
+  delegated to sub-skills/agents. Also performs the run's task and checkpoint commits, and the
+  checkpoint pushes to `origin` (autonomous-run.md §14: one commit per completed implementer
+  cycle — never pushed on its own — plus the planning or work-list checkpoint and one per completed
+  phase).
 - **Pauses:** one approval pause — the full head's plan+tasklist approval, or the lean and bug
   heads' work-list confirmation (skipped entirely in `yolo`, per autonomous-run.md §10); the bug
   head's question when a bug is not reproduced; mid-run HITL tasks, deviation escalations, and

@@ -26,7 +26,9 @@ Companion docs: [workflow-guide.md](workflow-guide.md) (what each step should do
   ```
 
 - **Optional but recommended: an `origin` remote** (a scratch GitHub repo works). The
-  orchestrator's checkpoint commits **push to `origin`** after the approval pause; without a
+  orchestrator's checkpoint commits **push to `origin`** after the approval pause, and its task
+  commits ride along with them — one commit per completed task cycle, nothing pushed until a
+  phase's build gate passes; without a
   remote, expect the push step to stop-and-ask — that stop is itself correct behavior, but a
   remote lets you see the full loop. `gh auth login` if you also want to exercise the
   `github-cli` PR step and/or the `github-issues` tracker.
@@ -191,7 +193,7 @@ stops-and-asks — the checkpoint procedure never forces and never self-repairs 
 stop-and-ask there is correct behavior, not a failure. The run then confirms the completion
 checklist, regenerates `pr-description.md` and pauses at the PR gate, exactly as 4.5 does.
 The final report lists tasks, deviations (`none` expected),
-counters, checkpoint commits, and the journal path. During the armed run, a premature
+counters, checkpoint commits and the task commits behind them, and the journal path. During the armed run, a premature
 session-end attempt is blocked by the run stop gate.
 
 ### 4.5 Full pipeline to the PR gate
@@ -241,7 +243,7 @@ substitutes the paths into `verify.fast`'s `{files}` token.
 | Unconfigured gates report `skipped`, never green | runtime + design in every report |
 | Dry run never writes `run-state.json` | 4.2 |
 | Verify stop gate blocks only findings you introduced | 4.3 |
-| Checkpoint commits only on the feature branch, never forced | 4.4, 4.5 |
+| Task commits per completed cycle, checkpoint commits per phase — only on the feature branch, never forced | 4.4, 4.5 |
 | PR-gate decline still closes the run cleanly | 4.4, 4.5 |
 
 ## 6. Cleanup

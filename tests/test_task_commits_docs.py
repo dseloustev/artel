@@ -165,6 +165,22 @@ class TestTheRunContract(unittest.TestCase):
         self.assertIn('task-commit:', section11)
 
 
+class TestTheOperatorDocs(unittest.TestCase):
+    """Spec §4.3: the guides a person reads must not contradict the run."""
+
+    def test_the_four_skill_claim_holds(self):
+        guide = flat('docs/workflow-guide.md')
+        self.assertIn('task and checkpoint commits', guide)
+        self.assertIn('`implementer` changes source', guide)
+
+    def test_the_sweep_stays_checkpoint_level(self):
+        storage = flat('docs/spec-storage.md')
+        self.assertIn('a task commit stages no image', storage)
+
+    def test_orchestrator_common_names_both(self):
+        self.assertIn('task and checkpoint commits', flat('docs/orchestrator-common.md'))
+
+
 class TestNoNinthCompletionFact(unittest.TestCase):
     """Spec non-goals: the completion gate still reads exactly eight facts."""
 

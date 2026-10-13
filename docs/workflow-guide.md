@@ -179,8 +179,9 @@ did; headless stdout stays human-oriented.
 ### What writes to your repo and remotes
 
 Four skills — and only these — touch git history or remotes: **`feature-development`**
-(the checkpoint commits + pushes to `origin`, authorized at the approval pause or the work-list
-confirmation: planning or work-list docs after arming, then one commit+push per completed phase —
+(the run's task and checkpoint commits, and the checkpoint pushes to `origin`, authorized at the
+approval pause or the work-list confirmation: one commit per completed implementer cycle, planning
+or work-list docs after arming, then one commit+push per completed phase —
 `autonomous-run.md §14`); **`pr-create`** (commit + push when the tree is dirty, then the PR
 itself); **`add-automation`** / **`remove-automation`** (each commits exactly the scaffold
 paths; `remove-automation` also pushes when an upstream exists). Everything else writes only
@@ -188,7 +189,8 @@ files: `init-branch` may create a branch (only when asked) but never commits; `m
 `return-from-worktree` (and `init-branch`'s worktree option) move uncommitted work between the
 main checkout and `.claude/worktrees/` through `git stash` and switch the main checkout's branch,
 but never commit, push or delete a branch; `merge-conflicts` stages and stops;
-`implementer` changes source but leaves committing to the orchestrator's checkpoints.
+`implementer` changes source but leaves committing to the orchestrator — one commit per completed
+cycle, and never a push of its own.
 
 One thing writes **outside** the repo: with `knowledge.adapter: "kartoteka"` configured
 ([config.md](config.md)), the `knowledge_mirror` hook posts each deliberation artifact to that
@@ -341,7 +343,7 @@ it to `architectural` until the run is armed (`autonomous-run.md §17`).
 **THE ONE PAUSE.** In a single `AskUserQuestion`, the orchestrator presents: the plan summary,
 the task list with its `[HITL: …]` tags called out, every still-open `open-questions.md` entry
 with its proposed default pre-selected as the "(Recommended)" option, and a note that approval
-also authorizes the run's checkpoint commits & pushes to `origin`. You **Approve** or
+also authorizes the run's task and checkpoint commits, and the checkpoint pushes, to `origin`. You **Approve** or
 **Request changes**. On approve, any answer that overrides a default is folded back into the
 plan/tasklist, the questions flip to resolved, and the plan becomes status `PLAN_APPROVED`.
 This is the only mid-pipeline approval — after it, the run goes silent.
@@ -432,7 +434,7 @@ its completion entry.
 
 **The final report** names: the ticket; phases traversed; gates passed; the aggregated
 `Deviations:` line (`none` when clean); the loop counters; the baseline and the final gate; runtime status; the
-checkpoint commits; the path to `pr-description.md`; PR status (`PR_OPENED`/`PR_EXISTS` URL,
+checkpoint commits and the task commits behind them; the path to `pr-description.md`; PR status (`PR_OPENED`/`PR_EXISTS` URL,
 `skipped-manual`, or `pending`); description-sync status; the effective mode and why; external
 actions taken unattended; and the path to `run-journal.md` — the append-only record of the whole
 run (`autonomous-run.md §11`).
@@ -450,7 +452,7 @@ findings — for one confirmation (skipped in `yolo`). Otherwise
 [`generate-tasklist`](skills-reference.md#generate-tasklist) writes the work list in the task
 grammar from `idea.md` — with `vision.md`, `spike.md` or `diagnosis.md` when they exist — asks
 only what neither the ticket nor the code settles, and its approval round is the pause. The
-confirmation authorizes the run's checkpoint commits and pushes, and in `plan-gate` the run
+confirmation authorizes the run's task and checkpoint commits, and the checkpoint pushes, and in `plan-gate` the run
 ends with the PR question. If the writer meets an open product question, or work that needs
 more than one iteration with no vision to lean on, it raises instead of drafting: the size
 becomes `architectural`, said aloud as `Size raised: bounded → architectural — full head.

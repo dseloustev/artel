@@ -23,11 +23,13 @@ Orchestrators:
   skills can read it without explicit arguments — and keep it phase-accurate: on multi-phase
   traversal, rewrite it to `<TICKET_ID>-<N>` at each phase start and advance it to the next
   incomplete phase after each phase checkpoint ([autonomous-run.md](autonomous-run.md) §15).
-- Run the checkpoint commits & pushes ([autonomous-run.md](autonomous-run.md) §14): a
-  planning/work-list checkpoint at arm time, and a phase-end checkpoint once a phase's
-  `verify.commands` gate ([config.md](config.md)) passes. These are the only direct git mutations
-  orchestrators perform; everything else external — opening or updating a pull request — goes
-  through the `pr-create` skill and the configured `vcs.adapter` ([config.md](config.md)).
+- Run the run's task and checkpoint commits, and the checkpoint pushes
+  ([autonomous-run.md](autonomous-run.md) §14): one commit per completed implementer cycle — a task
+  commit never pushes on its own — plus a planning/work-list checkpoint at arm time and a phase-end
+  checkpoint once a phase's `verify.commands` gate ([config.md](config.md)) passes. These are the
+  only direct git mutations orchestrators perform; everything else external — opening or updating a
+  pull request — goes through the `pr-create` skill and the configured `vcs.adapter`
+  ([config.md](config.md)).
 - Ensure the ticket directory `<specs.dir>/<TICKET_ID>/` exists — on the kartoteka path that
   directory holds only evidence text.
 - Check which artifacts already exist under it and skip gates that are already satisfied

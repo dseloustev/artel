@@ -9,8 +9,9 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - **A run commits every completed cycle.** The orchestrator's tail gains `## Task commits`: one
-  commit per completed implementer cycle — an iteration task, or a review/runtime/verify fix round
-  — staged by the checkpoint procedure's rules, journaled, and never pushed on its own. Gate 5
+  commit per completed implementer cycle — an iteration task, or a fix task in a
+  review/runtime/verify round, one per dispatch rather than one per round — staged by the
+  checkpoint procedure's rules, journaled, and never pushed on its own. Gate 5
   checks the boundary before the next dispatch, and every halt commits the in-flight cycle as
   `wip: <TICKET_ID> - <task> (run stopped: <reason>)`, so no completed work exists only in the
   working tree. Pushes are unchanged in substance and now stated as a rule: only after a checkpoint

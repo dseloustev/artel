@@ -41,13 +41,15 @@ class TestResolve(ResolverCase):
         sites = {'implementer': {'light': 'p/light', 'full': 'p/full', 'fix': 'p/fix',
                                  'stepUp': 'p/step-up'},
                  'reviewer': {'task': 'p/task', 'phase': 'p/phase', 'reReview': 'p/review',
-                              'plan': 'p/plan', 'deepReview': 'p/deep'}}
+                              'plan': 'p/plan', 'deepReview': 'p/deep'},
+                 'pr-description': 'p/pr-description'}
         self.write_config({'models': {'opencode': dict(sites, agents={'analyst': 'p/analyst'})}})
         expected = {'implementer.light': 'p/light', 'implementer.full': 'p/full',
                     'implementer.fix': 'p/fix', 'implementer.stepUp': 'p/step-up',
                     'reviewer.task': 'p/task', 'reviewer.phase': 'p/phase',
                     'reviewer.reReview': 'p/review', 'reviewer.plan': 'p/plan',
                     'reviewer.deepReview': 'p/deep',
+                    'pr-description': 'p/pr-description',
                     'agents.analyst': 'p/analyst'}
         for site, model in expected.items():
             code, out = self.resolve(site)

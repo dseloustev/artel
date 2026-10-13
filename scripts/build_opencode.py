@@ -384,6 +384,14 @@ given, else the resolved `reviewer.plan`, left out when neither, description `"R
   it when non-null — the whole-branch review before a pull request is the one review on the most
   capable tier (`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`); a dispatch refused for its
   model is re-dispatched once without one"""),
+
+    ('pr-description', 'SKILL.md', """\
+- `model`: none — the dispatch runs on the `tech-writer` agent's frontmatter tier (`opus`)
+  (`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`)""", """\
+- `model`: resolve `pr-description`
+  (`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/models.py resolve --site pr-description`) and set it
+  when non-null — `null` leaves no model, so the child inherits the caller's model; a dispatch
+  refused for its model is re-dispatched once without one"""),
 ]
 
 

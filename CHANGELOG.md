@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **PR descriptions get their own OpenCode model site.** `models.opencode.pr-description` sets the
+  model for the `tech-writer` dispatch that writes `<specs.dir>/<TICKET_ID>/pr-description.md`
+  (`pr-description`, and `pr-create` through it); unset → no model, the child inherits the
+  caller's, like every other site. Claude Code is unchanged — the dispatch runs on the
+  `tech-writer` frontmatter tier. `docs-update`'s dispatch of the same agent is untouched.
+
 ## [0.33.0] - 2026-10-13
 
 ### Added

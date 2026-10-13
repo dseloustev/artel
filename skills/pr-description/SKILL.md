@@ -84,6 +84,8 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 Make a single `Agent` call:
 
 - `subagent_type`: `"tech-writer"`
+- `model`: none — the dispatch runs on the `tech-writer` agent's frontmatter tier (`opus`)
+  (`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`)
 - `description`: `"PR description for <TICKET_ID>"`
 - `prompt`: built from the captured inputs using the template below.
 

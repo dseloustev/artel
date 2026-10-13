@@ -1304,3 +1304,15 @@ move to the decision log.
   same snapshot reason; per-task pushes; and a hook — `PostToolUse` fires per edit and `Stop` only
   at session end, so neither can see a task completing (parked in Open follow-ups). Spec:
   `docs/superpowers/specs/2026-10-13-task-commits-design.md` (local).
+- **2026-10-13 — PR descriptions get their own OpenCode model site.** The `tech-writer` dispatch
+  that writes `<specs.dir>/<TICKET_ID>/pr-description.md` was the build's covered flow that still
+  passed no model, so it inherited the caller's — often the most expensive one — while the
+  implementer and reviewer dispatches resolved their sites. `models.opencode.pr-description`
+  closes that: a fixed site in `scripts/models.py`, a canonical model passage in
+  `skills/pr-description/SKILL.md` with its build transform, a config.md row and
+  filled-example entry, and the setup interview's Round 6 list. Claude Code is unchanged — the
+  dispatch stays on `tech-writer`'s frontmatter `opus`. A dedicated site rather than wiring the
+  generic `agents.tech-writer` key, because `docs-update` dispatches the same agent and the two
+  flows should be tunable apart; the generic key stays the escape hatch, unwired. Locked in by
+  `tests/test_models.py`, `tests/test_models_config_docs.py` and
+  `tests/test_build_opencode.py` (`TestModelTransforms`).

@@ -294,6 +294,7 @@ the resolver reads this block at call time: a mid-run edit is picked up by the n
 | `models.opencode.reviewer.reReview` | string | `null` | A re-review after a fix round. An unset `reReview` leaves ticket mode's `reviewer.phase` in effect. | `scripts/models.py`, site `reviewer.reReview` |
 | `models.opencode.reviewer.plan` | string | `null` | Plan mode (gate 4.2). | `scripts/models.py`, site `reviewer.plan` |
 | `models.opencode.reviewer.deepReview` | string | `null` | `deep-review`'s standalone whole-branch review. | `scripts/models.py`, site `reviewer.deepReview` |
+| `models.opencode.pr-description` | string | `null` | The PR-description dispatch — `tech-writer` writing `<specs.dir>/<TICKET_ID>/pr-description.md` (`pr-description`, and `pr-create` through it). | `scripts/models.py`, site `pr-description` |
 | `models.opencode.agents.<name>` | string | `null` | Every other agent dispatch, by agent name (`[a-z0-9-]+`). An entry for `implementer` or `reviewer` is ignored — those resolve by their own sites. | `scripts/models.py`, site `agents.<name>` |
 
 Every value is a concrete `provider/model` with an optional `#variant`: exactly one `/`, no
@@ -604,6 +605,7 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
         "plan": "tokenguard/opus-5.5",
         "deepReview": "tokenguard/fable-5"
       },
+      "pr-description": "tokenguard/sonnet-5",
       "agents": {
         "analyst": "tokenguard/opus-5.5"
       }

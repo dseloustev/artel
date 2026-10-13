@@ -352,7 +352,8 @@ class TestModelTransforms(BuildBase):
         for rel, phrase in (('skills/implementer/SKILL.md', '`--model <sonnet|opus|fable>`'),
                             ('skills/run-reviewer/SKILL.md', '`--model <sonnet|opus|fable>`'),
                             ('skills/feature-development/tail.md', '--model fable'),
-                            ('skills/deep-review/SKILL.md', '- `model`: `"fable"`')):
+                            ('skills/deep-review/SKILL.md', '- `model`: `"fable"`'),
+                            ('skills/pr-description/SKILL.md', '- `model`: none')):
             self.assertIn(phrase, (ROOT / rel).read_text(encoding='utf-8'), rel)
 
     def test_the_glossary_states_the_model_rule(self):
@@ -397,6 +398,12 @@ class TestModelTransforms(BuildBase):
         self.assertIn(str(self.root.resolve()) + '/scripts/models.py resolve --site '
                       'reviewer.deepReview', text)
         self.assertNotIn('- `model`: `"fable"`', text)
+
+    def test_pr_description_resolves_its_site(self):
+        text = self.flat('skills', 'artel-pr-description', 'SKILL.md')
+        self.assertIn(str(self.root.resolve()) + '/scripts/models.py resolve --site '
+                      'pr-description', text)
+        self.assertNotIn('- `model`: none', text)
 
     def test_a_resolver_error_is_not_an_inherit(self):
         text = self.flat('skills', 'artel-implementer', 'SKILL.md')

@@ -38,6 +38,7 @@ class TestConfigKey(unittest.TestCase):
                     '`models.opencode.implementer.stepUp`', '`models.opencode.reviewer.task`',
                     '`models.opencode.reviewer.reReview`',
                     '`models.opencode.reviewer.deepReview`',
+                    '`models.opencode.pr-description`',
                     '`models.opencode.agents.<name>`'):
             self.assertIn(key, body)
         self.assertIn('`null`', body)
@@ -54,10 +55,12 @@ class TestConfigKey(unittest.TestCase):
     def test_filled_example_shows_the_block_on(self):
         example = section(read(CONFIG), '## A filled example')
         self.assertIn('"models": {\n    "opencode": {\n      "implementer": {', example)
+        self.assertIn('"pr-description": "tokenguard/sonnet-5"', example)
 
     def test_setup_interview_offers_and_validates_the_key(self):
         text = read(SETUP)
         self.assertIn('`models.opencode`', section(text, '## 2. Interview'))
+        self.assertIn('`pr-description`', section(text, '## 2. Interview'))
         self.assertIn('`models.opencode`', section(text, '## 3. Validate'))
 
     def test_the_resolver_exists(self):

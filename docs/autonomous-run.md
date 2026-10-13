@@ -164,8 +164,8 @@ Mandatory HITL triggers:
   material, database schema/migrations, or payment/money-movement code. Ships with generic
   illustrative defaults; a project extends or replaces them for its own high-risk areas.
 - Irreversible external actions (pushes, API writes to third parties via `tracker.adapter` /
-  `vcs.adapter`). Exception: the orchestrator-owned checkpoint commits & pushes (§14) are
-  pre-authorized at the approval pause and are never HITL-tagged.
+  `vcs.adapter`). Exception: the orchestrator-owned task and checkpoint commits, and the checkpoint
+  pushes (§14), are pre-authorized at the approval pause and are never HITL-tagged.
 - An explicit "user must decide/provide X" recorded during the interview.
 
 Prefer AFK wherever possible. Tags are shown at the approval pause, so every potential interruption is
@@ -336,7 +336,9 @@ a `PreToolUse` hook) denies writes to floored paths until it is present.
 Path: `.artel/run/<TICKET_ID>/run-journal.md` (ticket-top-level, like `run-state.json`).
 Append-only; written **only by the orchestrator**; exists only for armed runs. One entry per event —
 run start (with the §10 mode resolution and the §17 size), each gate completion, every pause and resume, every
-external action, completion/abort. Entry format:
+external action — a checkpoint's or a task commit's, the latter as
+`task-commit: <hash> <subject>`, and a halt's `wip:` commit as
+`task-commit: wip <hash> (<reason>)` — completion/abort. Entry format:
 
 ```markdown
 ## <UTC ISO-8601> — <event: gate/pause/resume/external/complete>
@@ -398,7 +400,7 @@ by `analysis`, `researcher`, and `planner`.
 - Skip-if-exists (§9) applies; manual invocation gets the Overwrite/Abort prompt. Ticket-level
   only — a phase suffix is ignored for pathing (ticket-parsing.md).
 
-## 14. Checkpoint commits & pushes
+## 14. Commits & pushes
 
 The orchestrator commits and pushes at fixed checkpoints so the branch on `origin` always carries
 the latest approved docs and every completed phase: a **planning checkpoint** right after
@@ -406,7 +408,29 @@ arming (docs only, no verify gate; its subject says `planning artifacts` when a 
 `work list` otherwise) and a **phase-end checkpoint** after each phase's gates pass
 (the checkpoint gate — `verify.commands` compared against the run's baseline, gates.md §1 — plus capped fixes first). Checkpoints are orchestrator-owned
 Bash actions, pre-approved at the approval pause (§4 exception), never pause, and are journaled as
-external actions (§11). The full procedure (branch guard, the image sweep, idempotence, the verify
+external actions (§11).
+
+The second kind is task commits, and the finer one: one commit per completed implementer cycle —
+an iteration task, or a `## Code Review Fixes` / `## Runtime Fixes` / `## Verify Fixes` round — so
+no completed work exists only in the working tree. A cycle that changed nothing commits
+nothing, and every halt (a cap escalation, a deviation escalation, a stop-and-ask, the person
+stopping the run) commits the in-flight cycle as
+`wip: <TICKET_ID> - <task> (run stopped: <reason>)` before the escalation proceeds. They
+are orchestrator-owned and pre-authorized the same way, are journaled as external actions, and
+**never push on their own**: they reach `origin` at the next phase-end checkpoint, or at
+`pr-create`'s close-out. The trigger table, the subject rules and the staging discipline are in the
+`feature-development` skill (`../skills/feature-development/tail.md`, `## Task commits`).
+
+**A push follows a build gate, never precedes it.** The checkpoint procedure's step 6 pushes only
+when step 3's verdict was green or `skipped` — a red gate runs its capped fix rounds instead, and a
+host with an empty `verify.commands` still pushes, or the branch would never reach `origin`, which
+is what checkpoints are for. The planning checkpoint is the one exception: docs only, no code,
+nothing to build. The checkpoint's journal entry records the verify verdict beside the push result,
+and a completed task's commits may sit on the local branch until its phase's build gate passes —
+the accepted cost of pushing only what a build gate has passed. `pr-create`'s close-out push
+follows the completion gate's final verify pass.
+
+The full procedure (branch guard, the image sweep, idempotence, the verify
 gate, explicit staging, push, journal) and the commit-subject table are defined in the `feature-development`
 skill (`../skills/feature-development/tail.md`, `## Checkpoint commits & pushes`). On the
 kartoteka path the planning checkpoint stages the same paths, and when, images

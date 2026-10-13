@@ -132,7 +132,7 @@ class TestCheckpointProcedure(unittest.TestCase):
 
     def test_the_run_contract_names_the_sweep(self):
         contract = flat(between(read('docs/autonomous-run.md'),
-                                '## 14. Checkpoint commits & pushes', '## 15.'))
+                                '## 14. Commits & pushes', '## 15.'))
         self.assertIn('the image sweep', contract)
         self.assertIn('§4.6', contract)
 

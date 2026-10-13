@@ -144,6 +144,27 @@ class TestTheImplementerNeverCommits(unittest.TestCase):
                 self.assertIn('at each completed cycle and at the phase checkpoints', raw(rel))
 
 
+class TestTheRunContract(unittest.TestCase):
+    """Spec §4.3: docs/autonomous-run.md is the contract of the run."""
+
+    def setUp(self):
+        self.run = flat('docs/autonomous-run.md')
+        self.section14 = between(raw('docs/autonomous-run.md'), '## 14.', '## 15.')
+
+    def test_section_14_carries_both_rules(self):
+        self.assertIn('task commits', self.section14)
+        self.assertIn('one commit per completed implementer cycle', self.section14)
+        self.assertIn('green or `skipped`', self.section14)
+
+    def test_section_4_names_the_exception(self):
+        section4 = between(raw('docs/autonomous-run.md'), '## 4.', '## 5.')
+        self.assertIn('task and checkpoint commits', section4)
+
+    def test_section_11_journals_the_entries(self):
+        section11 = between(raw('docs/autonomous-run.md'), '## 11.', '## 12.')
+        self.assertIn('task-commit:', section11)
+
+
 class TestNoNinthCompletionFact(unittest.TestCase):
     """Spec non-goals: the completion gate still reads exactly eight facts."""
 

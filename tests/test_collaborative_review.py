@@ -1,4 +1,4 @@
-"""`scripts/collaborative_review.py`: the validated PR snapshot a review binds to.
+"""`scripts/collaborative_review.py`: the snapshot and Markdown state a review binds to.
 
 The collaborative review reads one pull request at recorded revisions. Its inventory
 must be complete -- every page `gh api --paginate --slurp` returned, matching the PR's
@@ -6,14 +6,24 @@ own changed-file count, no duplicate path -- and every file needs a direct GitHu
 link derived from its exact UTF-8 path, because that anchor is what a person clicks
 while reviewing. A snapshot that silently lost a page or accepted a malformed row must
 be refused before it becomes review input.
+
+The inventory becomes a Markdown checklist whose header comment records the snapshot
+identity and whose `## Files` section is the only approval ledger. The first unchecked
+row is the current file; exactly the trimmed message `1`, for the current entry and a
+still-matching snapshot, checks that one row. Every other response, a stale snapshot, a
+duplicate or wrong-ID approval, and a corrupt ledger change nothing.
 """
+import contextlib
 import hashlib
+import io
 import json
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
 import collaborative_review  # noqa: E402
@@ -54,6 +64,36 @@ def metadata(changed_files, url=PR_URL, base_sha=BASE_SHA, head_sha=HEAD_SHA):
     """`gh pr view --json url,baseRefOid,headRefOid,changedFiles` output."""
     return {'url': url, 'baseRefOid': base_sha, 'headRefOid': head_sha,
             'changedFiles': changed_files}
+
+
+def snapshot_of(*paths):
+    """A validated snapshot of `paths`, as the inventory verb writes it."""
+    pages = [[row(path) for path in paths]]
+    return collaborative_review.normalize_snapshot(metadata(len(paths)), pages, MERGE_BASE_SHA)
+
+
+def ordered_entry(path, role='module', focus='review the change', **extra):
+    """One `ordered` preparation entry; `extra` adds or overrides fields."""
+    entry = {'path': path, 'role': role, 'focus': focus, 'ordering_note': ''}
+    entry.update(extra)
+    return entry
+
+
+def excluded_entry(path, reason='documentation only'):
+    """One `excluded` preparation entry."""
+    return {'path': path, 'reason': reason}
+
+
+def two_file_snapshot():
+    return snapshot_of(ERRORS_PATH, UNICODE_PATH)
+
+
+def two_entry_preparation():
+    """The two inventory files, in snapshot order, with no exclusions."""
+    return {'ordered': [ordered_entry(ERRORS_PATH, role='storage layer',
+                                      focus='review the new index'),
+                        ordered_entry(UNICODE_PATH, role='API', focus='check the parser')],
+            'excluded': []}
 
 
 class TestDiffUrl(unittest.TestCase):
@@ -232,7 +272,9 @@ class TestNormalizeSnapshot(unittest.TestCase):
                 self.assertEqual(snapshot['pages'], pages)
 
 
-class TestInventoryCli(unittest.TestCase):
+class CliCase(unittest.TestCase):
+    """A temporary root and the real script run as a subprocess."""
+
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
@@ -247,6 +289,8 @@ class TestInventoryCli(unittest.TestCase):
         return subprocess.run([sys.executable, str(SCRIPT), *args],
                               capture_output=True, text=True)
 
+
+class TestInventoryCli(CliCase):
     def run_inventory(self, meta, pages, merge_base=MERGE_BASE_SHA, out='snapshot.json'):
         metadata_path = self.write_json('metadata.json', meta)
         pages_path = self.write_json('pages.json', pages)
@@ -324,8 +368,8 @@ class TestInventoryCli(unittest.TestCase):
         self.assertEqual(out_path.read_text(encoding='utf-8'), 'previous snapshot')
 
     def test_usage_errors_are_invalid_arguments(self):
-        cases = [('no verb', ()), ('unknown verb', ('render',)), ('missing flags', ('inventory',)),
-                 ('unknown flag', ('inventory', '--bogus'))]
+        cases = [('no verb', ()), ('unknown verb', ('frobnicate',)),
+                 ('missing flags', ('inventory',)), ('unknown flag', ('inventory', '--bogus'))]
         for label, args in cases:
             with self.subTest(label):
                 proc = self.cli(*args)
@@ -338,6 +382,305 @@ class TestInventoryCli(unittest.TestCase):
         proc = self.cli('--help')
         self.assertEqual(proc.returncode, 0)
         self.assertIn('inventory --metadata', proc.stdout)
+
+
+class TestRenderChecklist(unittest.TestCase):
+    def test_render_partitions_inventory(self):
+        snapshot = snapshot_of(ERRORS_PATH, UNICODE_PATH, 'docs/readme.md')
+        preparation = {
+            'ordered': [
+                ordered_entry(ERRORS_PATH, role='storage layer', focus='review the new index',
+                              id=7),
+                ordered_entry(UNICODE_PATH, role='API', focus='check the parser',
+                              ordering_note='introduced before its consumers', id=9),
+            ],
+            'excluded': [excluded_entry('docs/readme.md')],
+        }
+        text = collaborative_review.render_checklist(snapshot, preparation)
+        status = collaborative_review.checklist_status(text)
+        self.assertEqual(status['total'], 2)
+        self.assertEqual(status['checked'], 0)
+        self.assertEqual(status['current'], 1)
+        self.assertEqual(status['snapshot'], {
+            'pr_url': PR_URL, 'base_sha': BASE_SHA, 'head_sha': HEAD_SHA,
+            'merge_base_sha': MERGE_BASE_SHA,
+            'inventory_digest': snapshot['inventory_digest']})
+        # rows are positions 1..M with the full contract, not the worker's guessed IDs
+        self.assertIn('- [ ] 1. `{}` — Modified; storage layer; review the new index. '
+                      '[PR diff]({})'.format(ERRORS_PATH, ERRORS_DIFF_URL), text)
+        self.assertIn('- [ ] 2. `{}` — Modified; API; check the parser '
+                      '(introduced before its consumers). [PR diff]({})'.format(
+                          UNICODE_PATH, collaborative_review.diff_url(PR_URL, UNICODE_PATH)),
+                      text)
+        self.assertNotIn('- [ ] 7.', text)
+        self.assertNotIn('- [ ] 9.', text)
+        self.assertNotIn('- [ ] 3.', text)
+        # every inventory path occurs exactly once across Files and Excluded
+        for path in (ERRORS_PATH, UNICODE_PATH, 'docs/readme.md'):
+            self.assertEqual(text.count(path), 1)
+        self.assertIn('- `docs/readme.md` — documentation only', text)
+        # the header comment is the machine-readable snapshot identity
+        header = re.search(r'<!-- collaborative-review-snapshot: (\{.*\}) -->', text)
+        self.assertIsNotNone(header)
+        self.assertEqual(json.loads(header.group(1)), status['snapshot'])
+        # missing, duplicate, and unknown preparation paths block rendering
+        cases = {
+            'missing path': {
+                'ordered': [ordered_entry(ERRORS_PATH), ordered_entry(UNICODE_PATH)],
+                'excluded': []},
+            'duplicate in ordered': {
+                'ordered': [ordered_entry(ERRORS_PATH), ordered_entry(ERRORS_PATH)],
+                'excluded': [excluded_entry(UNICODE_PATH), excluded_entry('docs/readme.md')]},
+            'duplicate across lists': {
+                'ordered': [ordered_entry(ERRORS_PATH)],
+                'excluded': [excluded_entry(ERRORS_PATH), excluded_entry(UNICODE_PATH),
+                             excluded_entry('docs/readme.md')]},
+            'unknown path': {
+                'ordered': [ordered_entry(ERRORS_PATH), ordered_entry(UNICODE_PATH),
+                            ordered_entry('src/not-in-this-pr.py')],
+                'excluded': [excluded_entry('docs/readme.md')]},
+        }
+        for label, bad in cases.items():
+            with self.subTest(label):
+                with self.assertRaises(collaborative_review.ChecklistError):
+                    collaborative_review.render_checklist(snapshot, bad)
+
+    def test_markdown_special_paths_keep_identity(self):
+        paths = ['src/a`b`c.py', 'docs/``fence``.md', 'odd/name[1]|x*.py', 'bad\nname.py']
+        snapshot = snapshot_of(*paths)
+        preparation = {'ordered': [ordered_entry(path) for path in paths], 'excluded': []}
+        text = collaborative_review.render_checklist(snapshot, preparation)
+        status = collaborative_review.checklist_status(text)
+        self.assertEqual(status['total'], 4)
+        self.assertEqual(status['current'], 1)
+        # a backtick run in the path gets a longer code-span fence
+        self.assertIn('``src/a`b`c.py``', text)
+        self.assertIn('```docs/``fence``.md```', text)
+        # a line break in a path cannot split its row
+        self.assertNotIn('bad\nname.py', text)
+        self.assertIn('bad\\nname.py', text)
+        # identity stays exact: the digest and the direct links hash the raw path
+        self.assertEqual(status['snapshot']['inventory_digest'], snapshot['inventory_digest'])
+        for entry in snapshot['files']:
+            self.assertIn(entry['diff_url'], text)
+        new_text, advanced = collaborative_review.advance_checklist(text, snapshot, 1, '1')
+        self.assertTrue(advanced['advanced'])
+        self.assertEqual(collaborative_review.checklist_status(new_text)['current'], 2)
+
+    def test_empty_inventory_has_no_current_file(self):
+        empty = collaborative_review.normalize_snapshot(metadata(0), [[]], MERGE_BASE_SHA)
+        excluded_only = snapshot_of(ERRORS_PATH)
+        cases = (
+            ('no files', empty, {'ordered': [], 'excluded': []}),
+            ('all excluded', excluded_only,
+             {'ordered': [], 'excluded': [excluded_entry(ERRORS_PATH, reason='generated')]}),
+        )
+        for label, snapshot, preparation in cases:
+            with self.subTest(label):
+                text = collaborative_review.render_checklist(snapshot, preparation)
+                status = collaborative_review.checklist_status(text)
+                self.assertEqual(status['total'], 0)
+                self.assertEqual(status['checked'], 0)
+                self.assertIsNone(status['current'])
+                with self.assertRaises(collaborative_review.ChecklistError):
+                    collaborative_review.advance_checklist(text, snapshot, 1, '1')
+
+
+class TestChecklistAdvance(unittest.TestCase):
+    def setUp(self):
+        self.snapshot = two_file_snapshot()
+        self.text = collaborative_review.render_checklist(self.snapshot, two_entry_preparation())
+
+    def test_only_trimmed_one_advances(self):
+        for response in ('yes', 'next', '1 looks good', '"1"', 'why is 1 used?'):
+            with self.subTest(response=response):
+                new_text, status = collaborative_review.advance_checklist(
+                    self.text, self.snapshot, 1, response)
+                self.assertFalse(status['advanced'])
+                self.assertEqual(new_text, self.text)
+                self.assertEqual(status['checked'], 0)
+                self.assertEqual(status['current'], 1)
+        for response in ('1', ' 1\n'):
+            with self.subTest(response=response):
+                new_text, status = collaborative_review.advance_checklist(
+                    self.text, self.snapshot, 1, response)
+                self.assertTrue(status['advanced'])
+                self.assertEqual(new_text, self.text.replace('- [ ] 1.', '- [x] 1.', 1))
+                self.assertEqual(status['checked'], 1)
+                self.assertEqual(status['current'], 2)
+
+    def test_only_current_entry_can_advance(self):
+        for entry in (2, 3):
+            with self.subTest(entry=entry):
+                with self.assertRaises(collaborative_review.ChecklistError):
+                    collaborative_review.advance_checklist(self.text, self.snapshot, entry, '1')
+        first, status = collaborative_review.advance_checklist(self.text, self.snapshot, 1, '1')
+        self.assertTrue(status['advanced'])
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.advance_checklist(first, self.snapshot, 1, '1')
+        second, status = collaborative_review.advance_checklist(first, self.snapshot, 2, '1')
+        self.assertTrue(status['advanced'])
+        self.assertEqual(status['checked'], 2)
+        self.assertIsNone(status['current'])
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.advance_checklist(second, self.snapshot, 2, '1')
+
+    def test_any_identity_change_rejects_approval(self):
+        changes = {
+            'pr_url': 'https://github.com/example/project/pull/8',
+            'base_sha': 'd' * 40,
+            'head_sha': 'd' * 40,
+            'merge_base_sha': 'd' * 40,
+            'inventory_digest': 'd' * 64,
+        }
+        for component, value in changes.items():
+            with self.subTest(component=component):
+                fresh = dict(self.snapshot)
+                fresh[component] = value
+                with self.assertRaises(collaborative_review.ChecklistError):
+                    collaborative_review.advance_checklist(self.text, fresh, 1, '1')
+        new_text, status = collaborative_review.advance_checklist(self.text, self.snapshot, 1, '1')
+        self.assertTrue(status['advanced'])
+
+    def test_advance_preserves_notes_and_findings(self):
+        text = self.text.replace(
+            '\n## Excluded',
+            '\n```text\n- [ ] 8. a fenced sample, not a row\n```\n\n## Excluded', 1)
+        text += ('\nA note about `lib/whois/errors.rb`.\n\n'
+                 '## Findings\n\n- unresolved: the parser edge case stays open\n')
+        new_text, status = collaborative_review.advance_checklist(text, self.snapshot, 1, '1')
+        self.assertTrue(status['advanced'])
+        self.assertEqual(new_text, text.replace('- [ ] 1.', '- [x] 1.', 1))
+        self.assertEqual(status['total'], 2)
+        self.assertIn('- [ ] 8. a fenced sample, not a row', new_text)
+        self.assertIn('A note about `lib/whois/errors.rb`.', new_text)
+        self.assertIn('unresolved: the parser edge case stays open', new_text)
+        self.assertEqual(collaborative_review.checklist_status(new_text)['total'], 2)
+
+    def test_stale_completed_checklist_is_rejected(self):
+        first, status = collaborative_review.advance_checklist(self.text, self.snapshot, 1, '1')
+        completed, status = collaborative_review.advance_checklist(first, self.snapshot, 2, '1')
+        self.assertEqual(status['checked'], 2)
+        self.assertIsNone(status['current'])
+        stale = dict(self.snapshot)
+        stale['head_sha'] = 'd' * 40
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.advance_checklist(completed, stale, 2, '1')
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.advance_checklist(completed, self.snapshot, 2, '1')
+        self.assertEqual(completed.count('- [x]'), 2)
+
+    def test_corrupt_ledger_is_rejected(self):
+        header_line = [line for line in self.text.split('\n')
+                       if 'collaborative-review-snapshot' in line][0]
+        cases = {
+            'duplicate id': self.text.replace('- [ ] 2.', '- [ ] 1.', 1),
+            'missing id': self.text.replace('- [ ] 1.', '- [ ] 3.', 1),
+            'no header': self.text.replace(header_line + '\n', '', 1),
+            'broken header json': self.text.replace('{"base_sha"', '{"base_sha" broken', 1),
+            'no Files section': self.text.replace('## Files', '## Changed files', 1),
+        }
+        for label, corrupt in cases.items():
+            with self.subTest(label):
+                with self.assertRaises(collaborative_review.ChecklistError):
+                    collaborative_review.checklist_status(corrupt)
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.advance_checklist(cases['duplicate id'], self.snapshot, 1, '1')
+
+
+class TestChecklistCli(CliCase):
+    def render_files(self, snapshot, preparation=None):
+        snapshot_path = self.write_json('snapshot.json', snapshot)
+        preparation_path = self.write_json('preparation.json',
+                                           preparation or two_entry_preparation())
+        checklist = self.root / 'run' / 'review-checklist.md'
+        proc = self.cli('render', '--snapshot', str(snapshot_path),
+                        '--preparation', str(preparation_path), '--output', str(checklist))
+        return proc, checklist, snapshot_path
+
+    def test_render_status_advance_round_trip(self):
+        snapshot = two_file_snapshot()
+        proc, checklist, snapshot_path = self.render_files(snapshot)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        envelope = json.loads(proc.stdout)
+        self.assertTrue(envelope['ok'])
+        self.assertEqual(envelope['verb'], 'render')
+        self.assertEqual(envelope['data']['output'], str(checklist))
+        self.assertEqual(envelope['data']['ordered'], 2)
+        self.assertEqual(envelope['data']['excluded'], 0)
+        self.assertEqual(envelope['data']['inventory_digest'], snapshot['inventory_digest'])
+        proc = self.cli('status', '--checklist', str(checklist))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = json.loads(proc.stdout)['data']
+        self.assertEqual(data['checked'], 0)
+        self.assertEqual(data['total'], 2)
+        self.assertEqual(data['current'], 1)
+        self.assertEqual(data['snapshot']['pr_url'], PR_URL)
+        # a comment leaves the ledger untouched
+        proc = self.cli('advance', '--checklist', str(checklist), '--snapshot', str(snapshot_path),
+                        '--entry', '1', '--response', '1 looks good')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = json.loads(proc.stdout)['data']
+        self.assertFalse(data['advanced'])
+        self.assertEqual(data['checked'], 0)
+        # the trimmed 1 advances exactly one row, persisted on disk
+        proc = self.cli('advance', '--checklist', str(checklist), '--snapshot', str(snapshot_path),
+                        '--entry', '1', '--response', '1')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = json.loads(proc.stdout)['data']
+        self.assertTrue(data['advanced'])
+        self.assertEqual(data['checked'], 1)
+        self.assertEqual(data['current'], 2)
+        text = checklist.read_text(encoding='utf-8')
+        self.assertIn('- [x] 1.', text)
+        self.assertIn('- [ ] 2.', text)
+        proc = self.cli('status', '--checklist', str(checklist))
+        self.assertEqual(json.loads(proc.stdout)['data']['checked'], 1)
+        # a corrupt ledger is refused rather than reported as progress
+        checklist.write_text(text.replace('- [ ] 2.', '- [ ] 1.', 1), encoding='utf-8')
+        proc = self.cli('status', '--checklist', str(checklist))
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)['error']['kind'], 'invalid_data')
+
+    def test_cli_rejects_stale_and_wrong_entry(self):
+        snapshot = two_file_snapshot()
+        proc, checklist, snapshot_path = self.render_files(snapshot)
+        original = checklist.read_bytes()
+        wrong_entry = self.cli('advance', '--checklist', str(checklist), '--snapshot',
+                               str(snapshot_path), '--entry', '2', '--response', '1')
+        self.assertEqual(wrong_entry.returncode, 2, wrong_entry.stderr)
+        self.assertEqual(json.loads(wrong_entry.stdout)['error']['kind'], 'invalid_data')
+        self.assertEqual(checklist.read_bytes(), original)
+        stale = dict(snapshot)
+        stale['base_sha'] = 'd' * 40
+        stale_path = self.write_json('stale-snapshot.json', stale)
+        stale_run = self.cli('advance', '--checklist', str(checklist), '--snapshot',
+                             str(stale_path), '--entry', '1', '--response', '1')
+        self.assertEqual(stale_run.returncode, 2, stale_run.stderr)
+        self.assertEqual(json.loads(stale_run.stdout)['error']['kind'], 'invalid_data')
+        self.assertEqual(checklist.read_bytes(), original)
+        bad_entry = self.cli('advance', '--checklist', str(checklist), '--snapshot',
+                             str(snapshot_path), '--entry', 'zero', '--response', '1')
+        self.assertEqual(bad_entry.returncode, 2)
+        self.assertEqual(json.loads(bad_entry.stdout)['error']['kind'], 'invalid_argument')
+
+    def test_persistence_failure_keeps_original(self):
+        snapshot = two_file_snapshot()
+        proc, checklist, snapshot_path = self.render_files(snapshot)
+        original = checklist.read_bytes()
+        out = io.StringIO()
+        with mock.patch.object(collaborative_review.os, 'replace',
+                               side_effect=OSError('disk full')):
+            with contextlib.redirect_stdout(out):
+                code = collaborative_review.main(['advance', '--checklist', str(checklist),
+                                                  '--snapshot', str(snapshot_path),
+                                                  '--entry', '1', '--response', '1'])
+        self.assertEqual(code, 2)
+        envelope = json.loads(out.getvalue())
+        self.assertFalse(envelope['ok'])
+        self.assertEqual(envelope['error']['kind'], 'io_error')
+        self.assertEqual(checklist.read_bytes(), original)
+        self.assertEqual(list(checklist.parent.glob('review-checklist.md.*')), [])
 
 
 if __name__ == '__main__':

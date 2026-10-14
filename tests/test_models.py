@@ -201,6 +201,32 @@ class TestResolve(ResolverCase):
         self.assertNotIn('error', out)
 
 
+class TestCollaborativeReviewerSite(ResolverCase):
+    """The collaborative-review skill dispatches its worker through the generic `agents.<name>`
+    site; the resolver needs no collaborative-review vocabulary of its own."""
+
+    def test_a_configured_generic_model_resolves(self):
+        self.write_config({'models': {'opencode': {'agents': {
+            'collaborative-reviewer': 'p/reviewer'}}}})
+        code, out = self.resolve('agents.collaborative-reviewer')
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data'], {'site': 'agents.collaborative-reviewer',
+                                       'model': 'p/reviewer'})
+
+    def test_an_unset_generic_model_is_null(self):
+        self.write_config({'models': {'opencode': {'agents': {'analyst': 'p/analyst'}}}})
+        code, out = self.resolve('agents.collaborative-reviewer')
+        self.assertEqual(code, 0)
+        self.assertIsNone(out['data']['model'])
+
+    def test_an_invalid_generic_model_is_invalid_config(self):
+        self.write_config({'models': {'opencode': {'agents': {
+            'collaborative-reviewer': 3}}}})
+        code, out = self.resolve('agents.collaborative-reviewer')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_config')
+
+
 class TestValueForm(unittest.TestCase):
     def test_the_value_form(self):
         for good in ('p/m', 'provider/model#variant', 'a-b_c/d.e#f'):

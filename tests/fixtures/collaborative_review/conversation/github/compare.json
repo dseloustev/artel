@@ -1,0 +1,26 @@
+{
+  "status": "ahead",
+  "ahead_by": 2,
+  "behind_by": 0,
+  "total_commits": 2,
+  "base_commit": {
+    "sha": "0e442ea413d08cb3d26024dcc62977527e13ac12"
+  },
+  "merge_base_commit": {
+    "sha": "0f85e68e6457a064229a656cbae838baebc9fa72"
+  },
+  "commits": [
+    {
+      "sha": "9c422e26a7b6ac110b1932f2f9f3e478631db6c0",
+      "commit": {
+        "message": "Add the in-memory session store"
+      }
+    },
+    {
+      "sha": "83bd3afaed53328b4ac32598acc9589563fc7083",
+      "commit": {
+        "message": "Add review defaults and tests"
+      }
+    }
+  ]
+}

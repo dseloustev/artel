@@ -1335,3 +1335,63 @@ move to the decision log.
   anchors on the causing code. The contract is single-homed in `docs/deep-review.md`. Rejected:
   trusting the reviewer's own anchor run (`scripts/validate_findings.py` stays the reviewer's
   pre-flight), letting the orchestrator read and judge the report, and a second reviewer seat.
+- **2026-10-14 — Collaborative PR review is an interactive orchestrator plus a read-only worker.**
+  Reviewing a whole pull request in one pass is neither comprehensible nor resumable, and a
+  generic delegation of the workflow failed the state protocol in fresh-context baselines: raw
+  API order instead of contract-before-implementation, prose docs and assets left in the review
+  list, no durable checklist, saved analysis reports read as approval, and files checked off
+  with no user `1` at all. `collaborative-review` binds every presentation to one recorded PR
+  snapshot — paginated inventory, compare-API merge base, full contents at both revisions, the
+  head repository for forks — and keeps the Markdown checklist under
+  `.artel/run/collaborative-review/` as the sole approval ledger: only the exact reply `1`
+  advances the first unchecked file, comments stay on it, and a changed head blocks until an
+  explicit rebuild archives history and reopens the list unchecked. Code analysis is a
+  dedicated `collaborative-reviewer` agent (`prepare` orders the complete partition, `file`
+  assesses the current file, `followup` answers a question) rather than an extension of
+  `reviewer`, which keeps its ticket/task/standalone/plan modes and its write-back untouched.
+  The worker runs on its frontmatter `opus`; OpenCode resolves `agents.collaborative-reviewer`
+  through the existing generic site, so no new fixed model vocabulary or config key is added.
+  Rejected: a skill-only inline review (no isolation from the conversation), and reusing
+  `reviewer` (its write-back and gate behavior would leak into an interactive flow). Spec:
+  `docs/superpowers/specs/2026-10-14-collaborative-review-design.md` (local). Locked in by
+  `tests/test_collaborative_review.py` (snapshot/checklist helpers) and
+  `tests/test_build_opencode.py` (`TestCollaborativeReviewBuild`).
+  *(Superseded 2026-10-14: the numeric confirmation was replaced by the word `reviewed` before
+  release — see the entry below.)*
+- **2026-10-14 — The collaborative review advances on the word `reviewed`, not a numeric reply.**
+  The user approved replacing the numeric confirmation before the feature shipped: a lone `1` is
+  easy to type by accident and says nothing about what the person is confirming, while the
+  standalone word `reviewed` states the acknowledgment it records. A reply advances only when
+  `response.strip().casefold()` equals `reviewed` — `reviewed`, `Reviewed`, `REVIEWED` and
+  surrounding whitespace all count; the old `1`, `approved`, `OK`, `reviewed looks good`,
+  `reviewed, but…` and `reviewed.` stay on the current file. The canonical prompt is
+  `Reply reviewed to mark this file reviewed and continue; anything else stays on this file.`,
+  and the keyword stays fixed — no aliases, no configuration. A confirmation still checks only
+  the current first unchecked row, after an atomic successful save against the matching PR
+  snapshot; it acknowledges the review, not resolved findings, and never approves the PR on
+  GitHub. CLI grammar, row IDs, ledger schema, snapshot identity and existing approved rows are
+  unchanged. Spec amendment: the local design spec's approved-amendment section (2026-10-14).
+  Locked in by `tests/test_collaborative_review.py`.
+- **2026-10-14 — Collaborative-review completeness, snapshot acquisition and finding recording
+  are helper-enforced.** The final whole-branch review found five integration gaps the passing
+  suites did not cover: a shortened ledger could report completion against a fresh snapshot; a
+  rename fetched its base side at the new path; the worker had no way to obtain needed unchanged
+  dependency context; raw paths were inserted into contents endpoints (so `#`, `?`, `%`, spaces
+  and Unicode could corrupt the request); and a newly presented report's findings were never
+  written into the ledger. One fix wave repairs them without changing the schema or the exact
+  `reviewed` gate: `status`/`advance` enforce the rendered `Ordered files` count against the
+  parsed approval rows (a legitimate zero-row ledger stays valid); the capture reads a rename's
+  base side at `previous_path` and builds each contents endpoint through a stdlib helper that
+  percent-encodes every path segment and returns one shell word at a pinned ref; the worker may
+  return a bounded supporting-context request (≤ 8 literal paths per request, `base`/`head`/
+  `both` sides, reasons, ≤ 2 rounds per seat) that the orchestrator validates and acquires at
+  the recorded merge-base/head SHAs from the base/head repositories into `context/base|head/` —
+  never from the checkout, never as review rows; and every new, updated or reused report is
+  recorded atomically as a clickable Markdown link with its assessment and unresolved findings
+  before presentation — its target checked against the ledger's directory and canonicalized to
+  the ledger-relative path, so the hyperlink always reaches the report beside the ledger —
+  idempotently and without touching `## Files`. Rejected: a
+  glob/path-character blacklist for context requests (literal `?`/`[`/`*` names are valid and
+  the endpoint is encoded, not expanded), a competing approval ledger, new CLI verbs for the
+  helpers, and resolving anything from the host checkout. Locked in by
+  `tests/test_collaborative_review.py`.

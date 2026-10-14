@@ -1,0 +1,86 @@
+[
+  [
+    {
+      "sha": "8e509a4c1dc2a5827429b65085ece1e6b46588ee",
+      "filename": "src/domain/session.ts",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 1,
+      "changes": 10,
+      "blob_url": "https://github.com/acme/session-kit/blob/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/src/domain/session.ts",
+      "raw_url": "https://github.com/acme/session-kit/raw/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/src/domain/session.ts",
+      "contents_url": "https://api.github.com/repos/acme/session-kit/contents/src/domain/session.ts?ref=8eec7c430ce15d3ba0d1836c9a7d03e36c533de0",
+      "patch": "diff --git a/src/domain/session.ts b/src/domain/session.ts\n--- a/src/domain/session.ts\n+++ b/src/domain/session.ts\n@@ -1,12 +1,20 @@\n+export class SessionNotFound extends Error {\n+  constructor(readonly id: string) {\n+    super('session ' + id + ' not found');\n+  }\n+}\n+\n export interface Session {\n   readonly id: string;\n   readonly userId: string;\n   readonly createdAt: number;\n   readonly expiresAt: number;\n+  readonly lastSeenAt: number;\n }\n \n export interface SessionStore {\n-  get(id: string): Promise<Session | null>;\n+  get(id: string): Promise<Session>;\n   put(session: Session): Promise<void>;\n+  touch(id: string, now?: number): Promise<Session>;\n   delete(id: string): Promise<boolean>;\n }\n"
+    },
+    {
+      "sha": "5608653c631a36c297355e4d94738e126acf5ad6",
+      "filename": "src/domain/memory_session_store.ts",
+      "status": "added",
+      "additions": 28,
+      "deletions": 0,
+      "changes": 28,
+      "blob_url": "https://github.com/acme/session-kit/blob/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/src/domain/memory_session_store.ts",
+      "raw_url": "https://github.com/acme/session-kit/raw/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/src/domain/memory_session_store.ts",
+      "contents_url": "https://api.github.com/repos/acme/session-kit/contents/src/domain/memory_session_store.ts?ref=8eec7c430ce15d3ba0d1836c9a7d03e36c533de0",
+      "patch": "diff --git a/src/domain/memory_session_store.ts b/src/domain/memory_session_store.ts\n--- /dev/null\n+++ b/src/domain/memory_session_store.ts\n@@ -0,0 +1,28 @@\n+import { Session, SessionNotFound, SessionStore } from './session';\n+\n+export class MemorySessionStore implements SessionStore {\n+  private readonly sessions = new Map<string, Session>();\n+\n+  async get(id: string): Promise<Session> {\n+    const session = this.sessions.get(id);\n+    if (!session) {\n+      throw new SessionNotFound(id);\n+    }\n+    return session;\n+  }\n+\n+  async put(session: Session): Promise<void> {\n+    this.sessions.set(session.id, session);\n+  }\n+\n+  async touch(id: string, now = Date.now()): Promise<Session> {\n+    const session = await this.get(id);\n+    const touched = { ...session, lastSeenAt: now };\n+    await this.put(touched);\n+    return touched;\n+  }\n+\n+  async delete(id: string): Promise<boolean> {\n+    return this.sessions.delete(id);\n+  }\n+}\n"
+    },
+    {
+      "sha": "d4a239e1b3a9f94e82f461c9e6c78909f9865b26",
+      "filename": "src/config/review_defaults.json",
+      "status": "added",
+      "additions": 5,
+      "deletions": 0,
+      "changes": 5,
+      "blob_url": "https://github.com/acme/session-kit/blob/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/src/config/review_defaults.json",
+      "raw_url": "https://github.com/acme/session-kit/raw/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/src/config/review_defaults.json",
+      "contents_url": "https://api.github.com/repos/acme/session-kit/contents/src/config/review_defaults.json?ref=8eec7c430ce15d3ba0d1836c9a7d03e36c533de0",
+      "patch": "diff --git a/src/config/review_defaults.json b/src/config/review_defaults.json\n--- /dev/null\n+++ b/src/config/review_defaults.json\n@@ -0,0 +1,5 @@\n+{\n+  \"sessionTtlSeconds\": 3600,\n+  \"touchIntervalSeconds\": 300,\n+  \"store\": \"memory\"\n+}\n"
+    },
+    {
+      "sha": "e9f8dfaec9ba60042f21f4ea9588a30fe5d9315f",
+      "filename": "tests/session_store.test.ts",
+      "status": "added",
+      "additions": 23,
+      "deletions": 0,
+      "changes": 23,
+      "blob_url": "https://github.com/acme/session-kit/blob/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/tests/session_store.test.ts",
+      "raw_url": "https://github.com/acme/session-kit/raw/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/tests/session_store.test.ts",
+      "contents_url": "https://api.github.com/repos/acme/session-kit/contents/tests/session_store.test.ts?ref=8eec7c430ce15d3ba0d1836c9a7d03e36c533de0",
+      "patch": "diff --git a/tests/session_store.test.ts b/tests/session_store.test.ts\n--- /dev/null\n+++ b/tests/session_store.test.ts\n@@ -0,0 +1,23 @@\n+import { describe, expect, test } from 'vitest';\n+import { MemorySessionStore } from '../src/domain/memory_session_store';\n+import { SessionNotFound } from '../src/domain/session';\n+\n+describe('MemorySessionStore', () => {\n+  test('put then get returns the session', async () => {\n+    const store = new MemorySessionStore();\n+    const session = { id: 's1', userId: 'u1', createdAt: 0, expiresAt: 60, lastSeenAt: 0 };\n+    await store.put(session);\n+    expect(await store.get('s1')).toEqual(session);\n+  });\n+\n+  test('missing session rejects with SessionNotFound', async () => {\n+    const store = new MemorySessionStore();\n+    await expect(store.get('nope')).rejects.toBeInstanceOf(SessionNotFound);\n+  });\n+\n+  test('touch updates lastSeenAt', async () => {\n+    const store = new MemorySessionStore();\n+    await store.put({ id: 's2', userId: 'u1', createdAt: 0, expiresAt: 60, lastSeenAt: 0 });\n+    expect((await store.touch('s2', 120)).lastSeenAt).toBe(120);\n+  });\n+});\n"
+    },
+    {
+      "sha": "652dc65f3c2189b4a3f0ea05540d36376e0b2ba2",
+      "filename": "src/generated/session_schema.ts",
+      "status": "added",
+      "additions": 12,
+      "deletions": 0,
+      "changes": 12,
+      "blob_url": "https://github.com/acme/session-kit/blob/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/src/generated/session_schema.ts",
+      "raw_url": "https://github.com/acme/session-kit/raw/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/src/generated/session_schema.ts",
+      "contents_url": "https://api.github.com/repos/acme/session-kit/contents/src/generated/session_schema.ts?ref=8eec7c430ce15d3ba0d1836c9a7d03e36c533de0"
+    },
+    {
+      "sha": "a236adc876c70f358675107e46609d5889849267",
+      "filename": "package-lock.json",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 3,
+      "changes": 13,
+      "blob_url": "https://github.com/acme/session-kit/blob/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/package-lock.json",
+      "raw_url": "https://github.com/acme/session-kit/raw/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/package-lock.json",
+      "contents_url": "https://api.github.com/repos/acme/session-kit/contents/package-lock.json?ref=8eec7c430ce15d3ba0d1836c9a7d03e36c533de0"
+    },
+    {
+      "sha": "f0ae30bf18a00a219010b7d669437943552fefc9",
+      "filename": "tools/review-smoke.md",
+      "status": "added",
+      "additions": 7,
+      "deletions": 0,
+      "changes": 7,
+      "blob_url": "https://github.com/acme/session-kit/blob/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/tools/review-smoke.md",
+      "raw_url": "https://github.com/acme/session-kit/raw/8eec7c430ce15d3ba0d1836c9a7d03e36c533de0/tools/review-smoke.md",
+      "contents_url": "https://api.github.com/repos/acme/session-kit/contents/tools/review-smoke.md?ref=8eec7c430ce15d3ba0d1836c9a7d03e36c533de0",
+      "patch": "diff --git a/tools/review-smoke.md b/tools/review-smoke.md\n--- /dev/null\n+++ b/tools/review-smoke.md\n@@ -0,0 +1,7 @@\n+# Session store smoke test\n+\n+Operator steps after touching `src/domain/session*`:\n+\n+1. `npm ci && npm run build`\n+2. `node tools/smoke.js --store memory`\n+3. Expect `smoke: ok`; a `SessionNotFound` for a live session id means the store contract regressed.\n"
+    }
+  ]
+]

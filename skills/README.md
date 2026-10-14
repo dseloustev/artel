@@ -20,8 +20,11 @@ pull requests on GitHub. `move-to-worktree` and `return-from-worktree` are worke
 move a ticket's work into its own git worktree and back, through `scripts/worktree.py`
 ([docs/worktrees.md](../docs/worktrees.md)).
 
-Three of them are not pipeline stages: `using-artel` is the session router the `using_artel`
+Four of them are not pipeline stages: `using-artel` is the session router the `using_artel`
 hook injects at turn one (a routing table over every other skill —
-`tests/test_using_artel_docs.py` keeps it complete both ways), and `knowledge` / `tasks` are the
+`tests/test_using_artel_docs.py` keeps it complete both ways), `knowledge` / `tasks` are the
 conversational front doors to kartoteka's read and write sides, under the same
-`knowledge.adapter` gate the pipeline uses.
+`knowledge.adapter` gate the pipeline uses, and `collaborative-review` walks a GitHub pull
+request one changed file at a time — a standalone, read-only utility that dispatches the
+`collaborative-reviewer` agent for every analysis pass and keeps its approval checklist under
+`.artel/run/collaborative-review/`.

@@ -1,0 +1,21 @@
+{
+  "url": "https://github.com/acme/session-kit/pull/42",
+  "title": "Add an in-memory session store on top of the session contract",
+  "body": "Stacked on `feature/session-core` (#41); head branch is on the fork `mira-fork/session-kit`.\n\nAdds an in-memory `SessionStore`, the review defaults, tests, and a generated schema; moves the store re-export into `src/domain/` and deletes the old reviewer helper that used the nullable contract.",
+  "baseRefOid": "5a99a4451b6d41e633b8cb9bcc33bd1678a58caf",
+  "headRefOid": "8eec7c430ce15d3ba0d1836c9a7d03e36c533de0",
+  "changedFiles": 12,
+  "headRepository": {
+    "id": "R_kgDOL8xYzA",
+    "name": "session-kit",
+    "nameWithOwner": "mira-fork/session-kit",
+    "owner": {
+      "login": "mira-fork"
+    },
+    "isFork": true
+  },
+  "headRepositoryOwner": {
+    "login": "mira-fork",
+    "type": "User"
+  }
+}

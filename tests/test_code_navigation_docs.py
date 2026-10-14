@@ -28,8 +28,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CONTRACT = 'docs/code-navigation.md'
 
-# Every body that navigates the host codebase. The five that already reached for
-# an index and re-pointed here, then the five wired up alongside this contract.
+# Every body that navigates the host codebase, or hands the contract's rules to the
+# worker that does: the agents and skills that reached for an index before this
+# contract, and the ones wired up alongside it.
 CITING_AGENTS = (
     'agents/analyst.md',
     'agents/researcher.md',
@@ -37,6 +38,7 @@ CITING_AGENTS = (
     'agents/implementer.md',
     'agents/figma-analyst.md',
     'agents/reviewer.md',
+    'agents/collaborative-reviewer.md',
     'agents/tech-writer.md',
     'agents/vision-writer.md',
     'agents/issue-scout.md',
@@ -44,6 +46,7 @@ CITING_AGENTS = (
 CITING_SKILLS = (
     'skills/agents-md-generator/SKILL.md',
     'skills/merge-conflicts/SKILL.md',
+    'skills/collaborative-review/SKILL.md',
 )
 CITING = CITING_AGENTS + CITING_SKILLS
 

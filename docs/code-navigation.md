@@ -4,10 +4,11 @@ How artel agents and skills find code: which tool answers a question about the
 host codebase, and what to do when the fast one is not there.
 
 Referenced by `agents/analyst.md`, `agents/researcher.md`, `agents/planner.md`,
-`agents/implementer.md`, `agents/reviewer.md`, `agents/tech-writer.md`,
-`agents/vision-writer.md`, `agents/figma-analyst.md`, `agents/issue-scout.md`,
-`skills/agents-md-generator/SKILL.md` and `skills/merge-conflicts/SKILL.md`.
-Spelled here once because all eleven need the identical rules, and §3 and §5 are
+`agents/implementer.md`, `agents/reviewer.md`, `agents/collaborative-reviewer.md`,
+`agents/tech-writer.md`, `agents/vision-writer.md`, `agents/figma-analyst.md`,
+`agents/issue-scout.md`, `skills/agents-md-generator/SKILL.md`,
+`skills/merge-conflicts/SKILL.md` and `skills/collaborative-review/SKILL.md`.
+Spelled here once because all thirteen need the identical rules, and §3 and §5 are
 ones where two copies drifting apart is wrong rather than untidy.
 
 **This is the query side.** Refreshing an index after implementation is a

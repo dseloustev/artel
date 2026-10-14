@@ -353,7 +353,8 @@ class TestModelTransforms(BuildBase):
                             ('skills/run-reviewer/SKILL.md', '`--model <sonnet|opus|fable>`'),
                             ('skills/feature-development/tail.md', '--model fable'),
                             ('skills/deep-review/SKILL.md', '- `model`: `"fable"`'),
-                            ('skills/pr-description/SKILL.md', '- `model`: none')):
+                            ('skills/pr-description/SKILL.md', '- `model`: none'),
+                            ('skills/collaborative-review/SKILL.md', 'frontmatter `opus`')):
             self.assertIn(phrase, (ROOT / rel).read_text(encoding='utf-8'), rel)
 
     def test_the_glossary_states_the_model_rule(self):
@@ -449,6 +450,35 @@ class TestModelTransforms(BuildBase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn('transform source absent', proc.stderr)
         self.assertIn('implementer/SKILL.md', proc.stderr)
+
+
+class TestCollaborativeReviewBuild(BuildBase):
+    """The interactive PR review ships as a skill plus its dedicated worker, and the worker's
+    model is resolved through the generic `agents.<name>` site — no new fixed vocabulary."""
+
+    SKILL = 'artel-collaborative-review'
+    AGENT = 'artel-collaborative-reviewer'
+
+    def test_collaborative_review_skill_and_agent_are_emitted(self):
+        skill = self.out / 'skills' / self.SKILL / 'SKILL.md'
+        agent = self.out / 'agents' / (self.AGENT + '.md')
+        self.assertTrue(skill.is_file(), 'missing ' + str(skill))
+        self.assertTrue(agent.is_file(), 'missing ' + str(agent))
+        head = skill.read_text(encoding='utf-8').split('---')[1]
+        self.assertIn('description: "', head)
+        agent_head = agent.read_text(encoding='utf-8').split('---')[1]
+        self.assertIn('mode: subagent', agent_head)
+        self.assertNotIn('model:', agent_head,
+                         self.AGENT + ' keeps a Claude model tier')
+
+    def test_collaborative_review_resolves_its_generic_agent_site(self):
+        skill = self.out / 'skills' / self.SKILL / 'SKILL.md'
+        self.assertTrue(skill.is_file(), 'missing ' + str(skill))
+        text = ' '.join(skill.read_text(encoding='utf-8').split())
+        self.assertIn(str(self.root.resolve()) + '/scripts/models.py resolve --site '
+                      'agents.collaborative-reviewer', text)
+        self.assertNotIn('frontmatter `opus`', text,
+                         self.SKILL + ' kept the Claude dialect model passage')
 
 
 class TestGlossary(BuildBase):

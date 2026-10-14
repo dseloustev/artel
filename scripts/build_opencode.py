@@ -392,6 +392,16 @@ given, else the resolved `reviewer.plan`, left out when neither, description `"R
   (`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/models.py resolve --site pr-description`) and set it
   when non-null — `null` leaves no model, so the child inherits the caller's model; a dispatch
   refused for its model is re-dispatched once without one"""),
+
+    ('collaborative-review', 'SKILL.md', """\
+The dispatch carries no `model`: the agent runs on its frontmatter `opus`
+(`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`); this session's provider/model choices are
+never embedded.""", """\
+The dispatch resolves its model from the host config before every call: resolve the site
+`agents.collaborative-reviewer` with
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/models.py resolve --site agents.collaborative-reviewer`
+and set it on the `subagent` call when non-null; a `null` model passes no `model`, and a
+resolver exit `2` (e.g. `invalid_config`) is reported and stops the run — it is not an inherit."""),
 ]
 
 

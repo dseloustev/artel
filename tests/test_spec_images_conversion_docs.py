@@ -17,11 +17,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'hooks'))
 import kartoteka_http as kh  # noqa: E402
 
-# The spec-trail agents: `issue-scout` reads no spec document and writes none, and the
-# `seat`'s store contract lives in its procedure, `tail.md`, not in an agent section
+# The spec-trail agents: `issue-scout` reads no spec document and writes none, the
+# `seat`'s store contract lives in its procedure, `tail.md`, not in an agent section,
+# and `collaborative-reviewer` is the standalone GitHub utility's worker
 # (tests/test_spec_store_conversion_docs.py, OUTSIDE_TRAIL).
 AGENTS = sorted(p.stem for p in (ROOT / 'agents').glob('*.md')
-                if p.name != 'README.md' and p.stem != 'issue-scout' and p.stem != 'seat')
+                if p.name != 'README.md' and p.stem != 'issue-scout' and p.stem != 'seat'
+                and p.stem != 'collaborative-reviewer')
 
 STOCK = ('Evidence text (`review/findings.json`, `verify/`, `runtime/*.md`) and `.active_ticket` '
          'stay files on both paths. On the kartoteka path, images under the trail (`design/`, '

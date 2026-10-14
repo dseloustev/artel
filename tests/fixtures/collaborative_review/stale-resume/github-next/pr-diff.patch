@@ -1,0 +1,129 @@
+diff --git a/src/domain/session.ts b/src/domain/session.ts
+--- a/src/domain/session.ts
++++ b/src/domain/session.ts
+@@ -1,12 +1,20 @@
++export class SessionNotFound extends Error {
++  constructor(readonly id: string) {
++    super('session ' + id + ' not found');
++  }
++}
++
+ export interface Session {
+   readonly id: string;
+   readonly userId: string;
+   readonly createdAt: number;
+   readonly expiresAt: number;
++  readonly lastSeenAt: number;
+ }
+ 
+ export interface SessionStore {
+-  get(id: string): Promise<Session | null>;
++  get(id: string): Promise<Session>;
+   put(session: Session): Promise<void>;
++  touch(id: string, now?: number): Promise<Session>;
+   delete(id: string): Promise<boolean>;
+ }
+diff --git a/src/config/review_defaults.json b/src/config/review_defaults.json
+--- /dev/null
++++ b/src/config/review_defaults.json
+@@ -0,0 +1,5 @@
++{
++  "sessionTtlSeconds": 3600,
++  "touchIntervalSeconds": 300,
++  "store": "memory"
++}
+diff --git a/src/domain/memory_session_store.ts b/src/domain/memory_session_store.ts
+--- /dev/null
++++ b/src/domain/memory_session_store.ts
+@@ -0,0 +1,28 @@
++import { Session, SessionNotFound, SessionStore } from './session';
++
++export class MemorySessionStore implements SessionStore {
++  private readonly sessions = new Map<string, Session>();
++
++  async get(id: string): Promise<Session> {
++    const session = this.sessions.get(id);
++    if (!session) {
++      throw new SessionNotFound(id);
++    }
++    return session;
++  }
++
++  async put(session: Session): Promise<void> {
++    this.sessions.set(session.id, session);
++  }
++
++  async touch(id: string, now = Date.now()): Promise<Session> {
++    const session = await this.get(id);
++    const touched = { ...session, lastSeenAt: now };
++    await this.put(touched);
++    return touched;
++  }
++
++  async delete(id: string): Promise<boolean> {
++    return this.sessions.delete(id);
++  }
++}
+diff --git a/tests/session_store.test.ts b/tests/session_store.test.ts
+--- /dev/null
++++ b/tests/session_store.test.ts
+@@ -0,0 +1,23 @@
++import { describe, expect, test } from 'vitest';
++import { MemorySessionStore } from '../src/domain/memory_session_store';
++import { SessionNotFound } from '../src/domain/session';
++
++describe('MemorySessionStore', () => {
++  test('put then get returns the session', async () => {
++    const store = new MemorySessionStore();
++    const session = { id: 's1', userId: 'u1', createdAt: 0, expiresAt: 60, lastSeenAt: 0 };
++    await store.put(session);
++    expect(await store.get('s1')).toEqual(session);
++  });
++
++  test('missing session rejects with SessionNotFound', async () => {
++    const store = new MemorySessionStore();
++    await expect(store.get('nope')).rejects.toBeInstanceOf(SessionNotFound);
++  });
++
++  test('touch updates lastSeenAt', async () => {
++    const store = new MemorySessionStore();
++    await store.put({ id: 's2', userId: 'u1', createdAt: 0, expiresAt: 60, lastSeenAt: 0 });
++    expect((await store.touch('s2', 120)).lastSeenAt).toBe(120);
++  });
++});
+diff --git a/docs/review-notes.md b/docs/review-notes.md
+--- a/docs/review-notes.md
++++ b/docs/review-notes.md
+@@ -1,3 +1,7 @@
+ # Review notes
+ 
+ Working notes for the session-kit review. Keep prose only; operational steps live in `tools/`.
++
++- The memory store keeps sessions until process exit; persistence is out of scope for this PR.
++- The contract change makes a missing session an error instead of a `null` return.
++- Follow-up: a file-backed store is starting in `src/domain/file_session_store.ts`.
+diff --git a/src/domain/file_session_store.ts b/src/domain/file_session_store.ts
+--- /dev/null
++++ b/src/domain/file_session_store.ts
+@@ -0,0 +1,21 @@
++import { Session, SessionNotFound, SessionStore } from './session';
++
++export class FileSessionStore implements SessionStore {
++  constructor(private readonly directory: string) {}
++
++  async get(id: string): Promise<Session> {
++    throw new SessionNotFound(id);
++  }
++
++  async put(session: Session): Promise<void> {
++    throw new Error('file store is not implemented yet: ' + session.id);
++  }
++
++  async touch(id: string, now = Date.now()): Promise<Session> {
++    throw new Error('file store is not implemented yet: ' + id + ' at ' + now);
++  }
++
++  async delete(id: string): Promise<boolean> {
++    return false;
++  }
++}

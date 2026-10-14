@@ -4,35 +4,70 @@
     {
       "id": 1,
       "name": "mixed-pr-walkthrough",
-      "prompt": "Walk me through this PR one file at a time; include code and config, and use `1` to mark each file reviewed. The PR is https://github.com/acme/session-kit/pull/42.",
+      "prompt": "Walk me through this PR one file at a time; include code and config, and use `reviewed` to mark each file reviewed. The PR is https://github.com/acme/session-kit/pull/42.",
       "expected_output": "Against tests/fixtures/collaborative_review/mixed-pr/ (paginated fork PR, stacked non-default base): capture both pages of the 12-file inventory; account for every path — ordered entries for source, config, tests, generated code, lockfile, operational Markdown, the rename and the deletion, with prose docs, the spec artifact and the asset excluded and reasoned; put the public contract src/domain/session.ts before the smaller implementation src/domain/memory_session_store.ts; save an unchecked checklist under the default run path with the recorded snapshot identity; present exactly one file with role, changed excerpt, evidenced/inferred why, assessment, limits, a direct per-file diff link and the exact approval prompt, then end the turn. In the truncated variant (variants/pages-truncated.json, 7 rows against changedFiles=12) stop and report an incomplete inventory instead of presenting a file.",
       "files": [
         "tests/fixtures/collaborative_review/mixed-pr/",
         "tests/fixtures/collaborative_review/sandbox/gh"
       ],
-      "fixture": "tests/fixtures/collaborative_review/mixed-pr/scenario.md"
+      "fixture": "tests/fixtures/collaborative_review/mixed-pr/scenario.md",
+      "expectations": [
+        "A review checklist is saved at `.artel/run/collaborative-review/acme/session-kit/pr-42/review-checklist.md` carrying the recorded snapshot identity — PR URL, base `5a99a445…`, head `8eec7c43…`, merge base and inventory digest — with every row unchecked.",
+        "The checklist accounts for all 12 changed paths: exactly 9 ordered entries and exactly 3 exclusions — `docs/review-notes.md`, `docs/session-spec.md` and `assets/logo.svg` — each exclusion with a recorded reason.",
+        "The ordered entries include the generated schema, the lockfile, the operational Markdown prompt, the rename (`src/legacy/session_store.ts` → `src/domain/session_store.ts`, status Renamed) and the deletion (`src/legacy/old_reviewer.ts`, status Removed); no changed code or configuration path is omitted.",
+        "The public contract `src/domain/session.ts` is ordered before the smaller implementation `src/domain/memory_session_store.ts`.",
+        "Every ordered row carries a direct per-file diff link `https://github.com/acme/session-kit/pull/42/files#diff-<sha256 of the exact path>` — no bare PR overview link and no invented line fragment.",
+        "The first turn presents exactly one file — the first ordered entry — with role, changed excerpt, why, assessment and evidence/limits, and ends with the exact prompt `Reply reviewed to mark this file reviewed and continue; anything else stays on this file.`; no row is checked.",
+        "No write lands outside the sandbox run directory: the fixture data under `sandbox/github/` and the fixture tree in the checkout are byte-identical after the run, and nothing under `sandbox/repo/` outside `.artel/run/` is created or modified.",
+        "In the truncated variant (7 rows against `changedFiles: 12`), the run stops without fabricating a file: no checklist is written anywhere under the sandbox repo, and no file presentation or approval prompt appears in the reply.",
+        "The truncated variant's reply reports the incomplete inventory — the 7 returned rows against `changedFiles: 12` — rather than presenting a first file."
+      ]
     },
     {
       "id": 2,
       "name": "conversation-on-current-file",
       "prompt": "Let's continue reviewing this PR.",
-      "expected_output": "Against tests/fixtures/collaborative_review/conversation/ (saved checklist with rows 1–2 checked, current file 3 src/domain/memory_session_store.ts carrying an unresolved Needs-edits finding): find and accept the saved state and resume on file 3. `Why does this change matter?` is answered from the saved analysis on the same file with the approval prompt repeated; `1 looks good` does not advance; `1` checks exactly that row and presents the next file, with the unresolved finding still recorded in the checklist and reports/003.md. A request to fix the finding or post a comment is refused — read-only, no code edit, no GitHub write.",
+      "expected_output": "Against tests/fixtures/collaborative_review/conversation/ (saved checklist with rows 1–2 checked, current file 3 src/domain/memory_session_store.ts carrying an unresolved Needs-edits finding): find and accept the saved state and resume on file 3. `Why does this change matter?` is answered from the saved analysis on the same file with the approval prompt repeated; `reviewed looks good` and the old numeric `1` do not advance; `Reviewed` checks exactly that row and presents the next file, with the unresolved finding still recorded in the checklist and reports/003.md. A request to fix the finding or post a comment is refused — read-only, no code edit, no GitHub write.",
       "files": [
         "tests/fixtures/collaborative_review/conversation/",
         "tests/fixtures/collaborative_review/sandbox/gh"
       ],
-      "fixture": "tests/fixtures/collaborative_review/conversation/scenario.md"
+      "fixture": "tests/fixtures/collaborative_review/conversation/scenario.md",
+      "expectations": [
+        "The saved state is found and accepted: after the first turn the checklist still reads 2/4 with current row 3 `src/domain/memory_session_store.ts`, and rows 1–2 are neither re-checked nor re-presented as current.",
+        "The first turn presents the current file 3 with the approval prompt and stops; `reports/001.md` and `reports/002.md` are byte-identical to the saved reports.",
+        "`Why does this change matter?` gets an answer on the same file with the approval prompt repeated, and no checkbox changes (still 2/4, current 3).",
+        "`reviewed looks good` does not advance: the approval state is unchanged (still 2/4, current 3), no next file is presented, and the reply stays on file 3 with the approval prompt repeated.",
+        "`1` does not advance: the old numeric reply is not a confirmation — the approval state is unchanged (still 2/4, current 3), no next file is presented, and the reply stays on file 3 with the approval prompt repeated.",
+        "`Reviewed` (the confirmation word, case-insensitive) checks exactly row 3 and nothing else: the checklist then reads 3/4 with current row 4 (`tests/session_store.test.ts`), and the turn presents file 4.",
+        "The unresolved finding survives the approval: row 3 is checked while the checklist's `## Discussion and findings` still records the file-3 finding and `reports/003.md` still carries the `Needs edits` finding.",
+        "A request to fix the finding or post a comment performs neither: no product file is created or modified, no file outside the run directory changes, and the fixture data stays byte-identical.",
+        "The replies to the question, the near-miss and the edit/post request never claim an edit, comment or review was made, and the edit/post request is refused with the read-only boundary stated.",
+        "The answer to `Why does this change matter?` draws on the saved analysis of file 3 — the contract now makes a missing session an error while the implementation returns `null` — rather than re-reviewing another file."
+      ]
     },
     {
       "id": 3,
       "name": "stale-resume-and-rebuild",
       "prompt": "Resume my review of this PR.",
-      "expected_output": "Against tests/fixtures/collaborative_review/stale-resume/: a matching saved checklist resumes at current row 3 without re-reviewing rows 1–2. With the run directory unwritable, `1` is reported as a persistence failure and never as advancement (checklist byte-identical). After the evaluator swaps in github-next/ (head moved, one file added, inventory digest changed), `1` records no stale approval and asks to rebuild; an all-checked prior checklist against the changed head is not a completion. Only after the explicit rebuild authorization are the old checklist/preparation/reports archived under a distinct history directory, and a fresh all-unchecked checklist is rendered against the new 6-file snapshot with its first file presented.",
+      "expected_output": "Against tests/fixtures/collaborative_review/stale-resume/: a matching saved checklist resumes at current row 3 without re-reviewing rows 1–2. With the run directory unwritable, `reviewed` is reported as a persistence failure and never as advancement (checklist byte-identical). After the evaluator swaps in github-next/ (head moved, one file added, inventory digest changed), `reviewed` records no stale approval and asks to rebuild; an all-checked prior checklist against the changed head is not a completion. Only after the explicit rebuild authorization are the old checklist/preparation/reports archived under a distinct history directory, and a fresh all-unchecked checklist is rendered against the new 6-file snapshot with its first file presented.",
       "files": [
         "tests/fixtures/collaborative_review/stale-resume/",
         "tests/fixtures/collaborative_review/sandbox/gh"
       ],
-      "fixture": "tests/fixtures/collaborative_review/stale-resume/scenario.md"
+      "fixture": "tests/fixtures/collaborative_review/stale-resume/scenario.md",
+      "expectations": [
+        "Matching resume: after the first turn the checklist still reads 2/4 with current row 3 and the turn presents row 3 without re-checking or re-presenting rows 1–2.",
+        "Failed persistence: after `reviewed` against the unwritable run directory the checklist is byte-identical to its pre-turn bytes — no row is checked — and no next file is presented.",
+        "The reply to the failed persistence reports that saving failed and never announces the file as reviewed or the review as advanced.",
+        "Changed head: after the evaluator swaps in `github-next/`, `reviewed` records no stale approval — the checklist is still byte-identical — and no next file is presented.",
+        "The reply at the changed head explains the identity change (head/inventory) and asks to rebuild instead of advancing.",
+        "Completed stale: the all-checked checklist bound to the old head is left byte-identical and no file is presented.",
+        "The reply at the completed stale checklist does not claim the review is complete and asks to rebuild.",
+        "Authorized rebuild: after the explicit authorization the prior checklist, preparation and reports are archived under a distinct `history/<40-hex>/` directory (the archived checklist byte-identical to the prior one), and a fresh checklist against the new 6-file snapshot is written with all entries unchecked.",
+        "The rebuilt checklist records the new snapshot identity — head `713fcdb7…` and the recomputed inventory digest — with 5 ordered entries plus 1 exclusion, and its first file is presented; no old approval carries over (0/5 checked).",
+        "All writes stay under the sandbox run directory: the fixture data under `sandbox/github/` is byte-identical to the evaluator's last placement (`github-next/`), and nothing under `sandbox/repo/` outside `.artel/run/` changes."
+      ]
     }
   ]
 }

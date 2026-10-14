@@ -14,9 +14,10 @@ All notable changes to this project are documented here. The format follows
   repository for forks) — orders the files with contracts before implementations, and walks the
   person through them: one file per turn with its role, changed excerpt, why, assessment and
   direct diff link, and a Markdown checklist under `.artel/run/collaborative-review/` as the
-  sole approval ledger. Only the exact reply `1` advances; comments stay on the file; a changed
-  base/head/inventory blocks until an explicit rebuild archives the old checklist under
-  `history/` and reopens it unchecked; nothing is ever posted to GitHub. All code analysis is
+  sole approval ledger. Only a reply whose trimmed, case-folded text is exactly `reviewed`
+  advances; comments stay on the file; a changed base/head/inventory blocks until an explicit
+  rebuild archives the old checklist under `history/` and reopens it unchecked; nothing is
+  ever posted to GitHub. All code analysis is
   dispatched to the new read-only `collaborative-reviewer` agent (`prepare` / `file` /
   `followup`), which runs on its frontmatter `opus`; OpenCode resolves the generic
   `agents.collaborative-reviewer` site, so no new model vocabulary is added.

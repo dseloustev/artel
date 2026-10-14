@@ -1337,3 +1337,19 @@ move to the decision log.
   `docs/superpowers/specs/2026-10-14-collaborative-review-design.md` (local). Locked in by
   `tests/test_collaborative_review.py` (snapshot/checklist helpers) and
   `tests/test_build_opencode.py` (`TestCollaborativeReviewBuild`).
+  *(Superseded 2026-10-14: the numeric confirmation was replaced by the word `reviewed` before
+  release — see the entry below.)*
+- **2026-10-14 — The collaborative review advances on the word `reviewed`, not a numeric reply.**
+  The user approved replacing the numeric confirmation before the feature shipped: a lone `1` is
+  easy to type by accident and says nothing about what the person is confirming, while the
+  standalone word `reviewed` states the acknowledgment it records. A reply advances only when
+  `response.strip().casefold()` equals `reviewed` — `reviewed`, `Reviewed`, `REVIEWED` and
+  surrounding whitespace all count; the old `1`, `approved`, `OK`, `reviewed looks good`,
+  `reviewed, but…` and `reviewed.` stay on the current file. The canonical prompt is
+  `Reply reviewed to mark this file reviewed and continue; anything else stays on this file.`,
+  and the keyword stays fixed — no aliases, no configuration. A confirmation still checks only
+  the current first unchecked row, after an atomic successful save against the matching PR
+  snapshot; it acknowledges the review, not resolved findings, and never approves the PR on
+  GitHub. CLI grammar, row IDs, ledger schema, snapshot identity and existing approved rows are
+  unchanged. Spec amendment: the local design spec's approved-amendment section (2026-10-14).
+  Locked in by `tests/test_collaborative_review.py`.

@@ -638,8 +638,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `snapshot.json`, `preparation.json`, `reports/<NNN>.md`, the `review-checklist.md` ledger, and
   a `history/` archive on an approved rebuild. Never the checkout, the branch, the spec trail or
   GitHub.
-- **Pauses:** every turn — one file per message; only the exact reply `1` advances; a changed
-  base/head/inventory blocks until the person explicitly confirms a rebuild.
+- **Pauses:** every turn — one file per message; only a reply whose trimmed, case-folded text
+  is exactly `reviewed` advances; a changed base/head/inventory blocks until the person
+  explicitly confirms a rebuild.
 - **Notes:** standalone GitHub utility, read-only on GitHub, no ticket, queue or spec-store
   context. Orchestrator: all code analysis goes to the read-only `collaborative-reviewer` agent
   (`prepare` orders the complete partition, `file` assesses the current file, `followup` answers

@@ -24,7 +24,7 @@ output path are given; otherwise refuse.
 
 You never own checklist state: never check, uncheck or reorder a row, never claim a file is
 approved, never write the checklist. A report records analysis, not approval — the person alone
-advances a file, with the exact message `1`, and only the orchestrator writes that.
+advances a file, with the exact message `reviewed`, and only the orchestrator writes that.
 
 ## The snapshot
 

@@ -36,7 +36,11 @@ headRepository,headRepositoryOwner`, `pages.json` for `gh api --method GET --pag
 'repos/<owner>/<repo>/pulls/<n>/files' -F per_page=100`, `compare.json` for the compare API
 whose `merge_base_commit.sha` is the real merge base, `pr-diff.patch` for `gh pr diff`, and
 `contents/{base,head}/<path>` for full file contents at the merge base and the head. Blob SHAs
-in `pages.json` are real git blob hashes of those contents.
+in `pages.json` are real git blob hashes of those contents. `headRepository` follows `gh`'s
+GraphQL shape — a node-id string, `name`, `nameWithOwner`, `owner.login` and `isFork` — so the
+pinned capture resolves the fork head repository (`headRepository.nameWithOwner`) exactly as it
+would against live `gh` output; the REST-only names (`full_name`, `fork`, `default_branch`) are
+never used.
 
 ## Sandbox recipe (no live GitHub calls)
 

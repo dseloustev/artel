@@ -31,7 +31,7 @@ Expect: the saved checklist is found and accepted as current; the run resumes at
 re-presenting or re-analyzing rows 1–2; the current file is presented (or re-presented from
 `reports/003.md`) and the turn ends.
 
-**B — failed persistence.** Make the run directory unwritable, then send `1`:
+**B — failed persistence.** Make the run directory unwritable, then send `reviewed`:
 
 ```bash
 chmod a-w "$RUN"
@@ -41,7 +41,7 @@ Expect: the approval is **not** announced and the checklist is byte-identical �
 save is reported honestly and the run stays on row 3. Restore with `chmod u+w "$RUN"` before the
 next stage.
 
-**C — changed head.** Replace the active GitHub data and send `1`:
+**C — changed head.** Replace the active GitHub data and send `reviewed`:
 
 ```bash
 rm -rf "$SANDBOX/github"

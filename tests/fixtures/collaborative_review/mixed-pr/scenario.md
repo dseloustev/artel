@@ -24,11 +24,11 @@ No saved state: the agent captures the PR itself. The fixture's `github/` data i
 
 ## Prompt
 
-> Walk me through this PR one file at a time; include code and config, and use `1` to mark each
-> file reviewed. The PR is https://github.com/acme/session-kit/pull/42.
+> Walk me through this PR one file at a time; include code and config, and use `reviewed` to
+> mark each file reviewed. The PR is https://github.com/acme/session-kit/pull/42.
 
-(The Task 4 wording is verbatim; the URL is appended because the offline sandbox has no GitHub
-remote and no branch to resolve "this PR" from.)
+(The wording is verbatim; the URL is appended because the offline sandbox has no GitHub remote
+and no branch to resolve "this PR" from.)
 
 ## Expected observations
 

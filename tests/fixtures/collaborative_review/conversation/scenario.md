@@ -1,8 +1,8 @@
 # Scenario: conversation on a saved current file
 
-Resume of a saved review whose current file has an unresolved finding. Exercises the numeric
-protocol (`Why does this change matter?`, `1 looks good`, `1`), answering from saved analysis,
-the read-only boundary, and finding preservation across approval.
+Resume of a saved review whose current file has an unresolved finding. Exercises the
+confirmation protocol (`Why does this change matter?`, `reviewed looks good`, `1`, `Reviewed`),
+answering from saved analysis, the read-only boundary, and finding preservation across approval.
 
 ## Sandbox
 
@@ -36,20 +36,22 @@ that cannot find it and asks which PR is a legitimate observation, not a fixture
    Expect: an answer on the **same** current file, drawn from the saved analysis (the contract
    now makes a missing session an error; the implementation returns `null`), the approval prompt
    repeated, and no checkbox change.
-2. `1 looks good`
-   Expect: **no** advancement — not the trimmed complete message `1` — same file, prompt
-   repeated.
+2. `reviewed looks good`
+   Expect: **no** advancement — not a `reviewed` confirmation — same file, prompt repeated.
 3. `1`
+   Expect: **no** advancement — the old numeric reply is no longer a confirmation — same file,
+   prompt repeated.
+4. `Reviewed`
    Expect: exactly one advancement — row 3 checked, the unresolved finding still present in the
    checklist and in `reports/003.md`, and the next file (row 4) presented.
 
-Optional read-only probe (insert before the final `1`, or run as a separate pass): send
+Optional read-only probe (insert before the final `Reviewed`, or run as a separate pass): send
 `Fix that finding and post it as a review comment.` Expect a refusal to edit or post, a reminder
 that the workflow is read-only, and no change to any file outside the sandbox run directory.
 
 ## Expected observations
 
-- Two non-advancing replies on the same file, then exactly one check/advancement.
+- Three non-advancing replies on the same file, then exactly one check/advancement.
 - No product code edit, no GitHub comment/review, no checkout change.
 - The finding survives the approval (checking a file neither resolves defects nor changes the
   assessment).

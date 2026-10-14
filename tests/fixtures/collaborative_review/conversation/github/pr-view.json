@@ -6,15 +6,13 @@
   "headRefOid": "83bd3afaed53328b4ac32598acc9589563fc7083",
   "changedFiles": 5,
   "headRepository": {
-    "id": 410075001,
+    "id": "R_kgDOL8xYzB",
     "name": "session-kit",
-    "full_name": "acme/session-kit",
+    "nameWithOwner": "acme/session-kit",
     "owner": {
-      "login": "acme",
-      "type": "User"
+      "login": "acme"
     },
-    "fork": false,
-    "default_branch": "main"
+    "isFork": false
   },
   "headRepositoryOwner": {
     "login": "acme",

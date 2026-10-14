@@ -9,9 +9,10 @@ be refused before it becomes review input.
 
 The inventory becomes a Markdown checklist whose header comment records the snapshot
 identity and whose `## Files` section is the only approval ledger. The first unchecked
-row is the current file; exactly the trimmed message `1`, for the current entry and a
-still-matching snapshot, checks that one row. Every other response, a stale snapshot, a
-duplicate or wrong-ID approval, and a corrupt ledger change nothing.
+row is the current file; only a response whose `.strip().casefold()` equals `reviewed`,
+for the current entry and a still-matching snapshot, checks that one row. Every other
+response -- including the old numeric `1` -- changes nothing; neither do a stale
+snapshot, a duplicate or wrong-ID approval, or a corrupt ledger.
 """
 import contextlib
 import hashlib
@@ -463,7 +464,7 @@ class TestRenderChecklist(unittest.TestCase):
         self.assertEqual(status['snapshot']['inventory_digest'], snapshot['inventory_digest'])
         for entry in snapshot['files']:
             self.assertIn(entry['diff_url'], text)
-        new_text, advanced = collaborative_review.advance_checklist(text, snapshot, 1, '1')
+        new_text, advanced = collaborative_review.advance_checklist(text, snapshot, 1, 'reviewed')
         self.assertTrue(advanced['advanced'])
         self.assertEqual(collaborative_review.checklist_status(new_text)['current'], 2)
 
@@ -483,7 +484,7 @@ class TestRenderChecklist(unittest.TestCase):
                 self.assertEqual(status['checked'], 0)
                 self.assertIsNone(status['current'])
                 with self.assertRaises(collaborative_review.ChecklistError):
-                    collaborative_review.advance_checklist(text, snapshot, 1, '1')
+                    collaborative_review.advance_checklist(text, snapshot, 1, 'reviewed')
 
 
 class TestChecklistAdvance(unittest.TestCase):
@@ -491,8 +492,11 @@ class TestChecklistAdvance(unittest.TestCase):
         self.snapshot = two_file_snapshot()
         self.text = collaborative_review.render_checklist(self.snapshot, two_entry_preparation())
 
-    def test_only_trimmed_one_advances(self):
-        for response in ('yes', 'next', '1 looks good', '"1"', 'why is 1 used?'):
+    def test_only_the_reviewed_word_advances(self):
+        for response in ('yes', 'next', 'reviewed looks good', '"reviewed"',
+                         'why is reviewed used?', '1', 'approved', 'OK',
+                         'reviewed, but the return type is still wrong',
+                         'reviewed.', 'reviewed\nsecond line', ''):
             with self.subTest(response=response):
                 new_text, status = collaborative_review.advance_checklist(
                     self.text, self.snapshot, 1, response)
@@ -500,7 +504,7 @@ class TestChecklistAdvance(unittest.TestCase):
                 self.assertEqual(new_text, self.text)
                 self.assertEqual(status['checked'], 0)
                 self.assertEqual(status['current'], 1)
-        for response in ('1', ' 1\n'):
+        for response in ('reviewed', 'Reviewed', 'REVIEWED', ' reviewed\n', '\tReViewed '):
             with self.subTest(response=response):
                 new_text, status = collaborative_review.advance_checklist(
                     self.text, self.snapshot, 1, response)
@@ -513,17 +517,20 @@ class TestChecklistAdvance(unittest.TestCase):
         for entry in (2, 3):
             with self.subTest(entry=entry):
                 with self.assertRaises(collaborative_review.ChecklistError):
-                    collaborative_review.advance_checklist(self.text, self.snapshot, entry, '1')
-        first, status = collaborative_review.advance_checklist(self.text, self.snapshot, 1, '1')
+                    collaborative_review.advance_checklist(self.text, self.snapshot,
+                                                           entry, 'reviewed')
+        first, status = collaborative_review.advance_checklist(
+            self.text, self.snapshot, 1, 'reviewed')
         self.assertTrue(status['advanced'])
         with self.assertRaises(collaborative_review.ChecklistError):
-            collaborative_review.advance_checklist(first, self.snapshot, 1, '1')
-        second, status = collaborative_review.advance_checklist(first, self.snapshot, 2, '1')
+            collaborative_review.advance_checklist(first, self.snapshot, 1, 'reviewed')
+        second, status = collaborative_review.advance_checklist(
+            first, self.snapshot, 2, 'reviewed')
         self.assertTrue(status['advanced'])
         self.assertEqual(status['checked'], 2)
         self.assertIsNone(status['current'])
         with self.assertRaises(collaborative_review.ChecklistError):
-            collaborative_review.advance_checklist(second, self.snapshot, 2, '1')
+            collaborative_review.advance_checklist(second, self.snapshot, 2, 'reviewed')
 
     def test_any_identity_change_rejects_approval(self):
         changes = {
@@ -538,8 +545,9 @@ class TestChecklistAdvance(unittest.TestCase):
                 fresh = dict(self.snapshot)
                 fresh[component] = value
                 with self.assertRaises(collaborative_review.ChecklistError):
-                    collaborative_review.advance_checklist(self.text, fresh, 1, '1')
-        new_text, status = collaborative_review.advance_checklist(self.text, self.snapshot, 1, '1')
+                    collaborative_review.advance_checklist(self.text, fresh, 1, 'reviewed')
+        new_text, status = collaborative_review.advance_checklist(
+            self.text, self.snapshot, 1, 'reviewed')
         self.assertTrue(status['advanced'])
 
     def test_advance_preserves_notes_and_findings(self):
@@ -548,7 +556,8 @@ class TestChecklistAdvance(unittest.TestCase):
             '\n```text\n- [ ] 8. a fenced sample, not a row\n```\n\n## Excluded', 1)
         text += ('\nA note about `lib/whois/errors.rb`.\n\n'
                  '## Findings\n\n- unresolved: the parser edge case stays open\n')
-        new_text, status = collaborative_review.advance_checklist(text, self.snapshot, 1, '1')
+        new_text, status = collaborative_review.advance_checklist(
+            text, self.snapshot, 1, 'reviewed')
         self.assertTrue(status['advanced'])
         self.assertEqual(new_text, text.replace('- [ ] 1.', '- [x] 1.', 1))
         self.assertEqual(status['total'], 2)
@@ -558,16 +567,18 @@ class TestChecklistAdvance(unittest.TestCase):
         self.assertEqual(collaborative_review.checklist_status(new_text)['total'], 2)
 
     def test_stale_completed_checklist_is_rejected(self):
-        first, status = collaborative_review.advance_checklist(self.text, self.snapshot, 1, '1')
-        completed, status = collaborative_review.advance_checklist(first, self.snapshot, 2, '1')
+        first, status = collaborative_review.advance_checklist(
+            self.text, self.snapshot, 1, 'reviewed')
+        completed, status = collaborative_review.advance_checklist(
+            first, self.snapshot, 2, 'reviewed')
         self.assertEqual(status['checked'], 2)
         self.assertIsNone(status['current'])
         stale = dict(self.snapshot)
         stale['head_sha'] = 'd' * 40
         with self.assertRaises(collaborative_review.ChecklistError):
-            collaborative_review.advance_checklist(completed, stale, 2, '1')
+            collaborative_review.advance_checklist(completed, stale, 2, 'reviewed')
         with self.assertRaises(collaborative_review.ChecklistError):
-            collaborative_review.advance_checklist(completed, self.snapshot, 2, '1')
+            collaborative_review.advance_checklist(completed, self.snapshot, 2, 'reviewed')
         self.assertEqual(completed.count('- [x]'), 2)
 
     def test_corrupt_ledger_is_rejected(self):
@@ -585,7 +596,8 @@ class TestChecklistAdvance(unittest.TestCase):
                 with self.assertRaises(collaborative_review.ChecklistError):
                     collaborative_review.checklist_status(corrupt)
         with self.assertRaises(collaborative_review.ChecklistError):
-            collaborative_review.advance_checklist(cases['duplicate id'], self.snapshot, 1, '1')
+            collaborative_review.advance_checklist(cases['duplicate id'], self.snapshot,
+                                                   1, 'reviewed')
 
 
 class TestChecklistCli(CliCase):
@@ -616,16 +628,18 @@ class TestChecklistCli(CliCase):
         self.assertEqual(data['total'], 2)
         self.assertEqual(data['current'], 1)
         self.assertEqual(data['snapshot']['pr_url'], PR_URL)
-        # a comment leaves the ledger untouched
+        # near-misses leave the ledger untouched: a longer reply and the old numeric `1`
+        for response in ('reviewed looks good', '1'):
+            with self.subTest(response=response):
+                proc = self.cli('advance', '--checklist', str(checklist), '--snapshot',
+                                str(snapshot_path), '--entry', '1', '--response', response)
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                data = json.loads(proc.stdout)['data']
+                self.assertFalse(data['advanced'])
+                self.assertEqual(data['checked'], 0)
+        # the case-folded word reviewed advances exactly one row, persisted on disk
         proc = self.cli('advance', '--checklist', str(checklist), '--snapshot', str(snapshot_path),
-                        '--entry', '1', '--response', '1 looks good')
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        data = json.loads(proc.stdout)['data']
-        self.assertFalse(data['advanced'])
-        self.assertEqual(data['checked'], 0)
-        # the trimmed 1 advances exactly one row, persisted on disk
-        proc = self.cli('advance', '--checklist', str(checklist), '--snapshot', str(snapshot_path),
-                        '--entry', '1', '--response', '1')
+                        '--entry', '1', '--response', 'Reviewed')
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(proc.stdout)['data']
         self.assertTrue(data['advanced'])
@@ -647,7 +661,7 @@ class TestChecklistCli(CliCase):
         proc, checklist, snapshot_path = self.render_files(snapshot)
         original = checklist.read_bytes()
         wrong_entry = self.cli('advance', '--checklist', str(checklist), '--snapshot',
-                               str(snapshot_path), '--entry', '2', '--response', '1')
+                               str(snapshot_path), '--entry', '2', '--response', 'reviewed')
         self.assertEqual(wrong_entry.returncode, 2, wrong_entry.stderr)
         self.assertEqual(json.loads(wrong_entry.stdout)['error']['kind'], 'invalid_data')
         self.assertEqual(checklist.read_bytes(), original)
@@ -655,12 +669,12 @@ class TestChecklistCli(CliCase):
         stale['base_sha'] = 'd' * 40
         stale_path = self.write_json('stale-snapshot.json', stale)
         stale_run = self.cli('advance', '--checklist', str(checklist), '--snapshot',
-                             str(stale_path), '--entry', '1', '--response', '1')
+                             str(stale_path), '--entry', '1', '--response', 'reviewed')
         self.assertEqual(stale_run.returncode, 2, stale_run.stderr)
         self.assertEqual(json.loads(stale_run.stdout)['error']['kind'], 'invalid_data')
         self.assertEqual(checklist.read_bytes(), original)
         bad_entry = self.cli('advance', '--checklist', str(checklist), '--snapshot',
-                             str(snapshot_path), '--entry', 'zero', '--response', '1')
+                             str(snapshot_path), '--entry', 'zero', '--response', 'reviewed')
         self.assertEqual(bad_entry.returncode, 2)
         self.assertEqual(json.loads(bad_entry.stdout)['error']['kind'], 'invalid_argument')
 
@@ -674,7 +688,7 @@ class TestChecklistCli(CliCase):
             with contextlib.redirect_stdout(out):
                 code = collaborative_review.main(['advance', '--checklist', str(checklist),
                                                   '--snapshot', str(snapshot_path),
-                                                  '--entry', '1', '--response', '1'])
+                                                  '--entry', '1', '--response', 'reviewed'])
         self.assertEqual(code, 2)
         envelope = json.loads(out.getvalue())
         self.assertFalse(envelope['ok'])

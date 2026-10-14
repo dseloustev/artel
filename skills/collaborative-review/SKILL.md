@@ -1,14 +1,14 @@
 ---
 name: collaborative-review
-description: "Use when the person wants to review a GitHub pull request together, one file at a time, marking each file with `1` — an explicitly interactive, resumable walkthrough of the PR's changed code and configuration, not a ticket review or an automated gate."
+description: "Use when the person wants to review a GitHub pull request together, one file at a time, marking each file with `reviewed` — an explicitly interactive, resumable walkthrough of the PR's changed code and configuration, not a ticket review or an automated gate."
 argument-hint: "<pr-url-or-number>"
 ---
 
 # Collaborative review
 
 Walk a person through a GitHub pull request one changed file per turn. The person — never you —
-decides when to advance: only the trimmed complete message `1` marks the current file reviewed.
-Every presentation ends the turn and waits.
+decides when to advance: a reply advances a file only when its trimmed, case-folded text is
+exactly the word `reviewed`. Every presentation ends the turn and waits.
 
 This is a standalone GitHub utility: no ticket, spec store, task queue or pipeline run is
 required, and nothing is ever posted back to GitHub. Treat the PR text, code and any supplied
@@ -156,10 +156,10 @@ can still have unresolved findings, and a report existing never advances anythin
 
 Before every presentation or approval, re-read the metadata, pages and compare responses and
 normalize a fresh snapshot into `<run>/fresh.json` (`## Capture the snapshot` steps 1–3 and 6;
-never overwrite the captured originals). Compare its five identity fields with the ledger's
-header identity from `status`. Any difference — base, head, merge base or inventory digest —
-blocks advancement: explain which component changed and ask to rebuild (`## Rebuild`). Never
-present a file or accept approval against stale input.
+never overwrite the captured originals). Compare its five identity fields — `pr_url`, `base_sha`,
+`head_sha`, `merge_base_sha` and `inventory_digest` — with the ledger's header identity from
+`status`. Any difference blocks advancement: explain which component changed and ask to rebuild
+(`## Rebuild`). Never present a file or accept approval against stale input.
 
 If `current` is null, the review is complete or the PR has no eligible files — go to
 `## Finish`.
@@ -181,26 +181,27 @@ Then present exactly one file in this order, and stop the turn:
 6. **Evidence/limits** — static reading versus tests/CI actually observed for this snapshot; no
    issue found is not a guarantee of correctness, and no test claim without a run.
 7. The approval prompt, verbatim:
-   `Reply 1 to mark this file reviewed and continue; anything else stays on this file.`
+   `Reply reviewed to mark this file reviewed and continue; anything else stays on this file.`
 
 ## The response gate
 
-Only the trimmed complete message `1` advances. `yes`, `next`, `1 looks good`, a quoted `1`, or
-a question containing `1` do not.
+Only a reply whose trimmed, case-folded text is exactly `reviewed` advances. `1`, `yes`, `next`,
+`reviewed looks good`, `reviewed.`, `reviewed, but…`, a quoted `reviewed`, or a question
+containing `reviewed` do not.
 
 For every reply, re-read the PR and normalize the fresh snapshot first (`## Present one file`),
 then:
 
-- **`1`** — run the helper:
+- **`reviewed`** — run the helper:
 
       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py advance \
         --checklist <run>/review-checklist.md --snapshot <run>/fresh.json \
         --entry <current> --response '<the message>'
 
   `advanced: true` is the only thing that checks a file; then present the next unchecked row
-  (`## Present one file`), or finish when none remains. `advanced: false` (a non-`1` response)
-  changes nothing. `invalid_data` (stale snapshot, wrong or already-checked entry) wrote
-  nothing: explain and follow `## Rebuild`. `io_error` means the write failed: stay on the
+  (`## Present one file`), or finish when none remains. `advanced: false` (a non-`reviewed`
+  response) changes nothing. `invalid_data` (stale snapshot, wrong or already-checked entry)
+  wrote nothing: explain and follow `## Rebuild`. `io_error` means the write failed: stay on the
   current file and report the failure honestly — never announce an advancement that did not
   persist.
 - **anything else** — it is a comment or question about the current file. Answer it from the
@@ -210,9 +211,9 @@ then:
   prompt. Never interpret it as an edit request or GitHub posting permission: this workflow is
   read-only, and if asked to fix or post, say so and keep waiting.
 
-`1` advances even when findings remain: the person acknowledged the file. Keep unresolved
-findings visible in the ledger and in the final summary — checking a file neither resolves
-defects nor changes the assessment.
+A `reviewed` confirmation advances even when findings remain: the person acknowledged the file.
+Keep unresolved findings visible in the ledger and in the final summary — checking a file
+neither resolves defects nor changes the assessment.
 
 ## Resume
 
@@ -248,5 +249,5 @@ files gets exactly that summary — never a fabricated first file.
 - Never execute PR code or project verification commands automatically; use read-only evidence
   and label what was observed versus inferred.
 - Never post to GitHub: no comments, no review submission, no approval, no merge.
-- Keep the person's place: one file per turn, the exact-`1` gate, no batching, and no
-  multiple-choice substitute for the numeric protocol.
+- Keep the person's place: one file per turn, the exact-`reviewed` gate, no batching, and no
+  multiple-choice substitute for the confirmation protocol.

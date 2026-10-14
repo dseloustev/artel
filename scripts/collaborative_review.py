@@ -29,9 +29,10 @@ its exclusions -- every inventory path must be claimed exactly once -- and write
 the ledger. The header comment records the snapshot identity, and only the
 `## Files` section holds approval rows; row IDs are the positions 1..M of the
 ordered entries. `status` reports checked/total/current, the current file being
-the first unchecked row. `advance` records exactly one approval: the trimmed
-message `1`, for the current entry, while the checklist still matches the fresh
-snapshot's identity. Anything else changes nothing; a stale snapshot, a wrong or
+the first unchecked row. `advance` records exactly one approval: the message
+`reviewed` (surrounding whitespace and case ignored), for the current entry, while
+the checklist still matches the fresh snapshot's identity. Anything else changes
+nothing -- the old numeric `1` included; a stale snapshot, a wrong or
 already-checked entry, and a malformed ledger are refused outright.
 
 Validation is complete before anything is written: the metadata's declared
@@ -59,6 +60,7 @@ from pathlib import Path
 
 VERB = 'inventory'
 VERBS = ('inventory', 'render', 'status', 'advance')
+CONFIRMATION_WORD = 'reviewed'
 PR_URL_RE = re.compile(r'^https://github\.com/[^/\s]+/[^/\s]+/pull/([1-9][0-9]*)$')
 SHA_RE = re.compile(r'^[0-9a-f]{40}$')
 DIGEST_RE = re.compile(r'^[0-9a-f]{64}$')
@@ -522,17 +524,18 @@ def checklist_status(text: str) -> dict:
 def advance_checklist(text: str, snapshot: dict, entry: int, response: str) -> tuple:
     """The (new_text, status) of one approval attempt against the current file.
 
-    Only the trimmed complete message `1` approves, and only for the current
-    entry while the checklist still matches `snapshot`'s identity. Every other
-    response returns the text unchanged with `advanced: false`; a stale snapshot,
-    a wrong or already-checked entry, and a malformed checklist raise
-    ChecklistError and never yield altered text.
+    Only a response whose `response.strip().casefold()` equals `reviewed`
+    approves, and only for the current entry while the checklist still matches
+    `snapshot`'s identity. Every other response -- the old numeric `1` included --
+    returns the text unchanged with `advanced: false`; a stale snapshot, a wrong
+    or already-checked entry, and a malformed checklist raise ChecklistError and
+    never yield altered text.
     """
     identity, rows = _parse_checklist(text)
     status = _checklist_summary(identity, rows)
     if not isinstance(response, str):
         raise ChecklistError('response must be a string')
-    if response.strip() != '1':
+    if response.strip().casefold() != CONFIRMATION_WORD:
         return text, dict(status, advanced=False)
     fresh = _snapshot_identity(snapshot)
     stale = [key for key in IDENTITY_KEYS if identity[key] != fresh[key]]

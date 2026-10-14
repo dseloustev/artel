@@ -85,7 +85,7 @@ it). `<ticket>-<N>` is a phase-scoped run.
 | the UI-automation scaffold applied / removed | `/artel:add-automation` · `/artel:remove-automation` |
 | the working context saved / restored | `/artel:save-context` · `/artel:restore-context [ticket]` |
 | `AGENTS.md` files created or repaired | `/artel:agents-md-generator` |
-| a GitHub pull request walked one file at a time, with `1` per file | `/artel:collaborative-review <pr-url-or-number>` |
+| a GitHub pull request walked one file at a time, with `reviewed` per file | `/artel:collaborative-review <pr-url-or-number>` |
 
 **Kartoteka — institutional knowledge and the task queue**
 

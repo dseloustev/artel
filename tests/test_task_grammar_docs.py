@@ -910,6 +910,7 @@ class TestReadersAudit(unittest.TestCase):
         'skills/pr-description/SKILL.md', 'skills/researcher/SKILL.md',
         'skills/run-reviewer/SKILL.md', 'skills/sync-phases/SKILL.md', 'skills/tasklist/SKILL.md',
         'skills/tasks/SKILL.md', 'skills/using-artel/SKILL.md',
+        'skills/collaborative-review/SKILL.md',
     }
 
     def test_every_tasklist_reader_was_audited(self):

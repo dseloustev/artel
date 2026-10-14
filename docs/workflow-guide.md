@@ -630,6 +630,16 @@ what to run next. Run all of these from the host repo root.
     [move-to-worktree](skills-reference.md#move-to-worktree) and
     [return-from-worktree](skills-reference.md#return-from-worktree).
 
+17. **Walk a PR file by file.** *Pre:* a GitHub PR URL or number, and GitHub CLI access to the
+    repository. *Run:* `/artel:collaborative-review <pr-url-or-number>`. *Produces:* a saved
+    checklist under `.artel/run/collaborative-review/<owner>/<repo>/pr-<N>/review-checklist.md`
+    and a one-file-at-a-time walkthrough — each file presented with its role, changed excerpt,
+    why, assessment and direct diff link; only the exact reply `1` marks the current file
+    reviewed, and comments stay on it. A changed head or inventory blocks advancement until you
+    explicitly confirm a rebuild, which archives the old checklist and reports under `history/`.
+    *Next:* reply `1` per file; nothing is posted to GitHub and no ticket is required. See
+    [collaborative-review](skills-reference.md#collaborative-review).
+
 ## Troubleshooting & recovery
 
 | Symptom | What it means | What to do |

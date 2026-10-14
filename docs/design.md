@@ -1316,3 +1316,24 @@ move to the decision log.
   flows should be tunable apart; the generic key stays the escape hatch, unwired. Locked in by
   `tests/test_models.py`, `tests/test_models_config_docs.py` and
   `tests/test_build_opencode.py` (`TestModelTransforms`).
+- **2026-10-14 — Collaborative PR review is an interactive orchestrator plus a read-only worker.**
+  Reviewing a whole pull request in one pass is neither comprehensible nor resumable, and a
+  generic delegation of the workflow failed the state protocol in fresh-context baselines: raw
+  API order instead of contract-before-implementation, prose docs and assets left in the review
+  list, no durable checklist, saved analysis reports read as approval, and files checked off
+  with no user `1` at all. `collaborative-review` binds every presentation to one recorded PR
+  snapshot — paginated inventory, compare-API merge base, full contents at both revisions, the
+  head repository for forks — and keeps the Markdown checklist under
+  `.artel/run/collaborative-review/` as the sole approval ledger: only the exact reply `1`
+  advances the first unchecked file, comments stay on it, and a changed head blocks until an
+  explicit rebuild archives history and reopens the list unchecked. Code analysis is a
+  dedicated `collaborative-reviewer` agent (`prepare` orders the complete partition, `file`
+  assesses the current file, `followup` answers a question) rather than an extension of
+  `reviewer`, which keeps its ticket/task/standalone/plan modes and its write-back untouched.
+  The worker runs on its frontmatter `opus`; OpenCode resolves `agents.collaborative-reviewer`
+  through the existing generic site, so no new fixed model vocabulary or config key is added.
+  Rejected: a skill-only inline review (no isolation from the conversation), and reusing
+  `reviewer` (its write-back and gate behavior would leak into an interactive flow). Spec:
+  `docs/superpowers/specs/2026-10-14-collaborative-review-design.md` (local). Locked in by
+  `tests/test_collaborative_review.py` (snapshot/checklist helpers) and
+  `tests/test_build_opencode.py` (`TestCollaborativeReviewBuild`).

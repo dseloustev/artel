@@ -1,0 +1,5 @@
+{
+  "sessionTtlSeconds": 3600,
+  "touchIntervalSeconds": 300,
+  "store": "memory"
+}

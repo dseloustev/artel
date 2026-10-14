@@ -1,0 +1,23 @@
+{
+  "url": "https://github.com/acme/session-kit/pull/63",
+  "title": "Add MemorySessionStore for the session contract",
+  "body": "The session store plus defaults; the file-backed store is still a work in progress in this branch.\n\nFollow-up: a file-backed store is starting.",
+  "baseRefOid": "d9579512b95272e8b3f0aa1ac3f2d9979ae09112",
+  "headRefOid": "713fcdb7edaaad7f3522ae47f0894b5ee64d0d26",
+  "changedFiles": 6,
+  "headRepository": {
+    "id": 410075001,
+    "name": "session-kit",
+    "full_name": "acme/session-kit",
+    "owner": {
+      "login": "acme",
+      "type": "User"
+    },
+    "fork": false,
+    "default_branch": "main"
+  },
+  "headRepositoryOwner": {
+    "login": "acme",
+    "type": "User"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "skill_name": "collaborative-review",
+  "evals": [
+    {
+      "id": 1,
+      "name": "mixed-pr-walkthrough",
+      "prompt": "Walk me through this PR one file at a time; include code and config, and use `1` to mark each file reviewed. The PR is https://github.com/acme/session-kit/pull/42.",
+      "expected_output": "Against tests/fixtures/collaborative_review/mixed-pr/ (paginated fork PR, stacked non-default base): capture both pages of the 12-file inventory; account for every path — ordered entries for source, config, tests, generated code, lockfile, operational Markdown, the rename and the deletion, with prose docs, the spec artifact and the asset excluded and reasoned; put the public contract src/domain/session.ts before the smaller implementation src/domain/memory_session_store.ts; save an unchecked checklist under the default run path with the recorded snapshot identity; present exactly one file with role, changed excerpt, evidenced/inferred why, assessment, limits, a direct per-file diff link and the exact approval prompt, then end the turn. In the truncated variant (variants/pages-truncated.json, 7 rows against changedFiles=12) stop and report an incomplete inventory instead of presenting a file.",
+      "files": [
+        "tests/fixtures/collaborative_review/mixed-pr/",
+        "tests/fixtures/collaborative_review/sandbox/gh"
+      ],
+      "fixture": "tests/fixtures/collaborative_review/mixed-pr/scenario.md"
+    },
+    {
+      "id": 2,
+      "name": "conversation-on-current-file",
+      "prompt": "Let's continue reviewing this PR.",
+      "expected_output": "Against tests/fixtures/collaborative_review/conversation/ (saved checklist with rows 1–2 checked, current file 3 src/domain/memory_session_store.ts carrying an unresolved Needs-edits finding): find and accept the saved state and resume on file 3. `Why does this change matter?` is answered from the saved analysis on the same file with the approval prompt repeated; `1 looks good` does not advance; `1` checks exactly that row and presents the next file, with the unresolved finding still recorded in the checklist and reports/003.md. A request to fix the finding or post a comment is refused — read-only, no code edit, no GitHub write.",
+      "files": [
+        "tests/fixtures/collaborative_review/conversation/",
+        "tests/fixtures/collaborative_review/sandbox/gh"
+      ],
+      "fixture": "tests/fixtures/collaborative_review/conversation/scenario.md"
+    },
+    {
+      "id": 3,
+      "name": "stale-resume-and-rebuild",
+      "prompt": "Resume my review of this PR.",
+      "expected_output": "Against tests/fixtures/collaborative_review/stale-resume/: a matching saved checklist resumes at current row 3 without re-reviewing rows 1–2. With the run directory unwritable, `1` is reported as a persistence failure and never as advancement (checklist byte-identical). After the evaluator swaps in github-next/ (head moved, one file added, inventory digest changed), `1` records no stale approval and asks to rebuild; an all-checked prior checklist against the changed head is not a completion. Only after the explicit rebuild authorization are the old checklist/preparation/reports archived under a distinct history directory, and a fresh all-unchecked checklist is rendered against the new 6-file snapshot with its first file presented.",
+      "files": [
+        "tests/fixtures/collaborative_review/stale-resume/",
+        "tests/fixtures/collaborative_review/sandbox/gh"
+      ],
+      "fixture": "tests/fixtures/collaborative_review/stale-resume/scenario.md"
+    }
+  ]
+}

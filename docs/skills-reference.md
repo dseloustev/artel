@@ -623,6 +623,30 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `--local` records nothing in the task queue. Ticket-wide only (phase suffix discarded). No
   PR link → no PR Compliance section in the report.
 
+### collaborative-review
+
+- **Purpose:** Walk a person through a GitHub pull request one changed file at a time, with the
+  person alone deciding when to advance — every presentation ends the turn and waits.
+- **Invocation:** `/artel:collaborative-review <pr-url-or-number>`
+- **Reads:** the target PR through the host's GitHub CLI — `gh pr view` metadata, the changed
+  files with `--method GET --paginate --slurp`, the compare API for the merge base, `gh pr diff`,
+  and full contents at the base/head revisions (the head repository for forks); the run state
+  under `.artel/run/collaborative-review/<owner>/<repo>/pr-<N>/` on resume; the host's optional
+  code-symbol index through the worker ([code-navigation.md](code-navigation.md)).
+- **Writes:** run state only, under `.artel/run/collaborative-review/<owner>/<repo>/pr-<N>/`:
+  the captured `metadata.json` / `pages.json` / `compare.json` / `pr.diff` / `contents/`,
+  `snapshot.json`, `preparation.json`, `reports/<NNN>.md`, the `review-checklist.md` ledger, and
+  a `history/` archive on an approved rebuild. Never the checkout, the branch, the spec trail or
+  GitHub.
+- **Pauses:** every turn — one file per message; only the exact reply `1` advances; a changed
+  base/head/inventory blocks until the person explicitly confirms a rebuild.
+- **Notes:** standalone GitHub utility, read-only on GitHub, no ticket, queue or spec-store
+  context. Orchestrator: all code analysis goes to the read-only `collaborative-reviewer` agent
+  (`prepare` orders the complete partition, `file` assesses the current file, `followup` answers
+  a question); the skill owns the conversation and the Markdown checklist, and a saved report
+  never implies approval. On OpenCode the worker's model resolves from the generic
+  `agents.collaborative-reviewer` site.
+
 ### change-digest
 
 - **Purpose:** Generate a self-contained HTML change-comprehension report for a ticket's branch

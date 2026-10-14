@@ -1,0 +1,30 @@
+{
+  "ordered": [
+    {
+      "path": "src/domain/session.ts",
+      "role": "public session contract",
+      "focus": "the changed get() return type and the new touch() method before its implementations"
+    },
+    {
+      "path": "src/config/review_defaults.json",
+      "role": "independent configuration",
+      "focus": "the default TTL and touch interval values"
+    },
+    {
+      "path": "src/domain/memory_session_store.ts",
+      "role": "session store implementation",
+      "focus": "whether the store honours the contract for missing sessions"
+    },
+    {
+      "path": "tests/session_store.test.ts",
+      "role": "tests",
+      "focus": "whether the tests pin the contract behaviour"
+    }
+  ],
+  "excluded": [
+    {
+      "path": "docs/review-notes.md",
+      "reason": "prose documentation"
+    }
+  ]
+}

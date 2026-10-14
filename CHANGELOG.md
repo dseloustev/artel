@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-14
+
 ### Added
 
 - **A pull request can be reviewed together, one file at a time.** `collaborative-review`

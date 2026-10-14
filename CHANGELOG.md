@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-10-14
+
 ### Changed
 
 - **`deep-review` pins its target and validates the review.** The skill resolves the ticket, the

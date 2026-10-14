@@ -1316,3 +1316,22 @@ move to the decision log.
   flows should be tunable apart; the generic key stays the escape hatch, unwired. Locked in by
   `tests/test_models.py`, `tests/test_models_config_docs.py` and
   `tests/test_build_opencode.py` (`TestModelTransforms`).
+- **2026-10-14 — The deep review pins its target and validates the reviewer's artifacts.** The
+  skill trusted the reviewer's completion line: a partial or stale report read as
+  `Nothing to apply`, and a requested branch that was not checked out was silently reviewed as
+  HEAD. Now `scripts/deep_review.py prepare` runs before the quality gate and pins the
+  checked-out branch, HEAD, the base tip and their merge base as SHAs in a manifest — a
+  non-current `--branch` is refused with a worktree instruction — and `check` validates the
+  reviewer's machine report (schema 1: identities, `DR-NNN` findings with
+  `kind`/`scope`/`priority` and anchors against the pinned `merge_base..head` diff, verification
+  records, completeness/gaps), the report's header, metadata, finding headings and
+  `## Proposed fixes` blocks, and the completion line's counts against the same pin before any
+  fix is offered. A partial review stops the hand-off with its gaps; a missing artifact and an
+  invalid one share one retry budget (`ARTIFACT_RETRY_USED`, at most two reviewer attempts),
+  never an inline correction; checkout drift stops before any retry; an empty or
+  whitespace-only report is unprocessable input (exit `2`, `empty_input`) and can never enter
+  the retry, while a nonempty report missing its header stays correctable (exit `1`); accepted
+  audits never count or become tasks; the reviewer gains a bounded documentation pass that
+  anchors on the causing code. The contract is single-homed in `docs/deep-review.md`. Rejected:
+  trusting the reviewer's own anchor run (`scripts/validate_findings.py` stays the reviewer's
+  pre-flight), letting the orchestrator read and judge the report, and a second reviewer seat.

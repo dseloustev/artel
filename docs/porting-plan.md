@@ -41,7 +41,9 @@ The rules everything else obeys, plus the config mechanism they will reference.
       `figma-analysis`, `change-digest`, `address-pr-comment`.
 - [x] Port with rename: `flutter-inner-loop` → `inner-loop` (verify commands from config),
       `wallet-review` → `deep-review` (dual reviewer; tracker/VCS via adapters),
-      `jira-issue-ru` → `issue-draft` (output language from config).
+      `jira-issue-ru` → `issue-draft` (output language from config). The review layer has since
+      been reworked in place: the forecast was removed in 0.32.0 and the Unreleased work pins
+      the review target and validates the reviewer's artifacts — [deep-review.md](deep-review.md).
 - [x] Port runtime-gate skills as config-driven adapters: `run-app`, `drive-app` (launch/drive
       commands from config; RUNTIME_OK degrades to "skipped" when unconfigured), plus
       `add-automation` / `remove-automation` (scaffold commands from config). Follow-up from

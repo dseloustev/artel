@@ -32,6 +32,9 @@ lives under `.artel/run/` in the host repo instead, matching config.md's descrip
     │   ├── NNN-<slug>.md       #   the implementer's report for one task
     │   ├── NNN-<slug>.diff     #   that task's diff package (a `full` route only, §16)
     │   └── NNN-<slug>-review.md #  the per-task review verdict (a `full` route only, §16)
+    ├── deep-review/            # the deep review's pinned target and machine report
+    │   ├── target.json         #   the manifest: branch, base, head and merge base as SHAs (docs/deep-review.md)
+    │   └── machine.json        #   the reviewer's machine report (schema 1)
     └── .stop-gate-blocks       # stop-gate's consecutive-block counter
 ```
 

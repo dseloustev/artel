@@ -159,21 +159,65 @@ Save to:
   (always a file, on both paths: it has no ticket to file it under — spec-storage.md §1.)
 
 **The `deep-review` output.** A caller may ask for the report as the ticket's `deep-review.md`
-instead — `deep-review` does, naming `<specs.dir>/<TICKET_ID>/deep-review.md` as the output path
-and asking for the fix tasks. Same report, with two additions:
+instead — `deep-review` does, naming `<specs.dir>/<TICKET_ID>/deep-review.md` as the output path,
+a pinned target manifest, a machine-report path and the fix tasks. The artifact contract — the
+manifest's pins, the machine report's schema, the report's header, the four metadata lines, the
+finding sections and IDs, the `### Tasks` blocks, the verification records and the completeness
+rules — is single-homed in `${CLAUDE_PLUGIN_ROOT}/docs/deep-review.md`; follow it exactly. In
+short:
 
-1. It opens with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2):
-   `type: deep-review`, `produced_by: artel:reviewer`.
-2. It closes with `## Proposed fixes`: a `### Tasks (Critical)` block and a `### Tasks (Warning)`
+1. Read the target manifest the dispatch names: its `run_id`, `base`, `head` and `merge_base` are
+   immutable. Review `git diff <merge_base> <head>` and validate anchors against that same range
+   — never the working tree, never a moved HEAD.
+2. Open with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2):
+   `type: deep-review`, `ticket: <TICKET_ID>`, `produced_by: artel:reviewer`, then the four
+   metadata lines — `**Review run:**`, `**Reviewed base:**`, `**Reviewed head:**`,
+   `**Review completeness:**` — with the manifest's values, exactly once each.
+3. Write the machine report (schema 1) to the path the dispatch names: `completeness`, `gaps`,
+   at least one `verification` record (`command`/`result` or `evidence` — never a numeric
+   confidence), and one finding per report finding with a unique `DR-NNN` id, `kind`
+   (`defect`|`audit`), `scope` (`diff`|`repository`), `priority`, `file`, optional `line`,
+   `evidence` and `recommendation`. Every anchor must fall in the pinned range — a guessed line
+   is worse than none.
+4. It closes with `## Proposed fixes`: a `### Tasks (Critical)` block and a `### Tasks (Warning)`
    block, each holding its findings' fixes in the ticket-mode task format — one checkbox item per
-   finding, `**Task N (Critical): …**` / `**Task N (Warning): …**`, numbered within its block,
-   the body and acceptance criteria beneath, and the `behavior` marker applied as in ticket mode.
-   Suggestions never become tasks. A block with no findings reads `- none`. The blocks hold the
-   checkbox items only; `deep-review` copies them under its own `### deep-review-<YYYY-MM-DD>`
-   source heading (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6).
+   actionable finding, `**Task N (Critical): …**` / `**Task N (Warning): …**`, numbered within
+   its block, the body and acceptance criteria beneath, exactly one `Finding: DR-NNN`, and the
+   `behavior` marker applied as in ticket mode. Suggestions never become tasks, and a
+   documentation-only fix carries no `behavior` marker. An accepted audit lands under
+   `## Accepted audits` and never counts and never becomes a task. A block with no findings reads
+   `- none`. The blocks hold the checkbox items only; `deep-review` copies them under its own
+   `### deep-review-<YYYY-MM-DD>` source heading
+   (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6).
+5. `completeness: partial` with its gaps is how a review that could not cover the change says so
+   — never dress a partial review as complete. An unconfigured `verify.commands` is recorded as
+   skipped, never as a passed command; a missing optional gate does not make the review partial.
 
 Return one line:
-`Deep review: <c> Critical, <w> Warning, <s> Suggestion — <path>`.
+`Deep review: <c> Critical, <w> Warning, <s> Suggestion — <path>` — the counts the machine report
+validates (counted diff defects only).
+
+### Documentation pass (standalone)
+
+One bounded pass over the change's documentation impact — part of the same review, never a
+second dispatch and never a documentation wishlist:
+
+- **Only statements the change invalidates, or obligations the host declares.** A documented
+  default, contract, flag or behaviour the diff changed — the README still says 30 seconds, the
+  guide still shows the old call — or a duty the host's own conventions docs impose on this
+  change (an operator-facing default needs an Unreleased CHANGELOG entry). Never "docs could be
+  better", missing docs for untouched code, or prose style: no generic documentation wishlist.
+- **Anchor on the causing code.** The finding is a diff finding: its `file:line` is the changed
+  code that makes the statement false — a documentation line is never the anchor (the mechanical
+  check rejects it). Name the stale document and line as evidence in the body: "`config.py:8`
+  now defaults to 60; `README.md:12` still says 30".
+- **Severity follows the harm.** A statement that now contradicts the code, or a mandatory
+  obligation the change skipped, is a Warning — Critical when it defeats a safety or security
+  guarantee; a cosmetic improvement is a Suggestion, or nothing at all. A documentation-only fix
+  carries no `behavior` marker: there is no behaviour to reproduce.
+- **Convention-backed findings cite their source.** A documentation finding that rests on a host
+  rule names the rule (its AGENTS.md line, a canonical example in the repo). When the rule is
+  ambiguous or two canonical examples disagree, say so in the finding and keep it at Suggestion.
 
 ### Regression guard (standalone)
 

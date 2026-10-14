@@ -7,6 +7,16 @@ discipline artel adopted the same day ([design.md](../design.md), decision log 2
 > `docs/review-forecast.md` and the precedent tables — has since been removed; `deep-review` is
 > now a whole-branch review with a fix hand-off only (decision log, 2026-10-08). The forecast
 > rows below describe the 2026-10-02 system.
+>
+> **Current delta (2026-10-13, Unreleased; AdGuard plugin pinned at `41023264`):** artel's
+> `deep-review` has since gained a deterministic boundary. `scripts/deep_review.py`
+> (`prepare`/`check`) pins the reviewed branch, base, head and merge base as SHAs and validates
+> the reviewer's machine report and `deep-review.md` against that pin — identities, anchors, the
+> report contract and the completion counts — before any fix is offered; a non-current target
+> stops the run with a worktree instruction, a partial review stops with its gaps, and accepted
+> audits never count or become tasks ([deep-review.md](../deep-review.md)). The rows below still
+> describe the 2026-10-02 comparison; the AdGuard side is the v0.1.0 snapshot (`2cafd82`), with
+> `41023264` as the current reference revision.
 
 ## Provenance
 

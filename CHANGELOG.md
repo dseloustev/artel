@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **`deep-review` pins its target and validates the review.** The skill resolves the ticket, the
+  spec store and the branch, and runs `scripts/deep_review.py prepare` **before** the quality
+  gate: the checked-out branch, HEAD, the base tip and their merge base are pinned as SHAs in a
+  manifest, and a requested branch that is not the checked-out one is refused with a worktree
+  instruction instead of silently reviewing HEAD. After the one `reviewer` dispatch, `check`
+  validates the machine report (schema 1 — `DR-NNN` findings with `kind`/`scope`/`priority` and
+  anchors against the pinned diff, verification records, completeness/gaps), the report's
+  header, metadata, finding headings and `## Proposed fixes` blocks, and the completion line's
+  counts before any fix is offered; a partial review stops the hand-off with its gaps instead of
+  reading as `Nothing to apply`, and a missing artifact and an invalid one share one bounded
+  reviewer retry (at most two reviewer attempts). An empty or whitespace-only report is refused
+  as `empty_input` — unprocessable input, never a correction — so a failed store read can no
+  longer enter the retry. The reviewer gains a bounded documentation pass and an explicit
+  accepted-audit route; the contract is single-homed in [docs/deep-review.md](docs/deep-review.md).
+
 ## [0.34.0] - 2026-10-13
 
 ### Added

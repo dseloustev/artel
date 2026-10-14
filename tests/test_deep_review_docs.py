@@ -48,9 +48,15 @@ class TestSkill(unittest.TestCase):
             with self.subTest(phrase):
                 self.assertNotIn(phrase, self.text)
 
-    def test_reads_the_counts_from_the_return_line_not_the_file(self):
+    def test_the_completion_line_is_validated_and_the_counts_come_from_the_check(self):
+        # 0.35.0 (Unreleased): the old contract read `c`/`w`/`s` straight from the
+        # completion line and never opened the report. The line is now input to
+        # `deep_review.py check`, and the counts offered are the validated ones.
         self.assertIn(RETURN_LINE, self.text)
-        self.assertIn('Do not open the file to recount', self.text)
+        self.assertIn('Do not open the report to recount', self.text)
+        self.assertIn('deep_review.py check', self.text)
+        self.assertIn('data.counts', self.text)
+        self.assertNotIn("Read the counts from the agent's completion line", self.text)
 
     def test_offers_the_two_task_blocks(self):
         for block in TASK_BLOCKS:

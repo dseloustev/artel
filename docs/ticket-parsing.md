@@ -98,7 +98,7 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 ├── review.md            # optional, ticket-wide review (always ticket-level, even for phase runs)
 ├── review/              # optional, machine-readable review findings (reviewer agent)
 │   └── findings.json   # lens findings (convention/architecture/security) for a ticket-wide review run
-├── deep-review.md       # optional, deep-review skill: the whole-branch review report + proposed fixes (ticket-wide only)
+├── deep-review.md       # optional, deep-review skill: the whole-branch review report + proposed fixes (ticket-wide only); its target manifest and machine report are run evidence under .artel/run/<TICKET_ID>/deep-review/ (docs/deep-review.md)
 ├── verify/              # optional, quality-gate evidence from inner-loop runs (fast-check/full-gate JSON per iteration, residual.json on stop-and-ask)
 ├── runtime/             # optional, runtime-gate evidence (run-app, drive-app)
 │   ├── observation.md   # RUNTIME_OK evidence from run-app
@@ -179,7 +179,7 @@ On the files path, create the `phase-<PHASE_NUM>/` subfolder lazily on first wri
 | Summary | `<specs.dir>/<TICKET_ID>/summary.md` |
 | Review | `<specs.dir>/<TICKET_ID>/review.md` |
 | Review findings | `<specs.dir>/<TICKET_ID>/review/findings.json` — machine-readable lens findings from the `reviewer` agent (phase-scoped variant: 4.1) |
-| Deep review | `<specs.dir>/<TICKET_ID>/deep-review.md` — the `deep-review` skill's single deliverable: the reviewer's whole-branch report (Critical / Warnings / Suggestions, PR Compliance, pre-existing issues) and its proposed fixes as `### Tasks` blocks (`agents/reviewer.md`); ticket-wide only (`deep-review` discards any phase suffix) |
+| Deep review | `<specs.dir>/<TICKET_ID>/deep-review.md` — the `deep-review` skill's single deliverable: the reviewer's whole-branch report (Critical / Warnings / Suggestions, PR Compliance, pre-existing issues, accepted audits) and its proposed fixes as `### Tasks` blocks (`agents/reviewer.md`); ticket-wide only (`deep-review` discards any phase suffix). Its pinned target manifest and machine report are local run evidence under `.artel/run/<TICKET_ID>/deep-review/` on both spec-store paths ([deep-review.md](deep-review.md)) |
 | Verify evidence | `<specs.dir>/<TICKET_ID>/verify/` — quality-gate evidence from `inner-loop` runs: `iteration-<i>.json` (the task gate's envelope, both stages — `docs/gates.md` §1), `residual.json` (on stop-and-ask) (phase-scoped variant: 4.1) |
 | Runtime evidence | `<specs.dir>/<TICKET_ID>/runtime/observation.md` — `RUNTIME_OK` evidence from `run-app`; `<specs.dir>/<TICKET_ID>/runtime/drive-observation.md` — UI-driving evidence from `drive-app` (phase-scoped variant: 4.1) |
 | Change report | `<specs.dir>/<TICKET_ID>/change-report.html` — derived HTML change-comprehension report from the `change-digest` skill; regenerable, never committed (phase-scoped variant: 4.1) |

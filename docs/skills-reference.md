@@ -600,28 +600,36 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Review a branch once with the `reviewer` agent — the whole-branch review before a
   pull request — write `deep-review.md`, and offer to work its fixes.
 - **Invocation:** `/artel:deep-review [ticket-id] [branch] [pr-link] [--local]`
-- **Reads:** the `verify.commands` gate output (step 0 — a hard gate when configured); the
-  ticket directory; optionally the PR title/body via `vcs.adapter` when a PR link is given.
-- **Writes:** `<specs.dir>/<TICKET_ID>/deep-review.md` — the reviewer's standalone report with
-  the document header (`type: deep-review`, `produced_by: artel:reviewer`): its Critical /
-  Warnings / Suggestions findings, the optional PR Compliance section, the **Pre-existing
-  issues (out of diff)** section, and a `## Proposed fixes` section whose `### Tasks (Critical)`
-  and `### Tasks (Warning)` blocks carry one fix task per finding. On apply: `## Code Review
-  Fixes` tasks appended to the ticket-wide `tasklist.md` under a `### deep-review-<date>`
-  heading, and recorded as fix rows in the task queue on the queue path.
+- **Reads:** the host's declared `specs.dir` (`.artel/config.json`) and the ticket directory;
+  the PR title/body and, where the adapter returns them, its base/head branch names; the
+  `scripts/deep_review.py prepare` manifest (the pinned run id, branch, base, head and merge
+  base); the `verify.commands` gate output (a hard gate when configured, run against the pinned
+  checkout).
+- **Writes:** the pinned target and the machine report under
+  `.artel/run/<TICKET_ID>/deep-review/` (local evidence on both spec-store paths);
+  `<specs.dir>/<TICKET_ID>/deep-review.md` — the reviewer's standalone report with the document
+  header (`type: deep-review`, `produced_by: artel:reviewer`), the four metadata lines, its
+  Critical / Warnings / Suggestions / Pre-existing issues / Accepted audits findings, the
+  optional PR Compliance section, and a `## Proposed fixes` section whose `### Tasks (Critical)`
+  and `### Tasks (Warning)` blocks carry one fix task per actionable finding. On apply:
+  `## Code Review Fixes` tasks appended to the ticket-wide `tasklist.md` under a
+  `### deep-review-<date>` heading, and recorded as fix rows in the task queue on the queue path.
 - **Pauses:** on a `verify.commands` failure (stop and report — review does not proceed; an
   empty list degrades the gate to `skipped` and continues); when `deep-review.md` already
-  exists (overwrite?); after the file is written, to ask which fixes to apply (critical only /
+  exists (overwrite?); after a validated report, to ask which fixes to apply (critical only /
   critical and warnings / none).
 - **Notes:** standalone utility, not part of the autonomous pipeline. Orchestrator: dispatches
-  the `reviewer` once, in standalone mode, on `fable`; the agent writes the file directly and
-  returns the count line the skill offers from (`Deep review: <c> Critical, <w> Warning,
-  <s> Suggestion — <path>`). The reviewer validates its anchors against the branch diff
-  (`scripts/validate_findings.py`) before returning; a finding that cannot anchor arrives
-  file-level or repository-scoped. Applying fixes means `Skill: implementer` once per appended
-  task, then `verify.commands` once; no re-review loop — re-run the skill to re-review.
-  `--local` records nothing in the task queue. Ticket-wide only (phase suffix discarded). No
-  PR link → no PR Compliance section in the report.
+  the `reviewer` once, in standalone mode, on `fable`; the agent writes the report and the
+  machine report directly, and `scripts/deep_review.py check` validates them — identities,
+  anchors, the report contract and the completion counts — before the skill offers anything
+  ([deep-review.md](deep-review.md)). A requested branch that is not checked out stops the run
+  with a worktree instruction. A partial review stops with its gaps instead of reading as
+  `Nothing to apply`; a missing artifact and an invalid one share one bounded reviewer retry
+  (at most two reviewer attempts), while an empty report (`empty_input`) and checkout drift are
+  never retried; the skill never edits the reviewer's output. Applying fixes means
+  `Skill: implementer` once per appended task, then `verify.commands` once; no re-review loop —
+  re-run the skill to re-review. `--local` records nothing in the task queue. Ticket-wide only
+  (phase suffix discarded). No PR link → no PR Compliance section in the report.
 
 ### change-digest
 

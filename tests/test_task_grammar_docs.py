@@ -900,6 +900,7 @@ class TestReadersAudit(unittest.TestCase):
         'docs/deviation-protocol.md', 'docs/kartoteka-requirements.md',
         'docs/orchestrator-common.md', 'docs/porting-plan.md',
         'docs/skills-reference.md', 'docs/source-inventory-workflow.md', 'docs/spec-storage.md',
+        'docs/deep-review.md',
         'docs/task-grammar.md', 'docs/task-queue.md', 'docs/ticket-parsing.md',
         'docs/workflow-guide.md', 'skills/address-pr-comment/SKILL.md',
         'skills/change-digest/SKILL.md', 'skills/deep-review/SKILL.md',

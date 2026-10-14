@@ -33,7 +33,7 @@ Flutter host is in [docs/testing-flutter.md](docs/testing-flutter.md).
 | **Session & kartoteka** | `using-artel` (turn-one router, hook-injected), `knowledge` (ask the index), `tasks` (operate the queue) |
 | **Agents** | The crew of 14: analyst, figma-analyst, researcher, planner, task-planner, implementer, reviewer, QA, validator, vision/tasklist/tech writers, issue-scout, seat |
 | **Hooks** | Quality gates ([hooks/README.md](hooks/README.md)): session baseline, fast per-edit verification, latching verify stop gate, run stop gate, sensitive-path guard, VCS/tracker platform guard, knowledge mirror, session router |
-| **Scripts** | Deterministic gate engines: `scripts/verify.py` (JSON-envelope wrapper over the configured verify commands), `scripts/plan_check.py` (plan-anchor grounding check) |
+| **Scripts** | Deterministic gate engines: `scripts/verify.py` (JSON-envelope wrapper over the configured verify commands), `scripts/plan_check.py` (plan-anchor grounding check), `scripts/deep_review.py` (the deep review's pinned target and artifact checker) |
 | **Docs** | Operator guide, skills reference, and the contracts the pipeline obeys (autonomous run, ticket parsing, config, deviation protocol, path conventions) |
 
 Core design properties:
@@ -124,6 +124,8 @@ Contracts and internals:
   · [docs/deviation-protocol.md](docs/deviation-protocol.md)
   · [docs/code-navigation.md](docs/code-navigation.md)
   · [docs/path-conventions.md](docs/path-conventions.md) — the rules the pipeline obeys
+- [docs/deep-review.md](docs/deep-review.md) — the deep-review contract: the pinned target, the
+  machine report (schema 1), and the report's metadata, finding IDs and task format
 - [CHANGELOG.md](CHANGELOG.md)
 
 ## License

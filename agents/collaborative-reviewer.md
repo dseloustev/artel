@@ -37,11 +37,18 @@ The orchestrator captured the PR and saved immutable inputs under the run direct
   PR diff.
 - `contents/base/<path>` and `contents/head/<path>` — full file contents at the merge base and
   at the head revision. Read the old side for what the change removed or altered and the new
-  side for what it introduces; on a fork PR the head contents come from the head repository.
+  side for what it introduces; on a fork PR the head contents come from the head repository. A
+  renamed file's old side lives at its `previous_path`, not at its new `path`.
+- `context/base/<path>` and `context/head/<path>` — unchanged supporting context the
+  orchestrator acquired at the recorded revisions after one of your requests; read it like
+  `contents/`, but it is dependency context, never a review row.
 
 The snapshot is the only review input. Never read the host's current working tree as if it were
 the PR, never use a local index's view of another revision as evidence, and never fetch the PR
-again — if a needed input is missing or the inventory is incomplete, say so and stop.
+again. When the current file cannot be judged without an unchanged dependency that is not in
+the snapshot — a changed signature's caller, a modified interface's implementor, a lockfile's
+manifest, a generated file's source — return a supporting-context request (below) instead of
+guessing; if the inventory is incomplete, say so and stop.
 
 ## Modes
 
@@ -84,7 +91,7 @@ Assess the one current file:
 1. Read its entry in `snapshot.json`, its changed excerpt from `pr.diff`, and the full contents
    of both sides from `contents/`. Read enough dependency context — a changed signature's
    callers, a modified interface's implementors — to judge the change, not to review the
-   repository.
+   repository; when that context is not in `contents/` or `context/`, request it (below).
 2. Identify what the change does and why, from the PR body, the commit messages in
    `compare.json` and the code itself. Author-documented intent and inference are different
    things; label inference.
@@ -101,6 +108,28 @@ Assess the one current file:
    - evidence and limits — static reading versus tests/CI actually observed for this snapshot.
 
 Return a short summary line. The orchestrator presents; you never do.
+
+### Supporting context requests
+
+Return one when the current file needs an unchanged dependency that is not in the captured
+`contents/` or an earlier `context/`. Reply with a single fenced `json` block holding an array
+of entries, and stop — the orchestrator validates and acquires them at the recorded revisions,
+then resumes this seat:
+
+```json
+[
+  {"path": "src/app.ts", "sides": "both",
+   "reason": "unchanged caller of the changed get() contract"}
+]
+```
+
+- `path` is an exact repo-relative path. It is literal: `?`, `[`, `]` and `*` are ordinary
+  filename characters, never patterns.
+- `sides` is `base`, `head` or `both`.
+- `reason` is one line naming what you will verify with the acquired context.
+- At most 8 unique paths in one request, and at most 2 requests for this seat. If a needed path
+  cannot be acquired, mark the affected part `Cannot verify` with the exact limit — never guess,
+  never read the host checkout, and never fetch anything yourself.
 
 ### followup
 
@@ -152,5 +181,6 @@ contents, and use the index only to understand the surrounding code.
 - Never prompt the person, never present a file, never claim approval — the orchestrator owns
   the conversation.
 - Repo-relative paths in output; no absolute paths.
-- If an input is missing, malformed, or names a path outside the snapshot, stop and report what
-  you need — do not guess or substitute.
+- If a needed unchanged dependency is missing, return a supporting-context request; if an input
+  is malformed or names a path outside the snapshot, stop and report what you need — do not
+  guess or substitute.

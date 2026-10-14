@@ -18,11 +18,14 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.parse
 from pathlib import Path
 from unittest import mock
 
@@ -30,6 +33,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
 import collaborative_review  # noqa: E402
 
 SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'collaborative_review.py'
+FIXTURES = Path(__file__).resolve().parent / 'fixtures' / 'collaborative_review'
+MIXED_PR_GITHUB = FIXTURES / 'mixed-pr' / 'github'
 
 PR_URL = 'https://github.com/example/project/pull/7'
 BASE_SHA = 'a' * 40
@@ -695,6 +700,546 @@ class TestChecklistCli(CliCase):
         self.assertEqual(envelope['error']['kind'], 'io_error')
         self.assertEqual(checklist.read_bytes(), original)
         self.assertEqual(list(checklist.parent.glob('review-checklist.md.*')), [])
+
+    def test_shortened_ledger_is_refused_without_write(self):
+        """I1: a damaged ledger is invalid_data, not a completion claim or an approval."""
+        snapshot = two_file_snapshot()
+        proc, checklist, snapshot_path = self.render_files(snapshot)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        text = checklist.read_text(encoding='utf-8')
+        corruptions = {
+            'missing trailing row': '\n'.join(
+                line for line in text.split('\n') if not line.startswith('- [ ] 2.')),
+            'all rows removed': '\n'.join(
+                line for line in text.split('\n') if not line.startswith('- [')),
+            'malformed trailing row': '\n'.join(
+                '- [ ] 2 missing the row body' if line.startswith('- [ ] 2.') else line
+                for line in text.split('\n')),
+        }
+        for label, corrupt in corruptions.items():
+            with self.subTest(label):
+                checklist.write_text(corrupt, encoding='utf-8')
+                before = checklist.read_bytes()
+                status = self.cli('status', '--checklist', str(checklist))
+                self.assertEqual(status.returncode, 2, status.stderr)
+                self.assertEqual(json.loads(status.stdout)['error']['kind'], 'invalid_data')
+                advance = self.cli('advance', '--checklist', str(checklist), '--snapshot',
+                                   str(snapshot_path), '--entry', '1', '--response', 'reviewed')
+                self.assertEqual(advance.returncode, 2, advance.stderr)
+                self.assertEqual(json.loads(advance.stdout)['error']['kind'], 'invalid_data')
+                self.assertEqual(checklist.read_bytes(), before)
+        checklist.write_text(text, encoding='utf-8')
+
+
+class TestChecklistCompleteness(unittest.TestCase):
+    """I1: the rendered ordered count is part of the ledger's validity.
+
+    A ledger whose `Ordered files: N` count no longer matches its parsed approval
+    rows is damaged: `status` must not report a shorter checklist as progress, and
+    `advance` must not check a row against it. The legitimate zero-row ledger stays
+    valid.
+    """
+
+    def setUp(self):
+        self.snapshot = two_file_snapshot()
+        self.text = collaborative_review.render_checklist(self.snapshot, two_entry_preparation())
+
+    @staticmethod
+    def drop_rows(text, prefix):
+        return '\n'.join(line for line in text.split('\n') if not line.startswith(prefix))
+
+    def test_missing_trailing_row_is_refused(self):
+        shortened = self.drop_rows(self.text, '- [ ] 2.')
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.checklist_status(shortened)
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.advance_checklist(shortened, self.snapshot, 1, 'reviewed')
+
+    def test_missing_trailing_row_cannot_become_a_completion(self):
+        first, status = collaborative_review.advance_checklist(
+            self.text, self.snapshot, 1, 'reviewed')
+        self.assertTrue(status['advanced'])
+        shortened = self.drop_rows(first, '- [ ] 2.')
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.checklist_status(shortened)
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.advance_checklist(shortened, self.snapshot, 2, 'reviewed')
+
+    def test_all_rows_removed_is_refused(self):
+        emptied = self.drop_rows(self.text, '- [')
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.checklist_status(emptied)
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.advance_checklist(emptied, self.snapshot, 1, 'reviewed')
+
+    def test_malformed_trailing_row_is_refused(self):
+        for malformed in ('- [ ] 2', '- [ ] 2.', '- [x] 2 missing the row body'):
+            with self.subTest(malformed=malformed):
+                corrupt = '\n'.join(
+                    malformed if line.startswith('- [ ] 2.') else line
+                    for line in self.text.split('\n'))
+                with self.assertRaises(collaborative_review.ChecklistError):
+                    collaborative_review.checklist_status(corrupt)
+
+    def test_missing_or_mismatched_ordered_count_is_refused(self):
+        count_line = 'Ordered files: 2 | Excluded: 0'
+        cases = {
+            'count line removed': self.text.replace(count_line + '\n', '', 1),
+            'count line malformed': self.text.replace(
+                count_line, 'Ordered files: many | Excluded: 0', 1),
+            'count exceeds rows': self.text.replace(
+                count_line, 'Ordered files: 3 | Excluded: 0', 1),
+            'count below rows': self.text.replace(
+                count_line, 'Ordered files: 1 | Excluded: 0', 1),
+        }
+        for label, corrupt in cases.items():
+            with self.subTest(label):
+                with self.assertRaises(collaborative_review.ChecklistError):
+                    collaborative_review.checklist_status(corrupt)
+
+    def test_zero_row_checklist_stays_valid(self):
+        snapshot = snapshot_of(ERRORS_PATH)
+        text = collaborative_review.render_checklist(
+            snapshot, {'ordered': [], 'excluded': [excluded_entry(ERRORS_PATH)]})
+        self.assertIn('Ordered files: 0 | Excluded: 1', text)
+        status = collaborative_review.checklist_status(text)
+        self.assertEqual(status['checked'], 0)
+        self.assertEqual(status['total'], 0)
+        self.assertIsNone(status['current'])
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.advance_checklist(text, snapshot, 1, 'reviewed')
+
+
+class TestCaptureSides(unittest.TestCase):
+    """I2: the side paths a capture reads, with the rename base at `previous_path`.
+
+    The head side is `path`; the base side is `path` except for renames, whose
+    merge-base content lives at `previous_path`, and additions, which have no base
+    side. A renamed entry without a recorded `previous_path` cannot be captured.
+    """
+
+    def test_rename_reads_the_base_side_at_previous_path(self):
+        pages = [[row('src/domain/session_store.ts', status='renamed',
+                      previous_filename='src/legacy/session store.ts')]]
+        snapshot = collaborative_review.normalize_snapshot(metadata(1), pages, MERGE_BASE_SHA)
+        self.assertEqual(collaborative_review.capture_sides(snapshot['files'][0]),
+                         {'base': 'src/legacy/session store.ts',
+                          'head': 'src/domain/session_store.ts'})
+
+    def test_added_and_removed_files_keep_their_missing_side(self):
+        pages = [[row('src/new.py', status='added'),
+                  row('src/gone.py', status='removed', additions=0, deletions=3)]]
+        snapshot = collaborative_review.normalize_snapshot(metadata(2), pages, MERGE_BASE_SHA)
+        files = {entry['path']: entry for entry in snapshot['files']}
+        self.assertEqual(collaborative_review.capture_sides(files['src/new.py']),
+                         {'base': None, 'head': 'src/new.py'})
+        self.assertEqual(collaborative_review.capture_sides(files['src/gone.py']),
+                         {'base': 'src/gone.py', 'head': None})
+
+    def test_modified_file_reads_the_same_path_on_both_sides(self):
+        entry = snapshot_of(ERRORS_PATH)['files'][0]
+        self.assertEqual(collaborative_review.capture_sides(entry),
+                         {'base': ERRORS_PATH, 'head': ERRORS_PATH})
+
+    def test_renamed_file_without_previous_path_is_refused(self):
+        snapshot = collaborative_review.normalize_snapshot(
+            metadata(1), [[row('src/new.py', status='renamed')]], MERGE_BASE_SHA)
+        with self.assertRaises(collaborative_review.SnapshotError):
+            collaborative_review.capture_sides(snapshot['files'][0])
+
+    def test_mixed_fixture_rename_base_exists_only_at_previous_path(self):
+        meta = json.loads((MIXED_PR_GITHUB / 'pr-view.json').read_text(encoding='utf-8'))
+        pages = json.loads((MIXED_PR_GITHUB / 'pages.json').read_text(encoding='utf-8'))
+        compare = json.loads((MIXED_PR_GITHUB / 'compare.json').read_text(encoding='utf-8'))
+        snapshot = collaborative_review.normalize_snapshot(
+            meta, pages, compare['merge_base_commit']['sha'])
+        files = {entry['path']: entry for entry in snapshot['files']}
+        sides = collaborative_review.capture_sides(files['src/domain/session_store.ts'])
+        self.assertEqual(sides, {'base': 'src/legacy/session_store.ts',
+                                 'head': 'src/domain/session_store.ts'})
+        self.assertTrue((MIXED_PR_GITHUB / 'contents' / 'base' / sides['base']).is_file())
+        self.assertFalse((MIXED_PR_GITHUB / 'contents' / 'base' / sides['head']).exists())
+        self.assertTrue((MIXED_PR_GITHUB / 'contents' / 'head' / sides['head']).is_file())
+
+
+class TestContentsEndpoint(unittest.TestCase):
+    """I4: the contents request encodes path segments and pins the ref separately.
+
+    Shell quoting alone leaves `#` a fragment, `?` a query separator and a literal
+    `%20` a space once decoded. The endpoint percent-encodes the exact path, keeps
+    `/` as the segment separator, appends the pinned 40-hex ref as its own query
+    and is shell-quoted so the whole request stays one argument.
+    """
+
+    REPO = 'acme/session-kit'
+
+    def test_special_paths_are_percent_encoded(self):
+        cases = {
+            'src/name#old.py': 'src/name%23old.py',
+            'src/notes/why?.md': 'src/notes/why%3F.md',
+            'src/util/per%20cent.py': 'src/util/per%2520cent.py',
+            'src/notes/two words.md': 'src/notes/two%20words.md',
+            'src/旧.py': 'src/%E6%97%A7.py',
+            "src/it's.py": 'src/it%27s.py',
+        }
+        for path, encoded in cases.items():
+            with self.subTest(path=path):
+                raw = 'repos/acme/session-kit/contents/{}?ref={}'.format(
+                    encoded, MERGE_BASE_SHA)
+                self.assertEqual(
+                    collaborative_review.contents_endpoint(self.REPO, path, MERGE_BASE_SHA),
+                    shlex.quote(raw))
+
+    def test_the_encoded_request_parses_as_one_path_and_the_pinned_query(self):
+        for path, encoded in (('src/name#old.py', 'src/name%23old.py'),
+                              ('src/notes/why?.md', 'src/notes/why%3F.md')):
+            with self.subTest(path=path):
+                endpoint = shlex.split(collaborative_review.contents_endpoint(
+                    self.REPO, path, MERGE_BASE_SHA))
+                self.assertEqual(len(endpoint), 1)
+                parts = urllib.parse.urlsplit(endpoint[0])
+                self.assertEqual(parts.path,
+                                 'repos/acme/session-kit/contents/' + encoded)
+                self.assertEqual(parts.query, 'ref=' + MERGE_BASE_SHA)
+                self.assertEqual(parts.fragment, '')
+
+    def test_rename_paths_and_quotes_stay_one_shell_word(self):
+        for path in ('src/legacy/session store.ts', 'src/domain/session_store.ts',
+                     "src/it's.py", 'src/a#b?.py'):
+            with self.subTest(path=path):
+                tokens = shlex.split(collaborative_review.contents_endpoint(
+                    self.REPO, path, HEAD_SHA))
+                self.assertEqual(len(tokens), 1)
+                self.assertTrue(tokens[0].startswith('repos/acme/session-kit/contents/'))
+                self.assertTrue(tokens[0].endswith('?ref=' + HEAD_SHA))
+
+    def test_malformed_inputs_are_refused(self):
+        cases = ((self.REPO, '', MERGE_BASE_SHA),
+                 (self.REPO, 'a.py', 'HEAD'),
+                 (self.REPO, 'a.py', None))
+        for repo, path, ref in cases:
+            with self.subTest(path=path, ref=ref):
+                with self.assertRaises(collaborative_review.SnapshotError):
+                    collaborative_review.contents_endpoint(repo, path, ref)
+
+
+class TestValidateContextRequest(unittest.TestCase):
+    """I3: a worker's supporting-context request is bounded and exact.
+
+    At most eight unique repo-relative paths, each with a side (`base`, `head` or
+    `both`) and a reason. A path is a literal exact path: valid `?`, `[`, `]` or
+    `*` filename characters are kept as-is and are never expanded as patterns.
+    Traversal, absolute paths, backslashes, empty segments, control characters
+    and extra pattern-request fields are refused whole; the request never names a
+    review row.
+    """
+
+    def test_exact_bounded_request_is_accepted_unchanged(self):
+        request = [
+            {'path': 'src/app.ts', 'sides': 'both',
+             'reason': 'unchanged caller of the changed get() contract'},
+            {'path': 'schemas/session.json', 'sides': 'head',
+             'reason': "the generated schema's source"},
+        ]
+        self.assertEqual(collaborative_review.validate_context_request(request), request)
+
+    def test_literal_special_characters_are_exact_paths_never_patterns(self):
+        request = [
+            {'path': 'src/why?.md', 'sides': 'head', 'reason': 'literal ? in the name'},
+            {'path': 'src/odd/name[1]*.py', 'sides': 'both',
+             'reason': 'literal bracket and star characters'},
+            {'path': 'src/two words.md', 'sides': 'base', 'reason': 'space in the name'},
+            {'path': 'src/旧/session.py', 'sides': 'both', 'reason': 'Unicode name'},
+        ]
+        self.assertEqual(collaborative_review.validate_context_request(request), request)
+
+    def test_more_than_eight_paths_is_refused(self):
+        request = [{'path': 'src/file{}.py'.format(index), 'sides': 'both', 'reason': 'needed'}
+                   for index in range(9)]
+        with self.assertRaises(collaborative_review.ContextRequestError):
+            collaborative_review.validate_context_request(request)
+
+    def test_duplicate_paths_are_refused(self):
+        request = [{'path': 'src/app.ts', 'sides': 'both', 'reason': 'caller'},
+                   {'path': 'src/app.ts', 'sides': 'head', 'reason': 'again'}]
+        with self.assertRaises(collaborative_review.ContextRequestError):
+            collaborative_review.validate_context_request(request)
+
+    def test_traversal_absolute_and_unsafe_paths_are_refused(self):
+        unsafe = ('../secrets.env', 'src/../../etc/passwd', '/etc/passwd',
+                  './src/app.ts', 'src\\app.py', 'src//app.ts',
+                  'src/a\x00b.py', 'src/a\nb.py', 'src/a\tb.py', '', 7)
+        for path in unsafe:
+            with self.subTest(path=path):
+                request = [{'path': path, 'sides': 'both', 'reason': 'x'}]
+                with self.assertRaises(collaborative_review.ContextRequestError):
+                    collaborative_review.validate_context_request(request)
+
+    def test_extra_pattern_or_wildcard_request_fields_are_refused(self):
+        bad = (
+            {'path': 'src/app.ts', 'sides': 'both', 'reason': 'x', 'glob': True},
+            {'path': 'src/app.ts', 'sides': 'both', 'reason': 'x', 'pattern': 'src/**'},
+            {'path': 'src/app.ts', 'sides': 'both', 'reason': 'x', 'wildcard': '*.py'},
+            {'path': 'src/*.py', 'sides': 'both', 'reason': 'x', 'expand': True},
+            {'glob': 'src/**/*.py', 'sides': 'both', 'reason': 'x'},
+        )
+        for entry in bad:
+            with self.subTest(entry=entry):
+                with self.assertRaises(collaborative_review.ContextRequestError):
+                    collaborative_review.validate_context_request([entry])
+
+    def test_sides_and_reason_are_validated(self):
+        bad = (
+            {'path': 'src/app.ts', 'reason': 'caller'},
+            {'path': 'src/app.ts', 'sides': 'sideways', 'reason': 'caller'},
+            {'path': 'src/app.ts', 'sides': 'both', 'reason': ''},
+            {'path': 'src/app.ts', 'sides': 'both', 'reason': 'two\nlines'},
+            'src/app.ts',
+        )
+        for entry in bad:
+            with self.subTest(entry=entry):
+                with self.assertRaises(collaborative_review.ContextRequestError):
+                    collaborative_review.validate_context_request([entry])
+
+    def test_a_request_must_be_a_list(self):
+        for request in ('src/app.ts', {'path': 'src/app.ts'}, None):
+            with self.subTest(request=request):
+                with self.assertRaises(collaborative_review.ContextRequestError):
+                    collaborative_review.validate_context_request(request)
+
+
+REPORT_NOTE = {
+    'link': 'reports/004.md',
+    'assessment': 'Needs edits',
+    'findings': ['`touch()` on a missing id is unpinned',
+                 '`delete` has no coverage'],
+}
+
+
+class TestRecordReport(unittest.TestCase):
+    """I5: a report's link, assessment and findings persist in the ledger.
+
+    Recording writes under the non-approval `## Discussion and findings` section,
+    never checks a box, is idempotent on resume, replaces an updated report's own
+    note without duplication and survives the `reviewed` approval. The report
+    reference is an actual clickable Markdown link whose relative URL target is
+    percent-encoded while the raw link stays the visible label and the identity
+    used to find and replace the block.
+    """
+
+    def setUp(self):
+        self.snapshot = two_file_snapshot()
+        self.text = collaborative_review.render_checklist(self.snapshot, two_entry_preparation())
+
+    def files_section(self, text):
+        return text.split('## Files', 1)[1].split('## Excluded', 1)[0]
+
+    def anchors(self, text, link):
+        prefix = '- Report [`{}`]('.format(link)
+        return [line for line in text.split('\n') if line.startswith(prefix)]
+
+    def test_recording_persists_the_link_assessment_and_findings(self):
+        recorded, summary = collaborative_review.record_report(self.text, REPORT_NOTE)
+        self.assertNotEqual(recorded, self.text)
+        self.assertTrue(summary['changed'])
+        # a clickable link, not only a backticked filename
+        self.assertIn('- Report [`reports/004.md`](reports/004.md) — Needs edits.', recorded)
+        self.assertEqual(len(self.anchors(recorded, 'reports/004.md')), 1)
+        self.assertIn('`touch()` on a missing id is unpinned', recorded)
+        self.assertIn('`delete` has no coverage', recorded)
+        self.assertNotIn('_None yet._', recorded)
+        # the note is non-approval text: no checkbox and no ## Files change
+        self.assertEqual(self.files_section(recorded), self.files_section(self.text))
+        self.assertEqual(recorded.count('- [x]'), 0)
+
+    def test_recording_is_idempotent_on_resume(self):
+        recorded, first = collaborative_review.record_report(self.text, REPORT_NOTE)
+        self.assertTrue(first['changed'])
+        again, second = collaborative_review.record_report(recorded, REPORT_NOTE)
+        self.assertFalse(second['changed'])
+        self.assertEqual(again, recorded)
+        self.assertEqual(len(self.anchors(again, 'reports/004.md')), 1)
+
+    def test_an_updated_report_replaces_its_note_without_duplication(self):
+        recorded, _ = collaborative_review.record_report(self.text, REPORT_NOTE)
+        updated_note = dict(REPORT_NOTE, findings=['one remaining gap'])
+        updated, summary = collaborative_review.record_report(recorded, updated_note)
+        self.assertTrue(summary['changed'])
+        self.assertEqual(len(self.anchors(updated, 'reports/004.md')), 1)
+        self.assertNotIn('`delete` has no coverage', updated)
+        self.assertIn('one remaining gap', updated)
+        # another report's note is untouched, and re-recording stays single-copy
+        other, _ = collaborative_review.record_report(
+            updated, dict(REPORT_NOTE, link='reports/003.md'))
+        again, _ = collaborative_review.record_report(other, updated_note)
+        self.assertEqual(len(self.anchors(again, 'reports/003.md')), 1)
+        self.assertEqual(len(self.anchors(again, 'reports/004.md')), 1)
+        self.assertIn('one remaining gap', again)
+
+    def test_an_unresolved_finding_survives_the_reviewed_approval(self):
+        recorded, _ = collaborative_review.record_report(self.text, REPORT_NOTE)
+        advanced, status = collaborative_review.advance_checklist(
+            recorded, self.snapshot, 1, 'reviewed')
+        self.assertTrue(status['advanced'])
+        self.assertEqual(advanced.count('- [x]'), 1)
+        self.assertEqual(len(self.anchors(advanced, 'reports/004.md')), 1)
+        self.assertIn('`touch()` on a missing id is unpinned', advanced)
+        # re-presenting the reused report after the approval records nothing new
+        again, summary = collaborative_review.record_report(advanced, REPORT_NOTE)
+        self.assertFalse(summary['changed'])
+        self.assertEqual(again, advanced)
+
+    def test_the_link_target_is_percent_encoded_without_losing_raw_identity(self):
+        cases = {
+            'reports/004.md': 'reports/004.md',
+            'reports/two words.md': 'reports/two%20words.md',
+            'reports/why#1?.md': 'reports/why%231%3F.md',
+            'reports/50%.md': 'reports/50%25.md',
+            'reports/旧.md': 'reports/%E6%97%A7.md',
+        }
+        for link, target in cases.items():
+            with self.subTest(link=link):
+                recorded, summary = collaborative_review.record_report(
+                    self.text, dict(REPORT_NOTE, link=link))
+                self.assertTrue(summary['changed'])
+                self.assertEqual(
+                    self.anchors(recorded, link),
+                    ['- Report [`{}`]({}) — Needs edits.'.format(link, target)])
+                # the raw link is still the identity a resume re-records against
+                again, second = collaborative_review.record_report(
+                    recorded, dict(REPORT_NOTE, link=link))
+                self.assertFalse(second['changed'])
+                self.assertEqual(again, recorded)
+
+    def test_a_special_link_keeps_its_raw_identity_when_replaced(self):
+        link = 'reports/two words#?.md'
+        recorded, _ = collaborative_review.record_report(
+            self.text, dict(REPORT_NOTE, link=link))
+        updated, summary = collaborative_review.record_report(
+            recorded, dict(REPORT_NOTE, link=link, findings=['still open']))
+        self.assertTrue(summary['changed'])
+        self.assertEqual(len(self.anchors(updated, link)), 1)
+        self.assertIn('](reports/two%20words%23%3F.md)', updated)
+        self.assertIn('`{}`'.format(link), updated)
+        self.assertIn('still open', updated)
+        self.assertNotIn('`delete` has no coverage', updated)
+
+    def test_malformed_notes_are_refused(self):
+        bad_notes = (
+            {'link': '', 'assessment': 'Needs edits', 'findings': []},
+            {'link': 'reports/a\nb.md', 'assessment': 'Needs edits', 'findings': []},
+            {'link': 'reports/004.md', 'assessment': 'Ship it', 'findings': []},
+            {'link': 'reports/004.md', 'assessment': 'Needs edits',
+             'findings': ['two\nlines']},
+            {'link': 'reports/004.md', 'assessment': 'Needs edits', 'findings': [7]},
+        )
+        for note in bad_notes:
+            with self.subTest(note=note):
+                with self.assertRaises(collaborative_review.ChecklistError):
+                    collaborative_review.record_report(self.text, note)
+
+
+class TestRecordReportFile(unittest.TestCase):
+    """I5: recording reuses the atomic replacement and never checks a box.
+
+    The file-oriented wrapper owns the report link's filesystem contract: the
+    note's link is the report path relative to the checklist (`reports/004.md`),
+    and the recorded hyperlink must resolve from the ledger to the existing
+    report — a repo-root-relative link is canonicalized to the ledger-relative
+    path, and an absolute, escaping or nonexistent destination is refused.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.run_dir = (self.root / '.artel' / 'run' / 'collaborative-review'
+                        / 'acme' / 'session-kit' / 'pr-57')
+        self.checklist = self.run_dir / 'review-checklist.md'
+        snapshot = two_file_snapshot()
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+        self.checklist.write_text(
+            collaborative_review.render_checklist(snapshot, two_entry_preparation()),
+            encoding='utf-8')
+        reports = self.run_dir / 'reports'
+        reports.mkdir()
+        (reports / '004.md').write_text('# Report 004\n', encoding='utf-8')
+
+    def report_link(self, text):
+        line = next((line for line in text.split('\n')
+                     if line.startswith('- Report [')), None)
+        self.assertIsNotNone(line, 'the ledger has no recorded report note')
+        label = line.split('[`', 1)[1].split('`]', 1)[0]
+        target = line.split('](', 1)[1].split(')', 1)[0]
+        return label, target
+
+    def chdir_root(self):
+        previous = os.getcwd()
+        self.addCleanup(os.chdir, previous)
+        os.chdir(self.root)
+
+    def test_persisting_is_atomic_and_idempotent(self):
+        first = collaborative_review.record_report_file(self.checklist, REPORT_NOTE)
+        self.assertTrue(first['changed'])
+        written = self.checklist.read_text(encoding='utf-8')
+        self.assertIn('`reports/004.md`', written)
+        self.assertIn('](reports/004.md)', written)
+        second = collaborative_review.record_report_file(self.checklist, REPORT_NOTE)
+        self.assertFalse(second['changed'])
+        self.assertEqual(self.checklist.read_text(encoding='utf-8'), written)
+        self.assertEqual(list(self.checklist.parent.glob('review-checklist.md.*')), [])
+
+    def test_a_repo_root_relative_link_is_canonicalized_to_the_ledger(self):
+        root_link = str(self.run_dir.relative_to(self.root) / 'reports' / '004.md')
+        self.chdir_root()
+        summary = collaborative_review.record_report_file(
+            self.checklist, dict(REPORT_NOTE, link=root_link))
+        self.assertTrue(summary['changed'])
+        text = self.checklist.read_text(encoding='utf-8')
+        label, target = self.report_link(text)
+        self.assertEqual((label, target), ('reports/004.md', 'reports/004.md'))
+        self.assertTrue((self.checklist.parent / target).resolve().is_file())
+        # the canonical identity makes a re-record with either form idempotent
+        again = collaborative_review.record_report_file(
+            self.checklist, dict(REPORT_NOTE, link=root_link))
+        self.assertFalse(again['changed'])
+
+    def test_a_nonexistent_report_link_is_refused(self):
+        with self.assertRaises(collaborative_review.ChecklistError):
+            collaborative_review.record_report_file(
+                self.checklist, dict(REPORT_NOTE, link='reports/999.md'))
+
+    def test_an_absolute_or_escaping_report_link_is_refused(self):
+        outside = self.run_dir.parent / 'outside.md'
+        outside.write_text('# outside the run directory\n', encoding='utf-8')
+        self.chdir_root()
+        for link in ('/tmp/004.md', '../outside.md', 'reports/../../outside.md'):
+            with self.subTest(link=link):
+                with self.assertRaises(collaborative_review.ChecklistError):
+                    collaborative_review.record_report_file(
+                        self.checklist, dict(REPORT_NOTE, link=link))
+
+    def test_a_nested_existing_report_link_is_kept(self):
+        nested = self.run_dir / 'reports' / 'phase-1' / '004.md'
+        nested.parent.mkdir()
+        nested.write_text('# Report 004 (phase 1)\n', encoding='utf-8')
+        summary = collaborative_review.record_report_file(
+            self.checklist, dict(REPORT_NOTE, link='reports/phase-1/004.md'))
+        self.assertTrue(summary['changed'])
+        text = self.checklist.read_text(encoding='utf-8')
+        label, target = self.report_link(text)
+        self.assertEqual((label, target),
+                         ('reports/phase-1/004.md', 'reports/phase-1/004.md'))
+        self.assertTrue((self.checklist.parent / target).resolve().is_file())
+
+    def test_failed_atomic_replace_keeps_the_original_bytes(self):
+        original = self.checklist.read_bytes()
+        with mock.patch.object(collaborative_review.os, 'replace',
+                               side_effect=OSError('disk full')):
+            with self.assertRaises(OSError):
+                collaborative_review.record_report_file(self.checklist, REPORT_NOTE)
+        self.assertEqual(self.checklist.read_bytes(), original)
+        self.assertEqual(list(self.checklist.parent.glob('review-checklist.md.*')), [])
 
 
 if __name__ == '__main__':

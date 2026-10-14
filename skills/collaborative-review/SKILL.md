@@ -57,15 +57,39 @@ lives in the `--output` artifact.
 4. **The PR diff as a file**: `gh pr diff <target>` → `<run>/pr.diff`.
 
 5. **Full contents at both revisions**, saved locally so every later read is immutable and
-   offline. For each inventory path, save the side(s) where it exists (skip the base side of an
-   added file and the head side of a removed one):
+   offline. Save the side(s) where the path exists: the base side is `previous_path` for a
+   renamed file and is skipped for an added file; the head side is `path` and is skipped for a
+   removed file. The endpoint is percent-encoded and shell-quoted by the helper — never type a
+   path into a URL by hand:
 
-       gh api -H 'Accept: application/vnd.github.raw' 'repos/<owner>/<repo>/contents/<path>?ref=<merge_base_sha>' → <run>/contents/base/<path>
-       gh api -H 'Accept: application/vnd.github.raw' 'repos/<head-owner>/<head-repo>/contents/<path>?ref=<headRefOid>' → <run>/contents/head/<path>
+       python3 -c "
+       import json, runpy
+       s = json.load(open('<run>/snapshot.json', encoding='utf-8'))
+       m = runpy.run_path('${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py')
+       for e in s['files']:
+           sides = m['capture_sides'](e)
+           for side in ('base', 'head'):
+               path = sides[side]
+               if path is None:
+                   continue
+               repo = '<owner>/<repo>' if side == 'base' else '<head-owner>/<head-repo>'
+               ref = '<merge_base_sha>' if side == 'base' else '<headRefOid>'
+               print(json.dumps({'path': path, 'side': side,
+                                 'endpoint': m['contents_endpoint'](repo, path, ref)}))
+       "
 
-   The head side uses the head repository from the metadata (`headRepository.nameWithOwner`)
-   when the PR comes from a fork. Missing or truncated `patch` fields are expected — these saved
-   contents are the review context, never a claimed full review from patches alone.
+   Each printed line carries the raw `path`, the `side` and one ready-to-use shell word in
+   `endpoint`. For every line, run
+
+       gh api -H 'Accept: application/vnd.github.raw' <endpoint> > <run>/contents/<side>/<path>
+
+   and use the endpoint exactly as printed — it already carries any quoting it needs; never
+   wrap it in another pair of quotes and never pass it through a shell variable or `$(…)`.
+   Quote the raw disk path as one shell word too. The head side uses the head repository from
+   the metadata (`headRepository.nameWithOwner`) when the PR comes from a fork; the base side
+   uses the base repository at the recorded `merge_base_sha`. Missing or truncated `patch`
+   fields are expected — these saved contents are the review context, never a claimed full
+   review from patches alone.
 
 6. **The normalized snapshot** through the helper:
 
@@ -141,9 +165,38 @@ Modes:
   report, keeping earlier findings. It never touches checklist state.
 
 The worker reads old content at the merge base and new content at head from `<run>/contents/`,
-and uses the host's optional code-symbol index, index-first, for navigation
-(`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §3). A mismatched local index is not PR
-evidence — the captured snapshot contents are.
+any supporting context acquired earlier from `<run>/context/`, and uses the host's optional
+code-symbol index, index-first, for navigation (`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`
+§3). A mismatched local index is not PR evidence — the captured snapshot contents are.
+
+## Supporting context
+
+The snapshot is the review input; the checkout never is. When the worker cannot judge the
+current file without an unchanged dependency that is not part of the changed inventory — a
+changed signature's caller, a modified interface's implementor, a lockfile's manifest, a
+generated file's source — it returns an explicit supporting-context request instead of a
+report: repo-relative exact paths, each with its side(s) (`base`, `head` or `both`) and a
+reason. A requested path is literal — `?`, `[`, `]` and `*` are ordinary filename characters,
+never patterns.
+
+Save the returned request to `<run>/context-request.json` and validate it through the helper
+before acquiring anything; an unsafe or oversized request is refused whole:
+
+    python3 -c "import json, runpy; m=runpy.run_path('${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py'); r=json.load(open('<run>/context-request.json')); print(json.dumps(m['validate_context_request'](r)))"
+
+Acquire each requested path only at the recorded snapshot's revisions — the base side from
+the base repository at `merge_base_sha`, the head side from the head repository at
+`headRefOid` — saving it under `<run>/context/base|head/<raw path>`, separate from `contents/`
+and from the changed inventory: context paths never become review rows, never change the
+snapshot identity and never appear in `## Files`. Build each endpoint with the same
+`contents_endpoint` helper as the capture, and use the printed shell word exactly as it is.
+
+One request carries at most 8 unique paths and one analysis seat gets at most 2 acquisition
+rounds. At the bound, or when a requested path cannot be fetched, record the exact verification
+limit and mark that part `Cannot verify` — never guess and never read the host checkout as PR
+evidence. Label the saved context with the repositories and SHAs it came from and reuse that
+provenance when the seat resumes. Then resume the same worker seat with the saved context
+paths, and present only when its report exists.
 
 ## Present one file
 
@@ -152,7 +205,10 @@ Read the ledger through the helper:
     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py status --checklist <run>/review-checklist.md
 
 `current` is the first unchecked row, regardless of whether it carries findings — a checked file
-can still have unresolved findings, and a report existing never advances anything.
+can still have unresolved findings, and a report existing never advances anything. `status`
+refuses a damaged ledger — one whose rendered `Ordered files` count no longer matches its
+approval rows. Treat `invalid_data` from `status` as a stop: report the damage, never present a
+file, never accept approval and never claim completion from it.
 
 Before every presentation or approval, re-read the metadata, pages and compare responses and
 normalize a fresh snapshot into `<run>/fresh.json` (`## Capture the snapshot` steps 1–3 and 6;
@@ -166,6 +222,21 @@ If `current` is null, the review is complete or the PR has no eligible files —
 
 Dispatch the worker (`file` mode) for the current row when its report does not exist yet; when
 `<run>/reports/<NNN>.md` is already saved for it, present from that report without re-dispatching.
+Record the report in the ledger before presenting it — for every new, updated or reused report,
+and before any advancement. Compose the note from the report itself as
+`<run>/report-note.json`: `link` is the report path **relative to the checklist**
+(`reports/<NNN>.md`), plus its assessment and its unresolved findings. Persist it atomically:
+
+    python3 -c "import json, runpy; m=runpy.run_path('${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py'); print(json.dumps(m['record_report_file']('<run>/review-checklist.md', json.load(open('<run>/report-note.json')))))"
+
+The helper checks the link against the ledger's directory and canonicalizes it to the
+ledger-relative path, so the recorded hyperlink always reaches the report beside the checklist;
+an absolute, escaping or nonexistent destination is refused and nothing is written. The note
+lands as a clickable Markdown link plus its unresolved findings under
+`## Discussion and findings`; the helper never checks a box, and re-recording a report replaces
+its own note, so a resume does not duplicate it. An `io_error` or a refused link here stops the
+turn: report the failure honestly, fix the note before retrying, and never present a file whose
+report did not persist.
 Then present exactly one file in this order, and stop the turn:
 
 1. **File N of M:** `<path>` — status — with the direct PR diff link from the snapshot's
@@ -213,7 +284,8 @@ then:
 
 A `reviewed` confirmation advances even when findings remain: the person acknowledged the file.
 Keep unresolved findings visible in the ledger and in the final summary — checking a file
-neither resolves defects nor changes the assessment.
+neither resolves defects nor changes the assessment, and a confirmation never edits a recorded
+report note: only a new or updated worker report changes one.
 
 ## Resume
 
@@ -221,7 +293,9 @@ Read `status`. If the ledger identity matches the fresh snapshot, resume at the 
 row without re-reviewing completed files: saved reports and notes stay untouched, and a
 completed file is never presented again. If `current` is null and the identity matches, the
 review is complete — go to `## Finish`. If the identity differs, do not present a file and do
-not accept approval: explain the change and ask to rebuild.
+not accept approval: explain the change and ask to rebuild. If `status` refuses the ledger (a
+damaged or shortened checklist), do not present a file, do not accept approval and do not claim
+completion — report the damage and ask how to proceed.
 
 ## Rebuild
 

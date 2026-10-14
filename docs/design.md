@@ -1353,3 +1353,26 @@ move to the decision log.
   GitHub. CLI grammar, row IDs, ledger schema, snapshot identity and existing approved rows are
   unchanged. Spec amendment: the local design spec's approved-amendment section (2026-10-14).
   Locked in by `tests/test_collaborative_review.py`.
+- **2026-10-14 — Collaborative-review completeness, snapshot acquisition and finding recording
+  are helper-enforced.** The final whole-branch review found five integration gaps the passing
+  suites did not cover: a shortened ledger could report completion against a fresh snapshot; a
+  rename fetched its base side at the new path; the worker had no way to obtain needed unchanged
+  dependency context; raw paths were inserted into contents endpoints (so `#`, `?`, `%`, spaces
+  and Unicode could corrupt the request); and a newly presented report's findings were never
+  written into the ledger. One fix wave repairs them without changing the schema or the exact
+  `reviewed` gate: `status`/`advance` enforce the rendered `Ordered files` count against the
+  parsed approval rows (a legitimate zero-row ledger stays valid); the capture reads a rename's
+  base side at `previous_path` and builds each contents endpoint through a stdlib helper that
+  percent-encodes every path segment and returns one shell word at a pinned ref; the worker may
+  return a bounded supporting-context request (≤ 8 literal paths per request, `base`/`head`/
+  `both` sides, reasons, ≤ 2 rounds per seat) that the orchestrator validates and acquires at
+  the recorded merge-base/head SHAs from the base/head repositories into `context/base|head/` —
+  never from the checkout, never as review rows; and every new, updated or reused report is
+  recorded atomically as a clickable Markdown link with its assessment and unresolved findings
+  before presentation — its target checked against the ledger's directory and canonicalized to
+  the ledger-relative path, so the hyperlink always reaches the report beside the ledger —
+  idempotently and without touching `## Files`. Rejected: a
+  glob/path-character blacklist for context requests (literal `?`/`[`/`*` names are valid and
+  the endpoint is encoded, not expanded), a competing approval ledger, new CLI verbs for the
+  helpers, and resolving anything from the host checkout. Locked in by
+  `tests/test_collaborative_review.py`.

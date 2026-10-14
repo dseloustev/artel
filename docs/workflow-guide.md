@@ -634,10 +634,11 @@ what to run next. Run all of these from the host repo root.
     repository. *Run:* `/artel:collaborative-review <pr-url-or-number>`. *Produces:* a saved
     checklist under `.artel/run/collaborative-review/<owner>/<repo>/pr-<N>/review-checklist.md`
     and a one-file-at-a-time walkthrough — each file presented with its role, changed excerpt,
-    why, assessment and direct diff link; only a reply whose trimmed, case-folded text is
-    exactly `reviewed` marks the current file reviewed, and comments stay on it. A changed head
-    or inventory blocks advancement until you explicitly confirm a rebuild, which archives the
-    old checklist and reports under `history/`.
+    why, assessment and direct diff link, with the report's clickable link and unresolved
+    findings recorded in the ledger before presentation; only a reply whose trimmed, case-folded
+    text is exactly `reviewed` marks the current file reviewed, and comments stay on it. A
+    changed head or inventory blocks advancement until you explicitly confirm a rebuild, which
+    archives the old checklist and reports under `history/`.
     *Next:* reply `reviewed` per file; nothing is posted to GitHub and no ticket is required. See
     [collaborative-review](skills-reference.md#collaborative-review).
 

@@ -48,14 +48,24 @@ compact summary (output path, PR/revision identity, counts, digest, or checklist
 status) so file contents never have to enter the caller's context -- or
 `error: {kind, message}`. Exit 0 when answered; 2 for an invalid argument,
 invalid input data, or an I/O failure.
+
+Beyond the CLI, the module exposes the narrow pure helpers the skill's recipes
+call through `runpy`: `capture_sides` (which side path a capture reads per
+file), `contents_endpoint` (one percent-encoded, shell-quoted contents request at
+a pinned ref), `validate_context_request` (a worker's bounded supporting-context
+request) and `record_report`/`record_report_file` (a report's clickable link,
+assessment and unresolved findings persisted in the ledger's discussion
+section).
 """
 import hashlib
 import json
 import os
 import re
+import shlex
 import sys
 import tempfile
 import time
+import urllib.parse
 from pathlib import Path
 
 VERB = 'inventory'
@@ -66,8 +76,13 @@ SHA_RE = re.compile(r'^[0-9a-f]{40}$')
 DIGEST_RE = re.compile(r'^[0-9a-f]{64}$')
 SNAPSHOT_HEADER_RE = re.compile(r'^<!--\s*collaborative-review-snapshot:\s*(\{.*\})\s*-->$')
 FILE_ROW_RE = re.compile(r'^- \[([ xX])\] ([0-9]+)\. ')
+ORDERED_COUNT_RE = re.compile(r'^Ordered files: ([0-9]+) \| Excluded: ([0-9]+)$')
 FENCE_RE = re.compile(r'^\s*(?:```+|~~~+)')
 IDENTITY_KEYS = ('pr_url', 'base_sha', 'head_sha', 'merge_base_sha', 'inventory_digest')
+CONTEXT_SIDES = ('base', 'head', 'both')
+CONTEXT_REQUEST_FIELDS = ('path', 'sides', 'reason')
+CONTEXT_REQUEST_LIMIT = 8
+ASSESSMENTS = ('No issues found', 'Needs edits', 'Cannot verify')
 USAGE = ('usage: collaborative_review.py inventory --metadata <json-file> '
          '--pages <json-file> --merge-base <sha> --output <json-file>\n'
          '       collaborative_review.py render --snapshot <file> '
@@ -87,6 +102,10 @@ class ChecklistError(ValueError):
 
 class UsageError(ValueError):
     """The command line itself is wrong."""
+
+
+class ContextRequestError(ValueError):
+    """A worker's supporting-context request that cannot be safely acquired."""
 
 
 def pr_url_base(pr_url):
@@ -110,6 +129,114 @@ def diff_url(pr_url: str, path: str) -> str:
         raise SnapshotError('file path must be a non-empty string')
     digest = hashlib.sha256(path.encode('utf-8')).hexdigest()
     return '{}/files#diff-{}'.format(base, digest)
+
+
+def capture_sides(file_entry: dict) -> dict:
+    """The base and head side paths a capture reads for one snapshot file entry.
+
+    The head side is `path`; the base side is `path` too, except that a renamed
+    file's merge-base content lives at `previous_path` and an added file has no
+    base side. `None` marks a side that does not exist. A renamed entry without a
+    recorded `previous_path` cannot be captured and is refused.
+    """
+    if not isinstance(file_entry, dict):
+        raise SnapshotError('file entry must be an object')
+    path = file_entry.get('path')
+    if not isinstance(path, str) or not path:
+        raise SnapshotError('file entry has no path')
+    status = file_entry.get('status')
+    if not isinstance(status, str) or not status:
+        raise SnapshotError('file entry {} has no status'.format(path))
+    previous = file_entry.get('previous_path')
+    if status == 'added':
+        base = None
+    elif status == 'renamed':
+        if not isinstance(previous, str) or not previous:
+            raise SnapshotError(
+                'renamed file {} has no previous_path for its base side'.format(path))
+        base = previous
+    else:
+        base = path
+    return {'base': base, 'head': None if status == 'removed' else path}
+
+
+def contents_endpoint(repo: str, path: str, ref: str) -> str:
+    """The shell-quoted contents endpoint for one exact `path` at pinned `ref`.
+
+    The path is percent-encoded segment by segment (`/` stays the separator), so
+    `#`, `?`, `%`, spaces and non-ASCII names cannot become a fragment, a query
+    or a decoded escape, and the raw path is never rewritten. The 40-hex `ref` is
+    appended as its own `?ref=` query after the encoded path. The returned value
+    is one complete shell word: place it in a command exactly as returned.
+    """
+    if not isinstance(repo, str) or not repo:
+        raise SnapshotError('repository must be a non-empty owner/repo string')
+    if not isinstance(path, str) or not path:
+        raise SnapshotError('file path must be a non-empty string')
+    pinned = _sha(ref, 'contents ref')
+    encoded = urllib.parse.quote(path, safe='/')
+    return shlex.quote('repos/{}/contents/{}?ref={}'.format(repo, encoded, pinned))
+
+
+def _context_path(path, index):
+    """Refuse a context-request path that is not one exact repo-relative file."""
+    if not isinstance(path, str) or not path:
+        raise ContextRequestError('request entry {} has no path'.format(index))
+    if any(ord(char) < 32 or ord(char) == 127 for char in path):
+        raise ContextRequestError(
+            'request entry {} path contains a control character'.format(index))
+    if path.startswith('/') or '\\' in path:
+        raise ContextRequestError(
+            'request entry {} path must be repo-relative without backslashes'.format(index))
+    if any(segment in ('', '.', '..') for segment in path.split('/')):
+        raise ContextRequestError(
+            'request entry {} path has an empty, `.` or `..` segment'.format(index))
+
+
+def validate_context_request(entries) -> list:
+    """The validated entries of one worker supporting-context request.
+
+    `entries` is a list of at most eight unique repo-relative exact paths, each
+    an object with exactly `path`, `sides` (`base`, `head` or `both`) and a
+    one-line `reason`. A path is literal: `?`, `[`, `]` and `*` are ordinary
+    filename characters and are never expanded as a pattern. The whole request is
+    refused for traversal, absolute paths, backslashes, empty segments, control
+    characters, duplicates, an over-limit size, bad sides or reasons, and any
+    extra pattern/wildcard-request field.
+    """
+    if not isinstance(entries, list):
+        raise ContextRequestError('a context request must be a list of entries')
+    if not entries:
+        raise ContextRequestError('a context request must name at least one path')
+    if len(entries) > CONTEXT_REQUEST_LIMIT:
+        raise ContextRequestError('a context request carries at most {} paths; '
+                                  'found {}'.format(CONTEXT_REQUEST_LIMIT, len(entries)))
+    validated = []
+    seen = set()
+    for index, entry in enumerate(entries, 1):
+        if not isinstance(entry, dict):
+            raise ContextRequestError('request entry {} is not an object'.format(index))
+        if set(entry) != set(CONTEXT_REQUEST_FIELDS):
+            raise ContextRequestError(
+                'request entry {} must carry exactly {}'.format(
+                    index, ', '.join(CONTEXT_REQUEST_FIELDS)))
+        path = entry['path']
+        _context_path(path, index)
+        sides = entry['sides']
+        if sides not in CONTEXT_SIDES:
+            raise ContextRequestError('request entry {} sides must be one of '
+                                      '{}'.format(index, ', '.join(CONTEXT_SIDES)))
+        reason = entry['reason']
+        if not isinstance(reason, str) or not reason.strip():
+            raise ContextRequestError('request entry {} has no reason'.format(index))
+        if '\n' in reason or '\r' in reason:
+            raise ContextRequestError(
+                'request entry {} reason must stay on one line'.format(index))
+        if path in seen:
+            raise ContextRequestError('duplicate context path: {}'.format(path))
+        seen.add(path)
+        validated.append({'path': path, 'sides': sides, 'reason': reason})
+    return validated
 
 
 def _sha(value, label):
@@ -447,12 +574,16 @@ def _parse_checklist(text):
     """The (identity, rows) of a checklist, or ChecklistError when malformed.
 
     `rows` are `{id, checked, line}` dicts in appearance order. Only rows inside
-    the single `## Files` section count, and fenced example rows never do.
+    the single `## Files` section count, and fenced example rows never do. The
+    rendered `Ordered files: N` count of the preamble is part of the ledger's
+    validity: exactly one count line must be present and the parsed rows must
+    number N, so a shortened or malformed checklist cannot pass as progress.
     """
     if not isinstance(text, str):
         raise ChecklistError('checklist text must be a string')
     lines = text.split('\n')
     identity = None
+    ordered_declared = None
     files_sections = 0
     rows = []
     section = None
@@ -482,6 +613,13 @@ def _parse_checklist(text):
             if section == 'Files':
                 files_sections += 1
             continue
+        if section is None:
+            match = ORDERED_COUNT_RE.match(stripped)
+            if match:
+                if ordered_declared is not None:
+                    raise ChecklistError('checklist has more than one ordered-file count')
+                ordered_declared = int(match.group(1))
+            continue
         if section == 'Files':
             match = FILE_ROW_RE.match(line)
             if match:
@@ -494,6 +632,11 @@ def _parse_checklist(text):
         raise ChecklistError('checklist has no snapshot header comment')
     if files_sections != 1:
         raise ChecklistError('checklist must have exactly one ## Files section')
+    if ordered_declared is None:
+        raise ChecklistError('checklist has no ordered-file count')
+    if ordered_declared != len(rows):
+        raise ChecklistError('checklist declares Ordered files: {} but has {} approval '
+                             'row(s)'.format(ordered_declared, len(rows)))
     for position, row in enumerate(rows, 1):
         if row['id'] != position:
             raise ChecklistError('file row IDs must run 1..{} in order; found {}'.format(
@@ -555,6 +698,142 @@ def advance_checklist(text: str, snapshot: dict, entry: int, response: str) -> t
     new_text = '\n'.join(lines)
     new_identity, new_rows = _parse_checklist(new_text)
     return new_text, dict(_checklist_summary(new_identity, new_rows), advanced=True)
+
+
+def _report_link(link):
+    """The clickable relative Markdown link of a report: raw label, encoded target."""
+    target = urllib.parse.quote(link, safe='/')
+    return '[`{}`]({})'.format(link, target)
+
+
+def _report_note_lines(note):
+    """The Markdown lines of one validated report note, or ChecklistError."""
+    if not isinstance(note, dict):
+        raise ChecklistError('report note must be an object')
+    link = note.get('link')
+    if not isinstance(link, str) or not link.strip():
+        raise ChecklistError('report note link must be a non-empty string')
+    _one_line(link, 'report note link')
+    assessment = note.get('assessment')
+    if assessment not in ASSESSMENTS:
+        raise ChecklistError('report note assessment must be one of {}'.format(
+            ', '.join(ASSESSMENTS)))
+    findings = note.get('findings', [])
+    if not isinstance(findings, list):
+        raise ChecklistError('report note findings must be a list')
+    lines = ['- Report {} — {}.'.format(_report_link(link), assessment)]
+    for finding in findings:
+        if not isinstance(finding, str) or not finding.strip():
+            raise ChecklistError('report note findings must be non-empty strings')
+        _one_line(finding, 'report note finding')
+        lines.append('  - Unresolved: {}'.format(finding))
+    return lines
+
+
+def _discussion_bounds(lines):
+    """The [start, end) body bounds of the `## Discussion and findings` section."""
+    start = None
+    for index, line in enumerate(lines):
+        if line.strip() == '## Discussion and findings':
+            start = index + 1
+            break
+    if start is None:
+        raise ChecklistError('checklist has no ## Discussion and findings section')
+    end = len(lines)
+    for index in range(start, len(lines)):
+        if lines[index].startswith('## '):
+            end = index
+            break
+    return start, end
+
+
+def record_report(text: str, note: dict) -> tuple:
+    """The (new_text, summary) of recording one worker report in the ledger.
+
+    `note` carries `link` (the repo-relative report path), `assessment` (one of
+    the three review assessments) and `findings` (the report's unresolved
+    one-line findings). The note renders as an actual clickable Markdown link --
+    the raw link as the label, its percent-encoded relative target -- plus one
+    bullet per finding, under the non-approval `## Discussion and findings`
+    section. Recording never touches `## Files` or a checkbox; re-recording the
+    same report replaces its own block, so a resume stays idempotent, and other
+    notes are preserved. Only new analysis changes a note; the person's
+    `reviewed` confirmation does not.
+    """
+    if not isinstance(text, str):
+        raise ChecklistError('checklist text must be a string')
+    block = _report_note_lines(note)
+    _parse_checklist(text)
+    link = note['link']
+    lines = text.split('\n')
+    start, end = _discussion_bounds(lines)
+    body = lines[start:end]
+    while body and not body[-1].strip():
+        body.pop()
+    if [line for line in body if line.strip()] == ['_None yet._']:
+        body = [line for line in body if line.strip() != '_None yet._']
+    anchor = '- Report [`{}`]('.format(link)
+    for offset, line in enumerate(body):
+        if line.startswith(anchor):
+            block_end = offset + 1
+            while block_end < len(body) and body[block_end].startswith('  '):
+                block_end += 1
+            body = body[:offset] + block + body[block_end:]
+            break
+    else:
+        body = body + block
+    new_text = '\n'.join(lines[:start] + body + [''] + lines[end:])
+    summary = {'link': link, 'assessment': note['assessment'],
+               'findings': len(note.get('findings', [])),
+               'changed': new_text != text}
+    return new_text, summary
+
+
+def record_report_file(path, note) -> dict:
+    """Read, check the report link, `record_report` and atomically replace the ledger.
+
+    The note's `link` is the report path relative to the checklist
+    (`reports/004.md`). It is resolved against the ledger's directory and
+    canonicalized to that checked ledger-relative path, so the recorded
+    hyperlink always reaches the report beside the ledger. An absolute link, a
+    link that escapes the ledger directory or one that names no existing file is
+    refused and nothing is written. An unchanged record rewrites nothing, so
+    re-presenting a saved report on resume stays idempotent.
+    """
+    if not isinstance(note, dict):
+        raise ChecklistError('report note must be an object')
+    text = _read_text(path)
+    checked = dict(note)
+    checked['link'] = _checked_report_link(Path(path).parent, note.get('link'))
+    new_text, summary = record_report(text, checked)
+    if summary['changed']:
+        _atomic_write(path, new_text)
+    return summary
+
+
+def _checked_report_link(ledger_dir, link):
+    """The checked ledger-relative report link, or ChecklistError.
+
+    The link is resolved against the ledger's directory; a repo-root-relative
+    link is accepted only when it resolves from the current working directory to
+    an existing file inside the ledger directory, and the returned value is
+    always the canonical ledger-relative path. An absolute link, a link that
+    escapes the ledger directory or one that names no existing file is refused,
+    so a recorded hyperlink can never point at a nonexistent or wrongly-rooted
+    destination. No pattern is blacklisted: any existing nested report path
+    inside the ledger directory is kept.
+    """
+    if not isinstance(link, str) or not link.strip():
+        raise ChecklistError('report note link must be a non-empty string')
+    if link.startswith('/') or '\\' in link:
+        raise ChecklistError('report link must be relative to the ledger: {!r}'.format(link))
+    base = Path(ledger_dir).resolve()
+    for candidate in (Path(ledger_dir) / link, Path.cwd() / link):
+        resolved = candidate.resolve()
+        if resolved.is_file() and resolved.is_relative_to(base):
+            return resolved.relative_to(base).as_posix()
+    raise ChecklistError('report link {!r} does not name an existing file under the ledger '
+                         'directory'.format(link))
 
 
 def _parse_flags(argv, flags):

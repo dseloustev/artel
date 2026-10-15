@@ -1,9 +1,9 @@
 # OpenCode plugin
 
 Artel is an **OpenCode plugin**: `skills/`, `agents/`, the Python hooks and the bridge plugin
-in `opencode/plugin/artel.ts` are what OpenCode reads — there is no generated build and no
-second host. This doc is the plugin's install and architecture guide; the workflow itself is
-[workflow-guide.md](workflow-guide.md).
+in `opencode/plugin/artel.ts` are what OpenCode reads; only the command wrappers are generated
+from them. There is no second host. This doc is the plugin's install and architecture guide;
+the workflow itself is [workflow-guide.md](workflow-guide.md).
 
 ## Install
 
@@ -43,20 +43,23 @@ install predating the manifest has none to read, so `--remove` falls back to swe
 **The source tree is the artifact.** OpenCode discovers skills, agents and commands from flat
 config directories with no plugin namespace, so the installed name is the canonical name:
 `skills/artel-<name>/SKILL.md`, `agents/artel-<name>.md`. Nothing is translated on the way in —
-the Markdown in this repository is the Markdown OpenCode reads.
+the Markdown in this repository is the Markdown OpenCode reads, and the installer places the
+skills and agents from the baked copies of `skills/` and `agents/` themselves.
 
 Two things happen at install time (`scripts/build_opencode.py`, run by the installer):
 
 1. **Baking.** Every `*.md` under the install copy's `skills/`, `agents/` and `docs/` has the
    braced install-root token `${ARTEL_ROOT}` replaced with the install root, in place in the
-   installed copy and never in the checkout. Baking matches the braced form only; this doc
+   installed copy and never in the checkout — a `--root` that is the source checkout is refused
+   before the first write. Baking matches the braced form only; this doc
    names the token `$ARTEL_ROOT`, without braces, so the bake cannot rewrite its own
    explanation. Python files are never rewritten: a hook docstring's token is a source-level
    pointer to a contract file, and nothing expands it. A pointer into a skill's directory
    resolves to that skill's installed copy under
    `~/.config/opencode/artel/skills/artel-<name>/`.
 2. **Command wrappers.** Each skill gets a `/artel-<name>` wrapper under the build's
-   `commands/`, whose body loads the skill and passes the arguments; its `description` carries
+   `commands/` — the build's only output, so `dist` holds command wrappers and nothing else.
+   Its body loads the skill and passes the arguments; its `description` carries
    the skill's `argument-hint` (for example `· args: [ticket-id]`), so the TUI command list
    shows what arguments the skill expects before you invoke it.
 

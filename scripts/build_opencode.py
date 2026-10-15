@@ -7,9 +7,10 @@ install root, so an agent on OpenCode reads a real path, never an unset variable
 Python files are never rewritten: a hook docstring's token is a source-level pointer to a
 contract file, and nothing expands it.
 
-Each skill is also emitted under <out> (default <root>/opencode/dist) with its frontmatter
-and baked body, its other Markdown files beside it, and a command wrapper under <out>/commands
-that loads the skill and passes its arguments.
+The build's only other output is the command wrappers under <out> (default
+<root>/opencode/dist): one `/artel-<name>` wrapper per skill, whose body loads the skill and
+passes its arguments. Skills and agents are not copied into <out> — the installer places them
+from the baked trees themselves, so `dist` holds command wrappers and nothing else.
 Canonical sources under skills/ and agents/ are never modified: a `--root` that is the source
 checkout is refused before the first write. Contract: docs/opencode.md.
 """
@@ -103,42 +104,6 @@ def yaml_quote(value):
     return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
-def assemble(body, frontmatter):
-    parts = ['---']
-    parts.extend(frontmatter)
-    parts.append('---')
-    parts.append('')
-    parts.append(body.strip())
-    return '\n'.join(parts) + '\n'
-
-
-def frontmatter_lines(text):
-    """The raw lines of a leading `---` block, without the markers ([] when there is none)."""
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != '---':
-        return []
-    for index in range(1, len(lines)):
-        if lines[index].strip() == '---':
-            return lines[1:index]
-    return []
-
-
-def build_skill(src_text, root):
-    """The source already carries OpenCode frontmatter (`name`, `description`,
-    `argument-hint`, and `metadata.opencode/autoinvoke: false` where it is manual-only):
-    assemble it with the baked body, changing nothing."""
-    fields, body = parse_frontmatter(src_text)
-    return fields['name'], assemble(bake(body, root), frontmatter_lines(src_text))
-
-
-def build_agent(src_text, root, name):
-    """agents/artel-<name>.md (OpenCode frontmatter: description/mode) -> the built agent:
-    the frontmatter as written, the body baked. The markdown file name is the agent name
-    on OpenCode."""
-    _, body = parse_frontmatter(src_text)
-    return name, assemble(bake(body, root), frontmatter_lines(src_text))
-
-
 def build_command(name, description, hint):
     # OpenCode shows only the description in its command list, so the skill's hint
     # travels there too; room is reserved for it inside MAX_DESCRIPTION (clip() needs
@@ -170,9 +135,10 @@ def main(argv=None):
                         help='install root: its skills/, agents/ and docs/ are baked in '
                              'place, and generated paths are baked to it')
     parser.add_argument('--source', default=str(REPO_ROOT),
-                        help='checkout to read skills/ and agents/ from (default: this repo)')
+                        help='checkout to read skills/ from (default: this repo)')
     parser.add_argument('--out', default=None,
-                        help='output directory (default: <root>/opencode/dist)')
+                        help='output directory for the command wrappers '
+                             '(default: <root>/opencode/dist)')
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
@@ -191,6 +157,7 @@ def main(argv=None):
     if not skill_files:
         print('build_opencode: no skills/ under {}'.format(source), file=sys.stderr)
         return 2
+    agents = sorted(p for p in (source / 'agents').glob('*.md') if p.name != 'README.md')
 
     # The install copy is baked in place — Markdown only: a hook docstring's token is a
     # source-level pointer to a contract file, and nothing expands it.
@@ -198,53 +165,23 @@ def main(argv=None):
         for path in sorted((root / tree).rglob('*.md')):
             path.write_text(bake(path.read_text(encoding='utf-8'), root), encoding='utf-8')
 
-    # Every other Markdown file under a skill's directory, and where its generated copy goes.
-    companions = []
+    # Command wrappers — the build's only output. Skills and agents are installed from the
+    # baked trees above, so dist holds commands/ and nothing else.
     for skill_path in skill_files:
         fields, _ = parse_frontmatter(skill_path.read_text(encoding='utf-8'))
-        dest_dir = out / 'skills' / fields['name']
-        for path in sorted(skill_path.parent.rglob('*.md')):
-            if path != skill_path:
-                companions.append((path, dest_dir / path.relative_to(skill_path.parent)))
-
-    for skill_path in skill_files:
-        src = skill_path.read_text(encoding='utf-8')
-        name, text = build_skill(src, root)
+        name = fields['name']
         if not VALID_NAME.match(name):
             print('build_opencode: {} is not a legal OpenCode name'.format(name),
                   file=sys.stderr)
             return 2
-        dest = out / 'skills' / name / 'SKILL.md'
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(text, encoding='utf-8')
-
-        fields, _ = parse_frontmatter(src)
         command = build_command(name, fields.get('description', ''),
                                 fields.get('argument-hint', ''))
         commands_dir = out / 'commands'
         commands_dir.mkdir(parents=True, exist_ok=True)
         (commands_dir / (name + '.md')).write_text(command, encoding='utf-8')
 
-    # A skill's other Markdown files: baked like a body, with no frontmatter.
-    for path, dest in companions:
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(bake(path.read_text(encoding='utf-8'), root), encoding='utf-8')
-
-    agent_files = sorted(p for p in (source / 'agents').glob('*.md')
-                         if p.name != 'README.md')
-
-    for agent_path in agent_files:
-        name, text = build_agent(agent_path.read_text(encoding='utf-8'), root, agent_path.stem)
-        if not VALID_NAME.match(name):
-            print('build_opencode: {} is not a legal OpenCode name'.format(name),
-                  file=sys.stderr)
-            return 2
-        agents_dir = out / 'agents'
-        agents_dir.mkdir(parents=True, exist_ok=True)
-        (agents_dir / (name + '.md')).write_text(text, encoding='utf-8')
-
-    print('build_opencode: {} skills, {} agents, {} other skill files -> {}'.format(
-        len(skill_files), len(agent_files), len(companions), out))
+    print('build_opencode: {} command wrappers -> {} ({} skills, {} agents baked in place)'
+          .format(len(skill_files), out, len(skill_files), len(agents)))
     return 0
 
 

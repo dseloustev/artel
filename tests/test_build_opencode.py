@@ -161,21 +161,24 @@ class TestSourceCheckoutGuard(unittest.TestCase):
 
 
 class TestSkillBuild(BuildBase):
+    """The install copy is the artifact: each canonical skill's SKILL.md is baked in place
+    under <root>/skills/ and keeps its OpenCode frontmatter."""
+
     def test_build_succeeds_and_reports_the_count(self):
         self.assertEqual(self.proc.returncode, 0)
-        self.assertIn('{} skills'.format(len(source_skills())), self.proc.stdout)
+        self.assertIn('{} command wrappers'.format(len(source_skills())), self.proc.stdout)
 
-    def test_every_skill_is_built_prefixed(self):
+    def test_every_skill_is_baked_in_the_install_copy(self):
         for name in source_skills():
-            path = self.out / 'skills' / name / 'SKILL.md'
+            path = self.root / 'skills' / name / 'SKILL.md'
             self.assertTrue(path.is_file(), 'missing ' + str(path))
 
-    def test_generated_names_are_opencode_legal(self):
-        for path in sorted((self.out / 'skills').glob('*/SKILL.md')):
+    def test_installed_names_are_opencode_legal(self):
+        for path in sorted((self.root / 'skills').glob('*/SKILL.md')):
             self.assertRegex(path.parent.name, VALID_NAME)
 
     def test_frontmatter_keeps_description_and_drops_claude_fields(self):
-        for path in sorted((self.out / 'skills').glob('*/SKILL.md')):
+        for path in sorted((self.root / 'skills').glob('*/SKILL.md')):
             head = path.read_text(encoding='utf-8').split('---')[1]
             self.assertIn('name: ' + path.parent.name, head)
             self.assertIn('description: "', head, path.parent.name + ' lost its description')
@@ -184,7 +187,7 @@ class TestSkillBuild(BuildBase):
                                  path.parent.name + ' keeps Claude-only ' + field)
 
     def test_description_within_opencode_limit(self):
-        for path in sorted((self.out / 'skills').glob('*/SKILL.md')):
+        for path in sorted((self.root / 'skills').glob('*/SKILL.md')):
             for line in path.read_text(encoding='utf-8').splitlines():
                 if line.startswith('description: '):
                     self.assertLessEqual(len(line), len('description: ') + MAX_DESCRIPTION,
@@ -192,21 +195,42 @@ class TestSkillBuild(BuildBase):
                     break
 
     def test_plugin_root_is_baked(self):
-        for path in sorted((self.out / 'skills').glob('*/SKILL.md')):
+        for path in sorted((self.root / 'skills').glob('*/SKILL.md')):
             text = path.read_text(encoding='utf-8')
             self.assertNotIn('${ARTEL_ROOT}', text,
-                             path.parent.name + ' still names the Claude variable')
+                             path.parent.name + ' still names the install token')
+
+    def test_the_canonical_sources_are_not_baked(self):
+        """Baking happens in the install copy; the checkout keeps its token."""
+        canonical = (ROOT / 'skills' / 'artel-analysis' / 'SKILL.md').read_text(encoding='utf-8')
+        self.assertIn('${ARTEL_ROOT}', canonical)
 
     def test_no_artel_namespace_survives_but_ast_index_refs_do(self):
-        """The old `/artel:` namespace is gone from the sources, so no built skill may
+        """The old `/artel:` namespace is gone from the sources, so no baked skill may
         carry one — this is the residue check; the unrelated `/ast-index:` namespace stays."""
-        for path in sorted((self.out / 'skills').glob('*/SKILL.md')):
+        for path in sorted((self.root / 'skills').glob('*/SKILL.md')):
             with self.subTest(name=path.parent.name):
                 self.assertNotRegex(path.read_text(encoding='utf-8'), r'/artel:[a-z0-9-]')
-        router = (self.out / 'skills' / 'artel-using-artel' / 'SKILL.md').read_text(
+        router = (self.root / 'skills' / 'artel-using-artel' / 'SKILL.md').read_text(
             encoding='utf-8')
         self.assertIn('/ast-index:ast-index', router)
         self.assertIn('artel-feature-development', router)
+
+
+class TestDistCommandsOnly(BuildBase):
+    """The spec: dist holds command wrappers only. Skills and agents are installed from the
+    baked canonical trees, so a `dist/skills` or `dist/agents` tree is the old snapshot build
+    creeping back."""
+
+    def test_dist_holds_commands_and_nothing_else(self):
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()), ['commands'],
+                         'dist holds more than the commands tree')
+        for path in sorted(self.out.rglob('*')):
+            self.assertEqual(path.relative_to(self.out).parts[0], 'commands', str(path))
+
+    def test_no_skill_or_agent_snapshots(self):
+        self.assertFalse((self.out / 'skills').exists())
+        self.assertFalse((self.out / 'agents').exists())
 
 
 class TestCommandBuild(BuildBase):
@@ -279,20 +303,22 @@ def source_agents():
 
 
 class TestAgentBuild(BuildBase):
-    def test_every_agent_is_built_prefixed(self):
+    """agents/ is baked in place too: each agent file is the installed artifact."""
+
+    def test_every_agent_is_baked_in_the_install_copy(self):
         for name in source_agents():
-            path = self.out / 'agents' / (name + '.md')
+            path = self.root / 'agents' / (name + '.md')
             self.assertTrue(path.is_file(), 'missing ' + str(path))
 
     def test_agent_names_are_opencode_legal(self):
-        for path in sorted((self.out / 'agents').glob('artel-*.md')):
+        for path in sorted((self.root / 'agents').glob('artel-*.md')):
             self.assertRegex(path.stem, VALID_NAME)
 
     def test_readme_is_not_an_agent(self):
-        self.assertFalse((self.out / 'agents' / 'artel-README.md').is_file())
+        self.assertFalse((self.root / 'agents' / 'artel-README.md').is_file())
 
     def test_frontmatter_is_opencode_shape(self):
-        for path in sorted((self.out / 'agents').glob('artel-*.md')):
+        for path in sorted((self.root / 'agents').glob('artel-*.md')):
             head = path.read_text(encoding='utf-8').split('---')[1]
             self.assertIn('description: "', head)
             self.assertIn('mode: subagent', head)
@@ -300,12 +326,12 @@ class TestAgentBuild(BuildBase):
             self.assertNotRegex(head, r'(?m)^name:', path.name + ' keeps a frontmatter name')
 
     def test_agent_carries_a_baked_root(self):
-        for path in sorted((self.out / 'agents').glob('artel-*.md')):
+        for path in sorted((self.root / 'agents').glob('artel-*.md')):
             self.assertNotIn('${ARTEL_ROOT}', path.read_text(encoding='utf-8'),
-                             path.name + ' still names the Claude variable')
+                             path.name + ' still names the install token')
 
-    def test_build_reports_agent_count(self):
-        self.assertIn('{} agents'.format(len(source_agents())), self.proc.stdout)
+    def test_build_reports_the_baked_counts(self):
+        self.assertIn('{} agents baked'.format(len(source_agents())), self.proc.stdout)
 
 
 class TestDeterminism(BuildBase):
@@ -317,14 +343,19 @@ class TestDeterminism(BuildBase):
                 capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             # Pointers bake to the install root, which both builds share, so the two
-            # output trees must agree byte for byte.
-            for path in sorted((self.out / 'skills').rglob('*.md')):
+            # command trees must agree byte for byte — and the second bake must leave the
+            # already-baked install copy alone.
+            first = sorted((self.out / 'commands').rglob('*.md'))
+            twin = sorted((out2 / 'commands').rglob('*.md'))
+            self.assertEqual([p.relative_to(self.out) for p in first],
+                             [p.relative_to(out2) for p in twin])
+            for path in first:
                 rel = path.relative_to(self.out)
-                twin = out2 / rel
-                self.assertTrue(twin.is_file(), 'second build missed ' + str(rel))
                 self.assertEqual(path.read_text(encoding='utf-8'),
-                                 twin.read_text(encoding='utf-8'),
+                                 (out2 / rel).read_text(encoding='utf-8'),
                                  str(rel) + ' differs between builds')
+            self.assertFalse((out2 / 'skills').exists())
+            self.assertFalse((out2 / 'agents').exists())
 
 
 def source_companions():
@@ -339,23 +370,24 @@ def source_companions():
 
 class TestCompanionFiles(BuildBase):
     """A skill's other Markdown files — feature-development's head and tail files, templates,
-    references — are generated next to its SKILL.md and baked like it, with no frontmatter;
-    and a pointer into a skill's directory lands on the install copy."""
+    references — are baked with their skill in the install copy, and a pointer into a skill's
+    directory lands on the installed copy."""
 
     SKILL = 'artel-feature-development'
     PARTS = ('heads/full.md', 'heads/lean.md', 'heads/bug.md', 'tail.md')
 
     def part(self, rel):
-        return (self.out / 'skills' / self.SKILL / rel).read_text(encoding='utf-8')
+        return (self.root / 'skills' / self.SKILL / rel).read_text(encoding='utf-8')
 
-    def test_every_other_markdown_file_is_generated_beside_its_skill(self):
+    def test_every_other_markdown_file_is_baked_with_its_skill(self):
         pairs = source_companions()
         for rel in self.PARTS:
             self.assertIn(('artel-feature-development', rel), pairs)
         for skill, rel in pairs:
-            path = self.out / 'skills' / skill / rel
+            path = self.root / 'skills' / skill / rel
             self.assertTrue(path.is_file(), 'missing ' + str(path))
-        self.assertIn('{} other skill files'.format(len(pairs)), self.proc.stdout)
+            self.assertNotIn('${ARTEL_ROOT}', path.read_text(encoding='utf-8'),
+                             str(path) + ' is not baked')
 
     def test_the_head_and_tail_files_are_baked(self):
         docs = str(self.root.resolve()) + '/docs/'
@@ -373,11 +405,11 @@ class TestCompanionFiles(BuildBase):
             with self.subTest(rel):
                 self.assertTrue(self.part(rel).startswith('# The '))
 
-    def test_a_file_with_no_dialect_in_it_is_generated_unchanged(self):
+    def test_a_file_with_no_dialect_in_it_is_baked_unchanged(self):
         rel = Path('assets') / 'templates' / 'idea.template.md'
         self.assertEqual(
             (ROOT / 'skills' / 'artel-generate-idea' / rel).read_text(encoding='utf-8'),
-            (self.out / 'skills' / 'artel-generate-idea' / rel).read_text(encoding='utf-8'))
+            (self.root / 'skills' / 'artel-generate-idea' / rel).read_text(encoding='utf-8'))
 
     def test_the_skill_points_at_the_install_copies(self):
         skill = self.part('SKILL.md')
@@ -392,8 +424,8 @@ class TestCompanionFiles(BuildBase):
 
     def test_every_pointer_into_a_skill_directory_resolves(self):
         install_copy = re.compile(re.escape(str((self.root / 'skills').resolve())) + r'/[\w./-]+')
-        files = (sorted((self.out / 'skills').rglob('*.md'))
-                 + sorted((self.out / 'agents').glob('*.md')))
+        files = (sorted((self.root / 'skills').rglob('*.md'))
+                 + sorted((self.root / 'agents').glob('*.md')))
         found = 0
         for path in files:
             text = path.read_text(encoding='utf-8')
@@ -415,20 +447,21 @@ class TestCompanionFiles(BuildBase):
                          '`/root/skills/artel-demo/assets/t.html` and `/root/docs/x.md`')
 
     def test_agents_land_on_the_install_copy_too(self):
-        agent = (self.out / 'agents' / 'artel-implementer.md').read_text(encoding='utf-8')
+        agent = (self.root / 'agents' / 'artel-implementer.md').read_text(encoding='utf-8')
         self.assertIn(str((self.root / 'skills' / 'artel-inner-loop' / 'SKILL.md').resolve()),
                       agent)
 
 
 class TestCollaborativeReviewBuild(BuildBase):
-    """The interactive PR review ships as a skill plus its dedicated worker."""
+    """The interactive PR review ships as a skill plus its dedicated worker, baked with the
+    rest of the install copy."""
 
     SKILL = 'artel-collaborative-review'
     AGENT = 'artel-collaborative-reviewer'
 
-    def test_collaborative_review_skill_and_agent_are_emitted(self):
-        skill = self.out / 'skills' / self.SKILL / 'SKILL.md'
-        agent = self.out / 'agents' / (self.AGENT + '.md')
+    def test_collaborative_review_skill_and_agent_are_baked(self):
+        skill = self.root / 'skills' / self.SKILL / 'SKILL.md'
+        agent = self.root / 'agents' / (self.AGENT + '.md')
         self.assertTrue(skill.is_file(), 'missing ' + str(skill))
         self.assertTrue(agent.is_file(), 'missing ' + str(agent))
         head = skill.read_text(encoding='utf-8').split('---')[1]
@@ -439,11 +472,11 @@ class TestCollaborativeReviewBuild(BuildBase):
                          self.AGENT + ' keeps a Claude model tier')
 
 class TestAutoinvoke(BuildBase):
-    """A manual-only skill's `metadata.opencode/autoinvoke: false` rides through the build,
+    """A manual-only skill's `metadata.opencode/autoinvoke: false` rides through the bake,
     so it stays loadable by id but leaves the model's skill list."""
 
     def head(self, name):
-        text = (self.out / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8')
+        text = (self.root / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8')
         return text.split('---')[1]
 
     def test_manual_only_skills_hide_from_the_model(self):
@@ -496,6 +529,23 @@ class TestInstaller(unittest.TestCase):
                                  and '${ARTEL_ROOT}' not in
                                  target.read_text(encoding='utf-8'))
 
+        # What is installed is the baked copy itself, byte for byte — not a regenerated
+        # snapshot — and dist held command wrappers only.
+        cls.fidelity = {}
+        for rel in cls.PARTS + ('SKILL.md',):
+            installed = oc / cls.SKILL / rel
+            baked = install_copy / rel
+            cls.fidelity[rel] = (installed.is_file() and baked.is_file()
+                                 and installed.read_bytes() == baked.read_bytes())
+        cls.agent_fidelity = {}
+        for name in ('artel-analyst.md', 'artel-implementer.md'):
+            installed = oc / 'agents' / name
+            baked = oc / 'artel' / 'agents' / name
+            cls.agent_fidelity[name] = (installed.is_file() and baked.is_file()
+                                        and installed.read_bytes() == baked.read_bytes())
+        cls.commands = sorted(p.name for p in (oc / 'commands').glob('artel-*.md'))
+        cls.dist_entries = sorted(p.name for p in (oc / 'artel' / 'opencode' / 'dist').iterdir())
+
         # A skill of the user's own that happens to be named artel-…: never artel's to remove.
         own = oc / 'skills' / 'artel-mine'
         own.mkdir(parents=True, exist_ok=True)
@@ -522,8 +572,19 @@ class TestInstaller(unittest.TestCase):
         # (the pointer is in the installed skill, its target exists, the target is baked)
         self.assertEqual(self.pointers, {rel: (True, True, True) for rel in self.PARTS})
 
+    def test_the_installed_files_are_the_baked_copies(self):
+        self.assertEqual(self.fidelity, {rel: True for rel in self.PARTS + ('SKILL.md',)})
+        self.assertEqual(self.agent_fidelity,
+                         {name: True for name in ('artel-analyst.md', 'artel-implementer.md')})
+
+    def test_dist_holds_command_wrappers_only(self):
+        self.assertEqual(self.dist_entries, ['commands'])
+        self.assertIn('artel-analysis.md', self.commands)
+        self.assertIn('artel-feature-development.md', self.commands)
+
     def test_the_manifest_records_the_skill_directory(self):
         self.assertIn('skills/artel-feature-development', self.manifest)
+        self.assertIn('agents/artel-analyst.md', self.manifest)
         self.assertIn('artel', self.manifest)
 
     def test_remove_takes_them_and_leaves_a_skill_of_the_user_s_own(self):

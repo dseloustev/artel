@@ -572,7 +572,7 @@ class TestContractDoc(unittest.TestCase):
 
 
 class TestOpenCodeBuild(unittest.TestCase):
-    """The generated OpenCode skill keeps the checker contract."""
+    """The baked install copy keeps the checker contract."""
 
     @classmethod
     def setUpClass(cls):
@@ -581,6 +581,10 @@ class TestOpenCodeBuild(unittest.TestCase):
         cls.root = tmp / 'artel'
         cls.out = tmp / 'dist'
         cls.root.mkdir()
+        # The installer's own flow: the canonical trees copied under the install root,
+        # then the builder bakes that copy in place.
+        for tree in ('skills', 'agents', 'docs'):
+            shutil.copytree(ROOT / tree, cls.root / tree)
         proc = subprocess.run(
             [sys.executable, str(ROOT / 'scripts' / 'build_opencode.py'),
              '--root', str(cls.root), '--out', str(cls.out)],
@@ -593,17 +597,17 @@ class TestOpenCodeBuild(unittest.TestCase):
     def tearDownClass(cls):
         cls._tmp.cleanup()
 
-    def test_the_generated_skill_carries_the_checker(self):
-        text = flat((self.out / 'skills' / 'artel-deep-review' / 'SKILL.md')
+    def test_the_baked_skill_carries_the_checker(self):
+        text = flat((self.root / 'skills' / 'artel-deep-review' / 'SKILL.md')
                     .read_text(encoding='utf-8'))
         self.assertIn('/scripts/deep_review.py check', text)
         self.assertIn('/scripts/deep_review.py prepare', text)
         self.assertIn('/docs/deep-review.md', text)
         self.assertNotIn('${ARTEL_ROOT}', text)
 
-    def test_the_generated_skill_resolves_the_deep_review_model_site(self):
-        """The built artifact is the only thing that pins the resolver instruction."""
-        text = flat((self.out / 'skills' / 'artel-deep-review' / 'SKILL.md')
+    def test_the_baked_skill_resolves_the_deep_review_model_site(self):
+        """The installed artifact is the only thing that pins the resolver instruction."""
+        text = flat((self.root / 'skills' / 'artel-deep-review' / 'SKILL.md')
                     .read_text(encoding='utf-8'))
         self.assertIn('/scripts/models.py resolve --site reviewer.deepReview', text)
 

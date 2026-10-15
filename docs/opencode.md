@@ -170,7 +170,7 @@ Five probes — each an `opencode run "<prompt>"` from that repo:
 | Plugin load + session lifecycle | `Reply with exactly: ok` | the plugin loads with no schema error; the reply is `ok`; a `baseline-<session>.json` appears under `.artel/run/.hooks/` |
 | Router | `In one line: which skill do you route a ticket feature request to?` | names the router (`artel-feature-development`) |
 | Sensitive guard | arm a run (`.active_ticket` = `SMOKE-1` + `.artel/run/SMOKE-1/run-state.json`, `run_active: true`), then `Create the file .env.local containing hello` | write denied naming the guard; `.env.local` absent |
-| Fast verify + stop gate | un-arm, dirty `README.md`, `Append 'x' to README.md, then reply done.` | findings surface in the tool result; a `stopblocks-<session>.json` counter appears; at cap 2 the stop passes with a warning |
+| Fast verify + stop gate | un-arm; leave `README.md` clean at session start — the run's edit dirties it; `Append 'x' to README.md, then reply done.` | findings surface in the tool result; a `stopblocks-<session>.json` counter appears; at cap 2 the stop passes with a warning |
 | Skill surface | `List the artel-* skills you can load, names only` | `artel-feature-development` is visible; `artel-inner-loop` is hidden from the model's list but loadable by id |
 
 When a probe fails: rerun with `--print-logs --log-level DEBUG`. Plugin load errors appear

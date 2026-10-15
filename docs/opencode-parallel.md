@@ -498,11 +498,16 @@ crashed attempts still hold. The order is fixed:
 |---|---|---|
 | held by the intent's actor, in the run's phase | `mapped` | run: launch the worker once the mapping is durable |
 | held by another actor, or by nobody | `foreign` | stop admission for diagnosis; the row is never touched |
-| a phase-scoped run's row from another phase | `wrong-phase` | release once, then stop admission — never a release-and-reclaim loop |
+| a phase-scoped run's row from another phase | `wrong-phase` | release it and stop admission; recovery re-issues it only on fresh same-row, same-actor evidence |
 
 A stop is a latched record in the manifest — `{"reason", "intent_id", "row"}` — and
-`begin_claim` refuses while it is set. `reconcile_claims` releases only rows this run's
-prefix holds and never releases a wrong-phase claim a second time.
+`begin_claim` refuses while it is set. A durable decision is never re-decided: whether its
+release executed is read fresh from the queue, never assumed from the decision. If a crash
+lands between persisting the wrong-phase decision and the external release, reconciliation
+re-issues that one release — and only while the fresh observation still shows the exact
+same row `in_progress` under the exact run/sequence/attempt actor, which is the proof the
+release did not execute. Once the row is observed released — or held by anyone else — it is
+never released again.
 
 ## 14. Proof record
 

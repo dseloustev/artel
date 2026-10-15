@@ -25,6 +25,11 @@ The write order the coordinator keeps:
        run's orphan and is released, no row means the claim never landed (`lost`, and the
        next `begin_claim` retries that sequence with the next attempt), and a row held by
        anyone else is never adopted, cleared or reclaimed.
+    5. reconciliation is evidence-based, not a retry loop: the manifest and the queue rows
+       are read fresh, a durable decision is never re-decided, and a release is repeated
+       only on proof it did not execute -- the exact same row still observed held by the
+       exact run/sequence/attempt actor. Once the observation shows the row released, the
+       decision is spent.
 
 Shapes:
 
@@ -49,9 +54,11 @@ Shapes:
                 stop admission for diagnosis; never adopt or clear the row.
 
     stop    {reason, intent_id, row} -- latched by a stopped observation and refused by
-            `begin_claim` until the run is reconciled. A wrong-phase row is released
-            exactly once: the first observation releases it and latches the stop, and a
-            later reconciliation never releases that claim again.
+            `begin_claim` until the run is reconciled. A wrong-phase row's release is
+            decided once and latched: the decision releases it and stops admission, and
+            reconciliation re-issues that one release only while the fresh observation
+            still shows the exact recorded row held by the exact actor -- never a
+            release-and-reclaim loop, and never a second release of a row already freed.
 """
 import parallel_contract
 import parallel_state
@@ -210,6 +217,30 @@ def _stop(reason, intent_id, row):
     return {'reason': reason, 'intent_id': intent_id, 'row': row}
 
 
+def _wrong_phase_intent(intents, row):
+    """The wrong-phase decision this row is evidence about, or `None`.
+
+    A row is evidence about a decision when it is the row the decision released, or when it
+    is held by the actor that made the decision; any other row is unrelated to it.
+    """
+    for intent in intents:
+        if intent['state'] != 'wrong-phase':
+            continue
+        if row['actor'] == intent['actor']:
+            return intent
+        if intent['row'] is not None and row['task_id'] == intent['row']['task_id']:
+            return intent
+    return None
+
+
+def _unexecuted(intent, row):
+    """Whether `row` proves the wrong-phase decision's release never executed: the exact
+    recorded row, still `in_progress`, held by the exact run/sequence/attempt actor."""
+    return (intent['row'] is not None and row['actor'] == intent['actor']
+            and row['task_id'] == intent['row']['task_id']
+            and row['status'] == 'in_progress')
+
+
 def _intent_id_for(intents, actor):
     for intent in intents:
         if intent['actor'] == actor:
@@ -301,10 +332,14 @@ def reconcile_claims(manifest, rows):
 
     Every `pending` intent is resolved: a row held by its actor is this run's orphan
     (`orphaned`, and released), and no such row means the claim never landed (`lost`).
-    Every row held by this run's actor prefix that is not a live claim is released with
-    `orphaned-claim`; a foreign holder is never released, adopted or cleared, and a row
-    whose intent was already released as `wrong-phase` is never released again. The
-    returned `actions` are what the coordinator performs -- the reducers call nothing.
+    Every row held by this run's actor prefix that is neither a live claim nor evidence
+    about a wrong-phase decision is released with `orphaned-claim`; a foreign holder is
+    never released, adopted or cleared. A wrong-phase decision is never re-decided and
+    never transferred: its release is re-issued (`wrong-phase`) only while the fresh
+    observation still shows the exact recorded row `in_progress` under the exact
+    run/sequence/attempt actor -- proof the release did not execute. Once the row is
+    observed released, or held by anyone else, it is never released again. The returned
+    `actions` are what the coordinator performs -- the reducers call nothing.
     """
     value = _manifest(manifest)
     if not isinstance(rows, list):
@@ -312,7 +347,6 @@ def reconcile_claims(manifest, rows):
     observed = [_row(row) for row in rows]
     intents = value['claims']['intents']
     live = {intent['actor'] for intent in intents if intent['state'] == 'mapped'}
-    released = {intent['actor'] for intent in intents if intent['state'] == 'wrong-phase'}
     updated = []
     for intent in intents:
         if intent['state'] != 'pending':
@@ -330,7 +364,19 @@ def reconcile_claims(manifest, rows):
         actor = row['actor']
         if actor is None or not actor.startswith(prefix) or row['status'] != 'in_progress':
             continue
-        if actor in live or actor in released:
+        if actor in live:
+            continue
+        decision = _wrong_phase_intent(intents, row)
+        if decision is not None:
+            # A wrong-phase decision is never re-decided and never transferred: only the
+            # exact recorded row, still observed held by the exact run/sequence/attempt
+            # actor, is fresh evidence that the release did not execute, and only that
+            # re-issues it. A freed row, a foreign or reacquired holder and any other row
+            # are left exactly as observed.
+            if _unexecuted(decision, row):
+                actions.append({'kind': 'release', 'reason': 'wrong-phase',
+                                'task_id': row['task_id'], 'row': row,
+                                'intent_id': decision['intent_id']})
             continue
         intent_id = _intent_id_for(intents, actor)
         actions.append({'kind': 'release', 'reason': 'orphaned-claim',

@@ -496,7 +496,11 @@ reads `task_list(project=<project>, ticket_key=<TICKET_KEY>)` and reconciles:
 **A wrong-phase row is released once and admission then stops.** §3's one release that is
 not `blocked` applies: the coordinator releases the row with `task_update(task_id, ready)`
 and stops claiming for reconciliation, rather than release-and-reclaiming in a loop. Every
-stop is latched in the run manifest and reported.
+stop is latched in the run manifest and reported. The decision is durable before the
+release, so a crash between them is recoverable: the restart re-reads the manifest and the
+queue rows and re-issues that same release — but only while the fresh observation still
+shows the exact same row held by the exact same run/sequence/attempt actor. A row observed
+released, or held by anyone else, is never released again.
 
 **Ownership comes first.** Before any claim the coordinator takes the ticket's
 repository-wide lock, `<git-common-dir>/artel/parallel/<TICKET_ID>.json`

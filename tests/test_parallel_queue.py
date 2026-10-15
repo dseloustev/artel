@@ -296,14 +296,67 @@ class TestReconcileClaims(unittest.TestCase):
         rejects(self, 'admission_stopped',
                 lambda: parallel_queue.begin_claim(result['manifest']))
 
-    def test_a_wrong_phase_row_is_never_released_twice(self):
+    def test_an_unexecuted_wrong_phase_release_is_reissued_from_fresh_evidence(self):
+        # record_claim persisted the decision and the stop, and the process died before the
+        # external release. The fresh observation still shows the exact same row held by the
+        # exact same run/sequence/attempt actor, so the outstanding release is planned again
+        # -- the decision is recovered, never re-decided, and admission stays stopped.
         prepared = begin(manifest(phase=2))
         held = row(actor=prepared['intent']['actor'], phase=3)
-        released = parallel_queue.record_claim(prepared['manifest'],
-                                               prepared['intent']['intent_id'], held)
-        again = parallel_queue.reconcile_claims(released['manifest'], [held])
-        self.assertEqual(again['actions'], [])
-        self.assertEqual(again['manifest']['stop']['reason'], 'wrong-phase')
+        decided = parallel_queue.record_claim(prepared['manifest'],
+                                              prepared['intent']['intent_id'], held)
+        self.assertEqual(decided['action']['kind'], 'release')
+        recovered = parallel_queue.reconcile_claims(decided['manifest'], [held])
+        self.assertEqual(recovered['actions'],
+                         [{'kind': 'release', 'reason': 'wrong-phase', 'task_id': 41,
+                           'row': held, 'intent_id': prepared['intent']['intent_id']}])
+        self.assertEqual(recovered['manifest']['claims']['intents'][0]['state'], 'wrong-phase')
+        self.assertEqual(recovered['manifest']['stop'], decided['manifest']['stop'])
+        rejects(self, 'admission_stopped',
+                lambda: parallel_queue.begin_claim(recovered['manifest']))
+
+    def test_a_wrong_phase_row_is_released_again_only_while_still_observed_held(self):
+        # The decision is durable; whether the release executed is read from the queue. The
+        # same row still `in_progress` under the same actor proves it did not and the
+        # outstanding release is re-issued; a row observed `ready`/unheld proves it did and
+        # is never released again.
+        prepared = begin(manifest(phase=2))
+        held = row(actor=prepared['intent']['actor'], phase=3)
+        decided = parallel_queue.record_claim(prepared['manifest'],
+                                              prepared['intent']['intent_id'], held)
+        again = parallel_queue.reconcile_claims(decided['manifest'], [held])
+        self.assertEqual([action['reason'] for action in again['actions']], ['wrong-phase'])
+        released = dict(held, status='ready', actor=None)
+        after = parallel_queue.reconcile_claims(decided['manifest'], [released])
+        self.assertEqual(after['actions'], [])
+        self.assertEqual(after['manifest']['stop']['reason'], 'wrong-phase')
+
+    def test_a_wrong_phase_release_never_touches_a_foreign_or_reacquired_holder(self):
+        # Only the exact actor holding the exact recorded row is evidence about the
+        # outstanding release. A foreign holder, a reacquired holder under a new actor and
+        # this run's own actor on a different row are left exactly as observed: no release,
+        # no adoption, no holder transfer.
+        prepared = begin(manifest(phase=2))
+        held = row(actor=prepared['intent']['actor'], phase=3)
+        decided = parallel_queue.record_claim(prepared['manifest'],
+                                              prepared['intent']['intent_id'], held)
+        for observed in (dict(held, actor='artel@other-host'),
+                         dict(held, actor='artel@' + RUN_ID + '#2:1'),
+                         dict(held, task_id=42)):
+            result = parallel_queue.reconcile_claims(decided['manifest'], [observed])
+            self.assertEqual(result['actions'], [], observed)
+            self.assertEqual(result['manifest']['claims']['intents'][0]['row'], held)
+            self.assertEqual(result['manifest']['stop'], decided['manifest']['stop'])
+
+    def test_an_orphaned_claim_is_re_released_while_still_observed_in_progress(self):
+        # The sibling discipline the wrong-phase recovery mirrors: an orphaned intent's row
+        # is re-released on every fresh observation until the release has executed.
+        prepared = begin()
+        held = row(actor=prepared['intent']['actor'])
+        first = parallel_queue.reconcile_claims(prepared['manifest'], [held])
+        second = parallel_queue.reconcile_claims(first['manifest'], [held])
+        self.assertEqual([action['reason'] for action in first['actions']], ['orphaned-claim'])
+        self.assertEqual(second['actions'], first['actions'])
 
     def test_a_row_that_is_not_held_is_not_released(self):
         prepared = begin()
@@ -370,6 +423,24 @@ class FakeWorkers:
             self.refused.append(action)
             return
         self.launched.append({'action': action, 'manifest': on_disk})
+
+
+class FakeReleaser:
+    """The release boundary: it applies a release action to its rows and re-reads the
+    manifest, so the test sees what was durable at call time."""
+
+    def __init__(self, path, rows):
+        self.path = path
+        self.rows = rows
+        self.calls = []
+
+    def release(self, action):
+        self.calls.append({'action': action,
+                           'manifest': parallel_state.read_manifest(self.path)})
+        for row in self.rows:
+            if row['task_id'] == action['task_id']:
+                row['status'] = 'ready'
+                row['actor'] = None
 
 
 class TestClaimDurabilityOrder(unittest.TestCase):
@@ -460,6 +531,34 @@ class TestClaimDurabilityOrder(unittest.TestCase):
         self.assertEqual(foreign['manifest']['claims']['intents'][0]['state'], 'orphaned')
         resumed = parallel_queue.begin_claim(written)
         self.assertEqual(resumed['intent']['seq'], 2)
+
+    def test_a_crash_before_the_release_recovers_it_and_a_finished_release_is_not_repeated(self):
+        written = parallel_state.write_manifest(self.path, manifest(), 0)
+        prepared = parallel_queue.begin_claim(written)
+        written = parallel_state.write_manifest(self.path, prepared['manifest'],
+                                                written['revision'])
+        returned = row(actor=prepared['intent']['actor'], phase=3)
+        recorded = parallel_queue.record_claim(written, prepared['intent']['intent_id'],
+                                               returned)
+        self.assertEqual(recorded['action']['kind'], 'release')
+        written = parallel_state.write_manifest(self.path, recorded['manifest'],
+                                                written['revision'])
+        # The process died here: the wrong-phase decision and the stop are durable, the
+        # external release never happened. The fresh observation still shows the exact same
+        # row held by the exact same actor, so the outstanding release is planned again.
+        releaser = FakeReleaser(self.path, [returned])
+        recovered = parallel_queue.reconcile_claims(written, [returned])
+        self.assertEqual([action['reason'] for action in recovered['actions']], ['wrong-phase'])
+        self.assertEqual(recovered['actions'][0]['intent_id'], prepared['intent']['intent_id'])
+        written = parallel_state.write_manifest(self.path, recovered['manifest'],
+                                                written['revision'])
+        releaser.release(recovered['actions'][0])
+        self.assertEqual(releaser.calls[0]['manifest']['stop']['reason'], 'wrong-phase')
+        # The release executed: the fresh observation is ready/unheld and nothing repeats.
+        after = parallel_queue.reconcile_claims(written, releaser.rows)
+        self.assertEqual(after['actions'], [])
+        self.assertEqual(after['manifest']['stop']['reason'], 'wrong-phase')
+        rejects(self, 'admission_stopped', lambda: parallel_queue.begin_claim(written))
 
 
 if __name__ == '__main__':

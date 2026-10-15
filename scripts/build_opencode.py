@@ -10,10 +10,12 @@ contract file, and nothing expands it.
 Each skill is also emitted under <out> (default <root>/opencode/dist) with its frontmatter
 and baked body, its other Markdown files beside it, and a command wrapper under <out>/commands
 that loads the skill and passes its arguments.
-Canonical sources under skills/ and agents/ are never modified. Contract: docs/opencode.md.
+Canonical sources under skills/ and agents/ are never modified: a `--root` that is the source
+checkout is refused before the first write. Contract: docs/opencode.md.
 """
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -21,6 +23,32 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 VALID_NAME = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
 MAX_DESCRIPTION = 1024
+
+
+def is_source_checkout(root):
+    """True when `root` is the checkout this repository is developed in, as opposed to an
+    installed copy.
+
+    The installer runs a copy of this script from inside the install root with
+    `--root <install root>`, so `root` and the script's own directory coincide there too —
+    a bare `root == source` test would break every installation. Three markers separate the
+    two: the copy has no `tests/` tree, its `scripts/build_opencode.py` is a copy rather than
+    the tracked file, and it is not a git checkout of this repository.
+    """
+    if not (root / 'tests').is_dir():
+        return False
+    if not (root / 'scripts' / 'build_opencode.py').is_file():
+        return False
+    try:
+        tracked = subprocess.run(
+            ['git', '-C', str(root), 'ls-files', '--error-unmatch',
+             'scripts/build_opencode.py'],
+            capture_output=True, text=True)
+    except OSError:
+        # No git to prove otherwise, and the tests/ tree says checkout: refuse rather than
+        # risk baking the canonical placeholders in place.
+        return True
+    return tracked.returncode == 0
 
 
 def parse_frontmatter(text):
@@ -150,6 +178,14 @@ def main(argv=None):
     root = Path(args.root).resolve()
     source = Path(args.source).resolve()
     out = Path(args.out).resolve() if args.out else root / 'opencode' / 'dist'
+
+    # Before the first write: baking the source checkout would replace the canonical
+    # placeholders throughout the tree. The installer's own run is not this case — its copy
+    # has no tests/ and no tracked builder (is_source_checkout).
+    if is_source_checkout(root):
+        print('build_opencode: refusing to bake {} — it is the source checkout; run the '
+              'installer, or pass an install copy as --root'.format(root), file=sys.stderr)
+        return 2
 
     skill_files = sorted((source / 'skills').glob('*/SKILL.md'))
     if not skill_files:

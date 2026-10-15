@@ -80,13 +80,84 @@ class TestInstallCopyBake(BuildBase):
 
     def test_only_markdown_is_baked(self):
         """A hook docstring's token is a source-level pointer to a contract file; nothing
-        expands it, so hooks/ and scripts/ are never rewritten."""
+        expands it, so hooks/ and scripts/ are never rewritten — and a non-Markdown file
+        inside one of the walked trees (skills/, agents/, docs/) is left alone too."""
         hook = self.root / 'hooks' / 'demo.py'
         hook.parent.mkdir(parents=True, exist_ok=True)
         hook.write_text('Contract: ${ARTEL_ROOT}/docs/x.md\n', encoding='utf-8')
+        note = self.root / 'skills' / 'artel-demo' / 'notes.txt'
+        note.parent.mkdir(parents=True, exist_ok=True)
+        note.write_text('Contract: ${ARTEL_ROOT}/docs/x.md\n', encoding='utf-8')
         self.build()
-        self.assertEqual(hook.read_text(encoding='utf-8'),
-                         'Contract: ${ARTEL_ROOT}/docs/x.md\n')
+        for path in (hook, note):
+            self.assertEqual(path.read_text(encoding='utf-8'),
+                             'Contract: ${ARTEL_ROOT}/docs/x.md\n', str(path))
+
+
+class TestSourceCheckoutGuard(unittest.TestCase):
+    """The builder refuses to bake the source checkout — that would replace the canonical
+    placeholders throughout the tree — while the installer's run from inside an install copy
+    (no tests/ tree, no tracked builder) stays allowed."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name).resolve()
+
+    def stub(self, name, tests=False, tracked=False):
+        """A buildable root: the three trees and a copy of the builder. `tests/` plus a
+        git-tracked builder make it a source checkout."""
+        root = self.tmp / name
+        (root / 'scripts').mkdir(parents=True)
+        for tree in ('skills', 'agents', 'docs'):
+            (root / tree).mkdir()
+        demo = root / 'skills' / 'artel-demo'
+        demo.mkdir()
+        (demo / 'SKILL.md').write_text(
+            '---\nname: artel-demo\ndescription: "Demo."\n---\n\n${ARTEL_ROOT}/docs/x.md\n',
+            encoding='utf-8')
+        shutil.copy(BUILD, root / 'scripts' / 'build_opencode.py')
+        if tests:
+            (root / 'tests').mkdir()
+        if tracked:
+            subprocess.run(['git', 'init', '-q'], cwd=root, check=True)
+            subprocess.run(['git', 'add', 'scripts/build_opencode.py'], cwd=root, check=True)
+            subprocess.run(['git', '-c', 'user.email=t@t', '-c', 'user.name=t',
+                            'commit', '-qm', 'init'], cwd=root, check=True)
+        return root
+
+    def run_build(self, root):
+        return subprocess.run(
+            [sys.executable, str(root / 'scripts' / 'build_opencode.py'),
+             '--root', str(root)], capture_output=True, text=True)
+
+    @unittest.skipUnless(shutil.which('git'), 'the guard asks git what is tracked')
+    def test_the_source_checkout_is_detected(self):
+        self.assertTrue(build_opencode.is_source_checkout(ROOT))
+
+    def test_an_install_copy_is_not(self):
+        # no tests/ tree: the installer's own layout — allowed, or every install breaks
+        self.assertFalse(build_opencode.is_source_checkout(self.stub('install')))
+
+    @unittest.skipUnless(shutil.which('git'), 'the guard asks git what is tracked')
+    def test_the_builder_refuses_the_source_checkout_before_any_write(self):
+        root = self.stub('source', tests=True, tracked=True)
+        marker = root / 'skills' / 'artel-demo' / 'SKILL.md'
+        before = marker.read_text(encoding='utf-8')
+        proc = self.run_build(root)
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn('source checkout', proc.stderr)
+        self.assertEqual(marker.read_text(encoding='utf-8'), before,
+                         'the source checkout was written before the refusal')
+        self.assertFalse((root / 'opencode').exists())
+
+    def test_the_builder_bakes_an_install_copy(self):
+        root = self.stub('copy')
+        proc = self.run_build(root)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn(
+            '${ARTEL_ROOT}',
+            (root / 'skills' / 'artel-demo' / 'SKILL.md').read_text(encoding='utf-8'))
 
 
 class TestSkillBuild(BuildBase):

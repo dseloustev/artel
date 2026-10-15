@@ -145,8 +145,8 @@ upstream terminator, and `[auth] enabled = true` putting a bearer token on the w
 reads included; every write records the token's verified `principal` *beside* `author_agent`
 and `actor` rather than replacing them, so the self-reported fields keep their meaning and the
 verified one is new. Nothing changes with the defaults. artel's half — `knowledge.tokenEnv`,
-the `Authorization` header on the mirror hook, `--header` on the MCP registration — is artel
-0.11.0 (`config.md`). Phase 2, GitHub sign-in, is open in `../kartoteka/docs/epics.md`.
+the `Authorization` header on the mirror hook, the bearer header on the MCP registration — is
+artel 0.11.0 (`config.md`). Phase 2, GitHub sign-in, is open in `../kartoteka/docs/epics.md`.
 
 ### 2.2 `put_artifact` has no lost-update protection
 

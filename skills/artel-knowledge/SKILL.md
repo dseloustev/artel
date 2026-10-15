@@ -29,8 +29,8 @@ Read `knowledge.adapter` and `knowledge.project` from `.artel/config.json`
 
 The `absent` row also covers a daemon with `[auth]` on (kartoteka 0.32.0) that the session
 registered without its bearer token: the server refuses the connection, so the tools are absent.
-The fix is `--header` on the MCP registration (config.md, `knowledge.tokenEnv`), not a setting
-this skill reads.
+The fix is the server's `headers` in `opencode.json` (config.md, `knowledge.tokenEnv`), not a
+setting this skill reads.
 
 The tools are `search_knowledge`, `related`, `index_status`, and — behind kartoteka's
 `[workspace]` switch — `artifact_list` and `artifact_get`. Presence means the host wired the

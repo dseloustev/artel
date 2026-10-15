@@ -187,7 +187,10 @@ class TestTokenEnv(unittest.TestCase):
         self.assertIn('knowledge.tokenEnv', text)
         self.assertIn(self.VARIABLE, text)
         self.assertIn('never the value', text)
-        self.assertIn('--header', text)
+        # The wiring it names is OpenCode's — the server's `headers` in `opencode.json`,
+        # never the `claude mcp add` flag. The phrase is flattened because it wraps.
+        self.assertIn("the server's `headers` in `opencode.json`", ' '.join(text.split()))
+        self.assertNotIn('--header', text)
 
     def test_the_read_contracts_explain_an_auth_on_daemon_as_tools_absent(self):
         # Without the bearer header the session cannot connect, so it sees

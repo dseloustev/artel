@@ -130,8 +130,8 @@ and location"); append whichever is missing, touch nothing when both are present
 - The `.gitignore` outcome.
 - When `verify.surface` was derived in Round 4: the sources the scan read.
 - With `knowledge.tokenEnv` set: a reminder to export that variable in every shell and launcher
-  that runs artel, and to give the MCP registration the same token (`--header`), because the
-  config carries the name only.
+  that runs artel, and to give the MCP registration the same token — the server's `headers` in
+  `opencode.json` — because the config carries the name only.
 - A reminder that `.artel/config.json` is committed team configuration — commit it by hand
   (orchestrator checkpoint commits never stage `.artel/`).
 

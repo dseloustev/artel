@@ -1,5 +1,8 @@
 # AdGuard `code-review` vs artel `deep-review`
 
+> **Port history.** This document records a comparison from the Claude Code era and is kept for
+> provenance — not as current state.
+
 A comparison of two review systems, written 2026-10-02, and the source of the review-evidence
 discipline artel adopted the same day ([design.md](../design.md), decision log 2026-10-02).
 

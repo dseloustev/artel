@@ -95,7 +95,7 @@ Only when the status line says `knowledge.adapter: kartoteka` and its `project` 
 too — every kartoteka call needs it. A `knowledge.tokenEnv: … (NOT SET …)` line does not stop
 routing: mention it once — the daemon may have `[auth]` on, and then the mirror hook's writes
 will be refused until that variable is exported and the MCP registration carries the same token
-(`--header`; config.md) — and route as usual.
+(`headers`; config.md) — and route as usual.
 
 | The user wants… | Run |
 |---|---|

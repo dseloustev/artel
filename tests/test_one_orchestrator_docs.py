@@ -577,6 +577,25 @@ class TestFullHead(unittest.TestCase):
                        '**Routes at the pause**', '`<light|full> — set at approval`'):
             self.assertIn(phrase, pause)
 
+    def test_the_tasklist_fold_back_goes_to_the_task_planner(self):
+        """The full head's tasklist is the plan-driven `artel-task-planner`: gate 4 invokes the
+        `artel-tasklist` skill, which dispatches it. The idea-driven `artel-tasklist-writer` is
+        lean-head-only and ticket-level; naming it here would send the fold-back to an agent
+        that never wrote the file."""
+        pause = self.head[self.head.index('## THE ONE PAUSE'):]
+        self.assertIn('`artel-planner` and `artel-task-planner` agents', pause)
+        self.assertIn('each dispatch carries `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` and the '
+                      '**Spec store:** field', pause)
+        self.assertNotIn('artel-tasklist-writer', self.head)
+        # the distinction the fix rests on: the two heads' writers are different agents
+        self.assertIn('the `artel-task-planner` agent',
+                      flat('skills/artel-tasklist/SKILL.md'))
+        self.assertIn('`artel-tasklist-writer`',
+                      flat('skills/artel-generate-tasklist/SKILL.md'))
+        writer = flat('agents/artel-tasklist-writer.md')
+        self.assertIn('You are **not** the `artel-task-planner` agent', writer)
+        self.assertIn('ticket-level only', writer)
+
     def test_the_skill_keeps_gate_0_and_points_at_the_head(self):
         skill = raw(FD + 'SKILL.md')
         self.assertIn('${ARTEL_ROOT}/skills/artel-feature-development/heads/full.md', skill)

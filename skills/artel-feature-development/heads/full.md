@@ -90,8 +90,10 @@ approval also authorizes the run's task and checkpoint commits, and the checkpoi
 `origin` (planning docs now, one commit+push per completed phase, plus one commit per completed
 task cycle — see `tail.md`, `## Checkpoint commits & pushes`, and `## Task commits`).
 
-- **Approve** → dispatch fresh `subagent`s to the `artel-planner` and `artel-tasklist-writer` agents to fold any answer that
-  overrides a default back into `plan.md` / the tasklist — the tasklist's fields as well as its
+- **Approve** → dispatch fresh `subagent`s to the `artel-planner` and `artel-task-planner` agents to fold any answer that
+  overrides a default back into `plan.md` / the tasklist — each dispatch carries `TICKET_ID`,
+  `TICKET_NUM`, `PHASE_NUM` and the **Spec store:** field, and its model per the dispatch
+  procedure (`${ARTEL_ROOT}/docs/agents.md` `## Models`) — the tasklist's fields as well as its
   prose: an answer that changes a route, a dependency or a file list changes that field — flip
   the `.artel/run/<TICKET_ID>/open-questions.md` entries to `resolved: "<answer>"`, and remove
   `(provisional — Q<n>)` markers (plan becomes status `PLAN_APPROVED`). An answer confirming
@@ -102,14 +104,14 @@ task cycle — see `tail.md`, `## Checkpoint commits & pushes`, and `## Task com
   fold-back into the tasklist or the PRD, re-run gate 4.2's requirements read and mechanical
   check (its steps 1–2 — no agent check, no fix round). A Critical or Important finding it
   reports stops and asks (plain `question` tool call — the run is not armed yet): the findings,
-  then **Fix** (one more `task-planner` round, then the check again) / **Proceed as is** /
+  then **Fix** (one more `artel-task-planner` round, then the check again) / **Proceed as is** /
   **Abort**. Proceed to `SKILL.md` step 5.
-- **Request changes** → route feedback to `planner`/`tasklist` (each on its site's model, the
+- **Request changes** → route feedback to the `artel-planner`/`artel-task-planner` agents (each on its site's model, the
   dispatch procedure — `${ARTEL_ROOT}/docs/agents.md` `## Models`), regenerate, delete
   `.artel/run/<TICKET_ID>/plan-review.md`, run gates 3.5 and 4.2 again, and repeat this pause.
 - **`yolo` only:** skip the `question` tool call — treat every
   `.artel/run/<TICKET_ID>/open-questions.md` default as the accepted answer, run the same
-  fold-back (planner/tasklist agents, the `analyst` for an already-met answer,
+  fold-back (the `artel-planner`/`artel-task-planner` agents, the `artel-analyst` for an already-met answer,
   `resolved: "<answer>"` flips, status `PLAN_APPROVED`) and the check after it, and proceed. The
   HITL tags remain armed — yolo removes this pause only. One exception: a Critical or Important
   plan-review finding still open after that — from the check after the fold-back, or left by

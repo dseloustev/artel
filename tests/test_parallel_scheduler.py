@@ -1,0 +1,525 @@
+"""scripts/parallel_scheduler.py: bounded dependency and resource admission.
+
+Contract: docs/opencode-parallel.md §7 (the `Concurrency:` metadata) and §13 (the run
+manifest and its task states), docs/task-grammar.md §7 (`ready_now`/`waves` stay dependency
+facts) and the approved admission clauses of the parallel plan.
+
+The iterations are real `task_grammar.parse` output and the manifests are built through
+`parallel_state`'s own transitions and persistence, so the selector is exercised against
+the documents a run actually stores -- no test-only keys and no hand-written states.
+"""
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import parallel_scheduler  # noqa: E402
+import parallel_state  # noqa: E402
+import task_grammar  # noqa: E402
+
+RUN_ID = '0f6f0f2e-6b1a-4f2e-9c5d-2b7a1c8e4d10'
+TICKET = 'PROJ-123'
+DIGEST = 'a' * 64
+RESULT_KEYS = ('schema', 'start', 'claim_capacity', 'drain', 'reasons')
+SIDE_STATES = ('blocked', 'failed', 'cancelled')
+
+# One walk from admission to each state, over the real transition table.
+WALKS = {
+    'reserved': (),
+    'preparing': ('preparing',),
+    'running': ('preparing', 'running'),
+    'verifying/reviewing': ('preparing', 'running', 'verifying/reviewing'),
+    'prepared': ('preparing', 'running', 'verifying/reviewing', 'prepared'),
+    'integrating': ('preparing', 'running', 'verifying/reviewing', 'prepared', 'integrating'),
+    'published': ('preparing', 'running', 'verifying/reviewing', 'prepared', 'integrating',
+                  'published'),
+    'blocked': ('blocked',),
+    'failed': ('preparing', 'failed'),
+    'cancelled': ('cancelled',),
+}
+
+
+def block(number, files=('src/x.py',), deps='none', concurrency=None, hitl=None,
+          done=False, route='light', test='none — nothing to test'):
+    """One `### Task N.M:` block in the tasklist grammar."""
+    head = '### Task {}: work on {}'.format(number, number)
+    if hitl:
+        head += ' [HITL: {}]'.format(hitl)
+    lines = [head,
+             '- **Files:** {}'.format(', '.join('`{}`'.format(path) for path in files)),
+             '- **Depends on:** {}'.format(deps),
+             '- **Route:** {}'.format(route)]
+    if concurrency:
+        lines.append('- **Concurrency:** {}'.format(concurrency))
+    lines.append('- **Test:** {}'.format(test))
+    lines.append('- [{}] do the work'.format('x' if done else ' '))
+    return '\n'.join(lines)
+
+
+def iteration(number, *blocks):
+    return '## Iteration {}: iteration {}\n\n{}'.format(number, number, '\n\n'.join(blocks))
+
+
+def parse(text):
+    """The iterations of a tasklist body the parser accepts without a problem."""
+    iterations, problems, warnings = task_grammar.parse(text)
+    assert not problems, problems
+    assert not warnings, warnings
+    return iterations
+
+
+def walk(value, task, state):
+    """One task walked from admission to `state` through the real transitions."""
+    value = parallel_state.transition_task(value, task, None, 'reserved', {})
+    current = 'reserved'
+    for target in WALKS[state]:
+        decision = (target in SIDE_STATES or current in SIDE_STATES
+                    or (current == 'preparing' and target == 'reserved'))
+        fields = {'decision': {'reason': 'test walk'}} if decision else {}
+        value = parallel_state.transition_task(value, task, current, target, fields)
+        current = target
+    return value
+
+
+def manifest(states=None, seats=2, phase=2, stop=None):
+    """A run manifest with `states` = {task: state} walked through the real transitions."""
+    value = parallel_state.new_run(TICKET, phase, RUN_ID, seats, DIGEST)
+    for task, state in (states or {}).items():
+        value = walk(value, task, state)
+    if stop is not None:
+        value = dict(value, stop=stop)
+    return value
+
+
+def select(iterations, value=None, seats=2, case_sensitive=True):
+    return parallel_scheduler.select_admissions(
+        iterations, value if value is not None else manifest(), seats, case_sensitive)
+
+
+def rejects(test, kind, call):
+    """Assert `call` raises SchedulerError of `kind`; return the exception."""
+    with test.assertRaises(parallel_scheduler.SchedulerError) as caught:
+        call()
+    test.assertEqual(caught.exception.kind, kind)
+    test.assertEqual(str(caught.exception), caught.exception.message)
+    return caught.exception
+
+
+TWO = parse(iteration(2,
+                      block('2.1', files=('src/a.py',)),
+                      block('2.2', files=('src/b.py',))))
+THREE = parse(iteration(3,
+                        block('3.1', files=('src/a.py',)),
+                        block('3.2', files=('src/b.py',)),
+                        block('3.3', files=('src/c.py',))))
+FOUR = parse(iteration(2,
+                       block('2.1', files=('src/a.py',)),
+                       block('2.2', files=('src/b.py',)),
+                       block('2.3', files=('src/c.py',)),
+                       block('2.4', files=('src/d.py',))))
+CHAIN = parse(iteration(2,
+                        block('2.1', files=('src/a.py',)),
+                        block('2.2', files=('src/b.py',)),
+                        block('2.3', files=('src/c.py',), deps='2.1, 2.2')))
+SAME = parse(iteration(2,
+                       block('2.1', files=('src/a.py',)),
+                       block('2.2', files=('src/a.py',)),
+                       block('2.3', files=('src/c.py',))))
+MULTI = parse(iteration(1, block('1.1', files=('src/a.py',)))
+              + '\n\n' + iteration(2, block('2.1', files=('src/b.py',))))
+EXCLUSIVE_FIRST = parse(iteration(2,
+                                  block('2.1', files=('src/a.py',),
+                                        concurrency='exclusive — the fixture database is shared'),
+                                  block('2.2', files=('src/b.py',))))
+EXCLUSIVE_LAST = parse(iteration(2,
+                                 block('2.1', files=('src/a.py',)),
+                                 block('2.2', files=('src/b.py',),
+                                       concurrency='exclusive — shared external effects')))
+HITL_FIRST = parse(iteration(2,
+                             block('2.1', files=('src/a.py',), hitl='copy needs product sign-off'),
+                             block('2.2', files=('src/b.py',))))
+AMBIGUOUS = parse(iteration(2,
+                            block('2.1', files=('src/*.py',)),
+                            block('2.2', files=('src/b.py',))))
+
+
+class TestAdmissionShape(unittest.TestCase):
+    def test_the_admission_is_the_documented_shape(self):
+        result = select(TWO)
+        self.assertEqual(sorted(result), sorted(RESULT_KEYS))
+        self.assertEqual(result['schema'], 1)
+        self.assertEqual(result['start'], ['2.1', '2.2'])
+        self.assertEqual(result['claim_capacity'], 2)
+        self.assertIs(result['drain'], False)
+        self.assertEqual(result['reasons'], [])
+
+    def test_the_selector_is_pure_and_json_safe(self):
+        value = manifest({'2.1': 'running'})
+        iterations = json.loads(json.dumps(TWO))
+        first = parallel_scheduler.select_admissions(iterations, value, 2, True)
+        second = parallel_scheduler.select_admissions(iterations, value, 2, True)
+        self.assertEqual(first, second)
+        self.assertEqual(json.loads(json.dumps(first)), first)
+        self.assertEqual(iterations, json.loads(json.dumps(TWO)))
+        self.assertEqual(value, manifest({'2.1': 'running'}))
+
+    def test_the_manifest_survives_persistence_validation(self):
+        value = manifest({'2.1': 'running'})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'manifest.json'
+            written = parallel_state.write_manifest(path, value, 0)
+            stored = parallel_state.read_manifest(path)
+        self.assertEqual(stored, written)
+        result = parallel_scheduler.select_admissions(TWO, stored, 2, True)
+        self.assertEqual(result['start'], ['2.2'])
+
+    def test_the_inputs_are_validated(self):
+        for seats in (0, -1, True, '2', 2.0, None):
+            rejects(self, 'invalid_seats',
+                    lambda seats=seats: parallel_scheduler.select_admissions(
+                        TWO, manifest(), seats, True))
+        rejects(self, 'invalid_seats',
+                lambda: parallel_scheduler.select_admissions(TWO, manifest(seats=3), 2, True))
+        for case in (None, 'yes', 1, 0):
+            rejects(self, 'invalid_case_sensitive',
+                    lambda case=case: parallel_scheduler.select_admissions(
+                        TWO, manifest(), 2, case))
+        for iterations in (None, {}, 'tasklist', [None],
+                           [{'number': 0, 'tasks': []}],
+                           [{'number': 2}],
+                           [{'number': 2, 'tasks': [{'number': '2', 'fields': {}, 'hitl': None,
+                                                     'steps': []}]}]):
+            rejects(self, 'invalid_iterations',
+                    lambda iterations=iterations: parallel_scheduler.select_admissions(
+                        iterations, manifest(), 2, True))
+        for value in (None, [], {'seats': 2},
+                      dict(manifest(), tasks={'2.1': {'state': 'ok'}}),
+                      dict(manifest(), tasks={'2': {'state': 'running'}}),
+                      dict(manifest(), stop='wrong-phase')):
+            rejects(self, 'invalid_manifest',
+                    lambda value=value: parallel_scheduler.select_admissions(TWO, value, 2, True))
+
+
+class TestSeats(unittest.TestCase):
+    def test_one_seat_admits_one_task_and_keeps_the_serial_procedure(self):
+        result = select(THREE, value=manifest(seats=1), seats=1)
+        self.assertEqual(result['start'], ['3.1'])
+        self.assertEqual(result['claim_capacity'], 1)
+        running = manifest({'3.1': 'running'}, seats=1)
+        result = select(THREE, value=running, seats=1)
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(any('seat' in reason for reason in result['reasons']))
+
+    def test_two_seats_admit_two_compatible_tasks(self):
+        result = select(THREE)
+        self.assertEqual(result['start'], ['3.1', '3.2'])
+        self.assertEqual(result['claim_capacity'], 2)
+
+    def test_three_seats_admit_three_compatible_tasks(self):
+        result = select(THREE, value=manifest(seats=3), seats=3)
+        self.assertEqual(result['start'], ['3.1', '3.2', '3.3'])
+        self.assertEqual(result['claim_capacity'], 3)
+
+
+class TestNoDuplicateStart(unittest.TestCase):
+    def test_a_task_with_a_manifest_record_is_never_started_again(self):
+        for state in ('reserved', 'preparing', 'running', 'verifying/reviewing', 'prepared',
+                      'integrating', 'published', 'blocked', 'failed', 'cancelled'):
+            result = select(TWO, value=manifest({'2.1': state}))
+            self.assertNotIn('2.1', result['start'], state)
+
+    def test_a_reserved_task_is_resumed_for_launch_not_claimed_again(self):
+        result = select(TWO, value=manifest({'2.1': 'reserved'}))
+        self.assertEqual(result['start'], ['2.2'])
+        self.assertEqual(result['claim_capacity'], 1)
+
+    def test_repeated_calls_cannot_oversubscribe(self):
+        self.assertEqual(select(TWO)['start'], ['2.1', '2.2'])
+        # The coordinator reserves exactly what the first call admitted; the next call
+        # sees the reservations and admits nothing new.
+        reserved = manifest({'2.1': 'reserved', '2.2': 'reserved'})
+        result = select(TWO, value=reserved)
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(any('reservation' in reason for reason in result['reasons']))
+
+
+class TestDependencies(unittest.TestCase):
+    def test_independent_tasks_start_together(self):
+        self.assertEqual(select(TWO)['start'], ['2.1', '2.2'])
+
+    def test_a_dependent_does_not_start_with_its_dependencies(self):
+        self.assertEqual(select(CHAIN)['start'], ['2.1', '2.2'])
+
+    def test_a_dependent_waits_for_the_last_dependency_to_publish(self):
+        result = select(CHAIN, value=manifest({'2.1': 'published'}))
+        self.assertEqual(result['start'], ['2.2'])
+        result = select(CHAIN, value=manifest({'2.1': 'published', '2.2': 'running'}))
+        self.assertEqual(result['start'], [])
+
+    def test_publication_unlocks_a_dependent_before_the_checkbox_is_ticked(self):
+        value = manifest({'2.1': 'published', '2.2': 'published'}, seats=3)
+        result = select(CHAIN, value=value, seats=3)
+        self.assertEqual(result['start'], ['2.3'])
+
+    def test_a_prepared_dependency_is_not_published_yet(self):
+        value = manifest({'2.1': 'prepared', '2.2': 'published'}, seats=3)
+        result = select(CHAIN, value=value, seats=3)
+        self.assertEqual(result['start'], [])
+
+    def test_a_checked_dependency_unlocks_without_a_manifest_record(self):
+        text = iteration(2, block('2.1', files=('src/a.py',), done=True),
+                         block('2.2', files=('src/b.py',)),
+                         block('2.3', files=('src/c.py',), deps='2.1'))
+        self.assertEqual(select(parse(text))['start'], ['2.2', '2.3'])
+
+    def test_ready_now_stays_the_checkbox_base_of_admission(self):
+        # With nothing published, admission is exactly the parser's ready set; the
+        # publication overlay only adds durable completion on top of it.
+        for iterations in (CHAIN, MULTI, TWO):
+            self.assertEqual(select(iterations)['start'], task_grammar.ready_now(iterations))
+
+
+class TestFirstUnfinishedIteration(unittest.TestCase):
+    def test_only_the_current_unfinished_iteration_admits(self):
+        self.assertEqual(select(MULTI)['start'], ['1.1'])
+
+    def test_a_later_iteration_waits_until_the_current_one_is_complete(self):
+        result = select(MULTI, value=manifest({'1.1': 'running'}))
+        self.assertEqual(result['start'], [])
+        self.assertTrue(any('iteration 1' in reason for reason in result['reasons']))
+
+    def test_publication_advances_the_barrier_before_the_checkboxes(self):
+        result = select(MULTI, value=manifest({'1.1': 'published'}))
+        self.assertEqual(result['start'], ['2.1'])
+
+    def test_the_barrier_uses_done_and_published_together(self):
+        text = (iteration(1, block('1.1', files=('src/a.py',), done=True),
+                          block('1.2', files=('src/b.py',)))
+                + '\n\n' + iteration(2, block('2.1', files=('src/c.py',))))
+        result = select(parse(text), value=manifest({'1.2': 'published'}))
+        self.assertEqual(result['start'], ['2.1'])
+
+    def test_a_blocked_task_keeps_its_iteration_current(self):
+        result = select(MULTI, value=manifest({'1.1': 'blocked'}))
+        self.assertEqual(result['start'], [])
+
+    def test_a_complete_tasklist_admits_nothing(self):
+        text = iteration(2, block('2.1', files=('src/a.py',), done=True))
+        result = select(parse(text))
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 2)  # the cap figure, not a task count
+        self.assertTrue(any('unfinished' in reason for reason in result['reasons']))
+
+
+class TestFileConflicts(unittest.TestCase):
+    def test_a_ready_task_sharing_a_file_with_a_running_task_waits(self):
+        result = select(SAME, value=manifest({'2.1': 'running'}))
+        self.assertEqual(result['start'], ['2.3'])
+        self.assertEqual(result['claim_capacity'], 1)
+        self.assertTrue(any('src/a.py' in reason for reason in result['reasons']))
+
+    def test_a_shared_path_never_starts_two_tasks_together(self):
+        result = select(SAME)
+        self.assertEqual(result['start'], ['2.1', '2.3'])
+        self.assertTrue(any('2.1' in reason and 'src/a.py' in reason
+                            for reason in result['reasons']))
+
+    def test_the_waiting_task_starts_once_the_holder_is_published(self):
+        result = select(SAME, value=manifest({'2.1': 'published'}))
+        self.assertEqual(result['start'], ['2.2', '2.3'])
+
+    def test_a_side_state_releases_the_declared_paths(self):
+        result = select(SAME, value=manifest({'2.1': 'failed'}))
+        self.assertEqual(result['start'], ['2.2', '2.3'])
+
+    def test_an_unintegrated_task_still_holds_its_declared_path(self):
+        result = select(SAME, value=manifest({'2.1': 'prepared'}))
+        self.assertEqual(result['start'], ['2.3'])
+        self.assertTrue(any('src/a.py' in reason for reason in result['reasons']))
+
+    def test_case_insensitive_platforms_serialize_case_variants(self):
+        text = iteration(2, block('2.1', files=('src/A.py',)),
+                         block('2.2', files=('src/a.py',)))
+        iterations = parse(text)
+        value = manifest({'2.1': 'running'})
+        insensitive = select(iterations, value=value, case_sensitive=False)
+        self.assertEqual(insensitive['start'], [])
+        self.assertTrue(any('src/a.py' in reason for reason in insensitive['reasons']))
+        sensitive = select(iterations, value=value, case_sensitive=True)
+        self.assertEqual(sensitive['start'], ['2.2'])
+
+    def test_paths_are_normalized_before_the_exact_intersection(self):
+        text = iteration(2, block('2.1', files=('src/a.py',)),
+                         block('2.2', files=('./src//a.py',)))
+        result = select(parse(text), value=manifest({'2.1': 'running'}))
+        self.assertEqual(result['start'], [])
+
+    def test_an_exact_path_does_not_conflict_with_its_suffix(self):
+        text = iteration(2, block('2.1', files=('src/a.py',)),
+                         block('2.2', files=('src/a.pyc',)))
+        result = select(parse(text), value=manifest({'2.1': 'running'}))
+        self.assertEqual(result['start'], ['2.2'])
+
+
+class TestExclusive(unittest.TestCase):
+    def test_a_concurrency_exclusive_task_is_admitted_alone(self):
+        result = select(EXCLUSIVE_FIRST)
+        self.assertEqual(result['start'], ['2.1'])
+        self.assertEqual(result['claim_capacity'], 1)
+        self.assertIs(result['drain'], False)
+        self.assertTrue(any('exclusive' in reason for reason in result['reasons']))
+
+    def test_an_exclusive_task_waits_for_a_quiet_run(self):
+        result = select(EXCLUSIVE_FIRST, value=manifest({'2.2': 'running'}))
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(any('2.1' in reason and 'exclusive' in reason
+                            for reason in result['reasons']))
+
+    def test_a_ready_exclusive_task_stops_the_admissions_behind_it(self):
+        result = select(EXCLUSIVE_LAST)
+        self.assertEqual(result['start'], ['2.1'])
+        self.assertEqual(result['claim_capacity'], 1)
+        self.assertTrue(any('2.2' in reason for reason in result['reasons']))
+
+    def test_hitl_tasks_are_exclusive(self):
+        result = select(HITL_FIRST)
+        self.assertEqual(result['start'], ['2.1'])
+        self.assertEqual(result['claim_capacity'], 1)
+        self.assertTrue(any('HITL' in reason for reason in result['reasons']))
+        waiting = select(HITL_FIRST, value=manifest({'2.2': 'running'}))
+        self.assertEqual(waiting['start'], [])
+
+    def test_uncertain_write_ownership_is_exclusive(self):
+        for files in (('src/',), ('src/*.py',), ('/etc/hosts',), ('src/../lib/a.py',),
+                      ('src\\a.py',)):
+            text = iteration(2, block('2.1', files=files), block('2.2', files=('src/b.py',)))
+            result = select(parse(text), value=manifest({'2.2': 'running'}))
+            self.assertEqual(result['start'], [], files)
+            self.assertTrue(any('2.1' in reason for reason in result['reasons']), files)
+
+    def test_a_task_without_declared_files_is_exclusive(self):
+        text = iteration(2, block('2.1', files=()), block('2.2', files=('src/b.py',)))
+        iterations, problems, _ = task_grammar.parse(text)
+        self.assertTrue(any(problem['rule'] == 'empty-field' for problem in problems))
+        result = select(iterations, value=manifest({'2.2': 'running'}))
+        self.assertEqual(result['start'], [])
+        self.assertTrue(any('write ownership' in reason for reason in result['reasons']))
+
+    def test_an_ambiguous_task_runs_alone(self):
+        result = select(AMBIGUOUS)
+        self.assertEqual(result['start'], ['2.1'])
+        self.assertEqual(result['claim_capacity'], 1)
+
+    def test_an_exclusive_task_holds_the_run_from_admission_to_publication(self):
+        for state in ('reserved', 'preparing', 'running', 'verifying/reviewing'):
+            result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': state}))
+            self.assertEqual(result['start'], [], state)
+            self.assertEqual(result['claim_capacity'], 0, state)
+            self.assertIs(result['drain'], False, state)
+
+    def test_pending_exclusive_integration_stops_every_new_admission(self):
+        result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'prepared'}))
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertIs(result['drain'], True)
+        self.assertTrue(any('drain' in reason for reason in result['reasons']))
+        result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'integrating'}))
+        self.assertIs(result['drain'], True)
+        self.assertEqual(result['start'], [])
+        # The drain completes with publication: admission reopens.
+        result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'published'}))
+        self.assertIs(result['drain'], False)
+        self.assertEqual(result['start'], ['2.2'])
+
+    def test_an_ordinary_integration_does_not_drain_the_run(self):
+        result = select(TWO, value=manifest({'2.1': 'prepared'}))
+        self.assertIs(result['drain'], False)
+        self.assertEqual(result['start'], ['2.2'])
+
+    def test_a_side_state_releases_the_run(self):
+        for state in SIDE_STATES:
+            result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': state}))
+            self.assertEqual(result['start'], ['2.2'], state)
+            self.assertIs(result['drain'], False, state)
+
+
+class TestCapacity(unittest.TestCase):
+    def test_reserved_running_and_prepared_assignments_each_count(self):
+        for active in ('preparing', 'running'):
+            value = manifest({'2.1': active, '2.2': 'reserved', '2.3': 'prepared'})
+            result = select(FOUR, value=value)
+            self.assertEqual(result['start'], ['2.4'], active)
+            self.assertEqual(result['claim_capacity'], 1, active)
+
+    def test_the_unresolved_bound_stops_the_lookahead(self):
+        value = manifest({'2.1': 'running', '2.2': 'reserved', '2.3': 'prepared',
+                          '2.4': 'reserved'})
+        result = select(FOUR, value=value)
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(result['reasons'])
+
+    def test_the_lookahead_admits_a_compatible_third_task_behind_a_reservation(self):
+        # seats=2: 2.1 runs, 2.2 waits on the same declared file, 2.3 is compatible.
+        # 2.1 + 2.2 + 2.3 = 3 unresolved assignments, within the 2 * seats = 4 bound.
+        value = manifest({'2.1': 'running', '2.2': 'reserved'})
+        result = select(SAME, value=value)
+        self.assertEqual(result['start'], ['2.3'])
+        self.assertEqual(result['claim_capacity'], 1)
+        self.assertNotIn('2.2', result['start'])
+        self.assertIs(result['drain'], False)
+
+    def test_the_reservation_bound_stops_the_lookahead(self):
+        value = manifest({'2.1': 'running', '2.2': 'reserved', '2.3': 'reserved'})
+        result = select(SAME, value=value)
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(any('reservation' in reason for reason in result['reasons']))
+
+    def test_saturated_seats_produce_reasons(self):
+        value = manifest({'2.1': 'running', '2.2': 'running'})
+        result = select(FOUR, value=value)
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(any('seat' in reason for reason in result['reasons']))
+
+    def test_a_side_state_does_not_consume_capacity(self):
+        value = manifest({'2.1': 'failed', '2.2': 'cancelled'})
+        result = select(FOUR, value=value)
+        self.assertEqual(result['start'], ['2.3', '2.4'])
+        self.assertEqual(result['claim_capacity'], 2)
+
+    def test_an_unknown_manifest_task_holds_the_run_conservatively(self):
+        result = select(TWO, value=manifest({'9.9': 'running'}))
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(any('9.9' in reason for reason in result['reasons']))
+
+    def test_a_ready_exclusive_task_caps_the_claim_capacity(self):
+        # The quiet run would allow seats=3 claims, but the exclusive task suspends
+        # admission behind it after the one compatible task before it.
+        result = select(EXCLUSIVE_LAST, value=manifest(seats=3), seats=3)
+        self.assertEqual(result['start'], ['2.1'])
+        self.assertEqual(result['claim_capacity'], 1)
+
+
+class TestStop(unittest.TestCase):
+    def test_a_latched_stop_halts_admission(self):
+        row = {'task_id': 41, 'title': 'I2 · 2.1 · work on 2.1', 'status': 'in_progress',
+               'actor': 'artel@' + RUN_ID + '#1:1', 'phase': 2, 'task': '2.1'}
+        stop = {'reason': 'wrong-phase', 'intent_id': RUN_ID + '#1:1', 'row': row}
+        result = select(TWO, value=manifest({'2.1': 'running'}, stop=stop))
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertIs(result['drain'], False)
+        self.assertTrue(any('reconciliation' in reason for reason in result['reasons']))
+
+
+if __name__ == '__main__':
+    unittest.main()

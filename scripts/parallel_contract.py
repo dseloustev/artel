@@ -92,6 +92,13 @@ def _text(value, what, kind, allow_empty=False):
     return value
 
 
+def _string(value, what, kind):
+    """A string kept verbatim: a captured tail may be multi-line and carry whitespace."""
+    if not isinstance(value, str):
+        _fail(kind, '{} is not a string: {!r}'.format(what, value))
+    return value
+
+
 def _integer(value, what, kind, minimum):
     if isinstance(value, bool) or not isinstance(value, int):
         _fail(kind, '{} is not an integer: {!r}'.format(what, value))
@@ -246,7 +253,7 @@ def _verify(value, kind):
         _text(entry['command'], 'a verify command', kind)
         if not isinstance(entry['ok'], bool):
             _fail(kind, 'a verify `ok` is not a boolean: {!r}'.format(entry['ok']))
-        _text(entry['output'], 'a verify output', kind, allow_empty=True)
+        _string(entry['output'], 'a verify output', kind)
 
 
 def _review(value, kind):

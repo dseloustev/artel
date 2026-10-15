@@ -337,6 +337,40 @@ class TestValidateResult(unittest.TestCase):
                     lambda verify=verify: parallel_contract.validate_result(
                         full_result(assigned, verify=verify), assigned))
 
+    def test_verify_output_keeps_the_captured_tail_verbatim(self):
+        # §5: `output` is the captured tail -- multi-line text, CR/LF endings and
+        # surrounding whitespace are the tail itself, not a malformed value.
+        assigned = assignment()
+        for tail in ('3 passed\n',
+                     'FAILED test_a.py::test_x\n1 failed, 2 passed\n',
+                     '\n  FAILED test_a.py::test_x  \n',
+                     'first\r\nsecond\r\n',
+                     'first\rsecond\r',
+                     '  padded  ',
+                     ''):
+            entry = {'command': 'python3 -m pytest tests/test_a.py', 'ok': False,
+                     'output': tail}
+            value = full_result(assigned, verify=[entry])
+            self.assertEqual(parallel_contract.validate_result(value, assigned)['verify'],
+                             [entry])
+
+    def test_a_non_string_verify_output_is_rejected(self):
+        assigned = assignment()
+        for output in (None, 7, True, ['3 passed']):
+            rejects(self, 'invalid_result',
+                    lambda output=output: parallel_contract.validate_result(
+                        full_result(assigned, verify=[{'command': 'pytest', 'ok': True,
+                                                       'output': output}]), assigned))
+
+    def test_a_verify_command_stays_single_line(self):
+        # The command is one invocation; only `output` carries captured text.
+        assigned = assignment()
+        for command in ('pytest\nrm -rf /', 'pytest\r', '  pytest  ', ''):
+            rejects(self, 'invalid_result',
+                    lambda command=command: parallel_contract.validate_result(
+                        full_result(assigned, verify=[{'command': command, 'ok': True,
+                                                       'output': ''}]), assigned))
+
     def test_a_filled_review_is_accepted_and_a_malformed_one_is_rejected(self):
         assigned = assignment()
         review = {'required': True, 'route': 'full', 'verdict': 'passed', 'rounds': 1}

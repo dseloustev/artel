@@ -501,11 +501,16 @@ class TestExclusive(unittest.TestCase):
         self.assertEqual(result['resume'], [])
         self.assertEqual(result['start'], ['2.2'])
 
-    def test_an_ordinary_integration_does_not_drain_the_run(self):
-        result = select(TWO, value=manifest({'2.1': 'prepared'}))
-        self.assertIs(result['drain'], False)
-        self.assertEqual(result['resume'], [])
-        self.assertEqual(result['start'], ['2.2'])
+    def test_an_ordinary_prepared_result_does_not_drain_but_an_integration_does(self):
+        prepared = select(TWO, value=manifest({'2.1': 'prepared'}))
+        self.assertIs(prepared['drain'], False)
+        self.assertEqual(prepared['resume'], [])
+        self.assertEqual(prepared['start'], ['2.2'])
+        integrating = select(TWO, value=manifest({'2.1': 'integrating'}))
+        self.assertIs(integrating['drain'], True)
+        self.assertEqual(integrating['start'], [])
+        self.assertEqual(integrating['resume'], [])
+        self.assertEqual(integrating['claim_capacity'], 0)
 
     def test_a_side_state_releases_the_run(self):
         for state in SIDE_STATES:
@@ -513,6 +518,65 @@ class TestExclusive(unittest.TestCase):
             self.assertEqual(result['start'], ['2.2'], state)
             self.assertEqual(result['resume'], [], state)
             self.assertIs(result['drain'], False, state)
+
+
+class TestIntegrationDrain(unittest.TestCase):
+    """The reviewed correction: ANY manifest task `integrating` is a durable admission
+    latch -- it stops new starts and reservation resumes whatever the task's kind."""
+
+    def test_an_ordinary_integrating_task_stops_every_new_admission(self):
+        result = select(TWO, value=manifest({'2.1': 'integrating'}))
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['resume'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertIs(result['drain'], True)
+        self.assertTrue(any('2.1' in reason and 'integrat' in reason
+                            for reason in result['reasons']), result['reasons'])
+
+    def test_a_reservation_is_not_resumed_while_a_sibling_integrates(self):
+        result = select(TWO, value=manifest({'2.1': 'integrating', '2.2': 'reserved'}))
+        self.assertEqual(result['resume'], [])
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertIs(result['drain'], True)
+
+    def test_an_unknown_integrating_record_drains_the_run(self):
+        # a restarted coordinator's manifest may hold a record whose block is not in the
+        # current parse (a phase boundary, a removed task): the latch still holds
+        result = select(TWO, value=manifest({'9.9': 'integrating'}))
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['resume'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertIs(result['drain'], True)
+        self.assertTrue(any('9.9' in reason for reason in result['reasons']),
+                        result['reasons'])
+
+    def test_a_stopped_run_with_an_integrating_record_still_drains(self):
+        stop = {'reason': 'wrong-phase row', 'intent_id': None, 'row': None}
+        result = select(TWO, value=manifest({'2.1': 'integrating'}, stop=stop))
+        self.assertIs(result['drain'], True)
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['resume'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(any('integrat' in reason for reason in result['reasons']),
+                        result['reasons'])
+
+    def test_the_latch_releases_with_publication(self):
+        held = select(CHAIN, value=manifest({'2.1': 'integrating', '2.2': 'published'}))
+        self.assertIs(held['drain'], True)
+        self.assertEqual(held['start'], [])
+        released = select(CHAIN, value=manifest({'2.1': 'published', '2.2': 'published'}))
+        self.assertIs(released['drain'], False)
+        self.assertEqual(released['start'], ['2.3'])
+
+    def test_an_exclusive_reservation_keeps_its_reviewed_turn(self):
+        alone = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'reserved'}))
+        self.assertEqual(alone['resume'], ['2.1'])
+        self.assertEqual(alone['start'], [])
+        busy = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'reserved', '2.2': 'running'}))
+        self.assertEqual(busy['resume'], [])
+        self.assertEqual(busy['start'], [])
+        self.assertEqual(busy['claim_capacity'], 0)
 
 
 class TestExclusiveReservation(unittest.TestCase):
@@ -528,12 +592,21 @@ class TestExclusiveReservation(unittest.TestCase):
         self.assertEqual(quiet['claim_capacity'], 0)
 
     def test_an_exclusive_reservation_waits_for_every_unresolved_state(self):
-        for state in ('preparing', 'running', 'verifying/reviewing', 'prepared',
-                      'integrating'):
+        for state in ('preparing', 'running', 'verifying/reviewing', 'prepared'):
             result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'reserved', '2.2': state}))
             self.assertEqual(result['resume'], [], state)
             self.assertEqual(result['start'], [], state)
             self.assertTrue(any('2.1' in reason for reason in result['reasons']), state)
+        # An integrating sibling is the durable admission latch: the reservation still never
+        # resumes, and the diagnostic names the integration that must complete first.
+        result = select(EXCLUSIVE_FIRST,
+                        value=manifest({'2.1': 'reserved', '2.2': 'integrating'}))
+        self.assertEqual(result['resume'], [])
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertIs(result['drain'], True)
+        self.assertTrue(any('2.2' in reason and 'integrat' in reason
+                            for reason in result['reasons']), result['reasons'])
         # With the other work published, the exclusive reservation launches alone.
         result = select(EXCLUSIVE_FIRST,
                         value=manifest({'2.1': 'reserved', '2.2': 'published'}))

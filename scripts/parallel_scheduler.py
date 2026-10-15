@@ -51,10 +51,14 @@ reservations (`reserved`) are bounded by `seats` too, and every unresolved assig
 by `2 * seats`. New starts are bounded by the free seats after the promotions, by the
 reservation slots the promotions free, and by the unresolved-assignment bound.
 
-Drain. A prepared or integrating exclusive task is a pending drain: admission stops (`drain`
-is true, nothing starts and nothing resumes) until the integration completes and the task is
-published. Independent workers may keep computing during an ordinary integration; only an
-exclusive transaction requires the drained run.
+Drain. ANY manifest task at `integrating` is a durable admission latch: `drain` is true,
+nothing starts and nothing resumes, and every new-start budget is zero until the integration
+transaction completes and the task is published -- ordinary and exclusive tasks alike, and a
+record whose task block is not in the current parse too, because the coordinator persists the
+integration before any transport or commit effect and a restarted coordinator must not start
+fresh work beside it. A pending exclusive integration -- an exclusive task at `prepared` --
+holds the run from admission to publication exactly as before; a non-exclusive `prepared`
+result does not drain: it is a safe return waiting for its turn.
 
 Shapes:
 
@@ -351,6 +355,12 @@ def _drain_reason(exclusive):
     return None
 
 
+def _integrating_reason(integrating):
+    """I2: the durable latch -- any integrating record stops admission until it publishes."""
+    return ('drain in progress: {} integrates; no new starts or reservation resumes until '
+            'the integration transaction completes'.format(', '.join(integrating)))
+
+
 def _result(start, resume, claim_capacity, drain, reasons):
     return {'schema': SCHEMA, 'start': start, 'resume': resume,
             'claim_capacity': claim_capacity, 'drain': drain, 'reasons': reasons}
@@ -366,8 +376,9 @@ def select_admissions(iterations, manifest, seats, case_sensitive):
     task numbers to admit now; `resume` the stable document-ordered list of already-owned
     `reserved` tasks that are safe to launch (persist `preparing` before any effect, never
     claim again); `claim_capacity` the number of new claims the run may begin now; `drain`
-    true while an exclusive integration is pending or in progress; and `reasons` the
-    diagnostics behind an empty or shorter `start`.
+    true while any task integrates (the durable admission latch) or an exclusive integration
+    is pending or in progress; and `reasons` the diagnostics behind an empty or shorter
+    `start`.
     """
     _iterations(iterations)
     value = _manifest(manifest)
@@ -418,13 +429,21 @@ def select_admissions(iterations, manifest, seats, case_sensitive):
         else:
             exclusive.append((number, state, why))
 
-    drain = any(state in DRAIN_STATES for _, state, _ in exclusive)
+    integrating = sorted(number for number, record in records.items()
+                         if record['state'] == 'integrating')
+    drain = bool(integrating) or any(state in DRAIN_STATES for _, state, _ in exclusive)
 
     if value['stop'] is not None:
         reasons.append('admission is stopped for reconciliation ({}); reconcile the queue'
                        ' before admitting'.format(value['stop'].get('reason')
                                                   or 'no reason recorded'))
+        if integrating:
+            reasons.append(_integrating_reason(integrating))
         return _result([], [], 0, drain, reasons)
+
+    if integrating:
+        reasons.append(_integrating_reason(integrating))
+        return _result([], [], 0, True, reasons)
 
     if exclusive:
         number, _, why = exclusive[0]

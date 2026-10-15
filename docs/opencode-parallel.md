@@ -580,7 +580,7 @@ the coordinator recomputes it after **every** durable transition or publication:
 | `start` | new tasks to admit now, in document order; a task with any manifest record is never in it |
 | `resume` | already-owned `reserved` tasks that are safe to launch now, in document order |
 | `claim_capacity` | the cap on new claims — a figure, not a row count |
-| `drain` | `true` while an exclusive task awaits or executes integration |
+| `drain` | `true` while any task is `integrating` (the durable admission latch) or an exclusive integration awaits/is in progress |
 | `reasons` | deterministic diagnostics for an empty or shorter `start` |
 
 The consumer protocol:
@@ -609,8 +609,15 @@ The consumer protocol:
    exceed the number of tasks in `start`, and it never authorizes claiming a task the selector
    did not list.
 5. **`drain` — stop admission, wait, integrate, publish, recompute.** While `drain` is true
-   nothing starts and nothing resumes: wait for the workers to return, execute the integration
-   transaction, publish the task, and recompute.
+   nothing starts and nothing resumes. A task's own `prepared → integrating` transition is the
+   **durable admission latch**: it is persisted before the transport/commit effects and holds
+   the run (any task, any kind, a restarted coordinator's unknown record included) until the
+   integration transaction completes and the task is published — so the coordinator must
+   persist it, then let the workers still `preparing`/`running`/`verifying/reviewing` reach
+   safe return, execute the transaction, publish, and recompute. A sibling already at
+   `prepared` is a safe return and parks; it is never relaunched, blocked or cancelled to make
+   room. A pending *exclusive* integration (an exclusive task at `prepared`) additionally
+   holds the run from admission to publication, exactly as before.
 6. **Recompute after every transition.** The selector never mutates the manifest; every
    durable transition or publication — a recorded claim, a retry and a preparation-failure
    return included — is followed by a fresh call.
@@ -731,8 +738,10 @@ every Git side effect, with exactly these keys:
 `stage` moves `preparing → prepared → applying → applied → committing → committed`; the side
 stages `conflicted`, `apply_failed`, `failed`, `commit_refused` and `recovered` keep a refusal
 inspectable. `documents` is the files path's pending tick/ordered notes (empty on the
-artifact-store path); `publication` is reserved for Task 9 and is never written here; `verify` is
-the integrated-tree gate envelope; `recovery` is `{"state": "landed"|"none", "checked_at": "…"}`.
+artifact-store path); `drain.waiting` lists the parked safe-return work — waiting `reserved`
+reservations and `prepared` siblings, which are never relaunched to make room; `publication` is
+reserved for Task 9 and is never written here; `verify` is the integrated-tree gate envelope;
+`recovery` is `{"state": "landed"|"none", "checked_at": "…"}`.
 Every function returns exactly the record it persisted, so the coordinator persists the returned
 value (or reads the file back) and passes it to the next step.
 
@@ -740,14 +749,17 @@ value (or reads the file back) and passes it to the next step.
 read-only — `not_owned`, `ambiguous_owner`, `foreign_owner` refuse, and nothing here acquires,
 releases or reclaims it. The worker root must be the assignment's own marker-validated root in
 the same repository, and the run manifest at its conventional path must name this run and hold
-the task at `integrating`: the durable write-ahead state the coordinator persists **before** any
-integration effect, and the scheduler's pending drain. Because the transport and the final commit
-run the host's normal commit hooks — shared external effects the coordinator cannot prove
-worker-local — every integration requires a **drained** run: no other task may be `preparing`,
-`running`, `verifying/reviewing`, `prepared` or `integrating`, and `active` workers reaching zero
-alone is not quiescence. A non-drained run refuses (`drain_required`) and names the tasks; waiting
-`reserved` reservations are held (never launched here) and recorded in `drain.waiting`. Admission
-is not re-opened by an integration step, and a pending drain is never starved by fresh starts.
+the task at `integrating`. The coordinator persists that `prepared → integrating` transition
+**before** polling for safe returns or creating any transport/commit: it is the scheduler's
+durable admission latch (§13.6), so nothing new starts and no reservation resumes for the whole
+transaction. Because the transport and the final commit run the host's normal commit hooks —
+shared external effects the coordinator cannot prove worker-local — no sibling may still be
+`preparing`, `running` or `verifying/reviewing`, and no other task may be `integrating`; a
+non-drained run refuses (`drain_required`) and names them. `active` workers reaching zero alone
+is not quiescence. A sibling already at `prepared` **is** a safe return: it parks, is recorded in
+`drain.waiting` together with the waiting `reserved` reservations, and is never relaunched,
+blocked, cancelled or published to make room. Once no `integrating` record remains, the normal
+reviewed admission rules resume.
 
 **Transport — `prepare_transport`.** The result must be `succeeded`, every worker check green and
 the accepted review must cover the effective route of this exact diff/root/attempt; a submission
@@ -770,28 +782,39 @@ from the transaction-marked worker reflog; an unexplained moved worker HEAD refu
 (`worker_not_at_base`) rather than adopting someone's commit.
 
 **Apply — `apply_transport`.** The coordinator must be on the transaction's branch at its
-recorded `pre_head` with a usable branch reflog and a clean index; every transported path must be
-clean there, while unrelated work is preserved byte for byte (never reset, never stashed). The
-transport is applied with **`cherry-pick --no-commit`**: it stages the change and adds no commit
-to branch history. A conflict leaves git's own conflict state and a `conflicted` record — nothing
-is auto-resolved, reset or force-cleaned — and stops admission until the coordinator's bounded
-fix/review procedure resolves it. The pre-HEAD and the transaction id are recorded before the
-mutation, and an interrupted apply is adopted only while the index still matches the transported
-paths exactly (`ambiguous_apply` otherwise).
+recorded `pre_head` with a usable branch reflog and a **completely clean nonignored tree**: any
+tracked, staged or untracked change — however unrelated to the task — refuses (`coordinator_dirty`)
+before the mutation, preserving every byte, the index, the stash and HEAD; nothing is reset,
+cleaned, stashed or staged to pass the check, and a person's file is never swept in as a document.
+The host's `.artel/run/` ignore rule ([config.md](config.md), "Where it lives") is what keeps the
+run's own manifest and integration records out of that check — a checkout that tracks them reads
+as dirty and stops integration until the ignore rule is in place.
+The transport is applied with **`cherry-pick --no-commit`**: it stages the change and adds no
+commit to branch history. A conflict leaves git's own conflict state and a `conflicted` record —
+nothing is auto-resolved, reset or force-cleaned — and stops admission until the coordinator's
+bounded fix/review procedure resolves it. The pre-HEAD and the transaction id are recorded before
+the mutation, and an interrupted apply is adopted only while the index still matches the
+transported paths exactly (`ambiguous_apply` otherwise). The coordinator writes the files-path
+tick/ordered notes **after** a successful apply, never before, and lists them in `documents`.
 
-**Final commit — `commit_cycle`.** Before anything is committed, the integrated tree is checked
-with the existing task gate (`scripts/verify.py task`, run in the coordinator root): two
-individually green task roots do not establish combined correctness, and a red gate
+**Final commit — `commit_cycle`.** Before anything is committed, the tree is checked twice. The
+index may carry only the transported paths and the transaction's `documents` (`foreign_staged`);
+and the whole nonignored working tree may carry nothing outside those two sets
+(`coordinator_dirty`) — including a change introduced after a successful apply. Only then does
+the integrated tree meet the existing task gate (`scripts/verify.py task`, run in the coordinator
+root) and the normal commit hooks, so the gate and the hooks always see **exactly the tree that
+can land**: two individually green task roots do not establish combined correctness, an unrelated
+WIP file can neither fake that gate green nor block a good integration, and a red gate
 (`task_gate_failed`) or an environment error (`task_gate_error`) commits nothing and leaves the
-staged tree inspectable for the coordinator's bounded fix. The commit stages exactly the
-transported paths plus the transaction's `documents`, and the index must carry no other path
-(`foreign_staged`): a person's staged or dirty work is never swept in, never unstaged and never
-reset. On the **files path** the tick and ordered notes are the pending `documents` and land in
-this one commit with the code; on the **artifact-store path** `documents` is empty, the code
-commit lands first, and Task 9 publishes the versioned artifacts afterwards — never the reverse.
-The subject must be a conventional, subject-only message (`feat`, `fix`, `refactor`, `test`,
-`docs` or `chore`) with no task id and no trailer, and the commit carries the transaction id as
-its `GIT_REFLOG_ACTION`, so it is attributable from the reflog, the retained refs and the run
+staged tree inspectable for the coordinator's bounded fix. A fix stays inside the transported
+paths; a new path is a new attempt. A person's staged or dirty work is never swept in, never
+unstaged and never reset. On the **files path** the tick and ordered notes are the pending
+`documents` and land in this one commit with the code; on the **artifact-store path** `documents`
+is empty, the code commit lands first, and Task 9 publishes the versioned artifacts afterwards —
+never the reverse. The subject must be a conventional, subject-only message (`feat`, `fix`,
+`refactor`, `test`, `docs` or `chore`) with no task id and no trailer, and the commit carries the
+transaction id as its `GIT_REFLOG_ACTION`, so it is attributable from the reflog, the retained
+refs and the run
 state rather than from its message. There is exactly one completed-cycle commit on the ticket
 branch per task/attempt; the transport commit stays a retained ref, not branch history. A
 refusing final hook leaves the record and the staged tree as they were (`commit_refused`).
@@ -808,11 +831,17 @@ the coordinator's, and nothing is reset or guessed.
 
 **Caller obligations for Tasks 9-10.** Integration produces the Git facts Task 9 consumes — the
 final `cycle_commit`, its branch (`cycle_ref`), the retained `result_ref`/`result_commit` and the
-record — and never asserts an external publication or cleanup receipt. The coordinator persists
-`prepared → integrating` (revision-checked) before calling `prepare_transport`, stops admission
-while the transaction is open, runs the bounded fix/review procedure after a red gate or a
-conflict, calls `recover_cycle` after a restart before retrying anything, and only after the
-record reaches `committed` (or `recovered`) does Task 9 publish and the queue mark the task done.
+record — and never asserts an external publication or cleanup receipt. The exact ordering is:
+persist `prepared → integrating` (revision-checked) first — that record is the admission latch;
+then make sure no sibling is still `preparing`/`running`/`verifying/reviewing` or `integrating`
+(a `prepared` or `reserved` sibling parks and is left alone); then run the transaction on a
+completely clean coordinator — if the person has work in progress, the coordinator stops and asks
+before anything is integrated, and the transport commit already created stays retained for the
+retry; write the files-path tick/ordered notes only after a successful apply and list them in
+`documents`; run the bounded fix/review procedure after a red gate or a conflict; call
+`recover_cycle` after a restart before retrying anything; and only after the record reaches
+`committed` (or `recovered`) does Task 9 publish and the queue mark the task done. Normal
+admission resumes once no `integrating` record remains.
 
 ## 14. Proof record
 

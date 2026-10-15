@@ -41,16 +41,19 @@ refuses a missing (`not_owned`), unreadable (`ambiguous_owner`) or foreign (`for
 record -- this module never acquires, releases or reclaims it. The worker root must be the
 assignment's own marker-validated root in the same repository, and the run manifest at its
 conventional path must name this run and hold the task at `integrating` -- the durable
-write-ahead state the coordinator persists before integration, and the scheduler's pending
-drain.
+write-ahead state the coordinator persists before integration, which §13.6 treats as the
+run's admission latch.
 
 Drain. The transport and the final cycle commit run the host's normal commit hooks, shared
-external effects the coordinator cannot prove worker-local; every integration therefore
-requires a drained run. `prepare_transport`, `apply_transport` and `commit_cycle` refuse
-while any other task is `preparing`, `running`, `verifying/reviewing`, `prepared` or
-`integrating` (`drain_required`), and record the waiting `reserved` reservations in the
-transaction. Waiting reservations are never launched here; the scheduler's `resume` stays
-the only launch signal.
+external effects the coordinator cannot prove worker-local; no sibling may still be returning
+while they run. The coordinator persists its own `prepared -> integrating` transition first --
+the scheduler's durable admission latch (§13.6), so nothing new starts and no reservation
+resumes for the whole transaction -- and then waits: `prepare_transport`, `apply_transport` and
+`commit_cycle` refuse while any other task is `preparing`, `running`, `verifying/reviewing` or
+`integrating` (`drain_required`). A sibling at `prepared` is already at safe return and parks,
+recorded in `drain.waiting` with the waiting `reserved` reservations; it is never relaunched,
+blocked, cancelled or published to make room, and normal admission resumes once no `integrating`
+record remains.
 
 Transport. The transport commit stages exactly the result's actual code diff, computed from
 a working-tree snapshot of the worker root (`review_package` with an explicit root) against
@@ -62,21 +65,25 @@ undeclared change floors the effective route to `full`, so a light review refuse
 (`route_floor`). The commit runs the host's hooks; a refusal leaves the index, HEAD and the
 record exactly as they were (`commit_refused`).
 
-Apply. `cherry-pick --no-commit` onto the coordinator at the recorded pre-HEAD, whose
-working tree must be clean for every transported path (unrelated dirt is preserved, never
-reset). A conflict leaves git's own conflict state and the record's `conflicted` stage
-inspectable and stops admission; nothing is auto-resolved.
+Apply. `cherry-pick --no-commit` onto the coordinator at the recorded pre-HEAD, whose tree
+must be completely clean outside the cycle -- any tracked, staged or untracked change refuses
+before the mutation and preserves every byte, the index, the stash and HEAD; nothing is reset,
+cleaned, stashed or staged to pass. A conflict leaves git's own conflict state and the record's
+`conflicted` stage inspectable and stops admission; nothing is auto-resolved.
 
 Final commit. The integrated tree is checked with the existing task gate
-(`scripts/verify.py task`, run in the coordinator root) before anything is committed; a red
-gate (`task_gate_failed`) or an environment error (`task_gate_error`) commits nothing. The
-commit stages exactly the transported paths plus the transaction's `documents` -- on the
-files path the tick and ordered notes, on the artifact-store path none, because Task 9
-publishes those after the code commit. The index must carry no other path
-(`foreign_staged`); a person's staged or dirty work is never swept in, never unstaged and
-never reset. The subject is validated as a conventional, subject-only message with no task
-id and no trailer, and `GIT_REFLOG_ACTION` carries the transaction id, so the commit is
-attributable without reading its subject.
+(`scripts/verify.py task`, run in the coordinator root) before anything is committed, and the
+tree it checks is exactly the tree that can land: after staging the transported paths and the
+transaction's `documents`, the whole nonignored tree may carry nothing outside those two sets
+(`coordinator_dirty`), including anything introduced after a successful apply. A red gate
+(`task_gate_failed`) or an environment error (`task_gate_error`) commits nothing. A code fix
+stays inside the transported paths; a new path is a new attempt. On the files path the tick and
+ordered notes are the pending `documents` and land in the same commit as the code, written after
+a successful apply; on the artifact-store path `documents` is empty and Task 9 publishes those
+after the code commit. The index must carry no other path (`foreign_staged`); a person's staged
+or dirty work is never swept in, never unstaged and never reset. The subject is validated as a
+conventional, subject-only message with no task id and no trailer, and `GIT_REFLOG_ACTION`
+carries the transaction id, so the commit is attributable without reading its subject.
 
 Recovery. A final commit may have landed before its receipt was persisted.
 `recover_cycle` matches the recorded pre-HEAD plus the transaction-marked branch reflog
@@ -117,9 +124,12 @@ OUTPUT_TAIL = 2000
 # §13.8: the transaction's life; the side stages keep a refusal inspectable.
 STAGES = ('preparing', 'prepared', 'applying', 'applied', 'conflicted', 'apply_failed',
           'committing', 'failed', 'commit_refused', 'committed', 'recovered')
-# §13.6: unresolved work that is not a waiting reservation -- the drain's subject.
-IN_FLIGHT_STATES = ('preparing', 'running', 'verifying/reviewing', 'prepared', 'integrating')
-WAITING_STATES = ('reserved',)
+# §13.6/§13.8: the work that must have returned before an integration effect. A sibling at
+# `prepared` is already at safe return (its only forward exit is `integrating`), so it parks;
+# only work still returning, still being verified, or integrating blocks the hooks.
+IN_FLIGHT_STATES = ('preparing', 'running', 'verifying/reviewing', 'integrating')
+# Parked safe-return work: waiting reservations and prepared results, never relaunched here.
+PARKED_STATES = ('reserved', 'prepared')
 # tail.md `## Task commits`: the types a cycle commit may carry.
 SUBJECT_TYPES = ('feat', 'fix', 'refactor', 'test', 'docs', 'chore')
 SUBJECT_RE = re.compile(r'^(?:{})(?:\([^()\s]+\))?: \S.*\Z'.format('|'.join(SUBJECT_TYPES)))
@@ -457,14 +467,15 @@ def _require_owned(common, identity):
 
 
 def _require_integrating(repo, identity):
-    """The durable `integrating` state and a drained run, or a refusal.
+    """The durable `integrating` state and the drained run, or a refusal.
 
-    The coordinator persists the task's `prepared -> integrating` transition before any
-    integration effect; that record is the scheduler's pending drain. Because the transport
-    and the final commit run the host's normal hooks -- unproven shared effects -- every
-    integration requires the run to be drained: no other task may be `preparing`, `running`,
-    `verifying/reviewing`, `prepared` or `integrating`. Waiting `reserved` reservations are
-    held (never launched here) and recorded.
+    The coordinator persists the task's `prepared -> integrating` transition before polling
+    for safe returns or creating any transport/commit; that record is the scheduler's
+    admission latch (§13.6). Because the transport and the final commit run the host's normal
+    hooks -- unproven shared effects -- no sibling may still be `preparing`, `running` or
+    `verifying/reviewing`, and no other task may be `integrating`. A `prepared` sibling is
+    already at safe return: it parks (like a waiting `reserved` reservation) and is recorded
+    in `drain.waiting` without being relaunched, blocked, cancelled or published.
     """
     path = _manifest_path(repo, identity)
     try:
@@ -489,7 +500,7 @@ def _require_integrating(repo, identity):
                                 'and let the workers return before integrating'.format(
                                     ', '.join(in_flight)))
     waiting = sorted(task for task, entry in manifest['tasks'].items()
-                     if entry['state'] in WAITING_STATES)
+                     if entry['state'] in PARKED_STATES)
     return {'in_flight': [], 'waiting': waiting, 'checked_at': _utc_now()}
 
 
@@ -580,8 +591,47 @@ def _require_repo_root(repo, transaction):
     return root
 
 
+def _status_paths(root):
+    """Every nonignored path `git status` reports at `root`, rename origins included."""
+    out = _git(root, 'status', '--porcelain', '--untracked-files=all', '-z').stdout
+    tokens = out.split('\0')
+    paths = []
+    index = 0
+    while index < len(tokens):
+        entry = tokens[index]
+        index += 1
+        if not entry:
+            continue
+        code, path = entry[:2], entry[3:]
+        paths.append(path)
+        if code[0] in ('R', 'C') and index < len(tokens):
+            paths.append(tokens[index])
+            index += 1
+    return sorted(set(paths))
+
+
+def _require_clean_coordinator(root, allowed=()):
+    """The coordinator's whole nonignored tree may carry nothing outside `allowed`.
+
+    `allowed` is the open transaction's own set: the transported paths and the transaction's
+    pending documents. Everything else -- a person's dirty, staged or untracked work -- is a
+    refusal before any gate or hook runs; nothing is reset, cleaned, stashed or staged to
+    make the tree pass, so the integrated gate and the final commit always see exactly the
+    tree that can land.
+    """
+    offenders = sorted(path for path in _status_paths(root) if path not in set(allowed))
+    if offenders:
+        _fail('coordinator_dirty', 'the coordinator carries changes outside this cycle: '
+                                   '{}'.format(', '.join(offenders)))
+
+
 def _check_coordinator_paths(root, paths):
-    """Every transported path must be clean here; unrelated dirt is preserved untouched."""
+    """prepare's narrower guard: the transported paths are clean and nothing is staged.
+
+    Unlike apply/commit this runs before any coordinator effect and tolerates unrelated
+    work in the coordinator, because `prepare_transport` only commits in the worker tree;
+    the strict, completely-clean contract belongs to `apply_transport` and `commit_cycle`.
+    """
     staged = _staged_paths(root)
     if staged:
         _fail('coordinator_dirty', 'the coordinator index already carries {}; a person\'s '
@@ -1037,9 +1087,10 @@ def apply_transport(repo, assignment, prepared):
     conflict.
 
     The coordinator must be on the transaction's branch at its recorded pre-HEAD with a
-    usable branch reflog and a clean index; every transported path must be clean here, while
-    unrelated work is preserved byte for byte. A conflict leaves git's own conflict state and
-    a `conflicted` record -- nothing is resolved, reset or discarded.
+    usable branch reflog and a **completely clean nonignored tree**: any tracked, staged or
+    untracked change outside the cycle refuses before the cherry-pick, preserving every byte,
+    the index, the stash and HEAD. A conflict leaves git's own conflict state and a
+    `conflicted` record -- nothing is resolved, reset or discarded.
     """
     value = _assignment(assignment)
     transaction = _require_identity(_transaction(prepared), value)
@@ -1066,7 +1117,7 @@ def apply_transport(repo, assignment, prepared):
     elif transaction['stage'] in ('applied', 'failed', 'conflicted', 'committing', 'committed',
                                   'recovered'):
         return _persist(root, transaction, drain=drain)
-    _check_coordinator_paths(root, transaction['changed_files'])
+    _require_clean_coordinator(root)
     transaction = _persist(root, transaction, drain=drain, stage='applying')
     proc = _git(root, 'cherry-pick', '--no-commit', transport, check=False)
     if proc.returncode != 0:
@@ -1257,6 +1308,10 @@ def commit_cycle(repo, transaction, subject):
         _fail('foreign_staged', 'the index carries {} outside the cycle; a person\'s staged '
                                 'work is never swept into a run commit'.format(
                                     ', '.join(foreign)))
+    # The gate and the final hooks must see exactly the tree that can land: a change outside
+    # the transported paths and the pending documents -- including one introduced after a
+    # successful apply -- refuses here, before the gate runs.
+    _require_clean_coordinator(root, paths)
     verify = _task_gate(root, [path for path in transaction['changed_files']])
     transaction = _persist(root, transaction, verify=verify)
     if verify['exit_code'] == 2:

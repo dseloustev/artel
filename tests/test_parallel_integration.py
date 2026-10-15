@@ -83,13 +83,13 @@ class RepoCase(unittest.TestCase):
         self.write('app.txt', 'v1\n')
         self.write('other.txt', 'unrelated\n')
         self.write(TASKLIST, '- [ ] 3.1 do a thing\n')
+        self.write('.artel/config.json', self.config_text())
         git(self.main, 'add', '-A')
         git(self.main, 'commit', '-q', '-m', 'init')
         git(self.main, 'branch', '-M', 'trunk')      # keeps `main` free for the guard test
         self.base = git(self.main, 'rev-parse', 'HEAD')
         self.coord = self.main / '.claude' / 'worktrees' / 'PROJ-123'
         git(self.main, 'worktree', 'add', '-q', '-b', COORD_BRANCH, str(self.coord))
-        self.write_config()
         parallel_state.acquire_ticket(
             str(self.coord), TICKET,
             {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE})
@@ -113,14 +113,23 @@ class RepoCase(unittest.TestCase):
     def read(self, rel, base=None):
         return ((base or self.main) / rel).read_text(encoding='utf-8')
 
-    def write_config(self, verify=None, base=None):
+    def config_text(self, verify=None):
         value = {'specs': {'dir': 'specs/.current'}}
         if verify:
             value['verify'] = verify
-        path = (base or self.coord) / '.artel' / 'config.json'
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(value, indent=2) + '\n', encoding='utf-8')
-        return path
+        return json.dumps(value, indent=2) + '\n'
+
+    def set_gate(self, command, message='chore: configure the task gate'):
+        """A committed `.artel/config.json` change on the coordinator branch.
+
+        The config is tracked at the base commit (as a real host commits it), so a gate the
+        tests configure is committed work, never untracked dirt.
+        """
+        self.write('.artel/config.json', self.config_text(verify={'fast': command}),
+                   base=self.coord)
+        git(self.coord, 'add', '--', '.artel/config.json')
+        git(self.coord, 'commit', '-q', '-m', message)
+        return git(self.coord, 'rev-parse', 'HEAD')
 
     def worker_root(self, task=TASK, attempt=ATTEMPT, run_id=RUN_ID):
         return (self.main / '.claude' / 'worktrees' / 'parallel tasks' / TICKET / run_id /
@@ -180,17 +189,17 @@ class RepoCase(unittest.TestCase):
             result = self.result(assignment, **overrides)
         return parallel_integration.prepare_transport(str(self.coord), assignment, result)
 
-    def make_worker(self, name, **overrides):
+    def make_worker(self, name, task=TASK, **overrides):
         """A second worker root whose marker matches a customized assignment.
 
         The lifecycle marker carries the assignment verbatim, so a test that needs a
-        different route or declared files gets its own root.
+        different task, route or declared files gets its own root.
         """
-        root = self.worker_root().parent / '{}-a{}-{}'.format(TASK, ATTEMPT, name)
+        root = self.worker_root().parent / '{}-a{}-{}'.format(task, ATTEMPT, name)
         value = self.assignment(
-            worker_root=str(root),
+            task=task, worker_root=str(root),
             artifact_root=str(root / '.artel' / 'run' / 'parallel' /
-                              '{}-a{}'.format(TASK, ATTEMPT)))
+                              '{}-a{}'.format(task, ATTEMPT)))
         value.update(overrides)
         task_worktree.create_worker(str(self.coord), value)
         return value, root
@@ -239,6 +248,20 @@ class RepoCase(unittest.TestCase):
                                       current)
         return value
 
+    def set_states(self, states):
+        """Rewrite the manifest so each `(task, state)` pair is walked to its state."""
+        manifest = parallel_state.new_run(TICKET, PHASE, RUN_ID, 2, 'digest')
+        for task, state in states:
+            manifest = self.chain(manifest, task, state)
+        return self.write_manifest(manifest)
+
+    def manifest_states(self):
+        stored = parallel_state.read_manifest(str(self.manifest_path))
+        return {task: record['state'] for task, record in stored['tasks'].items()}
+
+    def run_dir(self):
+        return self.coord / '.artel' / 'run' / TICKET / 'parallel' / RUN_ID
+
     # --- worker edits -----------------------------------------------------------------
 
     def worker_write(self, rel, text):
@@ -260,8 +283,8 @@ class RepoCase(unittest.TestCase):
                               capture_output=True, text=True)
         return [line for line in proc.stdout.splitlines() if line.strip()]
 
-    def worker_dirty(self):
-        return sorted(line[3:] for line in self.porcelain(self.worker))
+    def worker_dirty(self, root=None):
+        return sorted(line[3:] for line in self.porcelain(root or self.worker))
 
     def changed(self, commit, base=None):
         """Both rename sides of `commit`'s diff, sorted; a root commit diffs against empty."""
@@ -275,9 +298,9 @@ class RepoCase(unittest.TestCase):
                                older, newer], capture_output=True)
         return proc.returncode == 0
 
-    def worker_code_dirt(self):
+    def worker_code_dirt(self, root=None):
         """Worker dirt that is neither lifecycle state nor the shared spec trail."""
-        return [path for path in self.worker_dirty()
+        return [path for path in self.worker_dirty(root)
                 if not path.startswith('.artel/') and not path.startswith('specs/')]
 
     def reflog(self, branch=COORD_BRANCH):
@@ -363,7 +386,7 @@ class TestPrepareTransport(RepoCase):
         listing = git(self.worker, 'ls-tree', '-r', '--name-only',
                       record['transport_commit'])
         self.assertIn(TASKLIST, listing)          # tracked at base, unchanged in the commit
-        self.assertNotIn('.artel/', listing)
+        self.assertNotIn('.artel/parallel-worker.json', listing)
         self.assertNotIn('build/', listing)
         # the worker's own shared-state edit is retained dirty for diagnosis, never transported
         self.assertIn(TASKLIST, self.worker_dirty())
@@ -547,7 +570,9 @@ class TestPreparePreconditions(RepoCase):
         rejects(self, 'coordinator_dirty', lambda: self.prepare())
         self.assertEqual(self.read('app.txt', base=self.coord), 'coordinator edit\n')
 
-    def test_an_unrelated_dirty_coordinator_file_is_preserved(self):
+    def test_prepare_leaves_unrelated_dirty_coordinator_work_untouched(self):
+        # prepare has no coordinator effect and only guards the transported paths; the
+        # strict, completely-clean coordinator contract belongs to apply and commit
         self.worker_write('app.txt', 'v2\n')
         self.write('other.txt', 'wip\n', base=self.coord)
         self.prepare()
@@ -659,15 +684,37 @@ class TestWriteAhead(RepoCase):
         self.assertEqual(seen['documents'], [])
         self.assertEqual(committed['stage'], 'committed')
 
-    def test_no_hook_runs_while_another_task_is_in_flight(self):
+    def test_no_hook_runs_while_a_sibling_is_running_or_reviewing(self):
         self.worker_write('app.txt', 'v2\n')
         log = self.space / 'hooks.log'
         self.install_hook('pre-commit', '#!/bin/sh\necho ran >> {}\n'.format(log))
-        self.write_manifest(others=[('2.4', 'running')])
+        for state in ('running', 'verifying/reviewing'):
+            with self.subTest(state=state):
+                self.set_states([(TASK, 'integrating'), ('2.4', state)])
+                rejects(self, 'drain_required', lambda: self.prepare())
+                self.assertFalse(log.exists(), 'an external hook ran before the drain')
+                self.assertEqual(git(self.worker, 'rev-parse', 'HEAD'), self.base)
+                self.assertFalse(self.record_path().exists())
+
+    def test_a_sibling_at_safe_return_is_parked_and_unblocks_integration(self):
+        self.worker_write('app.txt', 'v2\n')
+        log = self.space / 'hooks.log'
+        self.install_hook('pre-commit', '#!/bin/sh\npwd >> {}\n'.format(log))
+        # running/reviewing block; the same sibling at prepared is a safe return and parks
+        self.set_states([(TASK, 'integrating'), ('2.4', 'verifying/reviewing')])
         rejects(self, 'drain_required', lambda: self.prepare())
-        self.assertFalse(log.exists(), 'an external hook ran before the drain')
-        self.assertEqual(git(self.worker, 'rev-parse', 'HEAD'), self.base)
-        self.assertFalse(self.record_path().exists())
+        self.assertFalse(log.exists())
+        self.set_states([(TASK, 'integrating'), ('2.4', 'prepared')])
+        record = self.prepare()
+        self.assertEqual(record['drain']['in_flight'], [])
+        self.assertEqual(record['drain']['waiting'], ['2.4'])
+        committed = self.commit(self.apply(record))
+        self.assertEqual(committed['stage'], 'committed')
+        self.assertEqual(log.read_text(encoding='utf-8').splitlines(),
+                         [str(self.worker), str(self.coord)])
+        # the parked sibling is untouched: not relaunched, blocked, cancelled or published
+        self.assertEqual(self.manifest_states(), {TASK: 'integrating', '2.4': 'prepared'})
+        self.assertFalse((self.run_dir() / 'launches').exists())
 
 
 class TestTransportHooks(RepoCase):
@@ -736,26 +783,41 @@ class TestApplyTransport(RepoCase):
         self.assertFalse(self.is_ancestor(prepared['transport_commit'], 'HEAD'))
         self.assertIn('+++ b/app.txt', git(self.coord, 'diff', '--cached'))
 
-    def test_apply_preserves_unrelated_coordinator_work(self):
+    def test_apply_refuses_unrelated_tracked_dirt_before_mutating(self):
         self.worker_write('app.txt', 'v2\n')
         self.write('other.txt', 'wip\n', base=self.coord)
         prepared = self.prepare()
-        self.apply(prepared)
+        before = self.snapshot(self.coord)
+        rejects(self, 'coordinator_dirty', lambda: self.apply(prepared))
+        self.assertPreserved(before, self.snapshot(self.coord))
         self.assertEqual(self.read('other.txt', base=self.coord), 'wip\n')
+        self.assertEqual(git(self.coord, 'diff', '--cached', '--name-only'), '')
+        self.assertEqual(git(self.coord, 'rev-parse', 'HEAD'), prepared['pre_head'])
+        self.assertEqual(self.stored_record()['stage'], 'prepared')
+        # the person's byte is never staged, swept in as a document, or reset
+        self.assertNotIn('other.txt', git(self.coord, 'diff', '--cached', '--name-only'))
+
+    def test_apply_refuses_unrelated_untracked_dirt(self):
+        self.worker_write('app.txt', 'v2\n')
+        self.write('notes-to-self.txt', 'wip\n', base=self.coord)
+        prepared = self.prepare()
+        before = self.snapshot(self.coord)
+        rejects(self, 'coordinator_dirty', lambda: self.apply(prepared))
+        self.assertPreserved(before, self.snapshot(self.coord))
+        self.assertEqual(self.read('notes-to-self.txt', base=self.coord), 'wip\n')
+        self.assertEqual(self.stored_record()['stage'], 'prepared')
 
     def test_apply_refuses_a_conflict_and_preserves_both_sides(self):
         self.worker_write('app.txt', 'worker\n')
         self.write('app.txt', 'other\n', base=self.coord)
         git(self.coord, 'add', '--', 'app.txt')
         git(self.coord, 'commit', '-q', '-m', 'feat: earlier task')
-        self.write('other.txt', 'wip\n', base=self.coord)
         prepared = self.prepare()
         rejects(self, 'cherry_pick_conflict', lambda: self.apply(prepared))
         self.assertEqual(git(self.coord, 'rev-parse', 'HEAD'), prepared['pre_head'])
         status = self.status()
         self.assertIn('UU app.txt', status)
         self.assertIn('<<<<<<<', self.read('app.txt', base=self.coord))
-        self.assertEqual(self.read('other.txt', base=self.coord), 'wip\n')
         self.assertEqual(self.stored_record()['stage'], 'conflicted')
 
     def test_apply_is_idempotent_across_its_write_ahead_window(self):
@@ -789,7 +851,7 @@ class TestCommitCycle(RepoCase):
         self.write('extra.txt', 'present\n', base=self.coord)
         git(self.coord, 'add', '--', 'extra.txt')
         git(self.coord, 'commit', '-q', '-m', 'feat: earlier task')
-        self.write_config(verify={'fast': '[ -f extra.txt ] && grep -q ok app.txt'})
+        self.set_gate('[ -f extra.txt ] && grep -q ok app.txt')
         applied = self.prepare_apply()
         rejects(self, 'task_gate_failed', lambda: self.commit(applied))
         self.assertEqual(git(self.coord, 'rev-parse', 'HEAD'), applied['pre_head'])
@@ -813,13 +875,10 @@ class TestCommitCycle(RepoCase):
         applied = self.prepare_apply()
         self.write(TASKLIST, '- [x] 3.1 do a thing\n', base=self.coord)
         self.write(NOTES, '# notes\n', base=self.coord)
-        self.write('other.txt', 'wip\n', base=self.coord)
         transaction = dict(applied, documents=[TASKLIST, NOTES])
         committed = self.commit(transaction)
         self.assertEqual(self.changed(committed['cycle_commit']),
                          ['app.txt', NOTES, TASKLIST])
-        self.assertEqual(self.read('other.txt', base=self.coord), 'wip\n')
-        self.assertNotIn('other.txt', self.changed(committed['cycle_commit']))
         self.assertEqual(git(self.coord, 'rev-list', '--count',
                              applied['pre_head'] + '..HEAD'), '1')
 
@@ -883,6 +942,102 @@ class TestCommitCycle(RepoCase):
         self.assertEqual(again['cycle_commit'], committed['cycle_commit'])
         self.assertEqual(git(self.coord, 'rev-list', '--count',
                              applied['pre_head'] + '..HEAD'), '1')
+
+
+class TestCoordinatorCleanliness(RepoCase):
+    """The integrated gate and the final hooks see exactly the tree that can land."""
+
+    def test_commit_refuses_tracked_dirt_introduced_after_apply(self):
+        self.worker_write('app.txt', 'v2\n')
+        applied = self.prepare_apply()
+        log = self.space / 'hooks.log'
+        self.install_hook('pre-commit', '#!/bin/sh\necho ran >> {}\n'.format(log))
+        self.write('other.txt', 'introduced later\n', base=self.coord)
+        before = self.snapshot(self.coord)
+        rejects(self, 'coordinator_dirty', lambda: self.commit(applied))
+        self.assertPreserved(before, self.snapshot(self.coord))
+        self.assertEqual(self.read('other.txt', base=self.coord), 'introduced later\n')
+        self.assertEqual(git(self.coord, 'rev-parse', 'HEAD'), applied['pre_head'])
+        self.assertFalse(log.exists(), 'a hook ran on a contaminated tree')
+        stored = self.stored_record()
+        self.assertEqual(stored['stage'], 'committing')
+        self.assertIsNone(stored['verify'], 'the gate saw a tree that could not land')
+        self.assertNotIn('other.txt', git(self.coord, 'diff', '--cached', '--name-only'))
+
+    def test_commit_refuses_untracked_dirt_introduced_after_apply(self):
+        self.worker_write('app.txt', 'v2\n')
+        applied = self.prepare_apply()
+        self.write('scratch-notes.txt', 'introduced later\n', base=self.coord)
+        rejects(self, 'coordinator_dirty', lambda: self.commit(applied))
+        self.assertEqual(self.read('scratch-notes.txt', base=self.coord),
+                         'introduced later\n')
+        self.assertEqual(git(self.coord, 'rev-parse', 'HEAD'), applied['pre_head'])
+        self.assertIsNone(self.stored_record()['verify'])
+
+    def test_a_false_green_gate_is_never_consulted(self):
+        self.worker_write('app.txt', 'v2\n')
+        gate_log = self.space / 'gate.log'
+        self.set_gate('echo ran >> "{}"; [ -f wip.txt ]'.format(gate_log))
+        applied = self.prepare_apply()
+        self.write('wip.txt', 'unrelated work that would fake the gate green\n',
+                   base=self.coord)
+        rejects(self, 'coordinator_dirty', lambda: self.commit(applied))
+        self.assertFalse(gate_log.exists(), 'the gate ran on unrelated WIP')
+        self.assertEqual(git(self.coord, 'rev-parse', 'HEAD'), applied['pre_head'])
+        self.assertIsNone(self.stored_record()['verify'])
+
+    def test_the_refusal_never_sweeps_the_user_file_as_a_document(self):
+        self.worker_write('app.txt', 'v2\n')
+        applied = self.prepare_apply()
+        self.write('other.txt', 'kept\n', base=self.coord)
+        rejects(self, 'coordinator_dirty', lambda: self.commit(applied))
+        self.assertEqual(git(self.coord, 'diff', '--cached', '--name-only'), 'app.txt')
+        self.assertEqual(self.read('other.txt', base=self.coord), 'kept\n')
+        self.assertTrue(any('other.txt' in line for line in self.porcelain()))
+        self.assertEqual(git(self.coord, 'rev-parse', 'HEAD'), applied['pre_head'])
+
+
+class TestTwoPreparedWorkers(RepoCase):
+    """The designed seats >= 2 outcome: two disjoint prepared results; one integrates while
+    the other parks, then the second completes exactly once."""
+
+    def test_one_integrates_while_the_other_parks_then_completes(self):
+        self.worker_write('app.txt', 'a v2\n')
+        assignment_b, root_b = self.make_worker('b', task='3.2', files=['other.txt'])
+        self.write('other.txt', 'b v2\n', base=root_b)
+        log = self.space / 'hooks.log'
+        self.install_hook('pre-commit', '#!/bin/sh\npwd >> {}\n'.format(log))
+        self.set_states([(TASK, 'integrating'), ('3.2', 'prepared')])
+        record_a = self.prepare()
+        self.assertEqual(record_a['drain']['in_flight'], [])
+        self.assertEqual(record_a['drain']['waiting'], ['3.2'])
+        committed_a = self.commit(self.apply(record_a), 'feat: PROJ-123 - task one')
+        # B was never relaunched, blocked, cancelled or published while A integrated
+        self.assertEqual(self.manifest_states(), {TASK: 'integrating', '3.2': 'prepared'})
+        self.assertFalse((self.run_dir() / 'launches').exists())
+        self.assertEqual(self.worker_code_dirt(root_b), ['other.txt'])   # parked work intact
+        self.assertEqual(git(self.coord, 'rev-parse', '--verify', '--quiet',
+                             self.result_ref(task='3.2'), check=False), '')
+        # A completes and B, picked next, integrates exactly once
+        self.set_states([(TASK, 'published'), ('3.2', 'integrating')])
+        result_b = self.result(assignment_b, changed_files=['other.txt'])
+        record_b = self.prepare(assignment_b, result_b)
+        self.assertEqual(record_b['changed_files'], ['other.txt'])
+        committed_b = self.commit(self.apply(record_b, assignment_b),
+                                  'feat: PROJ-123 - task two')
+        self.assertEqual(self.changed(committed_a['cycle_commit']), ['app.txt'])
+        self.assertEqual(self.changed(committed_b['cycle_commit']), ['other.txt'])
+        self.assertEqual(git(self.coord, 'rev-list', '--count',
+                             record_a['pre_head'] + '..HEAD'), '2')
+        for assignment, record in ((self.assignment(), record_a), (assignment_b, record_b)):
+            self.assertEqual(git(self.coord, 'rev-parse', record['result_ref']),
+                             record['transport_commit'])
+            self.assertEqual(git(assignment['worker_root'], 'rev-parse', 'HEAD'),
+                             record['transport_commit'])
+            self.assertEqual(self.worker_code_dirt(assignment['worker_root']), [])
+        self.assertEqual(log.read_text(encoding='utf-8').splitlines(),
+                         [str(self.worker), str(self.coord),
+                          str(assignment_b['worker_root']), str(self.coord)])
 
 
 class TestRecovery(RepoCase):

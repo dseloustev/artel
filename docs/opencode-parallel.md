@@ -39,10 +39,11 @@ Not established by the proof — the unproven items are listed in §12 and are n
 
 ## 2. The adapter's native surface
 
-The adapter is a thin layer over the running service's HTTP API. The coordinator addresses a
+The adapter is a thin layer over the running service's session API. The coordinator addresses a
 location-scoped endpoint with the `location[directory]` query parameter; the CLI's `--param`
-cannot express that object, so the adapter calls the HTTP API directly (the CLI remains the
-operator path for plain requests).
+cannot express that object, so location-scoped calls go through the installed plugin client
+(`ctx.session.*` — the same API the proof exercised over HTTP) rather than the CLI (the CLI
+remains the operator path for plain requests).
 
 | Operation | Request | Response |
 |---|---|---|
@@ -102,6 +103,58 @@ after an interrupt), `permission.asked` and `permission.replied`, `session.agent
 (`{agent, previous}`), `session.moved`, and the step/text/reasoning deltas. The stream is
 volatile: events during a disconnection are missed and are not replayed, so the coordinator
 recovers state from `Session.Info` and the messages, never from an event it did not see.
+
+### 2.1 The adapter tools (Task 7)
+
+`opencode/plugin/parallel.ts` registers four tools in the namespace `artel.parallel` (exposed
+ids `artel_parallel_workerCapabilities`, `artel_parallel_startWorker`,
+`artel_parallel_workerStatus`, `artel_parallel_interruptWorker`) through the existing bridge
+(`opencode/plugin/artel.ts`). The tools are the native transport only: every decision —
+request validation, the capability gate, the launch journal, session verification, result
+recovery, interruption semantics — lives in the policy half `scripts/parallel_launch.py`,
+which reuses `parallel_contract.py`, `hook_common.py` and `task_worktree.py`'s contracts
+instead of restating them.
+
+**Capabilities.** `workerCapabilities` is read-only and reports the installed version and the
+plugin-client surface the adapter needs. `startWorker` re-checks that report first: anything
+but exactly 2.0.29 with the full surface is refused (`unsupported_version` /
+`unsupported_api`) before any journal, session or prompt exists. The coordinator's preflight
+consumes this report before its first claim or worker creation (§12).
+
+**Requests.** `startWorker` takes `{assignment, agent, prompt{text, delivery?}, permissions?}`
+— the strict schema-1 assignment plus the worker role, the pinned prompt and an optional
+session permission ruleset; `workerStatus` and `interruptWorker` take `{assignment}`. Role,
+session and root metadata never enters the strict assignment/result payloads.
+
+**Launch journal and ordering.** `startWorker` persists a launch journal under
+`<main>/.artel/run/<ticket>/parallel/<run_id>/launches/<task>-a<attempt>.json` — the launch
+intent and the assignment identity **before** any session can exist, then the session id
+**before** the pinned prompt is admitted. The session id is derived from the assignment
+identity, so the native create is idempotent by id: a duplicate start, a crash between
+create and record, or a crash between prompt and record reconciles from the durable native
+session and messages — adopting the existing session or prompting once — instead of creating
+a second session or double-prompting. A wrong session (id, metadata or parent), root, agent,
+model or permission ruleset is refused, never adopted; a malformed journal is refused, never
+overwritten; a null or unresolvable model is refused (`unresolved_model`) and never inherited
+(§9).
+
+**Durable status.** `workerStatus` reads the native session and the validated
+`<artifact_root>/result.json` only — never the event stream, so a missed event window costs
+nothing. `success` requires a native `succeeded` outcome, a valid result whose identity
+matches the assignment and a `succeeded` result status: native idle, native success without a
+valid result, and a missing, malformed, escaping or identity-mismatched result are all
+non-successful; an `interrupted` outcome wins over a contradictory success result and is
+reported as `interrupted_over_result`. `interruptWorker` interrupts only the journal's known
+session and reports the durable post-interrupt state; it never resumes or retries.
+
+**Coordinator-only.** The adapter namespace is coordinator-only twice over: the bridge's
+worker guard denies `subagent`, `question` and every `artel_parallel_*` tool in a worker
+location, and the policy half independently refuses a caller whose location is a pinned
+worker root (`caller_is_worker`, via the authoritative marker reader). A worker therefore
+gains no session-creation authority by calling the adapter instead of `subagent`: it is not
+a second orchestrator and never reaches `startWorker`. The adapter never schedules, claims,
+releases, publishes, commits, edits tasklists, answers permissions or drives another
+coordinator.
 
 ## 3. Worker role, permissions and location
 
@@ -647,3 +700,25 @@ ids, event captures, hook state and probe scripts — is host-owned scratch unde
 `.artel/run/repro/opencode-parallel-proof/` and is not committed; the version and interface
 claims in this file come from that proof and from the installed schema
 (`opencode api get /openapi.json`).
+
+**Task 7 adapter run (2026-10-15).** The same existing service, through the newly registered
+adapter and no global change: a fresh scratch host carried `.opencode/plugins/artel-parallel.ts`
+(the repo's `parallel.ts` plus a standalone definition — the bridge registers the same module
+in a real install), the service discovered it per location without a restart, and a
+coordinator session called the tools for real. Recorded: `workerCapabilities` returned
+`ok: true` for 2.0.29 with the full client surface; `startWorker` created and prompted two
+workers in their lifecycle worktrees (both running at the same time, `session/active` naming
+both) with the launch journal written before each session and `prompted` after each prompt;
+`interruptWorker` interrupted one mid-turn (`{"interrupted": true}`) and `workerStatus`
+recovered both durably after a deliberately missed event window — the reconnected capture
+carries no worker terminal event while the status envelopes recovered the succeeded worker's
+validated result and the interrupted worker's contradictory `succeeded` result as
+`interrupted_over_result`; a worker session calling `startWorker` was refused
+(`caller_is_worker`) and wrote no journal, so the adapter namespace is not a worker
+orchestrator. One native check is **not** met on the installed host: the worker
+`subagent`/`question` guard lives in the bridge, and the installed bridge
+(`sha256 28857a7f…fada`) predates it — a live `subagent` attempt slipped through and was
+contained and interrupted, and a live `question` was not attempted because it would surface
+a user-visible prompt. The guard is covered by the bridge source tests and takes effect when
+the new bridge is installed; the native check stays open (see the Task 7 report). Raw
+evidence: `.artel/run/repro/opencode-parallel-proof/task7/native-evidence/`.

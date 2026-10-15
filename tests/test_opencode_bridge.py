@@ -199,5 +199,44 @@ class TestWorkerRole(unittest.TestCase):
         self.assertNotIn('isWorker()', gate)
 
 
+class TestParallelAdapterRegistration(unittest.TestCase):
+    """The bridge registers the parallel worker-session adapter (Task 7) and a worker
+    location can never reach it: the adapter namespace is denied beside `subagent` and
+    `question`, so a worker gains no session-creation authority by naming a different
+    tool."""
+
+    ADAPTER_TOOLS = ('artel_parallel_workerCapabilities', 'artel_parallel_startWorker',
+                     'artel_parallel_workerStatus', 'artel_parallel_interruptWorker')
+
+    def setUp(self):
+        self.source = BRIDGE.read_text(encoding='utf-8')
+        self.adapter = (BRIDGE.parent / 'parallel.ts').read_text(encoding='utf-8')
+
+    def test_the_bridge_imports_and_registers_the_adapter(self):
+        self.assertIn('registerParallel', self.source)
+        self.assertIn('"./parallel"', self.source)
+
+    def test_the_adapter_is_registered_inside_setup(self):
+        setup = self.source[self.source.index('const setup: Plugin["setup"]'):]
+        self.assertIn('registerParallel(ctx)', setup)
+
+    def test_the_adapter_namespace_is_denied_for_workers(self):
+        # The denial derives from the adapter's exported ids, so a renamed or added adapter
+        # tool cannot silently bypass the worker role.
+        self.assertIn('PARALLEL_TOOL_IDS', self.source)
+        for tool in self.ADAPTER_TOOLS:
+            self.assertIn(tool, self.adapter, tool)
+        before = self.source[self.source.index('ctx.tool.hook("execute.before"'):]
+        self.assertIn('WORKER_DENIED_TOOLS', before)
+        self.assertIn('...PARALLEL_TOOL_IDS', self.source)
+
+    def test_the_adapter_registration_carries_no_hooks(self):
+        # Loading the adapter must never double the bridge's hook bindings: it registers
+        # tools only.
+        for token in ('ctx.tool.hook', 'ctx.session.hook', 'ctx.event.subscribe',
+                      'session_baseline.py', 'stop_gate.py', 'using_artel.py'):
+            self.assertNotIn(token, self.adapter, token)
+
+
 if __name__ == '__main__':
     unittest.main()

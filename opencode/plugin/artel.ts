@@ -24,6 +24,8 @@
  *                       re-prompts via ctx.session.prompt
  *   session.compaction.ended -> router cache invalidation (host status refreshes)
  *   session.deleted    -> cache cleanup
+ *   setup              -> opencode/plugin/parallel.ts `registerParallel` (the coordinator-only
+ *                       parallel worker-session adapter, Task 7): tools only, no hooks
  *
  * `patch` carries no file path; its targets are read from the patch grammar's
  * `*** Add|Delete|Update File:` / `*** Move to:` headers. `edit`/`write` use v2's
@@ -45,6 +47,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import type { Plugin } from "@opencode/plugin"
+import { registerParallel, PARALLEL_TOOL_IDS } from "./parallel"
 
 const CONFIG_HOME = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config")
 const ARTEL_ROOT = process.env.ARTEL_ROOT || path.join(CONFIG_HOME, "opencode", "artel")
@@ -52,8 +55,10 @@ const ARTEL_ROOT = process.env.ARTEL_ROOT || path.join(CONFIG_HOME, "opencode", 
 /** v2's file-mutating tools. `patch` is exposed only to GPT-family models. */
 const MUTATION_TOOLS = new Set(["edit", "write", "patch"])
 /** Tools a pinned worker session never calls: `subagent` is orchestration, `question` asks
- * the user. A worker returns the pinned assignment's structured result instead. */
-const WORKER_DENIED_TOOLS = new Set(["subagent", "question"])
+ * the user, and the parallel adapter namespace is the coordinator's session-creation
+ * authority — a worker must not reach it by naming a different tool. A worker returns the
+ * pinned assignment's structured result instead. */
+const WORKER_DENIED_TOOLS = new Set(["subagent", "question", ...PARALLEL_TOOL_IDS])
 /** Platform tokens hooks/vcs_guard.py classifies a tool name by. The guard deliberately does
  * NOT test for Claude Code's `mcp__` prefix — OpenCode names MCP tools without it. */
 const PLATFORM_TOKENS = ["bitbucket", "github", "jira"]
@@ -221,6 +226,16 @@ const sessionLocations = new Map<string, string>()
 const setup: Plugin["setup"] = async (ctx) => {
   const directory = ctx.location.directory
   const controller = new AbortController()
+
+  // The parallel worker-session adapter (Task 7): tools only — it registers no hooks and
+  // subscribes to no events, so loading it never doubles the bridge's hook bindings. A
+  // host without the registration surface keeps the bridge (and loses only parallel mode,
+  // which its capability preflight then refuses).
+  try {
+    registerParallel(ctx)
+  } catch (error) {
+    console.warn("artel: the parallel worker adapter did not register: " + String(error))
+  }
 
   /** This location's worker role, resolved once: the lifecycle writes the marker before the
    * worker session exists and nothing rewrites it while the session runs. */

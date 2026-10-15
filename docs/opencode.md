@@ -22,7 +22,7 @@ and places them into OpenCode's discovery directories:
 | `~/.config/opencode/skills/artel-<name>/` | every artel skill, prefixed: its `SKILL.md`, and beside it the skill's other Markdown files (the head and tail files of `artel-feature-development`, templates, references) |
 | `~/.config/opencode/commands/artel-<name>.md` | `/artel-<name>` command wrappers |
 | `~/.config/opencode/agents/artel-<name>.md` | the agent crew, prefixed |
-| `~/.config/opencode/plugins/artel.ts` | the bridge plugin |
+| `~/.config/opencode/plugins/artel.ts` | the bridge plugin (beside `parallel.ts`, the worker-session adapter module it registers) |
 | `~/.config/opencode/artel/` | full plugin copy (hooks, scripts, docs) |
 | `~/.config/opencode/.artel-install-manifest` | every path the last install placed |
 

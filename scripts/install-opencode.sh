@@ -7,7 +7,8 @@
 # Layout (details: docs/opencode.md):
 #   ~/.config/opencode/artel/               full plugin copy (hooks, scripts, docs,
 #                                           skills, agents, bridge plugin)
-#   ~/.config/opencode/plugins/artel.ts     the bridge plugin
+#   ~/.config/opencode/plugins/*.ts         the bridge plugin and its sibling modules
+#                                           (the parallel worker-session adapter)
 #   ~/.config/opencode/skills/artel-*/      generated skills: SKILL.md, and beside it the
 #                                           skill's other Markdown files (the head and tail
 #                                           files of artel-feature-development, templates)
@@ -86,7 +87,7 @@ rm -rf "$DEST"
 mkdir -p "$DEST"
 cp -R "$SRC/hooks" "$SRC/scripts" "$SRC/docs" "$SRC/skills" "$SRC/agents" "$DEST/"
 mkdir -p "$DEST/plugin"
-cp "$SRC/opencode/plugin/artel.ts" "$DEST/plugin/artel.ts"
+cp "$SRC/opencode/plugin/"*.ts "$DEST/plugin/"
 rm -rf "$DEST/hooks/__pycache__" "$DEST/scripts/__pycache__"
 
 # 2. Generate the OpenCode artifacts (into $DEST/opencode/dist).
@@ -128,12 +129,19 @@ for file in "$DEST/opencode/dist/commands/"*.md; do
   COMMANDS=$((COMMANDS + 1))
 done
 
-# 4. The bridge plugin.
-cp "$DEST/plugin/artel.ts" "$OC/plugins/artel.ts"
-record "plugins/artel.ts"
+# 4. The plugin files: the bridge and its sibling modules (the bridge imports the parallel
+#    adapter from `./parallel.ts`, so both must land beside each other).
+PLUGINS=0
+for file in "$DEST/plugin/"*.ts; do
+  [ -f "$file" ] || continue
+  name="$(basename "$file")"
+  cp "$file" "$OC/plugins/$name"
+  record "plugins/$name"
+  PLUGINS=$((PLUGINS + 1))
+done
 record "artel"
 
 mv "$TMP_MANIFEST" "$MANIFEST"
 
-echo "artel: installed $SKILLS skills, $AGENTS agents, $COMMANDS commands"
+echo "artel: installed $SKILLS skills, $AGENTS agents, $COMMANDS commands, $PLUGINS plugins"
 echo "artel: restart opencode to load them; see docs/opencode.md"

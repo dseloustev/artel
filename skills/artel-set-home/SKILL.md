@@ -46,7 +46,7 @@ Error: No .artel/config.json. Run /artel-setup first.
 ```
 
 Target adapter `bitbucket-mcp` with an empty `vcs.mcpToolPrefix` → ask for the prefix (full,
-including the trailing separator, e.g. `mcp__vcs__`) and re-ask until non-empty. config.md
+including the trailing separator, e.g. `vcs_`) and re-ask until non-empty. config.md
 reading rule 3 forbids writing an empty one.
 
 ## 4. Preview and confirm

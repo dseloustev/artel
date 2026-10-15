@@ -601,6 +601,12 @@ class TestOpenCodeBuild(unittest.TestCase):
         self.assertIn('/docs/deep-review.md', text)
         self.assertNotIn('${ARTEL_ROOT}', text)
 
+    def test_the_generated_skill_resolves_the_deep_review_model_site(self):
+        """The built artifact is the only thing that pins the resolver instruction."""
+        text = flat((self.out / 'skills' / 'artel-deep-review' / 'SKILL.md')
+                    .read_text(encoding='utf-8'))
+        self.assertIn('/scripts/models.py resolve --site reviewer.deepReview', text)
+
 
 if __name__ == '__main__':
     unittest.main()

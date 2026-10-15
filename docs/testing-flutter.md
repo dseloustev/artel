@@ -219,7 +219,7 @@ completion entry).
 ### 4.6 The gate scripts standalone
 
 From the host repo root (find the plugin root via `/plugin` — the installed path under
-`~/.claude/plugins/`):
+`~/.config/opencode/artel/`):
 
 ```bash
 python3 <plugin-root>/scripts/verify.py --fast --files lib/main.dart
@@ -239,7 +239,7 @@ substitutes the paths into `verify.fast`'s `{files}` token.
 | Config + `.gitignore` entries written once, by `setup` | `.artel/config.json`, `.gitignore` |
 | Spec trail only under `specs/.current/<TICKET>/` | 4.1–4.5 |
 | Run state only under `.artel/run/` (gitignored) | 4.2, 4.4, 4.5 |
-| Nothing written into the plugin install/cache directory | `~/.claude/plugins/` unchanged |
+| Nothing written into the plugin install/cache directory | `~/.config/opencode/artel/` unchanged |
 | Unconfigured gates report `skipped`, never green | runtime + design in every report |
 | Dry run never writes `run-state.json` | 4.2 |
 | Verify stop gate blocks only findings you introduced | 4.3 |

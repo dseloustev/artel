@@ -32,7 +32,7 @@ arrive via the "Other" option.
 - **Round 2 — adapters:** `tracker.adapter` (`none` / `github-issues` / `jira-mcp`) and
   `vcs.adapter` (`github-cli` / `bitbucket-mcp`). When `jira-mcp` or `bitbucket-mcp` is chosen,
   ask the matching `mcpToolPrefix` in the same round (full prefix including the trailing
-  separator, e.g. `mcp__tracker__`) — an empty prefix for these adapters is a configuration
+  separator, e.g. `tracker_`) — an empty prefix for these adapters is a configuration
   error (config.md reading rule 3), so re-ask rather than write one.
 - **Round 3 — quality gate and languages:** `verify.commands` (ordered list, one command per
   line; empty = no gate, recorded `skipped`), `verify.fast` (one quick per-edit command, or

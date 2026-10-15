@@ -180,7 +180,7 @@ second capture group; `phaseSuffix` only switches the feature on and off.
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `tracker.adapter` | string | `"none"` | `"none"` \| `"github-issues"` \| `"jira-mcp"` | Ticket fetch at pipeline start, status comments, PR↔ticket linking, `issue-draft`'s markup-dialect selection and its live ticket reads (`issue-scout`) |
-| `tracker.mcpToolPrefix` | string | `""` | Required when `adapter` is `"jira-mcp"`. Full MCP tool prefix including trailing separator, e.g. `"mcp__tracker__"`. | The `jira-mcp` adapter's tool addressing, `issue-scout`'s `jira_get_issue` included |
+| `tracker.mcpToolPrefix` | string | `""` | Required when `adapter` is `"jira-mcp"`. Full MCP tool prefix including trailing separator, e.g. `"tracker_"`. | The `jira-mcp` adapter's tool addressing, `issue-scout`'s `jira_get_issue` included |
 
 - **`none`** — artel never talks to a tracker. The ticket description is a local file the operator
   writes (or the `artel-generate-idea` skill produces) at `<specs.dir>/<TICKET_ID>/idea.md`. Steps that
@@ -200,7 +200,7 @@ second capture group; `phaseSuffix` only switches the feature on and off.
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `vcs.adapter` | string | `"github-cli"` | `"github-cli"` \| `"bitbucket-mcp"` | PR creation and update, PR description publishing, PR-comment handling |
-| `vcs.mcpToolPrefix` | string | `""` | Required when `adapter` is `"bitbucket-mcp"`, e.g. `"mcp__vcs__"`. | The `bitbucket-mcp` adapter's tool addressing |
+| `vcs.mcpToolPrefix` | string | `""` | Required when `adapter` is `"bitbucket-mcp"`, e.g. `"vcs_"`. | The `bitbucket-mcp` adapter's tool addressing |
 
 - **`github-cli`** — the hosting platform's API is reached through the `gh` CLI, which must be
   installed and authenticated.
@@ -284,7 +284,7 @@ the resolver reads this block at call time: a mid-run edit is picked up by the n
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `models.opencode` | object | `{}` | The OpenCode build's dispatch sites; every site below is optional. A `models.claude-code` section is ignored, as any unknown key (reading rule 2). | The generated OpenCode build, via `scripts/models.py` |
+| `models.opencode` | object | `{}` | The dispatch sites; every site below is optional. Any other key under `models` is ignored, as any unknown key (reading rule 2). | `scripts/models.py` |
 | `models.opencode.implementer.light` | string | `null` | An iteration task whose effective route is `light`. | `scripts/models.py`, site `implementer.light` |
 | `models.opencode.implementer.full` | string | `null` | An iteration task whose effective route is `full`. | `scripts/models.py`, site `implementer.full` |
 | `models.opencode.implementer.fix` | string | `null` | A fix list, first round. | `scripts/models.py`, site `implementer.fix` |
@@ -572,7 +572,7 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
   },
   "tracker": {
     "adapter": "jira-mcp",
-    "mcpToolPrefix": "mcp__tracker__"
+    "mcpToolPrefix": "tracker_"
   },
   "vcs": {
     "adapter": "github-cli",

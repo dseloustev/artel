@@ -23,7 +23,7 @@ Contract: docs/superpowers/specs/2026-08-22-artel-task-queue-design.md, docs/tas
 Usage: tasklist-tasks --tasklist <path|-> --ticket-key <KEY> [--repo <dir>] [--sensitive-paths <file>]
        tasklist-tasks --tasklist <path|-> --ticket-key <KEY> --check --requirements <R1,R2,…|none|absent> [--repo <dir>] [--sensitive-paths <file>]
        tasklist-tasks requirements --prd <path|->
-       tasklist-tasks route --tasklist <path|-> --ticket-key <KEY> --next [--repo <dir>] [--sensitive-paths <file>]
+       tasklist-tasks route --tasklist <path|-> --ticket-key <KEY> (--next|--task <N.M>) [--repo <dir>] [--sensitive-paths <file>]
 """
 import json
 import re
@@ -56,6 +56,9 @@ PHASE_FILE_RE = re.compile(r'^#\s+Phase\s+\d+\s*:')
 HEADING_2_RE = re.compile(r'^##\s+')
 SECTION_RE = re.compile(r'^###\s+(.+?)\s*$')
 HITL_RE = re.compile(r'\[HITL:\s*([^\]]+)\]')
+# The `route --task <N.M>` selector: exactly a task number, never `Task N.M` or a
+# bare iteration. The pinned task is answered as named, never substituted.
+TASK_SELECTOR_RE = re.compile(r'^\d+\.\d+$')
 
 # The four sections the queue records but never offers (docs/task-queue.md §6):
 # gate remediation and the end-of-feature gate, appended after the iterations
@@ -379,6 +382,7 @@ def route_main(argv, elapsed):
     tasklist_path = None
     ticket_key = None
     next_flag = False
+    task_number = None
     repo = '.'
     sensitive_paths = None
     i = 0
@@ -392,6 +396,9 @@ def route_main(argv, elapsed):
             ticket_key = argv[i] if i < len(argv) else None
         elif arg == '--next':
             next_flag = True
+        elif arg == '--task':
+            i += 1
+            task_number = argv[i] if i < len(argv) else ''
         elif arg == '--repo':
             i += 1
             repo = argv[i] if i < len(argv) else ''
@@ -405,8 +412,15 @@ def route_main(argv, elapsed):
         return fail('invalid_argument', 'missing required --tasklist <path|->')
     if not ticket_key:
         return fail('invalid_argument', 'missing required --ticket-key <KEY>')
-    if not next_flag:
-        return fail('invalid_argument', 'missing required --next')
+    if task_number == '':
+        return fail('invalid_argument', 'missing value for --task <N.M>')
+    if next_flag and task_number is not None:
+        return fail('invalid_argument', '--next and --task <N.M> are mutually exclusive')
+    if not next_flag and task_number is None:
+        return fail('invalid_argument', 'missing required --next or --task <N.M>')
+    if task_number is not None and not TASK_SELECTOR_RE.match(task_number):
+        return fail('invalid_argument',
+                    '--task is a task number like `2.1`, not: {}'.format(task_number))
     if not repo:
         return fail('invalid_argument', 'missing value for --repo <dir>')
     if sensitive_paths == '':
@@ -435,11 +449,19 @@ def route_main(argv, elapsed):
     deviation_files = read_deviation_files(repo, ticket_key, fail)
     if deviation_files is None:
         return 2
-    data = task_grammar.next_route(iterations, rules, deviation_files, per_task,
-                                   trail_prefix(repo, ticket_key))
-    if data is None:
-        data = {'task': None, 'title': None, 'route_declared': None,
-                'route_effective': None, 'route_reasons': [], 'model': None}
+    trail = trail_prefix(repo, ticket_key)
+    if task_number is not None:
+        data = task_grammar.pinned_route(iterations, rules, task_number, deviation_files,
+                                         per_task, trail)
+        if data is None:
+            return fail('task_not_found',
+                        '{}: no task {} — --task pins one task and never falls back to'
+                        ' another'.format(label, task_number))
+    else:
+        data = task_grammar.next_route(iterations, rules, deviation_files, per_task, trail)
+        if data is None:
+            data = {'task': None, 'title': None, 'route_declared': None,
+                    'route_effective': None, 'route_reasons': [], 'model': None}
     data = {'ticket_key': ticket_key, 'format': 'tasks', **data}
     print(envelope(True, elapsed(), data=data, verb='tasklist-route'))
     return 0

@@ -27,6 +27,7 @@ A task is a `### Task <iteration>.<n>: <title>` heading inside an `## Iteration 
 - **Test:** `test/ramps/success_dialog_test.dart`
 - **Produces:** `SuccessDialog.show(context, amount)` — static method
 - **Implements:** R1, R3
+- **Concurrency:** exclusive — the dialog and the ramps bloc share the fixture database
 - [ ] Add the dialog widget
 - [ ] Show it on `PurchaseSucceeded`
 
@@ -89,6 +90,17 @@ the PRD at the tasklist's phase-aware path has a `## Requirements` section; abse
 IDs belong to the PRD that defines them (ticket PRD or phase PRD), so `R2` of one phase never
 means `R2` of another.
 
+### 2.7 `Concurrency:` (optional)
+
+`Concurrency: exclusive — <reason>` marks a task that must not run beside another worker: HITL
+tasks, and work whose shared external effects cannot be shown to be worker-local
+(`docs/opencode-parallel.md` §7). The field is metadata about admission, not a worker
+permission. Its absence means automatic admission — a task that needs no statement carries no
+field — and `exclusive` without a reason, or any other value, is a grammar problem
+(`bad-concurrency` / `concurrency-reason`), never a silent admission. The mirror row carries
+the metadata as `concurrency` and `exclusive_reason` (§7), and it changes neither `data.waves`
+nor `data.ready_now`.
+
 ## 3. What stays and what goes
 
 **Stays:** the document header (`docs/spec-storage.md` §3.2); the Progress Report table; each
@@ -137,6 +149,8 @@ mirrored until the file is clean.
 | `cycle` | the iteration's dependencies form a cycle |
 | `bad-route` | `Route:` is neither `light` nor `full` |
 | `route-reason` | `Route: full` without a reason |
+| `bad-concurrency` | `Concurrency:` is neither absent nor `exclusive — <reason>` |
+| `concurrency-reason` | `Concurrency: exclusive` without a reason |
 | `test-reason` | `Test: none` without a reason |
 | `bad-test` | `Test:` names no backticked path and is not `none — <reason>` |
 | `bad-implements` | an `Implements:` token is not a requirement ID like `R1` |
@@ -186,8 +200,9 @@ What a mirror run emits (`data.format` is `"tasks"`):
   `I<N> · <N.M> · <task title>` — the idempotency key, capped at 500 characters. Its
   description lists the fields as written, `HITL:`, then the steps without ticks (the mirror
   is create-only, so a tick there would go stale). Each child also carries `task`, `deps`,
-  `files`, `route`, `route_reason`, `route_floor`, `route_reasons`, `route_effective`, `test`,
-  `test_none_reason`, `produces`, `implements` and `steps`.
+  `files`, `route`, `route_reason`, `route_floor`, `route_reasons`, `route_effective`,
+  `concurrency`, `exclusive_reason`, `test`, `test_none_reason`, `produces`, `implements` and
+  `steps`.
 - **Status at creation.** `done` when every step is ticked; `ready` when the task is in
   `ready_now`; otherwise `backlog`. Parents stay `backlog`.
 - **`data.waves`.** Per iteration, the tasks in dependency levels:
@@ -195,6 +210,10 @@ What a mirror run emits (`data.format` is `"tasks"`):
 - **`data.ready_now`.** The tasks claimable now, as `{task, title}` pairs: in the first
   iteration that has a task not done, every task not done whose dependencies are all done.
   Computed from the checkboxes, so the tasklist stays the source of truth for promotion.
+- **Concurrency metadata.** A task's optional `Concurrency: exclusive — <reason>` (§2.7)
+  reaches the row as `concurrency` and `exclusive_reason`; it changes neither `data.waves` nor
+  `data.ready_now`, which stay dependency facts — admission is the coordinator's decision
+  (`docs/opencode-parallel.md` §7).
 - **Route floors.** `route_floor` is `full` when any of these holds, with one `route_reasons`
   entry each:
   1. a `Files:` path matches a category of the sensitive-paths policy (a host
@@ -218,16 +237,19 @@ What a mirror run emits (`data.format` is `"tasks"`):
 `scripts/tasklist_tasks.py route` answers the model question before an iteration dispatch.
 It contacts nothing.
 
-    tasklist-tasks route --tasklist <path|-> --ticket-key <KEY> --next [--repo <dir>] [--sensitive-paths <file>]
+    tasklist-tasks route --tasklist <path|-> --ticket-key <KEY> --next|--task <N.M> [--repo <dir>] [--sensitive-paths <file>]
 
-`--next` is the only selector: `task` is the first entry of `data.ready_now` (§7), `title` its
-`Task <N.M>: <title>` heading with the HITL tag dropped. `route_declared` and `route_effective`
-follow §7's floors, plus two runtime ones: one of the task's `Files:` is in `run-state.json`
-`deviation_files` — `earlier deviation: <path>` per path, applying to a route set at approval
-too — or `review.perTask` is true — `review.perTask`. `model` is
+Exactly one selector is required. `--next`: `task` is the first entry of `data.ready_now` (§7),
+`title` its `Task <N.M>: <title>` heading with the HITL tag dropped. `--task <N.M>` pins that
+task: it is never substituted by `--next`'s first-ready rule, it does not consult readiness —
+admission is the coordinator's decision — and a number that is not a task of the tasklist exits
+`2` (`task_not_found`) instead of answering with another task. `route_declared` and
+`route_effective` follow §7's floors, plus two runtime ones: one of the task's `Files:` is in
+`run-state.json` `deviation_files` — `earlier deviation: <path>` per path, applying to a route
+set at approval too — or `review.perTask` is true — `review.perTask`. `model` is
 `MODEL_BY_ROUTE = {'light': 'sonnet', 'full': 'opus'}`, a constant in `scripts/task_grammar.py`;
-`next_route()` is the pure function behind it. No ready task → `task`, `title`, `route_*` and
-`model` are `null`; a non-task-format or malformed tasklist, an unreadable `run-state.json`, or
-a non-boolean `review.perTask` exits `2` with an error envelope. The route decision after
-completion (`autonomous-run.md` §16.1) is unchanged; the helper only chooses the model before
-dispatch.
+`next_route()` and `pinned_route()` are the pure functions behind the two selectors. No ready
+task on `--next` → `task`, `title`, `route_*` and `model` are `null`; a non-task-format or
+malformed tasklist, an unreadable `run-state.json`, or a non-boolean `review.perTask` exits `2`
+with an error envelope. The route decision after completion (`autonomous-run.md` §16.1) is
+unchanged; the helper only chooses the model before dispatch.

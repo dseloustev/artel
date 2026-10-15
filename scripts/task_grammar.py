@@ -1,4 +1,5 @@
-"""task-grammar: the task blocks of a tasklist, their validation, waves and route floors.
+"""task-grammar: the task blocks of a tasklist, their validation, waves, route floors
+and route selection.
 
 Pure functions over a tasklist body (the document header already stripped); the CLI is
 tasklist_tasks.py, which imports this module. Nothing here prints or exits, and the only
@@ -41,7 +42,8 @@ REQUIREMENT_ENTRY_RE = re.compile(r'^-\s+\*\*(R\d+)\*\*(.*)$')
 WITHDRAWN_RE = re.compile(r'\(withdrawn\b', re.IGNORECASE)
 ALREADY_MET_RE = re.compile(r'\(already met\b', re.IGNORECASE)
 
-KNOWN_FIELDS = ('Files', 'Depends on', 'Route', 'Test', 'Produces', 'Implements')
+KNOWN_FIELDS = ('Files', 'Depends on', 'Route', 'Test', 'Produces', 'Implements',
+                'Concurrency')
 REQUIRED_FIELDS = ('Files', 'Depends on', 'Route', 'Test')
 
 # The rule names of docs/task-grammar.md §6; tests/test_task_grammar_docs.py holds the
@@ -49,8 +51,9 @@ REQUIRED_FIELDS = ('Files', 'Depends on', 'Route', 'Test')
 GRAMMAR_RULES = (
     'missing-field', 'empty-field', 'duplicate-field', 'bad-files', 'bad-dependency',
     'unknown-dependency', 'cross-iteration-dependency', 'self-dependency', 'cycle',
-    'bad-route', 'route-reason', 'test-reason', 'bad-test', 'bad-implements', 'numbering',
-    'no-steps', 'bare-checkbox', 'no-tasks', 'hitl-on-step',
+    'bad-route', 'route-reason', 'bad-concurrency', 'concurrency-reason', 'test-reason',
+    'bad-test', 'bad-implements', 'numbering', 'no-steps', 'bare-checkbox', 'no-tasks',
+    'hitl-on-step',
 )
 CHECK_RULES = {
     'uncovered-requirement': 'Critical',
@@ -281,6 +284,19 @@ def _validate_fields(task, iteration_number, numbers):
             problems.append(_problem(route['line'], tid, 'route-reason',
                                      '`Route: full` needs a reason: `full — <reason>`'))
 
+    concurrency = fields.get('Concurrency')
+    if concurrency and concurrency['value']:
+        head, reason = _split_reason(concurrency['value'])
+        if head.lower() != 'exclusive':
+            problems.append(_problem(
+                concurrency['line'], tid, 'bad-concurrency',
+                '`Concurrency:` is `exclusive — <reason>`, not `{}`'.format(
+                    concurrency['value'])))
+        elif reason is None:
+            problems.append(_problem(
+                concurrency['line'], tid, 'concurrency-reason',
+                '`Concurrency: exclusive` needs a reason: `exclusive — <reason>`'))
+
     test = fields.get('Test')
     if test and test['value']:
         head, reason = _split_reason(test['value'])
@@ -432,6 +448,21 @@ def route_of(task):
     return head.lower(), reason
 
 
+def concurrency_of(task):
+    """(concurrency, reason) from the task's optional `Concurrency:` field.
+
+    `('exclusive', reason)` when the task carries `Concurrency: exclusive — <reason>`,
+    `(None, None)` when the field is absent — its absence means automatic admission
+    (docs/opencode-parallel.md §7). A malformed value is a grammar problem (parse),
+    never a silent admission.
+    """
+    field = task['fields'].get('Concurrency')
+    if not field or not field['value']:
+        return None, None
+    head, reason = _split_reason(field['value'])
+    return head.lower(), reason
+
+
 def _in_trail(path, trail):
     """True when a `Files:` path lies under the ticket's spec-trail prefix."""
     if path.startswith('./'):
@@ -471,11 +502,13 @@ def structured(task, rules, trail=None):
 
     `route_effective` is the higher of the declared route and the floor, except that a
     route set at approval is final: the floor is still reported, for the journal.
-    `trail` is passed to route_floor.
+    `concurrency`/`exclusive_reason` carry the optional `Concurrency:` metadata; they
+    change neither `waves` nor `ready_now`. `trail` is passed to route_floor.
     """
     route, reason = route_of(task)
     floor, reasons = route_floor(task, rules, trail=trail)
     tests, none_reason = tests_of(task)
+    concurrency, exclusive_reason = concurrency_of(task)
     produces = task['fields'].get('Produces')
     if reason == APPROVAL_REASON:
         effective = route  # the person's choice at the pause stands over floors 1-3
@@ -490,6 +523,8 @@ def structured(task, rules, trail=None):
         'route_floor': floor,
         'route_reasons': reasons,
         'route_effective': effective,
+        'concurrency': concurrency,
+        'exclusive_reason': exclusive_reason,
         'test': tests,
         'test_none_reason': none_reason,
         'produces': produces['value'] if produces else None,
@@ -498,14 +533,8 @@ def structured(task, rules, trail=None):
     }
 
 
-def next_route(iterations, rules, deviation_files=(), per_task=False, trail=None):
-    """The first ready task's route and model (docs/task-grammar.md §8), or None."""
-    ready = ready_now(iterations)
-    if not ready:
-        return None
-    number = ready[0]
-    task = next(t for iteration in iterations for t in iteration['tasks']
-                if t['number'] == number)
+def _route_for(task, rules, deviation_files=(), per_task=False, trail=None):
+    """The route payload for one task: `next_route` and `pinned_route` share it."""
     info = structured(task, rules, trail=trail)
     effective = info['route_effective']
     reasons = list(info['route_reasons'])
@@ -516,9 +545,34 @@ def next_route(iterations, rules, deviation_files=(), per_task=False, trail=None
     if per_task:
         effective = 'full'
         reasons.append('review.perTask')
-    return {'task': number, 'title': 'Task {}: {}'.format(number, task['title']),
+    return {'task': task['number'], 'title': 'Task {}: {}'.format(task['number'], task['title']),
             'route_declared': info['route'], 'route_effective': effective,
             'route_reasons': reasons, 'model': MODEL_BY_ROUTE[effective]}
+
+
+def next_route(iterations, rules, deviation_files=(), per_task=False, trail=None):
+    """The first ready task's route and model (docs/task-grammar.md §8), or None."""
+    ready = ready_now(iterations)
+    if not ready:
+        return None
+    number = ready[0]
+    task = next(t for iteration in iterations for t in iteration['tasks']
+                if t['number'] == number)
+    return _route_for(task, rules, deviation_files, per_task, trail)
+
+
+def pinned_route(iterations, rules, number, deviation_files=(), per_task=False, trail=None):
+    """The named task's route and model (§8), or None when no task carries that number.
+
+    The parallel coordinator's `route --task N.M` selector: it answers exactly the
+    pinned task and never falls back to another one. Readiness is not consulted —
+    admission is the coordinator's decision, not the route helper's.
+    """
+    task = next((t for iteration in iterations for t in iteration['tasks']
+                 if t['number'] == number), None)
+    if task is None:
+        return None
+    return _route_for(task, rules, deviation_files, per_task, trail)
 
 
 def description(task):

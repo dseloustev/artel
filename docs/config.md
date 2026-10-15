@@ -97,6 +97,9 @@ placeholder the init interview replaces.
   "review": {
     "perTask": false
   },
+  "parallel": {
+    "seats": 1
+  },
   "models": {
     "opencode": {}
   },
@@ -273,6 +276,18 @@ The phase review (`run-reviewer` after every task in the phase is done) is not c
 here — it always runs. `review.perTask` only decides whether every task is also gated on its
 own before the next one is dispatched, or only the tasks whose route is `full`. Any value other than a JSON boolean is a configuration
 error under reading rule 3.
+
+### `parallel` — concurrent worker seats
+
+| Key | Type | Default | Allowed values / notes | Consumed by |
+|---|---|---|---|---|
+| `parallel.seats` | integer | `1` | A positive integer: the most worker sessions the coordinator runs at once. A boolean is not an integer, and zero, a negative number, a string or a float is a configuration error under reading rule 3 rather than a silently substituted default. Absent or `1` keeps the serial procedure exactly as it is. | The OpenCode parallel coordinator ([opencode-parallel.md](opencode-parallel.md)) |
+
+Only the parallel path reads this key; the serial procedure never consults it. `1` is not a
+degraded parallel mode but the serial one: no coordinator state, no per-task worktree, no
+worker session. An unsupported OpenCode capability fails preflight before any claim or worker
+is created — parallel mode is never silently pretended to be enabled
+([opencode-parallel.md](opencode-parallel.md) §12).
 
 ### `models` — the OpenCode dispatch models
 
@@ -589,6 +604,9 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
   },
   "review": {
     "perTask": true
+  },
+  "parallel": {
+    "seats": 2
   },
   "models": {
     "opencode": {

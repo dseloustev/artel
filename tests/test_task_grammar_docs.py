@@ -52,7 +52,8 @@ class TestGrammarContract(unittest.TestCase):
         for field in ('### 2.1 `Files:` (required)', '### 2.2 `Depends on:` (required)',
                       '### 2.3 `Route:` (required)', '### 2.4 `Test:` (required)',
                       '### 2.5 `Produces:` (optional)',
-                      '### 2.6 `Implements:` (required when the PRD has requirements)'):
+                      '### 2.6 `Implements:` (required when the PRD has requirements)',
+                      '### 2.7 `Concurrency:` (optional)'):
             self.assertIn(field + '\n', self.doc)
 
     def test_the_example_uses_every_field_and_parses_without_warnings(self):
@@ -104,6 +105,19 @@ class TestGrammarContract(unittest.TestCase):
         self.assertIn('never appear in code, tests, identifiers, comments or commit subjects',
                       doc)
         self.assertIn('The fix sections are outside this grammar.', doc)
+
+    def test_the_concurrency_metadata_is_documented(self):
+        doc = flat(self.doc)
+        for phrase in ('`Concurrency: exclusive — <reason>`', 'absence means automatic admission',
+                       'changes neither `data.waves` nor `data.ready_now`',
+                       '`concurrency`', '`exclusive_reason`'):
+            self.assertIn(phrase, doc)
+
+    def test_the_pinned_selector_is_documented(self):
+        doc = flat(self.doc)
+        for phrase in ('`--task <N.M>`', 'never substituted', '`task_not_found`',
+                       'Exactly one selector is required'):
+            self.assertIn(phrase, doc)
 
 
 # ---------------------------------------------------------------------------

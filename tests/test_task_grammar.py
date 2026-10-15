@@ -327,6 +327,57 @@ class TestGrammarProblems(unittest.TestCase):
         self.assertEqual([p['line'] for p in problems], sorted(p['line'] for p in problems))
 
 
+class TestConcurrencyMetadata(unittest.TestCase):
+    """docs/opencode-parallel.md §7: optional `Concurrency: exclusive — <reason>`."""
+
+    def task_of(self, body):
+        iterations, problems, _ = task_grammar.parse(body)
+        self.assertEqual(problems, [])
+        return iterations[0]['tasks'][0]
+
+    def test_absent_concurrency_is_automatic_admission(self):
+        task = self.task_of(one_iteration(block('1.1')))
+        self.assertEqual(task_grammar.concurrency_of(task), (None, None))
+        data = task_grammar.structured(task, DEFAULT_RULES)
+        self.assertEqual((data['concurrency'], data['exclusive_reason']), (None, None))
+
+    def test_exclusive_with_a_reason_is_kept_apart(self):
+        task = self.task_of(one_iteration(block(
+            '1.1', extra='- **Concurrency:** exclusive — shares the fixture database\n')))
+        self.assertEqual(task_grammar.concurrency_of(task),
+                         ('exclusive', 'shares the fixture database'))
+        data = task_grammar.structured(task, DEFAULT_RULES)
+        self.assertEqual((data['concurrency'], data['exclusive_reason']),
+                         ('exclusive', 'shares the fixture database'))
+
+    def test_exclusive_without_a_reason_is_a_problem(self):
+        body = one_iteration(block('1.1', extra='- **Concurrency:** exclusive\n'))
+        self.assertEqual(rules_of(task_grammar.parse(body)[1]), ['concurrency-reason'])
+
+    def test_any_other_concurrency_value_is_a_problem(self):
+        for value in ('shared', 'automatic', 'exclusive?', 'exclusive—no spaces'):
+            body = one_iteration(block('1.1', extra='- **Concurrency:** {}\n'.format(value)))
+            self.assertEqual(rules_of(task_grammar.parse(body)[1]), ['bad-concurrency'], value)
+
+    def test_an_empty_concurrency_field_is_a_problem(self):
+        body = one_iteration(block('1.1', extra='- **Concurrency:**\n'))
+        self.assertEqual(rules_of(task_grammar.parse(body)[1]), ['empty-field'])
+
+    def test_the_field_is_known_so_it_is_not_a_warning(self):
+        body = one_iteration(block('1.1', extra='- **Concurrency:** exclusive — shared port\n'))
+        self.assertEqual(task_grammar.parse(body)[2], [])
+
+    def test_concurrency_metadata_changes_neither_waves_nor_ready_now(self):
+        plain = one_iteration(block('1.1'), block('1.2', depends='1.1'))
+        marked = one_iteration(
+            block('1.1', extra='- **Concurrency:** exclusive — shared port\n'),
+            block('1.2', depends='1.1'))
+        before, after = task_grammar.parse(plain)[0], task_grammar.parse(marked)[0]
+        self.assertEqual(task_grammar.waves(before), {'1': [['1.1'], ['1.2']]})
+        self.assertEqual(task_grammar.waves(after), task_grammar.waves(before))
+        self.assertEqual(task_grammar.ready_now(after), task_grammar.ready_now(before))
+
+
 class TestWavesAndReadiness(unittest.TestCase):
     def test_waves_are_dependency_levels_per_iteration(self):
         iterations = task_grammar.parse(TASKS)[0]
@@ -483,7 +534,9 @@ class TestStructuredAndDescription(unittest.TestCase):
             'files': [{'path': 'lib/ramps/success_dialog.dart', 'new': True},
                       {'path': 'test/ramps/success_dialog_test.dart', 'new': True}],
             'route': 'light', 'route_reason': None, 'route_floor': None, 'route_reasons': [],
-            'route_effective': 'light', 'test': ['test/ramps/success_dialog_test.dart'],
+            'route_effective': 'light',
+            'concurrency': None, 'exclusive_reason': None,
+            'test': ['test/ramps/success_dialog_test.dart'],
             'test_none_reason': None,
             'produces': '`SuccessDialog.show(context, amount)` — static method',
             'implements': ['R1'],
@@ -566,6 +619,43 @@ class TestNextRoute(unittest.TestCase):
     def test_the_title_drops_the_hitl_tag(self):
         out = self.route(one_iteration(block('1.1', title='Ship it [HITL: sign-off]')))
         self.assertEqual(out['title'], 'Task 1.1: Ship it')
+
+
+class TestPinnedRoute(unittest.TestCase):
+    """`route --task N.M` (docs/task-grammar.md §8): a pin, never a substitution."""
+
+    def route(self, number, text=TASKS, deviation_files=(), per_task=False):
+        iterations, problems, _ = task_grammar.parse(text)
+        self.assertEqual(problems, [])
+        return task_grammar.pinned_route(iterations, DEFAULT_RULES, number,
+                                         deviation_files=deviation_files, per_task=per_task)
+
+    def test_a_pinned_task_answers_its_own_route(self):
+        out = self.route('1.2')
+        self.assertEqual(out['task'], '1.2')
+        self.assertEqual(out['title'], 'Task 1.2: Add the purchase-succeeded event')
+        self.assertEqual(out['route_declared'], 'light')
+        self.assertEqual(out['route_effective'], 'light')
+        self.assertEqual(out['model'], 'sonnet')
+
+    def test_the_pin_never_falls_back_to_the_next_ready_task(self):
+        # 1.1 is `ready_now`'s first entry; the pin names 1.2.
+        self.assertEqual(task_grammar.ready_now(task_grammar.parse(TASKS)[0]), ['1.1', '1.2'])
+        self.assertEqual(self.route('1.2')['task'], '1.2')
+
+    def test_the_pin_keeps_the_floors_and_the_runtime_reasons(self):
+        out = self.route('2.2')
+        self.assertEqual((out['route_effective'], out['route_reasons']), ('full', ['HITL tag']))
+        self.assertEqual(out['model'], 'opus')
+        out = self.route('1.1', deviation_files=['lib/ramps/success_dialog.dart'])
+        self.assertEqual(out['route_effective'], 'full')
+        self.assertIn('earlier deviation: lib/ramps/success_dialog.dart', out['route_reasons'])
+        out = self.route('1.1', per_task=True)
+        self.assertIn('review.perTask', out['route_reasons'])
+
+    def test_an_unknown_task_number_answers_none(self):
+        self.assertIsNone(self.route('1.9'))
+        self.assertIsNone(self.route('9.9'))
 
 
 class TestCheck(unittest.TestCase):
@@ -947,6 +1037,63 @@ class TestCli(unittest.TestCase):
         code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9')
         self.assertEqual(code, 2)
         self.assertEqual(out['error']['kind'], 'invalid_argument')
+
+    def test_task_selector_never_substitutes_another_ready_task(self):
+        code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--next')
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data']['task'], '1.1')
+        code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--task', '1.2')
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data']['ticket_key'], 'AW-9')
+        self.assertEqual(out['data']['task'], '1.2')
+        self.assertEqual(out['data']['title'], 'Task 1.2: Add the purchase-succeeded event')
+        self.assertEqual(out['data']['model'], 'sonnet')
+
+    def test_the_pinned_task_keeps_its_route_reasons(self):
+        artel = Path(self.repo.name) / '.artel'
+        artel.mkdir()
+        (artel / 'config.json').write_text('{"review": {"perTask": true}}', encoding='utf-8')
+        _, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                         '--repo', self.repo.name, '--task', '1.2')
+        self.assertEqual(out['data']['task'], '1.2')
+        self.assertEqual(out['data']['route_effective'], 'full')
+        self.assertIn('review.perTask', out['data']['route_reasons'])
+        self.assertEqual(out['data']['model'], 'opus')
+
+    def test_a_pin_missing_from_the_tasklist_exits_2(self):
+        code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--task', '1.9')
+        self.assertEqual((code, out['error']['kind']), (2, 'task_not_found'))
+        self.assertIn('1.9', out['error']['message'])
+
+    def test_a_malformed_or_valueless_pin_is_an_invalid_argument(self):
+        for extra in (('--task', '1'), ('--task', 'Task 1.2'), ('--task', 'a.b'),
+                      ('--task',), ('--task', '')):
+            code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                                '--repo', self.repo.name, *extra)
+            self.assertEqual((code, out['error']['kind']), (2, 'invalid_argument'), extra)
+
+    def test_the_two_selectors_are_mutually_exclusive(self):
+        code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name, '--next', '--task', '1.1')
+        self.assertEqual((code, out['error']['kind']), (2, 'invalid_argument'))
+
+    def test_concurrency_metadata_reaches_the_mirror_row(self):
+        text = TASKS.replace(
+            '- **Files:** `lib/ramps/ramps_bloc.dart`\n',
+            '- **Files:** `lib/ramps/ramps_bloc.dart`\n'
+            '- **Concurrency:** exclusive — shares the fixture database\n', 1)
+        code, out = run_cli('--tasklist', self.write(text), '--ticket-key', 'AW-9',
+                            '--repo', self.repo.name)
+        self.assertEqual(code, 0)
+        row = out['data']['iterations'][1]['children'][0]
+        self.assertEqual((row['concurrency'], row['exclusive_reason']),
+                         ('exclusive', 'shares the fixture database'))
+        self.assertEqual(out['data']['waves'],
+                         {'1': [['1.1', '1.2']], '2': [['2.1'], ['2.2', '2.3']]})
+        self.assertEqual([entry['task'] for entry in out['data']['ready_now']], ['1.1', '1.2'])
 
     def test_route_a_malformed_tasklist_exits_2(self):
         code, out = run_cli('route', '--tasklist', self.write('## Iteration 1: A\n\n- [ ] do\n'),

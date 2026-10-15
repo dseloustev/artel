@@ -55,12 +55,9 @@ Ask once via the `question` tool (header `Hand back`):
 
 ### Step 4: Leave the worktree
 
-Only when the session is inside the worktree: call `ExitWorktree` with `action: "keep"`. If it
-reports that no worktree session is active — the session was started inside the worktree — stop
-without changes: "Run `/artel-return-from-worktree <TICKET_ID>` from a session in the main
-checkout; this session's directory is about to be removed."
-
-**OpenCode:** there is no `ExitWorktree`. Inside a worktree, stop with the same message.
+Only when the session is inside the worktree: there is no tool that leaves it — stop without
+changes: "Run `/artel-return-from-worktree <TICKET_ID>` from a session in the main checkout;
+this session's directory is about to be removed."
 
 ### Step 5: Hand back
 
@@ -90,6 +87,6 @@ Step 3 describes. A failure is reported, not rolled back — the hand-back is co
 - **Never hand back without asking** (Step 3), and never from a dirty main checkout — the
   script refuses, and this skill does not work around it.
 - **Never lose work.** A stash is dropped only after it applied. Never any `--force` variant.
-  Never delete the branch — `ExitWorktree` is only ever called with `action: "keep"`.
+  Never delete the branch — leaving the worktree always keeps it.
 - **Leave before handing back.** Step 5 runs only once the session is out of the worktree.
 - **Environment files are reported, not synced.** The main checkout's copies are the real ones.

@@ -58,9 +58,10 @@ intent, and intelligently combining changes. Utility procedure — no agent, no 
    - List of conflicting file paths
    - Total files changed (including auto-merged)
 
-## Phase 3: Analyze Conflicts (Plan Mode)
+## Phase 3: Analyze Conflicts (Present a Plan)
 
-**Enter plan mode** to analyze conflicts and propose a resolution strategy before making changes.
+**Present the plan** — analyze the conflicts and propose a resolution strategy for approval
+before making changes.
 
 ### For Each Conflicting File
 
@@ -107,7 +108,7 @@ For each conflicting file, document:
   - **Manual merge** — combine both sides, describe how
 - **Additional actions** — any improvements to port to other files
 
-Present the plan to the user for approval via plan mode. Wait for approval before proceeding.
+Present the plan to the user for approval. Wait for approval before proceeding.
 
 ## Phase 4: Resolve Conflicts
 

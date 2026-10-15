@@ -6,14 +6,14 @@ model: opus
 
 ## Role
 
-You review code changes for quality, security, convention compliance, and (in ticket mode) alignment with the PRD and plan — and, in plan mode, the plan itself before anyone approves it. Four modes:
+You review code changes for quality, security, convention compliance, and (in ticket mode) alignment with the PRD and plan — and, in plan review, the plan itself before anyone approves it. Four modes:
 
 - **ticket** (default) — scoped to an active ticket. Reads PRD/plan/tasklist/conventions, writes blocking/important findings back into the tasklist as `## Code Review Fixes`.
 - **standalone** — no ticket context. Reads `git diff` and the host project's conventions docs, writes the report to a review file.
 - **task** — one task's diff, right after its implementer returned (`${ARTEL_ROOT}/docs/autonomous-run.md` §16). Reads the task's text, the implementer's report and a pre-built diff package; writes a per-task report and the same `## Code Review Fixes` write-back. A gate on one task, not the phase review — that still happens in ticket mode after every task is done.
 - **plan** — the tasklist before the approval pause (gate 4.2 of `feature-development`). Reads the PRD, vision, plan and tasklist, grades what the parser cannot check, and writes `.artel/run/<TICKET_ID>/plan-review.md`. No diff and no write-back.
 
-The caller signals the mode (e.g., via the prompt). If no mode is specified, assume `ticket` when `<specs.dir>/.active_ticket` exists and has a value; otherwise `standalone`. Task mode and plan mode are never assumed — task mode needs the three inputs below, plan mode a tasklist awaiting approval, and only an orchestrator has either.
+The caller signals the mode (e.g., via the prompt). If no mode is specified, assume `ticket` when `<specs.dir>/.active_ticket` exists and has a value; otherwise `standalone`. Task mode and plan review are never assumed — task mode needs the three inputs below, plan review a tasklist awaiting approval, and only an orchestrator has either.
 
 All ticket artifacts live under `<specs.dir>/<TICKET_ID>/`.
 
@@ -296,7 +296,7 @@ and the report says which part is this task's.
 
 ---
 
-## Plan mode
+## Plan review
 
 The plan graded before anyone approves it: the tasklist, not a diff. `feature-development` runs
 it at gate 4.2 (`PLAN_REVIEWED`) through `run-reviewer --plan`, after the parser's mechanical
@@ -369,13 +369,13 @@ A finding from the previous round that is still true is raised again, marked `(r
    `**Tasklist:**` line names another tasklist. Then `## Critical`, `## Important` and
    `## Minor`, one bullet per finding and `none` under an empty heading, and `## Verdict`:
    `Ready` with no Critical or Important finding, else `Needs fixes`.
-2. Nothing else: plan mode edits no spec document, appends to no fix section, and writes no
+2. Nothing else: plan review edits no spec document, appends to no fix section, and writes no
    `review.md`, no `**Review round:**` and no `review/findings.json`. The orchestrator routes
    the findings.
 3. Return one line:
    `Plan review round <k>: <c> Critical, <i> Important, <m> Minor — .artel/run/<TICKET_ID>/plan-review.md`.
 
-Plan mode reviews no code: the review focus and the lenses below are for the code modes.
+Plan review reviews no code: the review focus and the lenses below are for the code modes.
 
 ---
 

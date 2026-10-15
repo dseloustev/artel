@@ -96,8 +96,8 @@ failure handling for when to stop.
    is "Stay on …" or "Enter worktree …". Skip the question entirely when the session is already
    inside a linked worktree (`git rev-parse --path-format=absolute --git-dir` differs from
    `--git-common-dir`).
-6. Act on the answer. **Enter worktree `<path>`:** call `EnterWorktree` with that `path` (OpenCode:
-   print `cd <path> && opencode` and stop), set `BRANCH_NAME` to that branch, and go to Step 3.
+6. Act on the answer. **Enter worktree `<path>`:** print `cd <path> && opencode` and stop —
+   re-running this skill in that session takes Step 1's Stay route and finishes the setup there.
    **Move to the worktree** chosen: run no checkout here — go to Step 2b with the branch and how
    it comes to exist. Otherwise:
    - **Check out** a local branch: `git checkout <name>`. A branch only on `origin`:
@@ -134,10 +134,9 @@ Reached from Step 1's Stay route or from Step 2's "Move to the worktree" answer;
    ```
 
 4. **Fatal unless `ok`**, like a failed checkout: report per `docs/worktrees.md` §6 and stop.
-5. **Enter:** `EnterWorktree` with `path` set to the report's `path`. `BRANCH_NAME` = the branch.
-   From here on every step runs inside the worktree. **OpenCode:** print
-   `cd <path> && opencode`, skip Steps 3–6 and report — re-running `/artel-init-branch` in that
-   session takes Step 1's Stay route and finishes the setup there.
+5. **Enter:** the session cannot move into the worktree — print `cd <path> && opencode`, skip
+   Steps 3–6 and report. Re-running `/artel-init-branch` in that session takes Step 1's Stay
+   route and finishes the setup there.
 
 ### Step 3: Run the post-branch setup commands
 

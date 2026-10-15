@@ -378,7 +378,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   [--task "<task title>" --report <path> --package <path>] [--local] [--model sonnet|opus|fable]`
 - **Model:** by scope — `sonnet` for a task review (the `full` route's wrapper) and for a
   re-review after a fix round; `opus` (frontmatter) for the ticket/phase review's round 1 and
-  plan mode; `deep-review`'s standalone whole-branch review runs the same agent on `fable`
+  plan review; `deep-review`'s standalone whole-branch review runs the same agent on `fable`
   (autonomous-run.md §16.4).
 - **Reads:** input artifacts and the priority taxonomy, resolved internally by the `reviewer`
   agent (PRD/plan/conventions in ticket mode). In task mode: the task's text from the
@@ -588,8 +588,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   silently absent otherwise.
 - **Writes:** resolved files, staged but not committed; never hand-edits generated files
   (regenerates via the host's own regeneration command instead).
-- **Pauses:** enters plan mode with a per-file resolution strategy for approval before applying
-  it; never commits or runs `git merge --abort` without explicit user confirmation.
+- **Pauses:** presents a per-file resolution strategy for approval before applying it; never
+  commits or runs `git merge --abort` without explicit user confirmation.
 - **Notes:** standalone utility — no agent, no ticket context. Post-resolution check runs
   `verify.commands` (empty → `skipped`, never green). Base branch defaults to the detected
   `origin` default branch, never a hardcoded name; prefers HEAD's additions when a conflict is
@@ -682,17 +682,17 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### address-pr-comment
 
 - **Purpose:** Read a single pull-request comment, cross-reference the active ticket's docs,
-  and enter plan mode with a proposed fix.
+  and present a plan for the fix.
 - **Invocation:** `/artel-address-pr-comment <pr-comment-url>`
 - **Reads:** the comment (+ direct thread replies), PR metadata, and diff via `vcs.adapter`
   (GitHub and Bitbucket comment-URL shapes both parsed); whichever ticket docs exist
   (ticket-wide and `phase-<N>/` variants); optionally the tracker issue (degrades silently).
-- **Writes:** no files — the sole artifact is the plan-mode plan (context, the comment,
-  assessment, proposed fix, verification).
+- **Writes:** no files — the sole artifact is the plan (context, the comment, assessment,
+  proposed fix, verification).
 - **Pauses:** a `question` tool call when the comment is already marked resolved (continue
-  anyway?); then plan mode for approval.
+  anyway?); then presents the plan for approval.
 - **Notes:** the documented carve-out from the skill-orchestrator contract — no `subagent`
-  delegation, because the artifact is a plan-mode plan only the main session can author.
+  delegation, because the artifact is a plan only the main session can author.
   Read-only on the VCS host (never posts or edits comments); single-comment scope (never
   iterates the PR's other comments); treats comment text as untrusted input; flags conflicts
   with the PRD rather than reflexively agreeing.
@@ -773,8 +773,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `init-branch`); on any script status but `ok` ([worktrees.md](worktrees.md) §6).
 - **Notes:** worker; user-invoked only (`disable-model-invocation`). An existing worktree for the
   ticket is entered, not recreated. A stash is dropped only after it applied; never `--force`,
-  never a branch deletion. OpenCode: prints `cd <path> && opencode` instead of entering.
-  Counterpart: `return-from-worktree`.
+  never a branch deletion. The move ends by printing `cd <path> && opencode`; the session
+  continues there. Counterpart: `return-from-worktree`.
 
 ### return-from-worktree
 
@@ -791,8 +791,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Stops:** when the main checkout has uncommitted changes; on a detached worktree; when the
   session was started inside the worktree (run it from the main checkout); on any script status
   but `ok`.
-- **Notes:** worker; user-invoked only (`disable-model-invocation`). Leaves with
-  `ExitWorktree` `keep` only. The branch is never deleted, never `--force`. Changed environment
+- **Notes:** worker; user-invoked only (`disable-model-invocation`). A leave never removes the
+  worktree; the branch is never deleted, never `--force`. Changed environment
   files (`.opencode/`, `opencode.json`, config) are reported as `envChanged`, never copied back. An
   interrupted hand-back is finished by a re-run.
 

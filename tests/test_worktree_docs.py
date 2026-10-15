@@ -53,20 +53,23 @@ class WorktreeSkillsCase(unittest.TestCase):
             self.assertNotIn('git worktree remove', text, name)
 
     def test_move_enters_the_worktree(self):
-        self.assertIn('`EnterWorktree`', body('move-to-worktree'))
+        self.assertIn('`cd <path> && opencode`', body('move-to-worktree'))
 
     def test_return_only_keeps(self):
         text = body('return-from-worktree')
-        self.assertIn('`ExitWorktree` with `action: "keep"`', text)
+        self.assertIn('leaving the worktree always keeps it', text)
         self.assertNotIn('"remove"', text)
 
     def test_return_checks_before_it_asks(self):
         text = body('return-from-worktree')
         self.assertLess(text.index('--check'), text.index('### Step 3: Confirm'))
 
-    def test_both_name_the_opencode_fallback(self):
-        for name in NEW_SKILLS:
-            self.assertIn('**OpenCode:**', body(name), name)
+    def test_both_name_the_worktree_handover(self):
+        # No tool moves a running session in or out of a worktree: each skill states what it
+        # does instead.
+        self.assertIn('`cd <path> && opencode`', body('move-to-worktree'))
+        self.assertIn("this session's directory is about to be removed",
+                      body('return-from-worktree'))
 
 
 class InitBranchWorktreeCase(unittest.TestCase):

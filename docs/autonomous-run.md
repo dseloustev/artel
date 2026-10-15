@@ -600,7 +600,7 @@ The reviewer scales by scope, and `run-reviewer --model` carries the choice to t
 | task review (the §16.2 wrapper, `full` tasks only) | `sonnet` |
 | ticket / phase review, round 1 | `opus` (frontmatter) |
 | re-review after a fix round | `sonnet` |
-| plan mode (gate 4.2) | `opus` (frontmatter) |
+| plan review (gate 4.2) | `opus` (frontmatter) |
 | `deep-review`'s standalone whole-branch review | `fable` (its own direct dispatch) |
 
 The tail passes `--model sonnet` on the task-review wrapper and on every re-review dispatch,

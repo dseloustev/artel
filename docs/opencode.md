@@ -50,7 +50,7 @@ prepended `<OPENCODE-HOST-NOTES>` glossary translating it to the v2 host:
   its context files.
 - `$0`/`$1`/`$ARGUMENTS` → the arguments the skill was invoked with.
 - the `question` tool.
-- plan mode → present the plan and wait for approval (OpenCode has no plan-mode tool).
+- presenting a plan → present it in the conversation and wait for approval.
 - the tool names: `read`, `edit`, `write`, `grep`, `shell`.
 
 `disable-model-invocation: true` becomes `metadata.opencode/autoinvoke: false`, so a

@@ -20,8 +20,9 @@ the contract the two skills and `init-branch` follow; the mechanics live in
   a permission prompt, and a session already inside a worktree can switch only to paths there.
   When the host does not ignore that directory, the script adds `/.opencode/worktrees/` to
   `.git/info/exclude` — local to the clone, never committed.
-- **The session moves.** After the move, the current session continues inside the worktree
-  (`EnterWorktree`). Other work goes to a new session in the main checkout.
+- **The session moves.** After the move, the session continues inside the worktree: there is
+  no tool that switches into it, so the skill prints `cd <path> && opencode` and stops. Other
+  work goes to a new session in the main checkout.
 - **Hand-back** returns the branch — with its uncommitted work — to the main checkout and
   removes the worktree. It never merges, never deletes the branch, never uses `--force`.
 - **Main checkout** is the first entry of `git worktree list`. `move-in` runs from there.
@@ -75,9 +76,8 @@ Skills follow these steps; `init-branch` supplies the branch arguments from its 
    ```
 
 4. **Act on `status`** (§6). Only `ok` continues.
-5. **Enter** the worktree: `EnterWorktree` with `path` set to the report's `path`.
-   **OpenCode** has no `EnterWorktree`: print `cd <path> && opencode` and stop — the rest of the
-   work happens in that new session.
+5. **Enter** the worktree: there is no tool that switches the running session into it — print
+   `cd <path> && opencode` and stop. The rest of the work happens in that new session.
 6. Everything after this point runs inside the worktree.
 
 ## 5. Hand-back procedure
@@ -96,11 +96,9 @@ Skills follow these steps; `init-branch` supplies the branch arguments from its 
 3. **Ask.** Confirm once (header `Hand back`), naming the branch the main checkout switches to,
    how many uncommitted files move, and that the worktree is removed. No answer, no hand-back.
 
-4. **Leave** the worktree when the session is inside it: `ExitWorktree` with
-   `action: "keep"`. If it reports that no worktree session is active (the session was started
-   inside the worktree), stop without changes and tell the user to run
-   `/artel-return-from-worktree <TICKET_ID>` from a session in the main checkout. **OpenCode:**
-   the same message.
+4. **Leave** the worktree when the session is inside it: there is no tool that leaves it, so
+   stop without changes and tell the user to run `/artel-return-from-worktree <TICKET_ID>` from
+   a session in the main checkout.
 5. **Run** the same command without `--check` — the session is back in the main checkout.
 6. **Act on `status`** (§6).
 
@@ -126,8 +124,8 @@ worktree on a detached HEAD.
 
 ## 7. Hooks
 
-Artel's hooks start in `$CLAUDE_PROJECT_DIR`, which stays on the main checkout after
-`EnterWorktree`. `hook_common.read_hook_input()` moves each hook into the linked worktree named
+Artel's hooks start in the directory the session runs in — the main checkout, after a move
+into a worktree. `hook_common.read_hook_input()` moves each hook into the linked worktree named
 by the payload's `cwd` when it belongs to the same repository, so the gates check the worktree
 the session actually edits ([hooks/README.md](../hooks/README.md)). A worktree without
 `.artel/config.json` leaves the hooks inert.

@@ -28,7 +28,7 @@ on a call only where it varies:
 | `implementer` — a fix list, first round | `opus` (frontmatter) |
 | `implementer` — a fix list, a round after a failed one (review round 2 or more, checkpoint verify round 2) | `fable` |
 | `reviewer` — a task review (route `full` tasks) | `sonnet` (dispatched) |
-| `reviewer` — a ticket/phase review, round 1, and plan mode | `opus` (frontmatter) |
+| `reviewer` — a ticket/phase review, round 1, and plan review | `opus` (frontmatter) |
 | `reviewer` — a re-review after a fix round | `sonnet` (dispatched) |
 | `reviewer` — `deep-review`'s whole-branch review | `fable` |
 | `seat` | `sonnet` (frontmatter) |

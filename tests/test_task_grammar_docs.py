@@ -108,7 +108,7 @@ class TestGrammarContract(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 # Plan 2 of sub-project 2a: the analyst's requirements, the writers, the
-# reviewer's plan mode, gate 4.2, the dev-path check, sync-phases and
+# reviewer's plan review, gate 4.2, the dev-path check, sync-phases and
 # /artel-tasks add. Prompts have no code path, so a phrase dropped here fails a
 # test instead of a run nobody is watching. Helpers carry a `_w_` prefix so they
 # never shadow a helper of plan 1's class above.
@@ -320,24 +320,24 @@ class TestTasklistWriterWritesTheGrammar(unittest.TestCase):
 
 
 class TestReviewerPlanMode(unittest.TestCase):
-    """Spec §6.2 and §2: the reviewer's plan mode, `run-reviewer --plan`, the acceptance
+    """Spec §6.2 and §2: the reviewer's plan review, `run-reviewer --plan`, the acceptance
     table per requirement, and an ID in code reported as Minor."""
 
     def setUp(self):
         self.agent = _w_flat('agents/artel-reviewer.md')
-        self.plan = _w_between(self.agent, '## Plan mode', '## Review focus')
+        self.plan = _w_between(self.agent, '## Plan review', '## Review focus')
         self.skill = _w_flat('skills/artel-run-reviewer/SKILL.md')
 
     def test_the_role_names_four_modes(self):
         role = _w_between(self.agent, '## Role', '## Phase support')
         for phrase in ('Four modes:', '- **plan** — the tasklist before the approval pause',
-                       'Task mode and plan mode are never assumed'):
+                       'Task mode and plan review are never assumed'):
             self.assertIn(phrase, role)
 
     def test_plan_mode_sits_between_task_mode_and_the_review_focus(self):
         raw = _w_raw('agents/artel-reviewer.md')
-        self.assertLess(raw.index('\n## Task mode\n'), raw.index('\n## Plan mode\n'))
-        self.assertLess(raw.index('\n## Plan mode\n'), raw.index('\n## Review focus'))
+        self.assertLess(raw.index('\n## Task mode\n'), raw.index('\n## Plan review\n'))
+        self.assertLess(raw.index('\n## Plan review\n'), raw.index('\n## Review focus'))
 
     def test_the_eight_points(self):
         for point in ('1. **Delivery.**', '2. **Clarity.**', '3. **Size and route.**',
@@ -365,7 +365,7 @@ class TestReviewerPlanMode(unittest.TestCase):
             self.assertIn(phrase, self.plan)
 
     def test_plan_mode_writes_nothing_else(self):
-        self.assertIn('plan mode edits no spec document, appends to no fix section', self.plan)
+        self.assertIn('plan review edits no spec document, appends to no fix section', self.plan)
 
     def test_the_acceptance_table_is_one_row_per_requirement(self):
         output = _w_between(self.agent, '### Output', '### Deviation check')
@@ -382,9 +382,9 @@ class TestReviewerPlanMode(unittest.TestCase):
             self.assertIn(phrase, focus)
 
     def test_run_reviewer_dispatches_plan_mode(self):
-        for phrase in ('--package <path> | --plan] [--local]', '### Plan mode (`--plan`)',
+        for phrase in ('--package <path> | --plan] [--local]', '### Plan review (`--plan`)',
                        '**Mode: plan**', 'skip `## Record the fix tasks` below',
-                       "In plan mode relay the agent's one line verbatim"):
+                       "In plan review relay the agent's one line verbatim"):
             self.assertIn(phrase, self.skill)
 
 

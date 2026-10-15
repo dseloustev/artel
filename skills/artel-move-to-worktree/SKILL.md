@@ -58,10 +58,8 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/o
 
 ### Step 3: Enter the worktree
 
-Call `EnterWorktree` with `path` set to the worktree path. If the call fails, report the path and
-stop — the move itself is complete.
-
-**OpenCode:** there is no `EnterWorktree`. Print `cd <path> && opencode`, skip Step 4, and report.
+There is no tool that moves the running session into the worktree. Print
+`cd <path> && opencode`, skip Step 4, and report — the move itself is complete.
 
 ### Step 4: Run the post-branch setup commands
 

@@ -4,9 +4,9 @@ description: "Review a branch once with the whole-branch reviewer, write deep-re
 argument-hint: "[ticket-id] [branch] [pr-link] [--local]"
 ---
 
-This skill is a multi-step orchestrator — run the steps in order. It dispatches the `reviewer`
-agent once, never judges the review itself, and never edits the reviewer's output. The checker in
-Step 3b is its only judge.
+This skill is a multi-step orchestrator — run the steps in order. It dispatches the
+`artel-reviewer` agent once, never judges the review itself, and never edits the reviewer's
+output. The checker in Step 3b is its only judge.
 
 `--local` flag: record nothing in the kartoteka task queue — the fix tasks still land in the
 tasklist file. It is the same meaning the flag has in `run-reviewer`. It may appear in any

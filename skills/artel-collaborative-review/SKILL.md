@@ -130,7 +130,7 @@ first and state the cycle. This explanation order is not the import graph's depe
 
 ## The worker
 
-All code analysis is delegated to the `collaborative-reviewer` agent: the ordering pass and
+All code analysis is delegated to the `artel-collaborative-reviewer` agent: the ordering pass and
 every per-file assessment. Never review a file inline, never run a second reviewer, and never
 treat the existence of a report as approval.
 

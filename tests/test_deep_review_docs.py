@@ -43,6 +43,13 @@ class TestSkill(unittest.TestCase):
         self.assertNotIn('artel-review-forecaster', self.text)
         self.assertIn('<specs.dir>/<TICKET_ID>/' + OUTPUT_FILE, self.text)
 
+    def test_the_orchestrator_names_the_prefixed_agent(self):
+        """Wording only — the dispatch site was always correct: the agent is `artel-reviewer`,
+        never a bare `reviewer`."""
+        flat = ' '.join(self.text.split())
+        self.assertIn('It dispatches the `artel-reviewer` agent once', flat)
+        self.assertNotIn('the `reviewer` agent', self.text)
+
     def test_has_no_forecast_machinery(self):
         for phrase in RETIRED_FORECAST:
             with self.subTest(phrase):

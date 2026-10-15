@@ -175,10 +175,15 @@ move to the decision log.
   dispatch; a stronger-model retry after a red task gate. `tech-writer` and `issue-scout` stay
   `opus`: no superpowers equivalent argues for `sonnet`, and their only measurement points the
   other way.
-- **Sub-project 2c: parallel seats.** `parallel.seats` and dispatch by the parser's
-  `data.waves`, after six shared-state collisions are fixed: the `NNN-` report counter, one actor
-  name, the whole-tree review snapshot, every task patching one tasklist, the shared
-  `implementation-notes.md`, and whole-tree codegen.
+- **Sub-project 2c: parallel seats.** The frozen contract is
+  [opencode-parallel.md](opencode-parallel.md), proven against OpenCode 2.0.29. Per-task
+  worktrees ([worktrees.md](worktrees.md)) replace shared-tree workers, and the 2026-10-13
+  per-cycle commits replace wave-level commits, so the six shared-state collisions the earlier
+  plan listed — the `NNN-` report counter, one actor name, the whole-tree review snapshot,
+  every task patching one tasklist, the shared `implementation-notes.md`, whole-tree codegen —
+  are resolved by construction rather than by serializing around them. What remains is the
+  coordinator's seat admission and the worker-mode protections the contract lists as not
+  native.
 - **Follow-up work on a finished ticket.** A lean run on a ticket whose work list has no open
   task stops before arming and says so (0.25.0, `skills/feature-development/heads/lean.md`):
   `generate-tasklist` skips a tasklist that exists, and before the merge such a request was
@@ -1395,3 +1400,18 @@ move to the decision log.
   the endpoint is encoded, not expanded), a competing approval ledger, new CLI verbs for the
   helpers, and resolving anything from the host checkout. Locked in by
   `tests/test_collaborative_review.py`.
+- **2026-10-15 — The OpenCode parallel worker contract is frozen against 2.0.29.** The
+  native capability gate passed on the installed OpenCode 2.0.29 service and the existing
+  bridge: explicit location, model and agent on session create; two workers in separate
+  detached worktrees overlapping with observable start and completion; interrupt; durable
+  status and messages after a deliberately missed event; session permission rules with an
+  ask/reply round trip; agent switch, session move and child inheritance; and the existing
+  hooks and guards running in each worker's root. [opencode-parallel.md](opencode-parallel.md)
+  freezes the assignment/result `schema: 1`, the task states, integration ownership, the
+  `Concurrency:` metadata and the capability boundary. The historical 2c assumptions are
+  replaced: per-task worktrees replace shared-tree workers, and per-cycle commits replace
+  wave-level commits. Capability coverage is exactly 2.0.29 — not every 2.x version — so an
+  OpenCode upgrade re-runs the gate. Rejected: reading V2-wide coverage from one version's
+  proof; treating a native session success or a worker result as task publication. Evidence:
+  the scratch proof and its event captures under `.artel/run/repro/opencode-parallel-proof/`
+  (not committed).

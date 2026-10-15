@@ -572,7 +572,7 @@ class TestContractDoc(unittest.TestCase):
 
 
 class TestOpenCodeBuild(unittest.TestCase):
-    """The generated OpenCode skill keeps the new contract and the model transform."""
+    """The generated OpenCode skill keeps the checker contract."""
 
     @classmethod
     def setUpClass(cls):
@@ -593,12 +593,11 @@ class TestOpenCodeBuild(unittest.TestCase):
     def tearDownClass(cls):
         cls._tmp.cleanup()
 
-    def test_the_generated_skill_carries_the_checker_and_the_resolved_model(self):
+    def test_the_generated_skill_carries_the_checker(self):
         text = flat((self.out / 'skills' / 'artel-deep-review' / 'SKILL.md')
                     .read_text(encoding='utf-8'))
         self.assertIn('/scripts/deep_review.py check', text)
         self.assertIn('/scripts/deep_review.py prepare', text)
-        self.assertIn('/scripts/models.py resolve --site reviewer.deepReview', text)
         self.assertIn('/docs/deep-review.md', text)
         self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', text)
 

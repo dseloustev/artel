@@ -7,13 +7,10 @@ the orchestrator acts from its skill, so a rule that drifts in the prose
 silently stops executing in a run nobody is watching.
 """
 import re
-import sys
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / 'scripts'))
-import build_opencode  # noqa: E402
 
 FD = 'skills/artel-feature-development/'
 
@@ -64,17 +61,6 @@ class TestTaskCommitProcedure(unittest.TestCase):
 
     def test_no_placeholders(self):
         self.assertNotRegex(self.section, r'\b(TBD|TODO)\b')
-
-
-class TestOpencodeTransforms(unittest.TestCase):
-    """Spec §4.4/§8: a reworded prompt must not silently drop an OpenCode rewrite.
-
-    scripts/build_opencode.py exits 2 when a transform's source text is absent
-    from the tree, so this is the guard that makes edits to the tail safe.
-    """
-
-    def test_every_transform_source_is_present(self):
-        self.assertEqual(build_opencode.missing_transforms(ROOT), [])
 
 
 class TestTheRunUsesIt(unittest.TestCase):

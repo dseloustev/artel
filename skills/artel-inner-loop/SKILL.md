@@ -7,8 +7,8 @@ argument-hint: "[paths to scope the gate, comma-separated]"
 disable-model-invocation: true
 ---
 
-Composed by Read, not the Skill tool: `disable-model-invocation: true` hides this skill from
-model-side Skill-tool invocation, and subagents do not inherit skills — the `implementer` agent
+Composed by Read, not the `skill` tool: `disable-model-invocation: true` hides this skill from
+model-side `skill`-tool invocation, and subagents do not inherit skills — the `artel-implementer` agent
 (`${ARTEL_ROOT}/agents/artel-implementer.md`) consumes it by Read-ing this file by path in its
 prompt. User slash-command invocation (`/artel:inner-loop`) still works.
 

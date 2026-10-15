@@ -7,7 +7,7 @@ model: opus
 
 ## Overview
 
-Drives the `vision-writer` agent to produce `<specs.dir>/<TICKET_ID>/vision.md` from `idea.md`
+Drives the `artel-vision-writer` agent to produce `<specs.dir>/<TICKET_ID>/vision.md` from `idea.md`
 and `prd.md`. Runs **after** the analysis interview; consumes the PRD's Resolved Questions so
 nothing is re-asked. The agent drafts all seven sections internally, returns only genuine
 questions (batched); the finished document gets **one wholesale checkpoint**. No per-section

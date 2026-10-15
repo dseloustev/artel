@@ -149,7 +149,7 @@ its output and stop. Note the outcome (ran / skipped) for the report.
 
 ### Step 4: Restore the ticket's context
 
-Invoke `Skill: restore-context` with `TICKET_ID` as its argument. This copies `AGENTS.md`,
+Invoke the `artel-restore-context` skill with `TICKET_ID` as its argument. This copies `AGENTS.md`,
 `CHANGELOG.md`, and that ticket's `<specs.dir>/<TICKET_ID>/` artifacts back out of the
 `.artel/context/` store (`${ARTEL_ROOT}/skills/artel-restore-context/SKILL.md`).
 
@@ -168,7 +168,7 @@ Invoke `Skill: restore-context` with `TICKET_ID` as its argument. This copies `A
 
 ### Step 5: Refresh `AGENTS.md`
 
-Invoke `Skill: agents-md-generator`. Run it unconditionally — even though Step 4 may have just
+Invoke the `artel-agents-md-generator` skill. Run it unconditionally — even though Step 4 may have just
 restored `AGENTS.md` from the store, the refresh reconciles it against the *current* state of the
 codebase (commands, structure, conventions that may have drifted on this branch). Running it
 after the restore means it refines the canonical file rather than starting from nothing.

@@ -66,7 +66,7 @@ class TestSkill(unittest.TestCase):
     def test_hands_off_through_the_review_fix_contract(self):
         self.assertIn('the `question` tool', self.text)
         self.assertIn('## Code Review Fixes', self.text)
-        self.assertIn('Skill: implementer', self.text)
+        self.assertIn('invoke the `artel-implementer` skill', self.text)
         self.assertNotIn('EnterPlanMode', self.text)
 
     def test_no_retired_file_is_named(self):
@@ -178,7 +178,7 @@ class TestApplyRecordsTheFixes(unittest.TestCase):
     def test_the_mirror_runs_before_the_first_implementer(self):
         self.assertNotIn('Do **not** run the tasklist mirror', self.step)
         mirror = self.step.index('python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py')
-        self.assertLess(mirror, self.step.index('Skill: implementer'))
+        self.assertLess(mirror, self.step.index('invoke the `artel-implementer` skill'))
         self.assertIn('data.sections', self.step)
 
     def test_the_batch_opens_with_a_dated_source_heading(self):

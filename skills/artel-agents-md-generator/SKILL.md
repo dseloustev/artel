@@ -173,7 +173,7 @@ When adding skill references inside AGENTS.md:
 
 2. **If no local directory exists**
    ```
-   Skill: agents-md-generator (external)
+   artel-agents-md-generator (external skill)
    ```
 
 Never assume filesystem paths.

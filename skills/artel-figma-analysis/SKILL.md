@@ -31,7 +31,7 @@ If `$0` itself is a `figma.com` URL, treat it as `$1` and resolve the ticket fro
 ## URL Resolution
 
 1. An explicit `$1` URL wins — analysis proceeds even when `idea.md` is missing (the
-   `figma-analyst` agent creates the ticket directory if needed).
+   `artel-figma-analyst` agent creates the ticket directory if needed).
 2. Else Grep `<specs.dir>/<TICKET_ID>/idea.md` for `figma.com/design` and collect every design
    URL.
 3. Other `figma.com` links (`/board/`, `/slides/`, FigJam) are collected separately and passed to
@@ -154,7 +154,7 @@ dashboard) plus its `image-sync:` line when it left any local; artifact path
 
 - **Orchestrator** per the skill-orchestrator contract
   (`${ARTEL_ROOT}/docs/orchestrator-common.md`) — all analysis and writing belongs to the
-  `figma-analyst` agent; this skill only resolves context, relays the handshake, and reports.
+  `artel-figma-analyst` agent; this skill only resolves context, relays the handshake, and reports.
 - The handshake is chatty-head interaction: plain `question` tool calls, no `pause_reason` bracketing —
   the stage runs before any run is armed (`${ARTEL_ROOT}/docs/autonomous-run.md` §13).
 - Minor findings never pause here — they reach the user through the analysis interview.

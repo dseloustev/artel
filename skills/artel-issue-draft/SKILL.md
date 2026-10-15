@@ -25,7 +25,7 @@ code is read (§0, §4).
 
 **Worker that delegates retrieval.** Drafting runs inline, because it talks to the user (§5),
 like `sync-phases`, `generate-idea` and `knowledge`. The one thing it hands off is retrieval:
-the `issue-scout` agent (§4) reads kartoteka, the tracker, Figma and the host code and returns a
+the `artel-issue-scout` agent (§4) reads kartoteka, the tracker, Figma and the host code and returns a
 fact sheet. The scout consumes the read-side contract
 `${ARTEL_ROOT}/docs/knowledge-consultation.md` — §1 (gate, resolved here in §0), §2
 (calls) and §5 (injection rule) — and declares its deviations in its own body: an error ends
@@ -187,7 +187,7 @@ Then collect:
   deadlines are never gaps; neither is a platform the template defaults to All, nor a link the
   source says will come later.
 
-## 4. Gather context — the `issue-scout` agent
+## 4. Gather context — the `artel-issue-scout` agent
 
 Use the `subagent` tool with:
 

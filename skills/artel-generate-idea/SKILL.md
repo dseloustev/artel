@@ -13,7 +13,7 @@ Behavior is driven by `tracker.adapter` (`${ARTEL_ROOT}/docs/config.md`):
 
 - **`"none"` (default)** — no tracker to fetch from. `<specs.dir>/<TICKET_ID>/idea.md` is a local
   file: this skill gathers its content from a description-file argument or directly from the
-  user, the same way the `analysis` skill's input gate does.
+  user, the same way the `artel-analysis` skill's input gate does.
 - **`"jira-mcp"`** — fetch the issue and its comments through
   `<tracker.mcpToolPrefix>jira_get_issue` / `<tracker.mcpToolPrefix>jira_get_issue_comments`.
 - **`"github-issues"`** — fetch the issue and its comments through the `gh` CLI.
@@ -70,7 +70,7 @@ Branch on `tracker.adapter` (`${ARTEL_ROOT}/docs/config.md`):
 **`"none"`:**
 1. If a description-file argument (`$1`) was passed, read it as the source content.
 2. Otherwise, ask the user for a feature description via the `question` tool — the same input gate
-   the `analysis` skill runs: show one concrete example of an actionable description, and reject
+   the `artel-analysis` skill runs: show one concrete example of an actionable description, and reject
    vague input ("make it better", "fix stuff") the same way. Never guess, never write a
    placeholder idea.
 3. There is no tracker, so there is no issue-metadata block (type, status, priority, reporter,

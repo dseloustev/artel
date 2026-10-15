@@ -226,7 +226,7 @@ class TestSkill(unittest.TestCase):
             self.assertIn(phrase, self.doc)
 
     def test_knowledge_search_is_conditional(self):
-        for phrase in ('With `knowledge.adapter: "kartoteka"`', '`Skill: knowledge`',
+        for phrase in ('With `knowledge.adapter: "kartoteka"`', 'the `artel-knowledge` skill',
                        'With the adapter off or absent, skip this step and say nothing about it'):
             self.assertIn(phrase, self.doc)
 

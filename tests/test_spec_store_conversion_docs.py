@@ -145,7 +145,7 @@ class TestOrchestrators(unittest.TestCase):
                 self.assertIn('\n### 1.5 Spec store\n', text)
                 self.assertIn('spec_store.py decide <TICKET_ID> --decided-by {}'.format(name), text)
                 self.assertIn('"store-unavailable"', text)
-                self.assertIn('Skill: migrate-specs', text)
+                self.assertIn('the `artel-migrate-specs` skill', text)
                 self.assertIn('--pending-only', text)
                 self.assertIn('spec_store.py pending add', text)
                 self.assertIn('only `.active_ticket` changed', text)

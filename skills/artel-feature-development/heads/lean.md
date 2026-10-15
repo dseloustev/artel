@@ -11,7 +11,7 @@ No PRD, vision or plan is written here and none is required; one that exists is 
 the chatty part of the run: it is not armed yet, so every question here is a plain
 `question` tool call with no `pause_reason`.
 
-On phase-scoped runs (`PHASE_NUM` set), first invoke `Skill: sync-phases` with `$0` to extract
+On phase-scoped runs (`PHASE_NUM` set), first invoke the `artel-sync-phases` skill with `$0` to extract
 `phase-<N>/tasks.md` from `tasklist.md` when it is missing.
 
 **A finished work list stops the head.** When a tasklist exists (phase-scoped
@@ -48,7 +48,7 @@ and stop, in every mode.
    pause. There is no automatic fix round here: the person reads the findings and decides.
    An exit `2` from either command shows
    `plan check: not run (<error.kind>)` instead.
-2. **Otherwise** → `Skill: generate-tasklist` with `$0`, plus `--local` when this run was
+2. **Otherwise** → invoke the `artel-generate-tasklist` skill with `$0`, plus `--local` when this run was
    invoked with it. Its questions+approval round IS the mini-interview and the one pause — do
    not add another. The writer grounds the work list in `idea.md`, in `vision.md`, `spike.md`
    and `diagnosis.md` when the ticket has them, and in the code, and it writes the task grammar,

@@ -21,7 +21,7 @@ Determine the repo's default branch first (e.g. via `git symbolic-ref refs/remot
 
 ## Pre-flight (run in this skill, not in the agent)
 
-The skill is an orchestrator — it gathers inputs, then delegates writing to the `tech-writer` agent. Collect the following directly:
+The skill is an orchestrator — it gathers inputs, then delegates writing to the `artel-tech-writer` agent. Collect the following directly:
 
 ### 1. Ticket summary
 
@@ -69,7 +69,7 @@ Drop any PR with an empty/whitespace-only description. Keep the first 3–5 non-
 
 If the fetch fails, set `STYLE_SAMPLE` to empty and continue — the agent will fall back to the legacy template described below.
 
-## Delegate to `tech-writer` agent
+## Delegate to `artel-tech-writer` agent
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
 `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
@@ -84,7 +84,7 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 Make a single `subagent` call:
 
 - the `artel-tech-writer` agent
-- `model`: none — the dispatch runs on the `tech-writer` agent's frontmatter tier (`opus`)
+- `model`: none — the dispatch runs on the `artel-tech-writer` agent's frontmatter tier (`opus`)
   (`${ARTEL_ROOT}/docs/agents.md` `## Models`)
 - `description`: `"PR description for <TICKET_ID>"`
 - `prompt`: built from the captured inputs using the template below.
@@ -179,7 +179,7 @@ Write the completed PR description to `<specs.dir>/<TICKET_ID>/pr-description.md
 
 ## Rules
 
-- The skill is an **orchestrator**. It must not write `<specs.dir>/<TICKET_ID>/pr-description.md` itself — only the `tech-writer` agent does.
+- The skill is an **orchestrator**. It must not write `<specs.dir>/<TICKET_ID>/pr-description.md` itself — only the `artel-tech-writer` agent does.
 - Every external dependency (tracker, VCS style sample, local docs) is optional and degrades gracefully. The skill always produces a usable PR description as long as the git diff is available.
 - Do not cache the style sample — fetch fresh on every run, per design.
 - Do not include files the host marks as generated, or lockfiles, in the diff handed to the agent.

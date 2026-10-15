@@ -542,10 +542,10 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
         self.assertIn('fix rounds included', flag)
         head = (ROOT / 'skills/artel-feature-development/heads/full.md').read_text(encoding='utf-8')
         gate4 = head.split('| 4 | `TASKLIST_READY`')[1].split('\n')[0]
-        self.assertIn('`Skill: tasklist` with `$0`, plus `--local`', gate4)
+        self.assertIn('invoke the `artel-tasklist` skill with `$0`, plus `--local`', gate4)
         tail = (ROOT / 'skills/artel-feature-development/tail.md').read_text(encoding='utf-8')
         gate7 = tail.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
-        self.assertIn('`Skill: implementer` (fix tasks from `## Code Review Fixes`, plus'
+        self.assertIn('invoke the `artel-implementer` skill (fix tasks from `## Code Review Fixes`, plus'
                       ' `--local`', gate7)
 
     def test_the_per_task_fix_round_carries_it(self):

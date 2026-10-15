@@ -29,7 +29,7 @@ title under 80 characters. No tracker summary available → the branch name.
 
 ### 2. Description
 
-`<specs.dir>/<TICKET_ID>/pr-description.md` missing (kartoteka path: `spec_store.py exists …` exits 3) → `Skill: pr-description` with `$0` first.
+`<specs.dir>/<TICKET_ID>/pr-description.md` missing (kartoteka path: `spec_store.py exists …` exits 3) → invoke the `artel-pr-description` skill with `$0` first.
 
 ### 3. Commit & push
 

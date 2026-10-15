@@ -67,7 +67,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 - `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/qa.md`
 - `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/summary.md`
 - Runtime-gate evidence, when configured (`runtime.run`, config.md), phase-scoped with the
-  ticket-wide file as read-only fallback — produced by the `run-app` skill
+  ticket-wide file as read-only fallback — produced by the `artel-run-app` skill
 
 ## Output
 
@@ -86,7 +86,7 @@ report for a ticket someone else ran.
 | TASKLIST_READY | Tasklist exists and its status is `TASKLIST_READY` |
 | IMPLEMENT_STEP_OK | All tasks are marked `[x]` — every iteration box (on a task-format tasklist, every step of every `### Task N.M:` block) and every fix-section box; a `## Final Verification` section, when an older tasklist carries one, counts too. The whole-tree gate itself is `CHECKPOINT_OK`. |
 | REVIEW_OK | No blocking review issues |
-| RUNTIME_OK | The host's runtime-gate evidence (produced by the `run-app` skill), phase-scoped when validating a phase with the ticket-wide file as read-only fallback. Green requires gate-mode evidence, not merely an interactive run, or a recorded skip. `runtime.run` (config.md) absent or empty ⇒ recorded `skipped`; missing runtime configuration never blocks a run. |
+| RUNTIME_OK | The host's runtime-gate evidence (produced by the `artel-run-app` skill), phase-scoped when validating a phase with the ticket-wide file as read-only fallback. Green requires gate-mode evidence, not merely an interactive run, or a recorded skip. `runtime.run` (config.md) absent or empty ⇒ recorded `skipped`; missing runtime configuration never blocks a run. |
 | CHECKPOINT_OK | The final gate (`${ARTEL_ROOT}/docs/gates.md` §1): the last checkpoint entry in `.artel/run/<TICKET_ID>/run-journal.md` is green and no file matching `verify.surface` changed since its commit. |
 | DOCS_UPDATED | Summary document exists |
 | AUTOMATION_REMOVED | The transient scaffold artifacts introduced by the host's `runtime.scaffold.add` command (config.md) are gone — i.e. `runtime.scaffold.remove` was run (`/artel:remove-automation`) before merge. Red = the scaffold is still present. Ticket-wide, phase-independent; skip (green with note) for release scope. When `runtime.scaffold` is unconfigured there is nothing to check: recorded `skipped`. |

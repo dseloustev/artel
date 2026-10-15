@@ -6,7 +6,7 @@ the [workflow guide](workflow-guide.md). This document is the lookup table: one 
 six fixed fields.
 
 - **Invocation** is copied verbatim from each skill's SKILL.md frontmatter hint, in slash form
-  (`/artel:<skill-name> ...`). The equivalent `Skill` tool call (`skill: "artel:<skill-name>"`,
+  (`/artel:<skill-name> ...`). The equivalent `skill` tool call (`skill: "artel-<skill-name>"`,
   `args: "..."`) works identically for agents driving these skills programmatically — this is
   noted once, here, not per entry. On OpenCode the same skills are named `artel-<name>`
   (commands `/artel-<name>`); see [opencode.md](opencode.md).
@@ -178,7 +178,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Pauses:** on Major findings (the discrepancy handshake: apply correction / proceed as
   designed / park for designer) and on the manual Overwrite/Abort prompt. Minor findings flow
   into the analysis interview instead.
-- **Notes:** orchestrator (dispatches the `figma-analyst` agent). Conditional gate 0.5 of
+- **Notes:** orchestrator (dispatches the `artel-figma-analyst` agent). Conditional gate 0.5 of
   `feature-development` — auto-skips when the ticket has no `figma.com/design` link or
   `design.figma` is off. Figma MCP absence is a **silent skip**, not an error — the stage is
   runtime-optional (autonomous-run.md §13). A "Park for designer" answer stops the pipeline
@@ -189,7 +189,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Run the upfront requirements interview and draft the ticket's PRD.
 - **Invocation:** `/artel:analysis [ticket-id] or [ticket-id]-[phase] [description-file] [--local]`
 - **Reads:** `idea.md` (or the `$1` description file) as the interview seed;
-  `design-analysis.md`, `diagnosis.md` and `spike.md` when present; the `analyst` agent
+  `design-analysis.md`, `diagnosis.md` and `spike.md` when present; the `artel-analyst` agent
   explores the codebase before asking
   anything, and consults the institutional-knowledge index when `knowledge.adapter` is
   `kartoteka` and its MCP tools are in the session (config.md; `--local` forces this off for
@@ -201,7 +201,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   (autonomous-run.md §1); the input gate stops and asks (never guesses) when neither `idea.md`
   nor a description file exists, or the description is too vague.
 - **Notes:** orchestrator per the skill-orchestrator contract — delegates all PRD writing to the
-  `analyst` agent. Never reads `vision.md`; phase scope and never-overwrite rules live in
+  `artel-analyst` agent. Never reads `vision.md`; phase scope and never-overwrite rules live in
   ticket-parsing.md §4–§5 and §7. On a question about a layout or a step flow an option may
   carry a `preview` — a monospace sketch, at most 12 lines of 60 columns — on single-choice
   questions only, and only when the ticket has no `DESIGN_ANALYZED` design analysis.
@@ -242,7 +242,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Pauses:** never — this skill never asks the user (autonomous-run.md §3); questions are
   recorded with defaults and research proceeds on them. With `--question` it asks only what the
   ticket leaves open about the question itself.
-- **Notes:** orchestrator (dispatches the `researcher` agent in a phased
+- **Notes:** orchestrator (dispatches the `artel-researcher` agent in a phased
   extract-questions-then-research model); refuses per the phase-ambiguity rule
   (ticket-parsing.md §5) when `PHASE_NUM` is unset but `phase-*/` subfolders already exist;
   never overwrites the ticket-wide `research.md` from a phase-scoped run; read-only — no code
@@ -262,7 +262,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   marked `(provisional — Q<n>)`.
 - **Pauses:** never — proceeds on proposed defaults, marking affected decisions provisional
   (autonomous-run.md §3).
-- **Notes:** orchestrator (dispatches the `planner` agent); refuses per the phase-ambiguity rule
+- **Notes:** orchestrator (dispatches the `artel-planner` agent); refuses per the phase-ambiguity rule
   (ticket-parsing.md §5); re-invoked by `feature-development`'s `PLAN_GROUNDED` gate (3.5) to
   resolve `plan_check.py` findings, and at the approval-pause fold-back when an answer overrides
   a recorded default.
@@ -271,12 +271,12 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Break the approved plan down into small, trackable checkbox tasks.
 - **Invocation:** `/artel:tasklist [ticket-id] or [ticket-id]-[phase] [--local]`
-- **Reads:** the plan and its upstream inputs, resolved internally by the `task-planner` agent.
+- **Reads:** the plan and its upstream inputs, resolved internally by the `artel-task-planner` agent.
 - **Writes:** (via the agent) `tasklist.md` (or the phase tasks file) with
   status `TASKLIST_READY` and HITL tags (autonomous-run.md §4); unresolved questions to
   `.artel/run/<TICKET_ID>/open-questions.md` (`from: tasklist`).
 - **Pauses:** never.
-- **Notes:** thin orchestrator — the `task-planner` agent owns input/output paths, format, and
+- **Notes:** thin orchestrator — the `artel-task-planner` agent owns input/output paths, format, and
   rules, so this skill does not restate them. Requires the full PRD/plan chain; a work list
   written from the idea alone is `generate-tasklist`'s, not this skill's.
 
@@ -360,7 +360,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   code), on no-progress between iterations, and on exceeding `MAX_VERIFY_ITERATIONS`
   (autonomous-run.md §5).
 - **Notes:** worker, not orchestrator — a fixed procedure, manual/composed only
-  (`disable-model-invocation`); the `implementer` agent consumes it by reading this file, since
+  (`disable-model-invocation`); the `artel-implementer` agent consumes it by reading this file, since
   subagents do not inherit skills. Empty `verify.fast` or `verify.test` makes that half
   `skipped`, never `green`; the full gate (`verify.commands`) is the checkpoint's, never this
   loop's. Findings outside the
@@ -395,7 +395,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   the batch as fix rows in the task queue unless `--local` or the adapter rules it out
   ([task-queue.md](task-queue.md) §6).
 - **Pauses:** never.
-- **Notes:** orchestrator (dispatches the `reviewer` agent). Capped at `MAX_REVIEW_ROUNDS`
+- **Notes:** orchestrator (dispatches the `artel-reviewer` agent). Capped at `MAX_REVIEW_ROUNDS`
   (autonomous-run.md §5) — the cap is enforced by the calling orchestrator, which loops it
   against implementer fix rounds until clean or capped. Task mode is the `full` route's review
   of autonomous-run.md §16 (every task with `review.perTask: true`; one fix round,
@@ -403,7 +403,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   review); on a task-format tasklist it grades the whole task block and the requirements its
   `Implements:` names. The orchestrator seat is opt-in — `seat.enabled` defaults to `false`
   (autonomous-run.md §18). `deep-review` drives
-  the same `reviewer` agent in standalone mode once, for a separate, non-pipeline whole-branch
+  the same `artel-reviewer` agent in standalone mode once, for a separate, non-pipeline whole-branch
   review-and-fix workflow.
 
 ### run-app
@@ -420,7 +420,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   captured output).
 - **Notes:** treats `runtime.run` as an opaque, self-reporting black box (the same
   `{command, exit_code, output}` evidence envelope `inner-loop` uses). **`--gate`** (pipeline
-  use) is the only mode the `validator` agent's `RUNTIME_OK` gate treats as authoritative;
+  use) is the only mode the `artel-validator` agent's `RUNTIME_OK` gate treats as authoritative;
   interactive mode launches for inspection and leaves the app running. Absent/empty
   `runtime.run` → `skipped (not configured)`, never a blocker. Callers must not trust a stale
   green — re-run unless the observation postdates the last relevant change. UI driving is out
@@ -444,11 +444,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Generate a QA plan and verdict for a ticket, phase, or release.
 - **Invocation:** `/artel:qa [ticket-id] or [ticket-id]-[phase] or R-[release-id]`
-- **Reads:** scope and paths resolved internally by the `qa` agent (release / ticket / phase).
+- **Reads:** scope and paths resolved internally by the `artel-qa` agent (release / ticket / phase).
 - **Writes:** (via the agent) `qa.md` (or its phase-scoped variant; release scope:
   `<specs.releases>/<RELEASE_ID>/qa.md`) with a verdict.
 - **Pauses:** never — generates a verdict rather than pausing on it.
-- **Notes:** orchestrator (dispatches the `qa` agent). Not a pipeline stage since 0.18.0: no
+- **Notes:** orchestrator (dispatches the `artel-qa` agent). Not a pipeline stage since 0.18.0: no
   gate calls it, no fix round follows it; the reviewer's `## PRD acceptance criteria` table is
   the pipeline's record of criteria against evidence. Release identifiers start with `R-` and
   are passed through as-is.
@@ -457,12 +457,12 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Report which quality gates have passed for a ticket, phase, or release.
 - **Invocation:** `/artel:validate [ticket-id] or [ticket-id]-[phase] or R-[release-id]`
-- **Reads:** the gate artifacts the `validator` agent already knows about (`PRD_READY`,
+- **Reads:** the gate artifacts the `artel-validator` agent already knows about (`PRD_READY`,
   `PLAN_APPROVED`, `TASKLIST_READY`, `IMPLEMENT_STEP_OK`, `REVIEW_OK`, `RUNTIME_OK`,
   `CHECKPOINT_OK`, `DOCS_UPDATED`, `AUTOMATION_REMOVED`).
 - **Writes:** nothing — a read-only status report.
 - **Pauses:** never.
-- **Notes:** orchestrator (dispatches the `validator` agent). Not a pipeline stage since 0.18.0:
+- **Notes:** orchestrator (dispatches the `artel-validator` agent). Not a pipeline stage since 0.18.0:
   `feature-development`'s completion gate confirms the same facts itself (autonomous-run.md §7)
   and routes a red one back once; this is the à-la-carte report.
   Unconfigured gates (`verify.commands` empty, no `runtime.run`) report `skipped`, never
@@ -473,7 +473,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Update project documentation and the CHANGELOG based on the ticket's shipped
   work.
 - **Invocation:** `/artel:docs-update [ticket-id] or [ticket-id]-[phase]`
-- **Reads:** artifact inputs resolved internally by the `tech-writer` agent.
+- **Reads:** artifact inputs resolved internally by the `artel-tech-writer` agent.
 - **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/summary.md` (or its phase-scoped
   variant) plus a `CHANGELOG.md` entry.
 - **Pauses:** never.
@@ -499,7 +499,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   file is always regenerated, never skipped, because the branch diff is the input and a file
   from earlier in the run is stale by definition. `PHASE_NUM` is parsed for input compatibility
   only; the description always covers the whole branch. The skill gathers all inputs; only the
-  `tech-writer` agent writes the file.
+  `artel-tech-writer` agent writes the file.
 
 ### pr-create
 
@@ -597,7 +597,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 ### deep-review
 
-- **Purpose:** Review a branch once with the `reviewer` agent — the whole-branch review before a
+- **Purpose:** Review a branch once with the `artel-reviewer` agent — the whole-branch review before a
   pull request — write `deep-review.md`, and offer to work its fixes.
 - **Invocation:** `/artel:deep-review [ticket-id] [branch] [pr-link] [--local]`
 - **Reads:** the host's declared `specs.dir` (`.artel/config.json`) and the ticket directory;
@@ -627,7 +627,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `Nothing to apply`; a missing artifact and an invalid one share one bounded reviewer retry
   (at most two reviewer attempts), while an empty report (`empty_input`) and checkout drift are
   never retried; the skill never edits the reviewer's output. Applying fixes means
-  `Skill: implementer` once per appended task, then `verify.commands` once; no re-review loop —
+  invoke the `artel-implementer` skill once per appended task, then `verify.commands` once; no re-review loop —
   re-run the skill to re-review. `--local` records nothing in the task queue. Ticket-wide only
   (phase suffix discarded). No PR link → no PR Compliance section in the report.
 
@@ -651,7 +651,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   is exactly `reviewed` advances; a changed base/head/inventory blocks until the person
   explicitly confirms a rebuild.
 - **Notes:** standalone GitHub utility, read-only on GitHub, no ticket, queue or spec-store
-  context. Orchestrator: all code analysis goes to the read-only `collaborative-reviewer` agent
+  context. Orchestrator: all code analysis goes to the read-only `artel-collaborative-reviewer` agent
   (`prepare` orders the complete partition, `file` assesses the current file, `followup` answers
   a question); the skill owns the conversation and the Markdown checklist, records each report's
   clickable link, assessment and unresolved findings before presenting it, and a saved report
@@ -709,7 +709,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `ticket.pattern`, `ticket.projectKey` (config.md); the type's template — `.artel/templates/issue-draft-<type>.md`, else
   `.artel/templates/issue-draft.md`, when the host provides one, else the skill's
   `assets/templates/<type>.template.md`; under `"jira-mcp"`, the skill's
-  `references/jira-wiki-markup.md`; context through the `issue-scout` agent: kartoteka (consultation contract, budget 1 · ≤ 5 ·
+  `references/jira-wiki-markup.md`; context through the `artel-issue-scout` agent: kartoteka (consultation contract, budget 1 · ≤ 5 ·
   ≤ 10), the tracker (≤ 6 issues), Figma frame names (≤ 6 links) and the host code (≤ 20
   lookups); `--local` leaves only the code on.
 - **Writes:** a draft file (user-supplied path, or `issue-draft-<slug>.md` in the working

@@ -36,7 +36,7 @@ too vague to act on ("make it better", "fix stuff"), reject it the same way. Nev
 placeholder PRD.
 
 `idea.md`'s origin depends on `tracker.adapter` (`${ARTEL_ROOT}/docs/config.md`): with the
-default `none`, it is a local file the operator or the `generate-idea` skill produces at this path;
+default `none`, it is a local file the operator or the `artel-generate-idea` skill produces at this path;
 other adapters may have already populated it from the tracker.
 
 ### Phase 1: Explore, then open the interview
@@ -148,4 +148,4 @@ Display the summary. Report status `PRD_READY` and the resolved-question count t
   phase; never overwrite ticket-wide `prd.md` from a phase run.
 - **Priority order** for the interview: scope > security/privacy > UX > technical details.
 - **This skill does not read `vision.md`** — the vision is generated after the PRD (see the
-  `generate-vision` skill).
+  `artel-generate-vision` skill).

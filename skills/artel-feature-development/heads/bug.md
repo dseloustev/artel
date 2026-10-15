@@ -14,7 +14,7 @@ This is the chatty part of the run: it is not armed yet, so every question here 
 
 | # | Gate | Action (skip if the artifact exists) |
 |---|------|--------------------------------------|
-| B1 | `DIAGNOSED` — `diagnosis.md` has status `DIAGNOSED` or `DIAGNOSED_STRUCTURAL` (a `NOT_REPRODUCED` one goes to its question, below) | `Skill: debugging` with `$0 --diagnose`, plus `--local` when this run was invoked with it |
+| B1 | `DIAGNOSED` — `diagnosis.md` has status `DIAGNOSED` or `DIAGNOSED_STRUCTURAL` (a `NOT_REPRODUCED` one goes to its question, below) | invoke the `artel-debugging` skill with `$0 --diagnose`, plus `--local` when this run was invoked with it |
 | B2 | the work list — `tasklist.md` exists | by the diagnosis' status, below |
 
 **Gate B1.** The debugging skill's diagnose mode runs `${ARTEL_ROOT}/docs/debugging.md`
@@ -29,7 +29,7 @@ evidence, the fix origin, and whether the fault is structural. Its last line is
 
 | Status | Then |
 |---|---|
-| `DIAGNOSED` | Gate B2: `Skill: generate-tasklist` with `$0`, plus `--local` when this run was invoked with it. The writer reads the diagnosis: its first task writes the failing test for the reproduction and names it in `Test:`, and the fix goes at the fix origin and nowhere else. The skill's approval round is the run's one pause — add none. |
+| `DIAGNOSED` | Gate B2: invoke the `artel-generate-tasklist` skill with `$0`, plus `--local` when this run was invoked with it. The writer reads the diagnosis: its first task writes the failing test for the reproduction and names it in `Test:`, and the fix goes at the fix origin and nowhere else. The skill's approval round is the run's one pause — add none. |
 | `DIAGNOSED_STRUCTURAL` | A raise (`SKILL.md` step 3, "The ratchet"): rewrite `sizing.json`, print `Size raised: bug → architectural — full head. Reason: <reason>.` with the diagnosis' structural condition as the reason, then read `${ARTEL_ROOT}/skills/artel-feature-development/heads/full.md` and run it. Its PRD interview starts from the diagnosis. |
 | `NOT_REPRODUCED` | Ask (plain `question` tool call): **Give more detail** — run gate B1's skill again with what the person adds / **Treat it as a bounded change** — rewrite `sizing.json` (`size` `bounded`, `head` `lean`, `decided_by` `flag`) and read `${ARTEL_ROOT}/skills/artel-feature-development/heads/lean.md` / **Stop**. Headless: print the diagnosis' path and stop. |
 

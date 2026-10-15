@@ -147,7 +147,7 @@ class TestOrchestrators(unittest.TestCase):
     def test_gate_nine_is_gone_and_gate_ten_runs_once(self):
         for text in (self.fd, self.tail):
             self.assertNotIn('| 9 |', text)
-            self.assertNotIn('Skill: qa', text)
+            self.assertNotIn('`artel-qa` skill', text)
             self.assertNotIn('QA gate 9', text)
         row = self.tail.split('| 10 | `DOCS_UPDATED` |')[1].split('\n')[0]
         self.assertIn('once per ticket', row)
@@ -163,7 +163,7 @@ class TestOrchestrators(unittest.TestCase):
 
     def test_the_completion_gate_is_a_checklist_not_a_dispatch(self):
         gate = self.tail.split('## Completion gate')[1].split('## PR description')[0]
-        self.assertNotIn('Skill: validate', gate)
+        self.assertNotIn('`artel-validate` skill', gate)
         for fact in ('PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK',
                      'RUNTIME_OK', 'CHECKPOINT_OK', 'DOCS_UPDATED', 'AUTOMATION_REMOVED'):
             self.assertIn(fact, gate)
@@ -267,7 +267,7 @@ class TestSurroundingDocsConversion(unittest.TestCase):
                 text = read(rel)
                 self.assertNotIn('MAX_QA_ROUNDS', text)
                 self.assertNotIn('RELEASE_READY', text)
-                self.assertNotIn('Skill: qa', text)
+                self.assertNotIn('`artel-qa` skill', text)
                 self.assertNotIn('iteration-<i>-full', text)
 
     def test_changelog_records_the_conversion(self):

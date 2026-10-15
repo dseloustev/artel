@@ -35,7 +35,7 @@ fault no test can reach gets a reproduction script under `.artel/run/repro/`, wh
 
 ## 3. Ask the institutional record
 
-With `knowledge.adapter: "kartoteka"`, add one search to the investigation: `Skill: knowledge`
+With `knowledge.adapter: "kartoteka"`, add one search to the investigation: the `artel-knowledge` skill
 with the error text or the component's name, for prior tickets, reviews and decisions on the
 same area. Its search budget and its ⚠ NON-CURRENT rule apply. What comes back is evidence for
 `docs/debugging.md` §2.1 and §2.2 — a place to look, a pattern that worked — never a fix to

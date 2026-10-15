@@ -150,7 +150,7 @@ flip each entry to `- **Status:** resolved: "<answer>"`. A missing file means no
 
 ## 4. AFK / HITL task tags
 
-Tasklist writers (`task-planner`, `tasklist-writer` agents) tag tasks at generation time:
+Tasklist writers (`task-planner`, `artel-tasklist-writer` agents) tag tasks at generation time:
 
 - Untagged task ⇒ **AFK**: runs without any human interaction.
 - A `[HITL: <reason>]` tag ⇒ the orchestrator pauses **before starting** the task, sets
@@ -210,17 +210,17 @@ opens with one more option, **Debug it here first**: a task aborted when `MAX_VE
 ran out, a checkpoint still red after `MAX_CHECKPOINT_VERIFY_ROUNDS`, and the runtime gate's
 second red from an app-code error. Not the review cap, not an environment error, not
 `MAX_TOTAL_CORRECTION_ROUNDS` or the wall clock; a headless run journals and stops as before.
-The option runs the `debugging` skill on the red evidence while `pause_reason` stays
+The option runs the `artel-debugging` skill on the red evidence while `pause_reason` stays
 `cap-escalation`. Fixed → the orchestrator journals `debugged here: <root cause> — <files>`,
 adds the files to `deviation_files` (§2) and re-runs the gate that was red; green resets that
 loop's counter as a resume with guidance does. Red again → the question is asked again without
 the option: `MAX_DEBUG_HERE_ATTEMPTS = 1`, one attempt per halt. The procedure is in the
-`feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Debug it here first`).
+`artel-feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Debug it here first`).
 
 **Step-up rounds.** A fix round that follows a failed one runs one tier up, on `fable`: the
 review loop's fix round whose findings come from a `review.md` with `**Review round:**` 2 or
 more, and a checkpoint's second `## Verify Fixes` round. The orchestrator passes the
-`implementer` skill `--model fable`. A fix list's first round runs on `opus`, whatever the
+`artel-implementer` skill `--model fable`. A fix list's first round runs on `opus`, whatever the
 task's route — a fix list is run-level correction, not a task dispatch. Rounds that exist once —
 the per-task review's fix round, the runtime retry, review fix round 1 — keep the default, and a
 stepped-up round counts toward `MAX_TOTAL_CORRECTION_ROUNDS` like any other.
@@ -254,7 +254,7 @@ open `## Code Review Fixes` box), `RUNTIME_OK` (green or skipped, newer than the
 `DOCS_UPDATED` (`summary.md` exists — written on the last phase before its checkpoint, so that
 checkpoint commit carries the docs; `skipped (no PRD)` when the ticket has no PRD, because the
 docs stage runs only with one) and `AUTOMATION_REMOVED`; the table is in the
-`feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Completion gate`). A
+`artel-feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Completion gate`). A
 fact that reads `skipped` is green. Those readings are keyed on what exists for the ticket,
 never on the head that ran. No
 agent is dispatched: `/artel:validate` is à la carte. The final report always includes the
@@ -422,7 +422,7 @@ stopping the run) commits the in-flight cycle as
 are orchestrator-owned and pre-authorized the same way, are journaled as external actions, and
 **never push on their own**: they reach `origin` at the next phase-end checkpoint, or at
 `pr-create`'s close-out. The trigger table, the subject rules and the staging discipline are in the
-`feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Task commits`).
+`artel-feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Task commits`).
 
 **A push follows a build gate, never precedes it.** The checkpoint procedure's step 6 pushes only
 when step 3's verdict was green or `skipped` — a red gate runs its capped fix rounds instead, and a
@@ -532,17 +532,17 @@ The `full` wrapper, per iteration-task dispatch:
    .artel/run/<TICKET_ID>/reports/NNN-<slug>.diff`, `NNN-<slug>` taken from the completion's
    `Report:` path so the three files pair up. The one-line output carries the file count:
    `0 file(s)` → journal `task review: skipped (empty diff)` and move on.
-3. **Review** — `Skill: run-reviewer` with `$0 --task "<task title>" --report <report path>
+3. **Review** — invoke the `artel-run-reviewer` skill with `$0 --task "<task title>" --report <report path>
    --package <diff path>` (plus `--local` on a run that holds it); on a task-format tasklist
    `<task title>` is the task heading's text after `### ` (`Task 2.3: Show the purchase success
-   dialog`). The `reviewer` agent's task
+   dialog`). The `artel-reviewer` agent's task
    mode writes `NNN-<slug>-review.md` and appends every Blocking / Important finding and every
    spec gap as a task under `## Code Review Fixes` in the phase-aware tasklist — the same
    section and format the phase review uses, so nothing downstream learns a new shape —
    beneath a `### task-gate-<NNN>` source heading, and `run-reviewer` records the batch in the
    task queue before step 4's round starts (`docs/task-queue.md` §6).
 4. **One fix round** — when it appended fix tasks: increment `counters.correction_rounds` (the
-   `MAX_TOTAL_CORRECTION_ROUNDS` check applies), then loop `Skill: implementer` naming
+   `MAX_TOTAL_CORRECTION_ROUNDS` check applies), then loop the `artel-implementer` skill naming
    `## Code Review Fixes` (plus `--local` on a run that holds it) until no fix task from this
    review is left unchecked (one round = the whole list, counted once).
    `MAX_TASK_REVIEW_ROUNDS = 1`: there is no per-task re-review — a fix task the round could
@@ -636,7 +636,7 @@ their contract.
 The head files sit beside the skill, in `../skills/artel-feature-development/`. The full head runs
 gates 0.5–4.5 with the plan review and ends in the plan+tasklist pause. The lean head takes an
 existing tasklist with open tasks as the work list, or has `generate-tasklist` write one, and
-confirms it once. The bug head has the `debugging` skill diagnose first (`diagnosis.md`) and
+confirms it once. The bug head has the `artel-debugging` skill diagnose first (`diagnosis.md`) and
 writes the work list from the diagnosis. Each ends in one approval; then the run is armed (§2)
 and the tail is the same for every one of them.
 

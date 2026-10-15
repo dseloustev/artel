@@ -119,7 +119,7 @@ Save screenshots (section overviews + every frame cited in a Major finding) via 
 tool's curl instructions into `<specs.dir>/<TICKET_ID>/design/` with kebab-case names
 (`desktop-accounts-overview.png`); reference them with relative links (`design/<name>.png`). On rate
 limiting: pace calls, retry once, then degrade to deep links with a note in artifact §6. On the
-kartoteka path `design-analysis.md` is stored (spec-storage.md §4.1). The `figma-analysis` skill
+kartoteka path `design-analysis.md` is stored (spec-storage.md §4.1). The `artel-figma-analysis` skill
 sweeps the `design/` screenshots into kartoteka after you return, and the document's links to them
 are unchanged.
 

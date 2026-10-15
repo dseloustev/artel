@@ -3,7 +3,7 @@
 *Status: draft v0.1 · 2026-08-01*
 
 How implementation-time deviations from an approved plan are recorded, escalated, and reviewed.
-Referenced by the `implementer` agent and skill (writers), the `reviewer` agent (verifier), and
+Referenced by the `artel-implementer` agent and skill (writers), the `artel-reviewer` agent (verifier), and
 the `feature-development` orchestrator (reporting). Do not duplicate these rules in
 agent prompts — link to this file instead.
 
@@ -125,7 +125,7 @@ report (`.artel/run/<TICKET_ID>/reports/`, [autonomous-run.md](autonomous-run.md
 
 ## 6. Review duties
 
-In ticket mode the `reviewer` agent:
+In ticket mode the `artel-reviewer` agent:
 
 - Reads `implementation-notes.md` (missing file = no deviations recorded — not an error).
 - Verifies each entry is justified and matches the actual diff.

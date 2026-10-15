@@ -361,7 +361,7 @@ using the validated `data.tasks` counts:
    display it and continue: the tasks are in the file. Display
    `Recorded <n> fix rows in the task queue.`
 
-3. For each appended task, in order: `Skill: implementer` with `<TICKET_ID>` (plus `--local`
+3. For each appended task, in order: invoke the `artel-implementer` skill with `<TICKET_ID>` (plus `--local`
    when this run was invoked with it), naming `## Code Review Fixes` in the invocation — the
    implementer treats a dispatch that names that section as file-scan work, takes the first
    incomplete box under it, and on the queue path keeps its row current. On a `HITL:` or

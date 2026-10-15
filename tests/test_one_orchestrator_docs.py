@@ -397,7 +397,7 @@ class TestTail(unittest.TestCase):
                        'A tasklist is mirrored by the skill that writes it, and only when it '
                        'writes it',
                        'For a task-format tasklist this step is also the first mirror when '
-                       '`Skill: tasklist` wrote it',
+                       'the `artel-tasklist` skill wrote it',
                        'The step is create-only and idempotent'):
             self.assertIn(phrase, opening)
 
@@ -412,12 +412,12 @@ class TestTail(unittest.TestCase):
         gate = between(self.tail, '## Completion gate', '## PR description and the PR gate')
         for fact in self.FACTS:
             self.assertEqual(gate.count('| `' + fact + '`'), 1, fact)
-        self.assertNotIn('Skill: validate', gate)
+        self.assertNotIn('`artel-validate` skill', gate)
         close = between(self.tail, '## PR description and the PR gate',
                         '## Description-file sync')
-        for phrase in ('`Skill: pr-description` with `$0`', '**Always regenerate:**',
+        for phrase in ('invoke the `artel-pr-description` skill with `$0`', '**Always regenerate:**',
                        '**PR gate:** in `plan-gate`, pause first',
-                       'In `yolo`, proceed without pausing', '`Skill: pr-create` with `$0`',
+                       'In `yolo`, proceed without pausing', 'invoke the `artel-pr-create` skill with `$0`',
                        'is **not** a gate failure', '`completed: true`, `run_active: false`'):
             self.assertIn(phrase, close)
         report = between(self.tail, '## Final report', '## Checkpoint commits & pushes')
@@ -479,7 +479,7 @@ class TestFullHead(unittest.TestCase):
 
     def test_the_analyst_gets_the_diagnosis_and_the_spike(self):
         row = between(self.raw, '\n| 1 | `PRD_READY`', '\n| 2 |')
-        self.assertIn('`Skill: analysis` with `$0 $1`, plus `--local` when this run was invoked '
+        self.assertIn('invoke the `artel-analysis` skill with `$0 $1`, plus `--local` when this run was invoked '
                       'with it', row)
         self.assertIn('When the ticket has a `diagnosis.md` or a `spike.md`, the skill hands each '
                       'to the analyst as an input beside `idea.md`.', row)
@@ -578,7 +578,7 @@ class TestLayout(unittest.TestCase):
     def test_gate_0_is_every_run_s_import(self):
         step = between(self.skill, '### 2. Import the ticket', '### 3. Size the work')
         for phrase in ('in every gate of this skill — the one below and every gate of a head file',
-                       '| 0 | `IDEA_READY` — `idea.md` exists | `Skill: generate-idea` with '
+                       '| 0 | `IDEA_READY` — `idea.md` exists | invoke the `artel-generate-idea` skill with '
                        '`$0 $1`, under **every** adapter',
                        'Every run imports: step 3 sizes the work from `idea.md` and every head '
                        'starts from it'):
@@ -732,7 +732,7 @@ class TestSizing(unittest.TestCase):
 
     def test_the_spike_outcome(self):
         for phrase in ('**The spike outcome.** A `spike` reads no head file.',
-                       '`Skill: researcher` with `$0 --question`, plus `--local` when this run '
+                       'the `artel-researcher` skill with `$0 --question`, plus `--local` when this run '
                        'was invoked with it',
                        '`<specs.dir>/<TICKET_ID>/spike.md`',
                        '`Spike answered: <one-line answer> — <path>`',
@@ -785,7 +785,7 @@ class TestLeanHead(unittest.TestCase):
                        'No PRD, vision or plan is written here and none is required; one that '
                        'exists is used.',
                        'every question here is a plain `question` tool call with no `pause_reason`',
-                       'first invoke `Skill: sync-phases` with `$0`'):
+                       'first invoke the `artel-sync-phases` skill with `$0`'):
             self.assertIn(phrase, opening)
 
     def test_a_finished_work_list_stops_the_head(self):
@@ -804,7 +804,7 @@ class TestLeanHead(unittest.TestCase):
 
     def test_two_branches_and_no_third(self):
         self.assertIn('1. **Tasklist with incomplete `- [ ]` tasks exists**', self.ladder)
-        self.assertIn('2. **Otherwise** → `Skill: generate-tasklist` with `$0`, plus `--local` '
+        self.assertIn('2. **Otherwise** → invoke the `artel-generate-tasklist` skill with `$0`, plus `--local` '
                       'when this run was invoked with it.', self.ladder)
         self.assertIn('Its questions+approval round IS the mini-interview and the one pause — do '
                       'not add another.', self.ladder)
@@ -916,7 +916,7 @@ class TestBugHead(unittest.TestCase):
         self.assertEqual(re.findall(r'(?m)^\| (B\d) \|', gates), ['B1', 'B2'])
         for phrase in ('| B1 | `DIAGNOSED` — `diagnosis.md` has status `DIAGNOSED` or '
                        '`DIAGNOSED_STRUCTURAL`',
-                       '`Skill: debugging` with `$0 --diagnose`, plus `--local` when this run '
+                       'invoke the `artel-debugging` skill with `$0 --diagnose`, plus `--local` when this run '
                        'was invoked with it',
                        '| B2 | the work list — `tasklist.md` exists |'):
             self.assertIn(phrase, gates)
@@ -937,7 +937,7 @@ class TestBugHead(unittest.TestCase):
 
     def test_diagnosed_writes_the_work_list_from_the_diagnosis(self):
         row = self.row('DIAGNOSED')
-        for phrase in ('Gate B2: `Skill: generate-tasklist` with `$0`, plus `--local` when this '
+        for phrase in ('Gate B2: invoke the `artel-generate-tasklist` skill with `$0`, plus `--local` when this '
                        'run was invoked with it',
                        'its first task writes the failing test for the reproduction and names it '
                        'in `Test:`',
@@ -1007,7 +1007,7 @@ class TestTailRules(unittest.TestCase):
         for phrase in ('Runs only when a PRD exists for the ticket, at either scope',
                        '`spec_store.py exists`',
                        'journal `DOCS_UPDATED: skipped (no PRD)` and go on',
-                       'With one: `Skill: docs-update` with `<TICKET_ID>` (ticket-wide)',
+                       'With one: invoke the `artel-docs-update` skill with `<TICKET_ID>` (ticket-wide)',
                        'once per ticket, on the last phase only, before its 10.7 checkpoint',
                        '`DOCS_UPDATED: deferred to the final phase`'):
             self.assertIn(phrase, row)
@@ -1082,7 +1082,7 @@ class TestDebugHere(unittest.TestCase):
 
     def test_what_the_option_runs(self):
         flat_section = re.sub(r'\s+', ' ', self.section)
-        for phrase in ('`Skill: debugging` with the red evidence as its argument: the failing '
+        for phrase in ('invoke the `artel-debugging` skill with the red evidence as its argument: the failing '
                        "stage, its first error lines, the path of the task's report",
                        '`pause_reason` stays `"cap-escalation"` throughout',
                        'The skill never commits and never writes run state or the journal'):

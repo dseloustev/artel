@@ -88,7 +88,7 @@ fall back to what you have" shape as the optional code-symbol index above it: wh
 gate says do not consult, the codebase scan is the whole research, exactly as today.
 
 The `--local` half of that gate reaches you in the **Knowledge consultation** field of the
-Context block the `researcher` skill sends — in the question-extraction prompt and again in
+Context block the `artel-researcher` skill sends — in the question-extraction prompt and again in
 the re-dispatch message. An absent field means it was not passed; you have no other way to see
 it, so never infer it.
 

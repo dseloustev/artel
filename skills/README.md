@@ -26,5 +26,5 @@ hook injects at turn one (a routing table over every other skill —
 conversational front doors to kartoteka's read and write sides, under the same
 `knowledge.adapter` gate the pipeline uses, and `collaborative-review` walks a GitHub pull
 request one changed file at a time — a standalone, read-only utility that dispatches the
-`collaborative-reviewer` agent for every analysis pass and keeps its approval checklist under
+`artel-collaborative-reviewer` agent for every analysis pass and keeps its approval checklist under
 `.artel/run/collaborative-review/`.

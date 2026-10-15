@@ -5,7 +5,7 @@ notice is in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).*
 
 The discipline artel applies whenever something behaves wrongly: find the cause, then fix it
 once. Three readers follow it — the `/artel:debugging` skill in a person's session, the
-`implementer` agent inside a run, and the `reviewer` when it checks a fix round (§7).
+`artel-implementer` agent inside a run, and the `reviewer` when it checks a fix round (§7).
 
 ## 1. The rule
 

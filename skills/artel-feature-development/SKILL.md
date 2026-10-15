@@ -60,7 +60,7 @@ Every other run — new, or interrupted inside a head — goes on to step 2.
 
 ### 0. Config gate
 
-Read `.artel/config.json` per `${ARTEL_ROOT}/docs/config.md`. Missing → `Skill: setup`
+Read `.artel/config.json` per `${ARTEL_ROOT}/docs/config.md`. Missing → invoke the `artel-setup` skill
 (the one-time init interview), then continue with the written config. Present → run the
 start-time check config.md's "When the adapter is unusable" prescribes for entry points:
 `vcs.adapter: "bitbucket-mcp"` with an empty `vcs.mcpToolPrefix` is a configuration error —
@@ -90,13 +90,13 @@ before any spec document is read:
    While working locally, a gate that would *create* a document the decision's `versions` names
    stops instead of regenerating it: `<name> exists in kartoteka (v<N>) but kartoteka is
    unreachable; retry when it is back` (§5.1).
-4. **`pending` non-empty** — a resume after an outage → `Skill: migrate-specs` with
+4. **`pending` non-empty** — a resume after an outage → invoke the `artel-migrate-specs` skill with
    `<TICKET_ID> --pending-only` (plus `--no-prompt` headless) before anything else (§5.3).
    Continue only when its `pending_left` for the ticket is 0; otherwise report what is left (a
    conflict needs the user) and pause with `pause_reason: "store-unavailable"` — headless: journal and stop.
    A migrate exit 5 is the same outage as §5.2.
 5. **`local_trail` non-empty** → §7: ask Move them into kartoteka (recommended —
-   `Skill: migrate-specs` with `<TICKET_ID>`, then run step 2 again) / Work locally for this run
+   invoke the `artel-migrate-specs` skill with `<TICKET_ID>`, then run step 2 again) / Work locally for this run
    (`decide … --files "the user kept the local trail for this run"`) / Abort. Headless: stop and
    name `/artel:migrate-specs <TICKET_ID>`.
 6. Journal the decision in the run-start entry. Pass nothing on: every sub-skill reads the
@@ -107,7 +107,7 @@ so it stays fresh for sub-skills: a kartoteka decision by running step 2 again; 
 with `decide … --files "<its reason>"` (or `--local`), never a plain `decide`, which would re-probe
 and switch a run working locally to kartoteka mid-run (spec-storage.md §2.2). On resume of a run that worked locally (§5.1) while the
 store is back, ask once (§5.3): Move this run's documents into kartoteka and continue there
-(recommended; `Skill: migrate-specs` with `<TICKET_ID>`) / Keep working locally. Headless keeps
+(recommended; invoke the `artel-migrate-specs` skill with `<TICKET_ID>`) / Keep working locally. Headless keeps
 working locally.
 
 ### 2. Import the ticket
@@ -116,7 +116,7 @@ On the kartoteka path "artifact exists" in every gate of this skill — the one 
 
 | # | Gate | Action (skip if artifact exists) |
 |---|------|----------------------------------|
-| 0 | `IDEA_READY` — `idea.md` exists | `Skill: generate-idea` with `$0 $1`, under **every** adapter — it branches on `tracker.adapter` itself (config.md): a tracker imports the ticket; `"none"` (local-only) seeds `idea.md` from the `$1` description file, or runs the same input gate `analysis` does when `$1` is absent. Every run imports: step 3 sizes the work from `idea.md` and every head starts from it, so it is seeded here rather than letting a `"none"` run die at the first gate that needs it. |
+| 0 | `IDEA_READY` — `idea.md` exists | invoke the `artel-generate-idea` skill with `$0 $1`, under **every** adapter — it branches on `tracker.adapter` itself (config.md): a tracker imports the ticket; `"none"` (local-only) seeds `idea.md` from the `$1` description file, or runs the same input gate `analysis` does when `$1` is absent. Every run imports: step 3 sizes the work from `idea.md` and every head starts from it, so it is seeded here rather than letting a `"none"` run die at the first gate that needs it. |
 
 ### 3. Size the work
 
@@ -193,7 +193,7 @@ run-start journal entry repeats the size either way (step 5).
 and read `heads/full.md`. The ratchet stops at arming: once the run is armed, hidden complexity
 is a `DEVIATION` or an aborted task, and the tail handles it.
 
-**The spike outcome.** A `spike` reads no head file. Run `Skill: researcher` with
+**The spike outcome.** A `spike` reads no head file. Run the `artel-researcher` skill with
 `$0 --question`, plus `--local` when this run was invoked with it. Its question mode needs no
 PRD — the question it answers is the ticket's — and it writes
 `<specs.dir>/<TICKET_ID>/spike.md`, answer first. Its last line is

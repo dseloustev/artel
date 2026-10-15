@@ -106,7 +106,7 @@ class TestReviewerSide(unittest.TestCase):
 
     def test_the_tail_scales_reviews(self):
         tail = flat(read(TAIL))
-        self.assertIn('`Skill: run-reviewer --task …` with `--model sonnet`', tail)
+        self.assertIn('invoke the `artel-run-reviewer` skill with `--task …` and `--model sonnet`', tail)
         self.assertIn('the re-review passes `--model sonnet`', tail)
 
     def test_the_models_section(self):

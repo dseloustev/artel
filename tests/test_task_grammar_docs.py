@@ -423,7 +423,7 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
             self.assertIn(phrase, self.gate)
 
     def test_the_agent_half_and_the_capped_rounds(self):
-        for phrase in ('`Skill: run-reviewer --plan` with `$0`',
+        for phrase in ('invoke the `artel-run-reviewer` skill with `--plan` and `$0`',
                        '`MAX_PLAN_REVIEW_ROUNDS = 2`', 'the `artel-task-planner` agent',
                        'Minor findings never start a round'):
             self.assertIn(phrase, self.gate)
@@ -444,7 +444,7 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
 
     def test_the_fold_back_reaches_the_analyst_and_rechecks(self):
         approve = _w_between(self.pause, '- **Approve** →', '- **Request changes** →')
-        for phrase in ('fields as well as its prose', 'goes to the `analyst` agent instead',
+        for phrase in ('fields as well as its prose', 'goes to the `artel-analyst` agent instead',
                        '`(already met — <evidence>)`',
                        "re-run gate 4.2's requirements read and mechanical check"):
             self.assertIn(phrase, approve)
@@ -519,7 +519,7 @@ class TestDevPathPlanCheck(unittest.TestCase):
 
     def test_the_third_branch_is_gone(self):
         self.assertNotIn('old checkbox format', self.ladder)
-        self.assertIn('2. **Otherwise** → `Skill: generate-tasklist` with `$0`', self.ladder)
+        self.assertIn('2. **Otherwise** → invoke the `artel-generate-tasklist` skill with `$0`', self.ladder)
 
     def test_yolo_still_presents_a_critical_or_important_finding(self):
         self.assertIn('a Critical or Important plan-check finding still presents the'

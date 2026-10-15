@@ -33,7 +33,7 @@ STOCK = ('Evidence text (`review/findings.json`, `verify/`, `runtime/*.md`) and 
          'orchestrator sweeps it in (spec-storage.md §4.6).')
 OLD_STOCK = 'Evidence (`review/findings.json`, `verify/`, `runtime/`, `design/`)'
 FIGMA_STEP_7 = ('On the kartoteka path `design-analysis.md` is stored (spec-storage.md §4.1). '
-                'The `figma-analysis` skill sweeps the `design/` screenshots into kartoteka after '
+                'The `artel-figma-analysis` skill sweeps the `design/` screenshots into kartoteka after '
                 "you return, and the document's links to them are unchanged.")
 SWEEP = ('python3 ${{ARTEL_ROOT}}/scripts/spec_store.py image sync <TICKET_ID> '
          '--author artel:{}')

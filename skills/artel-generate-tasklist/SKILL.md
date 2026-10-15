@@ -15,7 +15,7 @@ requirement IDs, when they exist — checks the draft mechanically before anyone
 applies KISS, and asks the user a short set of clarifying questions before finalizing.
 
 This skill is the writer of `feature-development`'s lean head and bug head, and it runs à la
-carte as well. It skips the PRD + plan stages of the full head and the `tasklist` skill that
+carte as well. It skips the PRD + plan stages of the full head and the `artel-tasklist` skill that
 belongs to them: use `tasklist` when the full PRD/plan chain has been produced. A vision is
 optional. With one, the work list follows its design. Without one, it is grounded in the idea
 and the code, and work that needs a design is raised to the full head instead of being
@@ -85,7 +85,7 @@ options — **Overwrite** (regenerate from scratch; progress marks are lost) / *
 
 Four-phase model, matching `analysis` and `planner`:
 
-1. **Phase 1:** `tasklist-writer` agent drafts the tasklist into
+1. **Phase 1:** `artel-tasklist-writer` agent drafts the tasklist into
    `.artel/run/<TICKET_ID>/tasklist-draft.md` and returns clarifying questions; **Phase 1b**
    checks the draft and sends its findings back to the same agent, for at most
    `MAX_PLAN_REVIEW_ROUNDS` fix rounds.

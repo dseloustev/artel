@@ -21,14 +21,14 @@ is not yet `PLAN_APPROVED` (its own section follows the table).
 
 | # | Gate | Action (skip if artifact exists) |
 |---|------|----------------------------------|
-| 0.5 | `DESIGN_ANALYZED` — `design-analysis.md` has status `DESIGN_ANALYZED`, or `idea.md` has no `figma.com/design` link | `design.figma` disabled (config.md) → skip silently. Enabled → Grep `idea.md` for `figma.com/design` (kartoteka path: `doc=$(spec_store.py get <specs.dir>/<TICKET_ID>/idea.md) && printf '%s\n' "$doc" | grep -q figma.com/design`). Link present → `Skill: figma-analysis` with `$0` (chatty head — its Major-findings handshake may ask; on `DESIGN_BLOCKED` — returned by the skill or already recorded in an existing artifact's status — stop the pipeline and report the parked findings). No link → skip silently. |
-| 1 | `PRD_READY` — PRD status `PRD_READY` | `Skill: analysis` with `$0 $1`, plus `--local` when this run was invoked with it — runs the upfront interview (chatty by design). When the ticket has a `diagnosis.md` or a `spike.md`, the skill hands each to the analyst as an input beside `idea.md`. |
-| 2 | `VISION_READY` — `vision.md` status `VISION_READY` | `Skill: generate-vision` with `$0` — consumes the PRD; ends with its one wholesale checkpoint. |
-| 3 | plan drafted — `plan.md` exists | `Skill: researcher` then `Skill: planner` (both `$0`; `researcher` also takes `--local` when this run was invoked with it) — **silent**: their questions land in `.artel/run/<TICKET_ID>/open-questions.md` (autonomous-run.md §3). |
+| 0.5 | `DESIGN_ANALYZED` — `design-analysis.md` has status `DESIGN_ANALYZED`, or `idea.md` has no `figma.com/design` link | `design.figma` disabled (config.md) → skip silently. Enabled → Grep `idea.md` for `figma.com/design` (kartoteka path: `doc=$(spec_store.py get <specs.dir>/<TICKET_ID>/idea.md) && printf '%s\n' "$doc" | grep -q figma.com/design`). Link present → invoke the `artel-figma-analysis` skill with `$0` (chatty head — its Major-findings handshake may ask; on `DESIGN_BLOCKED` — returned by the skill or already recorded in an existing artifact's status — stop the pipeline and report the parked findings). No link → skip silently. |
+| 1 | `PRD_READY` — PRD status `PRD_READY` | invoke the `artel-analysis` skill with `$0 $1`, plus `--local` when this run was invoked with it — runs the upfront interview (chatty by design). When the ticket has a `diagnosis.md` or a `spike.md`, the skill hands each to the analyst as an input beside `idea.md`. |
+| 2 | `VISION_READY` — `vision.md` status `VISION_READY` | invoke the `artel-generate-vision` skill with `$0` — consumes the PRD; ends with its one wholesale checkpoint. |
+| 3 | plan drafted — `plan.md` exists | invoke the `artel-researcher` skill then the `artel-planner` skill (both `$0`; `researcher` also takes `--local` when this run was invoked with it) — **silent**: their questions land in `.artel/run/<TICKET_ID>/open-questions.md` (autonomous-run.md §3). |
 | 3.5 | `PLAN_GROUNDED` — plan-check green | Run `python3 ${ARTEL_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path: `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${ARTEL_ROOT}/scripts/plan_check.py --plan - --strict`), where `<plan-path>` is the phase-aware plan path per ticket-parsing.md §4. Exit 0 → proceed. Exit 1 → append/update `**Plan-check bounces:** N` at the bottom of `<plan-path>` (kartoteka path: `artifact_patch(project=<project>, …)` replacing the existing bounce line, or `append` it), and while `N <= MAX_PLAN_CHECK_BOUNCES = 2`: dispatch a fresh `subagent` to the `artel-planner` agent with the `data.unresolved` list ("resolve or declare `new:`"), regenerate, re-run the check. Planner regeneration rewrites `<plan-path>` and drops the bounce line with it; after each regeneration re-append `**Plan-check bounces:** N` (N = bounces performed so far) before re-running the check. Third failure → stop and ask (chatty head — a plain `question` tool call, no `pause_reason`) without writing N=3 — the file shows `**Plan-check bounces:** 2` at the stop. Exit 2 → environment error: stop-and-ask pointing at setup, never a bounce. |
-| 4 | `TASKLIST_READY` — tasklist status `TASKLIST_READY` | `Skill: tasklist` with `$0`, plus `--local` when this run was invoked with it — silent, HITL-tagged; the flag keeps its task-queue mirror from writing rows. |
-| 4.2 | `PLAN_REVIEWED` — the plan review ran (the plan is not yet `PLAN_APPROVED`) | The plan review before the pause — Gate 4.2, below the table: the mechanical check (`tasklist_tasks.py --check`), then `Skill: run-reviewer --plan`, with at most `MAX_PLAN_REVIEW_ROUNDS = 2` fix rounds to `task-planner`. |
-| 4.5 | phase extraction (phase runs only) | `Skill: sync-phases` with `$0` — creates `phase-<N>/tasks.md` when missing. |
+| 4 | `TASKLIST_READY` — tasklist status `TASKLIST_READY` | invoke the `artel-tasklist` skill with `$0`, plus `--local` when this run was invoked with it — silent, HITL-tagged; the flag keeps its task-queue mirror from writing rows. |
+| 4.2 | `PLAN_REVIEWED` — the plan review ran (the plan is not yet `PLAN_APPROVED`) | The plan review before the pause — Gate 4.2, below the table: the mechanical check (`tasklist_tasks.py --check`), then invoke the `artel-run-reviewer` skill with `--plan`, with at most `MAX_PLAN_REVIEW_ROUNDS = 2` fix rounds to `task-planner`. |
+| 4.5 | phase extraction (phase runs only) | invoke the `artel-sync-phases` skill with `$0` — creates `phase-<N>/tasks.md` when missing. |
 
 ### Gate 4.2 — the plan review
 
@@ -57,7 +57,7 @@ phase-aware PRD with its read fallback (`${ARTEL_ROOT}/docs/ticket-parsing.md` �
    Exit `2` → environment error, as in step 1. Otherwise keep `data.findings` and
    `data.coverage`: exit `1` means a Critical or Important finding, exit `0` none.
 3. **Agent check.** A `.artel/run/<TICKET_ID>/plan-review.md` whose `**Tasklist:**` line names
-   another tasklist is stale: delete it first. Then `Skill: run-reviewer --plan` with `$0`. It
+   another tasklist is stale: delete it first. Then invoke the `artel-run-reviewer` skill with `--plan` and `$0`. It
    returns `Plan review round <k>: <c> Critical, <i> Important, <m> Minor — .artel/run/<TICKET_ID>/plan-review.md`.
 4. **Fix round.** A Critical or Important finding from either half, and `k` at most
    `MAX_PLAN_REVIEW_ROUNDS = 2` → dispatch a fresh `subagent` to the `artel-task-planner` agent (a fresh
@@ -93,7 +93,7 @@ task cycle — see `tail.md`, `## Checkpoint commits & pushes`, and `## Task com
   prose: an answer that changes a route, a dependency or a file list changes that field — flip
   the `.artel/run/<TICKET_ID>/open-questions.md` entries to `resolved: "<answer>"`, and remove
   `(provisional — Q<n>)` markers (plan becomes status `PLAN_APPROVED`). An answer confirming
-  that the current code already meets a requirement goes to the `analyst` agent instead, which
+  that the current code already meets a requirement goes to the `artel-analyst` agent instead, which
   adds `(already met — <evidence>)` to that requirement in the phase-aware PRD under its "After
   `PRD_READY`" rule; no task is written for it. This write re-arms gate
   3.5 — if the fold-back touched `plan.md`, re-run the plan-check before proceeding. After any

@@ -17,8 +17,8 @@ are [hooks/README.md](../hooks/README.md); the deterministic gate scripts are de
 enums, and glob lists are cited, never restated — follow the link when you need the exact shape.
 
 Every command below is written as a slash command (`/artel:feature-development PROJ-XXXX`).
-Agents driving these programmatically use the equivalent `Skill` tool call
-(`skill: "artel:feature-development"`, `args: "PROJ-XXXX"`) — identical effect. `PROJ-XXXX` is a
+Agents driving these programmatically use the equivalent `skill` tool call
+(`skill: "artel-feature-development"`, `args: "PROJ-XXXX"`) — identical effect. `PROJ-XXXX` is a
 placeholder ticket id under the **default** ticket grammar (`ticket.projectKey`/`ticket.pattern`,
 config.md — your project's own key and accepted forms come from `.artel/config.json`); `-<N>` is
 a phase suffix.

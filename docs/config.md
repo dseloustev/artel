@@ -267,7 +267,6 @@ generated test code.
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `review.perTask` | boolean | `false` | `true` raises every iteration task to the `full` route ([autonomous-run.md](autonomous-run.md) §16) — every task is then `full`, so every task's model resolves from `implementer.full`. A review of its diff runs right after its implementer returns — the `artel-reviewer` agent in task mode, Blocking / Important findings written under `## Code Review Fixes`, one fix round, no per-task re-review. `false` leaves each task on its own route — declared by the planner, raised to `full` by a sensitive path, a HITL tag on a task that reaches outside the spec trail, more than five files or an earlier deviation on its files — so `full` tasks are reviewed either way. Adds one reviewer seat per `full` task; the phase review still runs. | `feature-development`, gate 5 (`tail.md`) |
-| `seat.enabled` | boolean | `false` | `true` runs the post-approval tail one layer down on the `artel-seat` agent, every pause relayed to the main thread ([autonomous-run.md](autonomous-run.md) §18). Claude Code only; inert on OpenCode; a `--step` run never seats. `false` runs the tail inline. | `feature-development`, step 6 |
 
 The phase review (`run-reviewer` after every task in the phase is done) is not configurable
 here — it always runs. `review.perTask` only decides whether every task is also gated on its

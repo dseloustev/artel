@@ -7,8 +7,8 @@ metadata:
 
 Save the working context into the host-writable `.artel/context/` store, then clear the
 working-tree spec trail and `CHANGELOG.md`. **`AGENTS.md` is mirrored, never removed** — it is
-the live conventions doc OpenCode and Claude Code 2.1.277+ read, so it stays in the working
-tree. Working tree → store flow is "newer wins": `rsync --update` for directory
+the live conventions doc OpenCode reads, so it stays in the working tree. Working tree → store
+flow is "newer wins": `rsync --update` for directory
 trees, an explicit `-nt` test for single files. The store — not the working tree — is the durable
 home of these workflow files once saved.
 

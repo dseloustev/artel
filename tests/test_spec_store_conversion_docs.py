@@ -11,10 +11,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 # Agents outside the spec trail read no spec document and write none, so store mode
-# never reaches them: `issue-scout` reads none, the `seat`'s store contract lives in
-# its procedure, `tail.md`, not in an agent section, and `collaborative-reviewer` is
-# the standalone GitHub utility's worker. Guarded for the absence, not the presence.
-OUTSIDE_TRAIL = ('artel-issue-scout', 'artel-seat', 'artel-collaborative-reviewer')
+# never reaches them: `issue-scout` reads none and `collaborative-reviewer` is the
+# standalone GitHub utility's worker. Guarded for the absence, not the presence.
+OUTSIDE_TRAIL = ('artel-issue-scout', 'artel-collaborative-reviewer')
 AGENTS = sorted(p.stem for p in (ROOT / 'agents').glob('*.md') if p.stem not in OUTSIDE_TRAIL)
 DISPATCHERS = ('analysis', 'researcher', 'planner', 'tasklist', 'generate-tasklist',
                'generate-vision', 'implementer', 'run-reviewer', 'qa', 'validate',

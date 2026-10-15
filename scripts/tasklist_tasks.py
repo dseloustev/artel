@@ -439,7 +439,7 @@ def route_main(argv, elapsed):
                                    trail_prefix(repo, ticket_key))
     if data is None:
         data = {'task': None, 'title': None, 'route_declared': None,
-                'route_effective': None, 'route_reasons': [], 'model': None}
+                'route_effective': None, 'route_reasons': []}
     data = {'ticket_key': ticket_key, 'format': 'tasks', **data}
     print(envelope(True, elapsed(), data=data, verb='tasklist-route'))
     return 0

@@ -19,11 +19,11 @@ run reaches it — never all at once:
 | `${ARTEL_ROOT}/skills/artel-feature-development/heads/full.md` | gates 0.5–4.5, gate 4.2 and THE ONE PAUSE | step 4, for an `architectural` size — and when a head raises the size |
 | `${ARTEL_ROOT}/skills/artel-feature-development/heads/lean.md` | the ladder and the work-list confirmation | step 4, for a `bounded` size |
 | `${ARTEL_ROOT}/skills/artel-feature-development/heads/bug.md` | the diagnosis, then the work list | step 4, for a `bug` size |
-| `${ARTEL_ROOT}/skills/artel-feature-development/tail.md` | phase traversal, gates 5–10.7, the completion gate, the PR close-out, the final report, the checkpoint procedure | step 5, once the run is armed — inline runs only; a seated run never reads it here (it is the seat's procedure) |
+| `${ARTEL_ROOT}/skills/artel-feature-development/tail.md` | phase traversal, gates 5–10.7, the completion gate, the PR close-out, the final report, the checkpoint procedure | step 5, once the run is armed |
 
 Read exactly one head file per run, after sizing, and another only when a head hands the ticket
-on (a raise, or the bug head's **Treat it as a bounded change**). On resume of an armed run, an
-inline run reads `tail.md` and no head file; a seated run dispatches a fresh seat (step 6).
+on (a raise, or the bug head's **Treat it as a bounded change**). On resume of an armed run,
+read `tail.md` and no head file.
 
 `--step` flag: run in legacy step-by-step mode — confirm between major phases via
 the `question` tool, skip all `run-state.json` writes (autonomous-run.md §6). The remainder of this
@@ -288,25 +288,7 @@ completion gate, the PR description and the PR gate, the description-file sync a
 report. It is the whole run after arming and holds every `pause_reason` bracket after the head.
 A resumed armed run enters here; its gates skip what is already done.
 
-**Who runs it** (autonomous-run.md §18). In a `--step` run, or with `seat.enabled` absent or
-`false` (config.md): you do — read `tail.md` now and run it inline. Otherwise dispatch the seat
-once (Claude Code only; the OpenCode build runs the tail inline):
-
-    subagent(artel-seat, prompt: "Run the tail of <$0>. Mode fields: <the six from
-    run-state.json>. Headless: <yes|no>. Local: <yes — pass --local to every sub-skill | no>.
-    Spec store: <the §2.3 field>.")
-
-On a resume, dispatch a fresh seat — a crashed session's seat is never reused.
-Returns:
-
-- `COMPLETED` — print its final report and rulings list; the run is done.
-- `PAUSED: <reason>` — the relay (autonomous-run.md §18.2): read
-  `.artel/run/<TICKET_ID>/pause-request.json`, ask its question verbatim via the `question` tool
-  (the seat has already set `pause_reason`; clear it and delete `pause-request.json` on the answer), then dispatch a fresh `subagent` to the `artel-seat` agent with the answer.
-- `STOPPED: <reason>` — report the line and the journal pointer; the run stays paused.
-
-A dispatch that fails to start, or returns none of the three shapes: journal `seat: unavailable
-— running the tail inline` and run the tail inline, once.
+**Who runs it.** You do — read `tail.md` now and run it inline.
 
 ## Important
 
@@ -329,9 +311,6 @@ A dispatch that fails to start, or returns none of the three shapes: journal `se
   description file during sync, `.artel/run/<TICKET_ID>/spec-store.json` (through
   `spec_store.py`); on the kartoteka path its spec-document writes — the plan-check bounce line,
   runtime and verify fix batches, the review reset — are store writes. Everything else is delegated.
-  Under a seated run the gate-time writes move with the seat: this list then covers steps 0–5
-  plus the `pause-request.json` relay handling, and the seat body owns the rest (autonomous-run.md
-  §18).
 - The run's task and checkpoint commits, and the checkpoint pushes, are the only direct git
   mutations this orchestrator performs; every other external action goes through `pr-create`. The
   checkpoint branch guard and no-force rules are absolute.

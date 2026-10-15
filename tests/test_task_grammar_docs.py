@@ -877,7 +877,7 @@ class TestRoutes(unittest.TestCase):
 
     def test_config_setup_and_run_reviewer(self):
         row = _between(flat(read('docs/config.md')), '| `review.perTask` |',
-                       '| `seat.enabled` |')
+                       'The phase review')
         for phrase in ('`true` raises every iteration task to the `full` route',
                        'so `full` tasks are reviewed either way'):
             self.assertIn(phrase, row)

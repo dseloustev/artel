@@ -215,7 +215,7 @@ What a mirror run emits (`data.format` is `"tasks"`):
 
 ## 8. The route helper
 
-`scripts/tasklist_tasks.py route` answers the model question before an iteration dispatch.
+`scripts/tasklist_tasks.py route` answers the route question before an iteration dispatch.
 It contacts nothing.
 
     tasklist-tasks route --tasklist <path|-> --ticket-key <KEY> --next [--repo <dir>] [--sensitive-paths <file>]
@@ -224,11 +224,10 @@ It contacts nothing.
 `Task <N.M>: <title>` heading with the HITL tag dropped. `route_declared` and `route_effective`
 follow §7's floors, plus two runtime ones: one of the task's `Files:` is in `run-state.json`
 `deviation_files` — `earlier deviation: <path>` per path, applying to a route set at approval
-too — or `review.perTask` is true — `review.perTask`. `model` is
-the route's alias from `MODEL_BY_ROUTE` in `scripts/task_grammar.py` — the dispatcher does not
-use it: the implementer resolves `implementer.<route_effective>` from `models.opencode` instead
-(`autonomous-run.md` §16.3); `next_route()` is the pure function behind it. No ready task → `task`, `title`, `route_*` and
-`model` are `null`; a non-task-format or malformed tasklist, an unreadable `run-state.json`, or
+too — or `review.perTask` is true — `review.perTask`. `next_route()` is the pure function
+behind it; the implementer resolves `implementer.<route_effective>` from `models.opencode`
+(`autonomous-run.md` §16.3). No ready task → `task`, `title` and `route_*` are `null`; a
+non-task-format or malformed tasklist, an unreadable `run-state.json`, or
 a non-boolean `review.perTask` exits `2` with an error envelope. The route decision after
-completion (`autonomous-run.md` §16.1) is unchanged; the helper only chooses the model before
+completion (`autonomous-run.md` §16.1) is unchanged; the helper only reports the route before
 dispatch.

@@ -3,10 +3,9 @@
 
 The install root carries the canonical skills/, agents/ and docs/. Every `*.md`
 under those three trees is baked in place: `${ARTEL_ROOT}` becomes the
-install root and `/artel:<name>` references become `artel-<name>`, so an agent on
-OpenCode reads a real path, never an unset variable. Python files are never
-rewritten: a hook docstring's token is a source-level pointer to a contract file,
-and nothing expands it.
+install root, so an agent on OpenCode reads a real path, never an unset variable.
+Python files are never rewritten: a hook docstring's token is a source-level pointer to a
+contract file, and nothing expands it.
 
 Each skill is also emitted under <out> (default <root>/opencode/dist) with its frontmatter
 and baked body, its other Markdown files beside it, and a command wrapper under <out>/commands
@@ -21,9 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 VALID_NAME = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
-ARTEL_REF = re.compile(r'/artel:([a-z0-9-]+)')
 MAX_DESCRIPTION = 1024
-AGENTS_EXCLUDE = frozenset({'artel-seat'})  # Claude Code only: OpenCode runs the tail inline (docs/opencode.md)
 
 
 def parse_frontmatter(text):
@@ -65,15 +62,8 @@ def parse_frontmatter(text):
     return fields, text
 
 
-def bake(body, root):
-    """Claude dialect -> OpenCode dialect for a body: bake the install root,
-    prefix `/artel:` references."""
-    return ARTEL_REF.sub(r'artel-\1', bake_root(body, root))
-
-
-def bake_root(text, root):
-    """The `${ARTEL_ROOT}` rewrite alone; bake() layers the `/artel:` rewrite
-    on top."""
+def bake(text, root):
+    """Bake the install root into a body: `${ARTEL_ROOT}` becomes the install root."""
     return text.replace('${ARTEL_ROOT}', str(root))
 
 
@@ -122,7 +112,6 @@ def build_agent(src_text, root, name):
 
 
 def build_command(name, description, hint):
-    description = ARTEL_REF.sub(r'artel-\1', description)
     # OpenCode shows only the description in its command list, so the skill's hint
     # travels there too; room is reserved for it inside MAX_DESCRIPTION (clip() needs
     # at least three characters) and the hint itself is never clipped.
@@ -206,7 +195,7 @@ def main(argv=None):
         dest.write_text(bake(path.read_text(encoding='utf-8'), root), encoding='utf-8')
 
     agent_files = sorted(p for p in (source / 'agents').glob('*.md')
-                         if p.name != 'README.md' and p.stem not in AGENTS_EXCLUDE)
+                         if p.name != 'README.md')
 
     for agent_path in agent_files:
         name, text = build_agent(agent_path.read_text(encoding='utf-8'), root, agent_path.stem)

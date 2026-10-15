@@ -5,7 +5,8 @@ Claude-named identifiers out of the hook layer (`hooks/`, `scripts/`). This is t
 it: a dialect token that creeps back into an instruction file fails the suite, naming the
 file and the token — fix the file, never the guard's list. Declared port history —
 `docs/design.md`, `docs/porting-plan.md`, the two `source-inventory-*.md` files and
-`docs/comparisons/` — describes the Claude Code era on purpose and is excluded.
+`docs/comparisons/` — describes the Claude Code era on purpose and is excluded; so is
+`docs/superpowers/`, gitignored controller scratch that is never repository documentation.
 
 Same family as tests/test_build_opencode.py: a defect nobody sees until a session follows a
 stale instruction.
@@ -36,6 +37,7 @@ BARE_ALIAS = re.compile(r'(?<![A-Za-z0-9_/-])(sonnet|opus|fable)(?![A-Za-z0-9_-]
 
 INSTRUCTION_TOKENS = (
     ('CLAUDE', re.compile(r'CLAUDE')),
+    ('Claude Code', re.compile(r'claude code', re.IGNORECASE)),
     ('.claude', re.compile(r'\.claude')),
     ('AskUserQuestion', re.compile(r'AskUserQuestion')),
     ('SendMessage', re.compile(r'SendMessage')),
@@ -167,6 +169,24 @@ class TestInstructionSurface(unittest.TestCase):
         self.addCleanup(probe.unlink)
         self.assertIn(probe, doc_paths())
         self.assertTrue(scan(probe.read_text(encoding='utf-8'), DOC_TOKENS))
+
+    def test_the_docs_superpowers_skip_is_deliberate(self):
+        """The sixth exclusion: `docs/superpowers/` is gitignored controller scratch, never
+        repository documentation. It is skipped by name, and the gitignore is the reason —
+        not a silent hole that could hide real residue."""
+        self.assertIn('docs/superpowers/',
+                      (ROOT / '.gitignore').read_text(encoding='utf-8'))
+        probe = ROOT / 'docs' / 'superpowers' / '__residue_probe__.md'
+        probe.parent.mkdir(parents=True, exist_ok=True)
+        probe.write_text('AskUserQuestion\n', encoding='utf-8')
+
+        def clean():
+            probe.unlink()
+            if probe.parent.is_dir() and not any(probe.parent.iterdir()):
+                probe.parent.rmdir()
+
+        self.addCleanup(clean)
+        self.assertNotIn(probe, doc_paths())
 
 
 class TestHookLayer(unittest.TestCase):

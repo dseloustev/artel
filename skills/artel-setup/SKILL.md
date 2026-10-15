@@ -89,7 +89,7 @@ arrive via the "Other" option.
   to set; every site left unset keeps its inert default and the dispatch inherits the caller's
   model. Values are `provider/model` with an optional `#variant` — exactly one `/`, no
   whitespace, at most one `#` with a non-empty variant (e.g. `tokenguard/opus-5.5`,
-  `tokenguard/deepseek-flash#xhigh`). Claude Code ignores the block.
+  `tokenguard/deepseek-flash#xhigh`). Every artel dispatch resolves its model from this block.
 
 ## 3. Validate
 

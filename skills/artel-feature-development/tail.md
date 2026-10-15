@@ -3,9 +3,7 @@
 Everything a run does once it is armed: the implement loop, the review, the runtime gate, the
 docs stage, the checkpoints, the completion gate and the PR close-out. Read by
 `feature-development` when the run is armed (`${ARTEL_ROOT}/skills/artel-feature-development/SKILL.md`
-steps 5–6), and on every resume of an armed run. With `seat.enabled` it is instead the `seat`
-agent's procedure, dispatched once per step 6 — its `question` tool calls then mean the relay
-of autonomous-run.md §18.2. `SKILL.md` below is that file; its steps 0–1.5
+steps 5–6), and on every resume of an armed run. `SKILL.md` below is that file; its steps 0–1.5
 have run, so the config is read, the ticket is active and the spec store is resolved. Contract:
 `${ARTEL_ROOT}/docs/autonomous-run.md`. Pass `$0` (on multi-phase traversal the current
 `<TICKET_ID>-<N>`) to every sub-skill, and re-read artifacts after every sub-skill/agent return.

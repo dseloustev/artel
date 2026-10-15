@@ -560,7 +560,7 @@ class TestLayout(unittest.TestCase):
         for phrase in ('each read when the run reaches it — never all at once',
                        'Read exactly one head file per run, after sizing',
                        'and another only when a head hands the ticket on',
-                       'On resume of an armed run, an inline run reads `tail.md` and no head file; a seated run dispatches a fresh seat (step 6)'):
+                       'On resume of an armed run, read `tail.md` and no head file'):
             self.assertIn(phrase, opening)
 
     def test_every_flag_applies_to_every_head(self):
@@ -622,8 +622,9 @@ class TestLayout(unittest.TestCase):
     def test_the_tail_is_the_last_step(self):
         step = between(self.skill, '### 6. The tail', '## Important')
         for phrase in ('The tail — `${ARTEL_ROOT}/skills/artel-feature-development/tail.md`',
-                       'subagent(artel-seat', 'seat: unavailable'):
+                       'You do — read `tail.md` now and run it inline'):
             self.assertIn(phrase, step)
+        self.assertNotIn('artel-seat', step)
 
     def test_the_rules(self):
         rules = self.skill[self.skill.index('## Important'):]
@@ -1189,10 +1190,8 @@ class TestRunContract(unittest.TestCase):
 
     def test_section_17_and_its_five_parts(self):
         headings = [line for line in self.raw.split('\n') if line.startswith('#')]
-        self.assertEqual(headings[-6:], ['### 17.3 sizing.json', '### 17.4 The ratchet',
-                                         '### 17.5 The spike outcome',
-                                         '## 18. The orchestrator seat', '### 18.1 Returns',
-                                         '### 18.2 The pause relay'])
+        self.assertEqual(headings[-3:], ['### 17.3 sizing.json', '### 17.4 The ratchet',
+                                         '### 17.5 The spike outcome'])
         self.assertIn('(`../skills/artel-feature-development/SKILL.md`, step 3)', self.sizing)
         self.assertIn('never a pause, and no agent is dispatched', self.sizing)
 
@@ -1668,9 +1667,7 @@ class TestRelease(unittest.TestCase):
 
     def test_the_open_follow_ups(self):
         follow_ups = between(flat('docs/design.md'), '## Open follow-ups', '## Decision log')
-        for phrase in ("**The orchestrator seat's remainders**",
-                       "`seat.enabled`'s default to `true`",
-                       'the `opus`-at-lower-effort arm stays parked as an unmeasured lever',
+        for phrase in ('the `opus`-at-lower-effort arm stays parked as an unmeasured lever',
                        '**Sub-project 2c: parallel seats.**'):
             self.assertIn(phrase, follow_ups)
         for closed in ('**Sub-project 2b: one orchestrator**',
@@ -1685,6 +1682,26 @@ class TestRelease(unittest.TestCase):
         self.assertIn('- [x] Cleanup release: delete the `/artel:dev` alias', plan)
         self.assertIn('Shipped as 0.27.0', plan)
         self.assertIn('- [x] Port `dev` (lean loop', plan)   # the port's own record stays
+
+
+class TestTheSeatIsGone(unittest.TestCase):
+    """`seat.enabled` was prose-only; the OpenCode behaviour — the tail inline — is the only
+    behaviour now. The seat agent, its dispatch and its contract are gone."""
+
+    def test_the_seat_is_gone(self):
+        self.assertFalse((ROOT / 'agents' / 'artel-seat.md').exists())
+        self.assertNotIn('seat.enabled', raw('docs/config.md'))
+        self.assertNotIn('§18', raw('docs/autonomous-run.md'))
+
+    def test_no_seat_dialect_survives_in_the_contracts(self):
+        for rel in ('docs/config.md', 'docs/opencode.md', 'docs/autonomous-run.md',
+                    'docs/agents.md', 'docs/skills-reference.md', 'docs/workflow-guide.md',
+                    FD + 'SKILL.md', FD + 'tail.md'):
+            with self.subTest(rel=rel):
+                text = raw(rel)
+                self.assertNotIn('seat.enabled', text)
+                self.assertNotIn('artel-seat', text)
+                self.assertNotIn('§18', text)
 
 
 class TestSizingReasons(unittest.TestCase):

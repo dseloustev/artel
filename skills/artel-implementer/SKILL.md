@@ -40,7 +40,7 @@ wins:
        python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py route --tasklist <the tasklist> --ticket-key <TICKET_ID> --next
 
    (kartoteka path: `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <the tasklist> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py route --tasklist - --ticket-key <TICKET_ID> --next`)
-   take its `route_effective` (the helper's `model` alias is not used here) and resolve
+   take its `route_effective` and resolve
    `implementer.<route_effective>`
    (`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site implementer.<route_effective>`);
    a `null` route, a route-helper exit `2` or a `null` model → no model; a resolver exit `2` is

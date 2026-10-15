@@ -3,9 +3,7 @@
 The crew — one `.md` per agent (frontmatter + system prompt): analyst, figma-analyst, researcher,
 planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, qa, validator,
 tech-writer, issue-scout (context for `issue-draft`, outside the pipeline), collaborative-reviewer
-(the read-only analysis worker behind `/artel-collaborative-review`, outside the pipeline), seat
-(the orchestrator's tail one layer down, dispatched by `feature-development` when `seat.enabled` —
-autonomous-run.md §18; never routed to directly).
+(the read-only analysis worker behind `/artel-collaborative-review`, outside the pipeline).
 
 Agent bodies must stay project-agnostic — host specifics come from `.artel/config.json`
 (see [design.md](design.md#genericization-strategy)). Code navigation is the one

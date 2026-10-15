@@ -126,10 +126,14 @@ class TestSkillBuild(BuildBase):
             self.assertNotIn('${ARTEL_ROOT}', text,
                              path.parent.name + ' still names the Claude variable')
 
-    def test_artel_refs_prefixed_but_ast_index_refs_survive(self):
+    def test_no_artel_namespace_survives_but_ast_index_refs_do(self):
+        """The old `/artel:` namespace is gone from the sources, so no built skill may
+        carry one — this is the residue check; the unrelated `/ast-index:` namespace stays."""
+        for path in sorted((self.out / 'skills').glob('*/SKILL.md')):
+            with self.subTest(name=path.parent.name):
+                self.assertNotRegex(path.read_text(encoding='utf-8'), r'/artel:[a-z0-9-]')
         router = (self.out / 'skills' / 'artel-using-artel' / 'SKILL.md').read_text(
             encoding='utf-8')
-        self.assertNotRegex(router, r'/artel:[a-z0-9-]')
         self.assertIn('/ast-index:ast-index', router)
         self.assertIn('artel-feature-development', router)
 
@@ -198,10 +202,9 @@ class TestCommandDescription(unittest.TestCase):
 
 
 def source_agents():
-    """Every agent this build emits, by file stem — README.md is not an agent and
-    build_opencode.AGENTS_EXCLUDE (the seat) is not emitted."""
+    """Every agent this build emits, by file stem — README.md is not an agent."""
     return sorted(p.stem for p in (ROOT / 'agents').glob('*.md')
-                  if p.name != 'README.md' and p.stem not in build_opencode.AGENTS_EXCLUDE)
+                  if p.name != 'README.md')
 
 
 class TestAgentBuild(BuildBase):
@@ -216,9 +219,6 @@ class TestAgentBuild(BuildBase):
 
     def test_readme_is_not_an_agent(self):
         self.assertFalse((self.out / 'agents' / 'artel-README.md').is_file())
-
-    def test_the_seat_is_not_generated(self):
-        self.assertFalse((self.out / 'agents' / 'artel-seat.md').is_file())
 
     def test_frontmatter_is_opencode_shape(self):
         for path in sorted((self.out / 'agents').glob('artel-*.md')):
@@ -338,11 +338,10 @@ class TestCompanionFiles(BuildBase):
     def test_a_pointer_into_a_skill_directory_stays_under_the_install_root(self):
         body = ('read `${ARTEL_ROOT}/skills/artel-demo/heads/a.md`, '
                 '`${ARTEL_ROOT}/skills/artel-demo/assets/t.html` and '
-                '`${ARTEL_ROOT}/docs/x.md`, then run /artel:demo')
+                '`${ARTEL_ROOT}/docs/x.md`')
         self.assertEqual(build_opencode.bake(body, Path('/root')),
                          'read `/root/skills/artel-demo/heads/a.md`, '
-                         '`/root/skills/artel-demo/assets/t.html` and `/root/docs/x.md`, '
-                         'then run artel-demo')
+                         '`/root/skills/artel-demo/assets/t.html` and `/root/docs/x.md`')
 
     def test_agents_land_on_the_install_copy_too(self):
         agent = (self.out / 'agents' / 'artel-implementer.md').read_text(encoding='utf-8')
@@ -482,8 +481,7 @@ class TestInstallerRefresh(unittest.TestCase):
         src = self.home / 'checkout'
         if src.exists():
             shutil.rmtree(src)
-        (src / '.claude-plugin').mkdir(parents=True)
-        (src / '.claude-plugin' / 'plugin.json').write_text('{}\n', encoding='utf-8')
+        src.mkdir(parents=True)
         (src / 'VERSION').write_text('0.0.0\n', encoding='utf-8')
         (src / 'opencode' / 'plugin').mkdir(parents=True)
         (src / 'opencode' / 'plugin' / 'artel.ts').write_text('// stub\n', encoding='utf-8')

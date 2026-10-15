@@ -516,48 +516,46 @@ class TestNextRoute(unittest.TestCase):
         return task_grammar.next_route(iterations, DEFAULT_RULES,
                                        deviation_files=deviation_files, per_task=per_task)
 
-    def test_the_constant(self):
-        self.assertEqual(task_grammar.MODEL_BY_ROUTE, {'light': 'sonnet', 'full': 'opus'})
+    def test_the_route_helper_emits_no_model_alias(self):
+        """MODEL_BY_ROUTE was the last Claude-only vocabulary in shared code: the helper
+        answers the route, and the implementer resolves `implementer.<route_effective>`
+        from `models.opencode` instead."""
+        out = self.route(one_iteration(block('1.1')))
+        self.assertNotIn('model', out)
 
-    def test_a_light_task_maps_to_sonnet(self):
+    def test_a_light_task_stays_light(self):
         out = self.route(one_iteration(block('1.1')))
         self.assertEqual(out['task'], '1.1')
         self.assertEqual(out['title'], 'Task 1.1: Do it')
         self.assertEqual(out['route_declared'], 'light')
         self.assertEqual(out['route_effective'], 'light')
         self.assertEqual(out['route_reasons'], [])
-        self.assertEqual(out['model'], 'sonnet')
 
-    def test_a_full_task_maps_to_opus(self):
+    def test_a_full_task_stays_full(self):
         out = self.route(one_iteration(block('1.1', route='full — money path')))
         self.assertEqual(out['route_effective'], 'full')
-        self.assertEqual(out['model'], 'opus')
 
     def test_a_static_floor_raises_the_route(self):
         out = self.route(one_iteration(block('1.1', files='`.env`')))
         self.assertEqual(out['route_effective'], 'full')
         self.assertEqual(out['route_reasons'], ['sensitive path (secrets): .env'])
-        self.assertEqual(out['model'], 'opus')
 
     def test_an_earlier_deviation_raises_a_light_task(self):
         out = self.route(one_iteration(block('1.1', files='`a.py`')),
                          deviation_files=['a.py'])
         self.assertEqual(out['route_effective'], 'full')
         self.assertIn('earlier deviation: a.py', out['route_reasons'])
-        self.assertEqual(out['model'], 'opus')
 
     def test_an_earlier_deviation_overrides_a_route_set_at_approval(self):
         out = self.route(one_iteration(block('1.1', route='light — set at approval',
                                              files='`a.py`')),
                          deviation_files=['a.py'])
         self.assertEqual(out['route_effective'], 'full')
-        self.assertEqual(out['model'], 'opus')
 
     def test_review_per_task_raises_every_task(self):
         out = self.route(one_iteration(block('1.1')), per_task=True)
         self.assertEqual(out['route_effective'], 'full')
         self.assertIn('review.perTask', out['route_reasons'])
-        self.assertEqual(out['model'], 'opus')
 
     def test_no_ready_task_returns_none(self):
         text = tick(one_iteration(block('1.1')), 'Step one')
@@ -881,7 +879,9 @@ class TestCli(unittest.TestCase):
         code, out = run_cli('requirements')
         self.assertEqual((code, out['error']['kind']), (2, 'invalid_argument'))
 
-    def test_route_next_emits_the_model(self):
+    def test_route_next_emits_no_model(self):
+        """The alias is gone from the payload: the implementer resolves
+        `implementer.<route_effective>` from `models.opencode`."""
         code, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
                             '--repo', self.repo.name, '--next')
         self.assertEqual(code, 0)
@@ -893,7 +893,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(data['title'], 'Task 1.1: Add the success dialog widget')
         self.assertEqual(data['route_declared'], 'light')
         self.assertEqual(data['route_effective'], 'light')
-        self.assertEqual(data['model'], 'sonnet')
+        self.assertNotIn('model', data)
 
     def test_route_next_reads_review_per_task_from_config(self):
         artel = Path(self.repo.name) / '.artel'
@@ -902,7 +902,6 @@ class TestCli(unittest.TestCase):
         _, out = run_cli('route', '--tasklist', self.write(TASKS), '--ticket-key', 'AW-9',
                          '--repo', self.repo.name, '--next')
         self.assertEqual(out['data']['route_effective'], 'full')
-        self.assertEqual(out['data']['model'], 'opus')
         self.assertIn('review.perTask', out['data']['route_reasons'])
 
     def test_route_next_reads_deviation_files_from_run_state(self):
@@ -913,7 +912,6 @@ class TestCli(unittest.TestCase):
         _, out = run_cli('route', '--tasklist', self.write(tick(TASKS, 'Add the widget test')),
                          '--ticket-key', 'AW-9', '--repo', self.repo.name, '--next')
         self.assertEqual(out['data']['task'], '1.2')
-        self.assertEqual(out['data']['model'], 'opus')
         self.assertIn('earlier deviation: lib/ramps/ramps_event.dart',
                       out['data']['route_reasons'])
 
@@ -924,13 +922,13 @@ class TestCli(unittest.TestCase):
                                         encoding='utf-8')
         _, out = run_cli('route', '--tasklist', str(phase / 'tasks.md'), '--ticket-key', 'AW-9',
                          '--repo', self.repo.name, '--next')
-        self.assertEqual(out['data']['model'], 'opus')
+        self.assertEqual(out['data']['route_effective'], 'full')
 
     def test_route_next_reads_stdin(self):
         code, out = run_cli('route', '--tasklist', '-', '--ticket-key', 'AW-9',
                             '--repo', self.repo.name, '--next', stdin=TASKS)
         self.assertEqual(code, 0)
-        self.assertEqual(out['data']['model'], 'sonnet')
+        self.assertEqual(out['data']['route_effective'], 'light')
 
     def test_route_next_with_no_ready_task_is_null(self):
         text = tick(one_iteration(block('1.1')), 'Step one')
@@ -940,7 +938,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(out['data']['ticket_key'], 'AW-9')
         self.assertEqual(out['data']['format'], 'tasks')
         self.assertIsNone(out['data']['task'])
-        self.assertIsNone(out['data']['model'])
+        self.assertNotIn('model', out['data'])
         self.assertEqual(out['data']['route_reasons'], [])
 
     def test_route_needs_the_next_flag(self):

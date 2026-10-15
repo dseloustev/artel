@@ -101,7 +101,7 @@ class WorktreeContractCase(unittest.TestCase):
             self.assertIn(status, self.text)
 
     def test_names_the_location_and_the_include_file(self):
-        self.assertIn('.claude/worktrees/<name>', self.text)
+        self.assertIn('.opencode/worktrees/<name>', self.text)
         self.assertIn('.worktreeinclude', self.text)
 
     def test_the_procedures_ask_before_anything_moves(self):

@@ -187,7 +187,7 @@ itself); **`add-automation`** / **`remove-automation`** (each commits exactly th
 paths; `remove-automation` also pushes when an upstream exists). Everything else writes only
 files: `init-branch` may create a branch (only when asked) but never commits; `move-to-worktree` /
 `return-from-worktree` (and `init-branch`'s worktree option) move uncommitted work between the
-main checkout and `.claude/worktrees/` through `git stash` and switch the main checkout's branch,
+main checkout and `.opencode/worktrees/` through `git stash` and switch the main checkout's branch,
 but never commit, push or delete a branch; `merge-conflicts` stages and stops;
 `implementer` changes source but leaves committing to the orchestrator — one commit per completed
 cycle, and never a push of its own.
@@ -620,8 +620,8 @@ what to run next. Run all of these from the host repo root.
 
 16. **Parallel tickets in worktrees.** *Pre:* a ticket to start, or one already on its branch in
     the main checkout. *Run:* `/artel:init-branch PROJ-XXXX` and answer **Move to
-    `.claude/worktrees/PROJ-XXXX`** — or `/artel:move-to-worktree PROJ-XXXX` for a ticket already
-    on its branch. *Produces:* the ticket's branch in `.claude/worktrees/PROJ-XXXX` with its
+    `.opencode/worktrees/PROJ-XXXX`** — or `/artel:move-to-worktree PROJ-XXXX` for a ticket already
+    on its branch. *Produces:* the ticket's branch in `.opencode/worktrees/PROJ-XXXX` with its
     uncommitted work, artel config and run state; this session continues there, and the main
     checkout is free for a new session on another ticket. *Next:* work the ticket as usual; when
     it is done, `/artel:return-from-worktree PROJ-XXXX` hands the branch back to the main

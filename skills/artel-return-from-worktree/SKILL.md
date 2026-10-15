@@ -1,6 +1,6 @@
 ---
 name: artel-return-from-worktree
-description: "Hand a ticket's worktree back to the main checkout once the task is done: its uncommitted changes and run state move back, the main checkout switches to the ticket's branch, and the worktree under .claude/worktrees/ is removed — the branch is kept. Use when the user says the work in a worktree is finished, wants to go back to the main checkout, or asks to remove or close a ticket's worktree."
+description: "Hand a ticket's worktree back to the main checkout once the task is done: its uncommitted changes and run state move back, the main checkout switches to the ticket's branch, and the worktree under .opencode/worktrees/ is removed — the branch is kept. Use when the user says the work in a worktree is finished, wants to go back to the main checkout, or asks to remove or close a ticket's worktree."
 argument-hint: "[ticket-id]"
 disable-model-invocation: true
 model: sonnet
@@ -26,11 +26,11 @@ session and changes the main checkout's branch.
 2. **Inside a linked worktree** (`git rev-parse --path-format=absolute --git-dir` differs from
    `--git-common-dir`): `<name>` is the worktree directory's name. `TICKET_ID` comes from `$0`
    (parsed per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2), else from the `ticket` field of
-   `.artel/worktree.json`. A worktree outside `MAIN/.claude/worktrees/`, or one with neither
+   `.artel/worktree.json`. A worktree outside `MAIN/.opencode/worktrees/`, or one with neither
    source → stop: "This worktree was not created by artel; hand it back with git."
 3. **In the main checkout:** `TICKET_ID` comes from `$0`, else from `<specs.dir>/.active_ticket`
    (as in `move-to-worktree`). Among the `git worktree list` paths, take those named
-   `MAIN/.claude/worktrees/<TICKET_ID>` or `MAIN/.claude/worktrees/<TICKET_ID>-<digits>`. One →
+   `MAIN/.opencode/worktrees/<TICKET_ID>` or `MAIN/.opencode/worktrees/<TICKET_ID>-<digits>`. One →
    its directory name is `<name>`. Several → ask which (`AskUserQuestion`, header `Worktree`).
    None → `<name>` = `TICKET_ID`; the script then finishes an interrupted hand-back or refuses.
 
@@ -48,7 +48,7 @@ say they may belong to another session, and that they must be committed or stash
 Ask once via `AskUserQuestion` (header `Hand back`):
 
 - **Hand back** (recommended) — description: "The main checkout switches from `<mainWasOn>` to
-  `<branch>`; `<uncommitted>` uncommitted files move with it; `.claude/worktrees/<name>` is
+  `<branch>`; `<uncommitted>` uncommitted files move with it; `.opencode/worktrees/<name>` is
   removed. The branch is kept." For a recovery (`recovery: true`): "Finish the interrupted hand-back
   of `<branch>`."
 - **Keep working here** — stop without changes.
@@ -82,7 +82,7 @@ Step 3 describes. A failure is reported, not rolled back — the hand-back is co
 - The branch now checked out in the main checkout, and the branch it was on (`mainWasOn`).
 - Whether uncommitted work came back (`stashApplied`) and whether run state moved (`runMoved`).
 - Every `envChanged` path, with one line: it changed in the worktree and was **not** copied back
-  (e.g. permissions saved to `.claude/settings.local.json`) — copy what should be kept by hand.
+  (e.g. `opencode.json` or a file under `.opencode/`) — copy what should be kept by hand.
 - Whether the setup commands ran, were skipped, or failed.
 
 ## Rules

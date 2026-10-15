@@ -91,7 +91,7 @@ failure handling for when to stop.
    The automatic free-text answer is a branch name the user wants instead.
 
    In the same `AskUserQuestion` call, ask the **worktree question** (header `Worktree`):
-   **Work here** / **Move to `.claude/worktrees/<name>`**, where `<name>` is `TICKET_ID`, or
+   **Work here** / **Move to `.opencode/worktrees/<name>`**, where `<name>` is `TICKET_ID`, or
    `<TICKET_ID>-<PHASE_NUM>` when `PHASE_NUM` is set. Its answer is ignored when the branch answer
    is "Stay on …" or "Enter worktree …". Skip the question entirely when the session is already
    inside a linked worktree (`git rev-parse --path-format=absolute --git-dir` differs from
@@ -238,6 +238,6 @@ Print a concise summary:
   phase-scoped.
 - On `feature/PROJ-1000-fix-fee`: `init-branch PROJ-3085` — stops: the branch belongs to
   `PROJ-1000`.
-- On `main`: `init-branch 3085`, answering **Create** and **Move to `.claude/worktrees/PROJ-3085`**
+- On `main`: `init-branch 3085`, answering **Create** and **Move to `.opencode/worktrees/PROJ-3085`**
   — the main checkout stays on `main`; `feature/PROJ-3085-adding-accounts` is created inside the
   worktree, this session moves there, and setup, restore, refresh and reindex run in it.

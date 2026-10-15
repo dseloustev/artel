@@ -15,10 +15,10 @@ the contract the two skills and `init-branch` follow; the mechanics live in
 
 ## 1. The model
 
-- **Location:** `.claude/worktrees/<name>`, where `<name>` is `<TICKET_ID>`, or
+- **Location:** `.opencode/worktrees/<name>`, where `<name>` is `<TICKET_ID>`, or
   `<TICKET_ID>-<PHASE_NUM>` when the run carries a phase. Claude Code enters paths there without
   a permission prompt, and a session already inside a worktree can switch only to paths there.
-  When the host does not ignore that directory, the script adds `/.claude/worktrees/` to
+  When the host does not ignore that directory, the script adds `/.opencode/worktrees/` to
   `.git/info/exclude` — local to the clone, never committed.
 - **The session moves.** After the move, the current session continues inside the worktree
   (`EnterWorktree`). Other work goes to a new session in the main checkout.
@@ -41,15 +41,15 @@ the contract the two skills and `init-branch` follow; the mechanics live in
 | Other ignored files | per `.worktreeinclude` (§3) | not copied back; differences reported as `envChanged` |
 | Dependencies, generated code, build output | never copied — `setup.commands` rebuilds them | same, in the main checkout |
 
-A file the task branch tracks is never overwritten by a copy. `.claude/worktrees/` is never
+A file the task branch tracks is never overwritten by a copy. `.opencode/worktrees/` is never
 copied. A stash is dropped only after it applied cleanly.
 
 ## 3. `.worktreeinclude`
 
-The same file Claude Code reads for `claude -w`: gitignore syntax, at the repo root. A path is
-copied when the main checkout ignores it **and** a pattern matches it. Without the file, the
-patterns are `/.claude/` and `/.mcp.json`. The file selects host files only — artel's own
-`.artel/` is handled per §2 regardless.
+Gitignore syntax, at the repo root. A path is copied when the main checkout ignores it **and** a
+pattern matches it. Without the file, the patterns are `/.opencode/`, `/opencode.json` and
+`/opencode.jsonc`. The file selects host files only — artel's own `.artel/` is handled per §2
+regardless.
 
 ## 4. Move-in procedure
 
@@ -120,7 +120,7 @@ An interrupted hand-back leaves `.artel/run/<TICKET_ID>/worktree.json` with
 `"handBack": "pending"` in the main checkout; running hand-back again finishes it.
 
 Refusals worth knowing: move-in from inside a worktree; a branch checked out in another
-worktree; `.claude/worktrees/<name>` existing but not a worktree of that branch. Hand-back with
+worktree; `.opencode/worktrees/<name>` existing but not a worktree of that branch. Hand-back with
 uncommitted changes in the main checkout — they may belong to another session — or with the
 worktree on a detached HEAD.
 

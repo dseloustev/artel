@@ -1,6 +1,6 @@
 ---
 name: artel-move-to-worktree
-description: "Move the current ticket's work — its branch, uncommitted changes, artel config and run state — out of the main checkout into its own git worktree under .claude/worktrees/, and continue this session there, so other sessions can work on other tickets in parallel. Use when the user asks to move work to a worktree, isolate a ticket, or run several tickets side by side. For a ticket with no branch yet, /artel:init-branch sets it up and offers the same move."
+description: "Move the current ticket's work — its branch, uncommitted changes, artel config and run state — out of the main checkout into its own git worktree under .opencode/worktrees/, and continue this session there, so other sessions can work on other tickets in parallel. Use when the user asks to move work to a worktree, isolate a ticket, or run several tickets side by side. For a ticket with no branch yet, /artel:init-branch sets it up and offers the same move."
 argument-hint: "[ticket-id]"
 disable-model-invocation: true
 model: sonnet
@@ -9,7 +9,7 @@ model: sonnet
 ## Overview
 
 `move-to-worktree` moves a ticket that is already on its branch in the main checkout into
-`.claude/worktrees/<name>` and switches this session into it. The contract — what moves, where,
+`.opencode/worktrees/<name>` and switches this session into it. The contract — what moves, where,
 the statuses — is `${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md`; the mechanics are
 `${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py`.
 
@@ -31,7 +31,7 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT
    `git rev-parse --path-format=absolute --git-common-dir`, stop: "This session is already in a
    worktree — run `/artel:move-to-worktree` from the main checkout."
 2. **An existing worktree is entered, not recreated.** If `git worktree list --porcelain` lists
-   `<repo root>/.claude/worktrees/<name>`, skip to Step 3 with that path.
+   `<repo root>/.opencode/worktrees/<name>`, skip to Step 3 with that path.
 3. **The branch carries the ticket.** `git branch --show-current` → `CURRENT_BRANCH`. Scan it for
    `TICKET_ID` exactly as `${CLAUDE_PLUGIN_ROOT}/skills/artel-init-branch/SKILL.md` Step 1 does. No
    match (another ticket, no ticket, detached HEAD) → stop: "`<CURRENT_BRANCH>` is not a branch
@@ -44,7 +44,7 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT
 
 1. Count the uncommitted paths: `git status --porcelain --untracked-files=all`.
 2. Ask once via `AskUserQuestion` (header `Worktree`):
-   - **Move to `.claude/worktrees/<name>`** (recommended) — description: "`<N>` uncommitted
+   - **Move to `.opencode/worktrees/<name>`** (recommended) — description: "`<N>` uncommitted
      files move with it; the main checkout switches to `<BASE_BRANCH>`."
    - **Stay here** — stop without changes.
 3. Run from the repo root:

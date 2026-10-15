@@ -38,7 +38,7 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   mirror of root docs (`AGENTS.md`, `CHANGELOG.md`) and the spec trail (`<specs.dir>/<TICKET_ID>/`,
   `<specs.dir>/.active_ticket`), used to declutter or archive the working tree and bring it back
   later. Not committed; add it to the host `.gitignore`, same as `.artel/run/`.
-- `.artel/worktree.json` — only inside a ticket worktree under `.claude/worktrees/`: the manifest
+- `.artel/worktree.json` — only inside a ticket worktree under `.opencode/worktrees/`: the manifest
   `scripts/worktree.py move-in` writes (ticket, branch, main checkout, what was copied). Hand-back
   leaves its copy at `.artel/run/<TICKET_ID>/worktree.json` with a `handBack` marker — `pending`
   until it finishes, then `done`. Not committed.
@@ -47,7 +47,7 @@ In a ticket worktree ([worktrees.md](worktrees.md)) the committed or ignored fil
 copies of the main checkout's, `.artel/context/` is a symlink to the main checkout's store, and
 `.artel/run/<TICKET_ID>/` is the ticket's own run state, moved there. Which *other* ignored files
 a worktree receives is set by `.worktreeinclude` at the repo root (gitignore syntax; without it,
-`/.claude/` and `/.mcp.json`) — Claude Code's file, not an artel key.
+`/.opencode/`, `/opencode.json` and `/opencode.jsonc`) — the host's file, not an artel key.
 
 Nothing host-writable is ever written into the plugin install or cache directory. The plugin
 ships read-only skills, agents and hooks; everything a run produces lands in the host repo.

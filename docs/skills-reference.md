@@ -742,7 +742,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `feature/<TICKET_ID>-<slug>` (phase runs: `feature/<TICKET_ID>-<N>-<slug>`) created from the
   detected base branch. Then restored `AGENTS.md` / `CHANGELOG.md` / ticket spec trail (via
   `restore-context`) and a refreshed `AGENTS.md` (via `agents-md-generator`). At the user's
-  choice, the branch is checked out or created in `.claude/worktrees/<name>` instead and the
+  choice, the branch is checked out or created in `.opencode/worktrees/<name>` instead and the
   session moves there (`scripts/worktree.py move-in`, [worktrees.md](worktrees.md)).
 - **Pauses:** when the current branch carries no ticket ID (check out an existing ticket branch /
   create one / stay, plus the worktree question); on the Stay route in the main checkout (the
@@ -763,11 +763,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Invocation:** `/artel:move-to-worktree [ticket-id]`
 - **Reads:** the current branch; `git worktree list`; the detected `origin` default branch;
   `setup.commands`; the main checkout's `.worktreeinclude`, `.artel/` and ignored files.
-- **Writes:** `.claude/worktrees/<name>` on the ticket's branch, with the main checkout's
+- **Writes:** `.opencode/worktrees/<name>` on the ticket's branch, with the main checkout's
   uncommitted work, copied `.artel/` config and ignored host files, a symlink to the context
   store, the ticket's moved `.artel/run/<TICKET_ID>/`, copied hook baselines and
   `.artel/worktree.json`; the main checkout switches to the base branch. Possibly
-  `/.claude/worktrees/` in `.git/info/exclude`. Then `setup.commands` in the worktree.
+  `/.opencode/worktrees/` in `.git/info/exclude`. Then `setup.commands` in the worktree.
 - **Pauses:** once, to confirm the move.
 - **Stops:** inside a worktree; when the current branch is not the ticket's (points at
   `init-branch`); on any script status but `ok` ([worktrees.md](worktrees.md) §6).
@@ -793,7 +793,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   but `ok`.
 - **Notes:** worker; user-invoked only (`disable-model-invocation`). Leaves with
   `ExitWorktree` `keep` only. The branch is never deleted, never `--force`. Changed environment
-  files (`.claude/`, `.mcp.json`, config) are reported as `envChanged`, never copied back. An
+  files (`.opencode/`, `opencode.json`, config) are reported as `envChanged`, never copied back. An
   interrupted hand-back is finished by a re-run.
 
 ### set-home

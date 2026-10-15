@@ -320,6 +320,7 @@ A resumed armed run enters here; its gates skip what is already done.
   (only when a produced document is unsaved: first
   `python3 ${ARTEL_ROOT}/scripts/spec_store.py pending add <path> --base-version <N>`,
   then dispatch a fresh `subagent` to the agent to write it to its logical path with its header's `version:`
-  set to `<N>`) / Pause without saving. Clear
+  set to `<N>` — on the model the dispatch procedure resolved for its original site,
+  `${ARTEL_ROOT}/docs/agents.md` `## Models`) / Pause without saving. Clear
   `pause_reason` only after a Retry succeeds. There is no "continue locally" mid-run. Headless:
   `specs.onUnavailable` (§5.4).

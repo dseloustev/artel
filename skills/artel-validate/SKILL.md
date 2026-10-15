@@ -22,6 +22,8 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 A release id (`R-…`) is always `files` (spec-storage.md §1): skip the decision read and pass
 `**Spec store:** files (release scope is kept on disk)`.
 
+Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `agents.validator`).
+
 Use the `subagent` tool with the `artel-validator` agent, description `"Validate gates for <TICKET_ID>"`, and a prompt that passes the parsed values (or the release id). The `artel-validator` agent already knows the gates (`PRD_READY`, `PLAN_APPROVED`, `TASKLIST_READY`, `IMPLEMENT_STEP_OK`, `REVIEW_OK`, `RUNTIME_OK`, `CHECKPOINT_OK`, `DOCS_UPDATED`, `AUTOMATION_REMOVED`) and their artifact paths for release / ticket / phase scope (release scope reads `<specs.releases>/<RELEASE_ID>.md` and its tickets, config.md) — no need to restate them here.
 
 Not a pipeline stage since 0.18.0 — the orchestrator confirms the same facts itself (autonomous-run.md §7); this is the à-la-carte report.

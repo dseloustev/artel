@@ -141,6 +141,62 @@ class TestReviewerSide(unittest.TestCase):
                 self.assertNotIn(stale, text, rel + ' still says: ' + stale)
 
 
+class TestTheDispatchProcedure(unittest.TestCase):
+    """The generic `agents.<name>` rule has one home — docs/agents.md § Models — and every
+    ordinary dispatch site cites it. Specialised sites keep their own resolution; without
+    this, a configured `agents.<name>` is ignored and the child silently inherits the
+    caller's model."""
+
+    # skill -> (site, least citations of the procedure expected in that file)
+    SITES = {
+        'skills/artel-analysis/SKILL.md': ('agents.analyst', 3),
+        'skills/artel-generate-vision/SKILL.md': ('agents.vision-writer', 3),
+        'skills/artel-docs-update/SKILL.md': ('agents.tech-writer', 1),
+        'skills/artel-qa/SKILL.md': ('agents.qa', 1),
+        'skills/artel-validate/SKILL.md': ('agents.validator', 1),
+        'skills/artel-tasklist/SKILL.md': ('agents.task-planner', 1),
+        'skills/artel-generate-tasklist/SKILL.md': ('agents.tasklist-writer', 4),
+        'skills/artel-planner/SKILL.md': ('agents.planner', 2),
+        'skills/artel-researcher/SKILL.md': ('agents.researcher', 2),
+        'skills/artel-figma-analysis/SKILL.md': ('agents.figma-analyst', 2),
+        'skills/artel-issue-draft/SKILL.md': ('agents.issue-scout', 1),
+    }
+
+    def citation_forms(self, site):
+        return (
+            'the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `'
+            + site + '`)',
+            'model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `'
+            + site + '`',
+        )
+
+    def test_the_procedure_is_in_the_shared_contract(self):
+        section = between(flat(read('docs/agents.md')), '## Models', '## Why this file')
+        for phrase in ('### The dispatch procedure', 'models.py resolve --site',
+                       '`agents.<name>`', '`null` passes none', "inherits the caller's model",
+                       'A resolver exit `2`', 're-dispatched once without one',
+                       'A refused model retries once'):
+            self.assertIn(phrase, section)
+
+    def test_every_ordinary_dispatch_site_cites_it(self):
+        for rel, (site, least) in sorted(self.SITES.items()):
+            with self.subTest(rel=rel):
+                text = flat(read(rel))
+                found = sum(text.count(form) for form in self.citation_forms(site))
+                self.assertGreaterEqual(found, least,
+                                        '{} cites the dispatch procedure {} time(s), expected '
+                                        'at least {}'.format(rel, found, least))
+
+    def test_the_orchestrators_direct_dispatches_cite_it_too(self):
+        for rel, phrase in (
+                ('skills/artel-feature-development/heads/full.md',
+                 'model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`'),
+                ('skills/artel-feature-development/SKILL.md',
+                 'the dispatch procedure resolved for its original site')):
+            with self.subTest(rel=rel):
+                self.assertIn(phrase, flat(read(rel)))
+
+
 class TestPinnedDefaults(unittest.TestCase):
     """No agent carries a frontmatter model tier: the dispatcher resolves the site."""
 

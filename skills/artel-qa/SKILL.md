@@ -24,6 +24,8 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 A release id (`R-…`) is always `files` (spec-storage.md §1): skip the decision read and pass
 `**Spec store:** files (release scope is kept on disk)`.
 
+Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `agents.qa`).
+
 Use the `subagent` tool with the `artel-qa` agent, description `"QA plan for <TICKET_ID>"`, and a prompt that passes the parsed values (or the release id). The `artel-qa` agent already knows how to handle release / ticket / phase scopes and its output paths (including the release-scope `<specs.releases>/<RELEASE_ID>/qa.md`, config.md) — no need to restate them here.
 
 Wait for the agent to finish and report the verdict back to the user.

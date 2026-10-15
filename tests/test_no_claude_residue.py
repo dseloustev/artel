@@ -170,6 +170,17 @@ class TestInstructionSurface(unittest.TestCase):
         self.assertIn(probe, doc_paths())
         self.assertTrue(scan(probe.read_text(encoding='utf-8'), DOC_TOKENS))
 
+    def test_the_instruction_walk_sees_a_planted_token(self):
+        """A walk that silently stops finding files guards nothing: plant a token under
+        each instruction tree and watch the guard fail on it."""
+        for tree in INSTRUCTION_TREES:
+            with self.subTest(tree=tree):
+                probe = ROOT / tree / '__residue_probe__.md'
+                probe.write_text('AskUserQuestion\n', encoding='utf-8')
+                self.addCleanup(probe.unlink)
+                self.assertIn(probe, instruction_paths())
+                self.assertTrue(scan(probe.read_text(encoding='utf-8'), INSTRUCTION_TOKENS))
+
     def test_the_docs_superpowers_skip_is_deliberate(self):
         """The sixth exclusion: `docs/superpowers/` is gitignored controller scratch, never
         repository documentation. It is skipped by name, and the gitignore is the reason —

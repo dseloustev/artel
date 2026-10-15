@@ -45,6 +45,8 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
+Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `agents.researcher`).
+
 Use the `subagent` tool with:
 - the `artel-researcher` agent
 - `description`: `"Extract questions for <TICKET_ID>"`
@@ -100,7 +102,8 @@ Outside question mode this skill never asks the user (`${ARTEL_ROOT}/docs/autono
 ### Phase 3: Re-dispatch for Research
 
 Use the `subagent` tool with the `artel-researcher` agent (a fresh dispatch — it re-reads its
-context files, which are its state):
+context files, which are its state; model per the dispatch procedure,
+`${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.researcher`):
 - `prompt`:
 
 ```

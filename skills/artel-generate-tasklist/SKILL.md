@@ -119,6 +119,8 @@ the document entering this context —
 `This diagnosis is structural. Next: /artel-feature-development <TICKET_ID> --head=full` and
 terminate.
 
+Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `agents.tasklist-writer`).
+
 Use the `subagent` tool with:
 
 - the `artel-tasklist-writer` agent
@@ -189,7 +191,7 @@ before the approval round sees it.
    Exit `2` from either command → print `error.kind` and `error.message` and go to Phase 2: the
    approval round still runs, and the Completion says the check did not run.
 3. **Fix round.** A Critical or Important finding (exit `1`), and fewer than
-   `MAX_PLAN_REVIEW_ROUNDS = 2` fix rounds so far → dispatch a fresh `subagent` to the `artel-tasklist-writer` agent with those findings
+   `MAX_PLAN_REVIEW_ROUNDS = 2` fix rounds so far → dispatch a fresh `subagent` to the `artel-tasklist-writer` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.tasklist-writer`) with those findings
    verbatim — `severity`, `task`, `line`, `rule`, `message` — with "Fix these in the draft,
    leave the rest as it is, and return the same three things." Then run step 2 again. Minor
    findings never start a round.
@@ -226,7 +228,7 @@ Collect the answers into a single string:
 
 ### Phase 3: Resume to Finalize Tasklist
 
-Dispatch a fresh `subagent` to the `artel-tasklist-writer` agent:
+Dispatch a fresh `subagent` to the `artel-tasklist-writer` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.tasklist-writer`):
 
 ```
 User's answers:
@@ -246,7 +248,8 @@ first, kartoteka path (`docs/spec-storage.md` §4.2) second:
     python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID> --check --requirements <requirements>
     set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
 
-A Critical or Important finding gets one fix `subagent` dispatch to the same agent — the findings,
+A Critical or Important finding gets one fix `subagent` dispatch to the same agent (model per
+the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.tasklist-writer`) — the findings,
 each with its line, and "fix only these in <specs.dir>/<TICKET_ID>/tasklist.md; keep the task
 grammar and the person's answers" — and the check runs once more. When it still has a Critical
 or Important finding, stop and ask the person, even in `yolo` (a tasklist that fails its own

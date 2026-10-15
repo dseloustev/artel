@@ -20,6 +20,8 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
+Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `agents.tech-writer`).
+
 Use the `subagent` tool with the `artel-tech-writer` agent, description `"Update docs for <TICKET_ID>"`, and a prompt that passes `TICKET_ID`, `TICKET_NUM`, and `PHASE_NUM` (or "all phases"). The `artel-tech-writer` agent already knows the artifact inputs and output paths (`<specs.dir>/<TICKET_ID>/summary.md` or its phase-scoped variant, plus `CHANGELOG.md`) — no need to restate them here.
 
 Wait for the agent to finish and show the documentation diff.

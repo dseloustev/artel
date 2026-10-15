@@ -34,13 +34,31 @@ passes no model, so the child inherits the caller's:
 | `collaborative-reviewer` | `agents.collaborative-reviewer` |
 | every other agent | `agents.<name>` |
 
+### The dispatch procedure
+
+Every dispatch of an artel agent — a specialised site in the table above or an ordinary
+`agents.<name>` dispatch — applies this procedure at the dispatch site, before the `subagent`
+call:
+
+1. **Resolve the site.** `python3 ${ARTEL_ROOT}/scripts/models.py resolve --site <site>`. The
+   site is the one the table above names for this dispatch; with no specialised site it is
+   `agents.<name>`, where `<name>` is the agent's name without the `artel-` prefix.
+2. **Read the answer.** A concrete `provider/model[#variant]` is passed as the call's `model`.
+   `null` passes none: the child inherits the caller's model.
+3. **An error stops the run.** A resolver exit `2` (for example `invalid_config`) is not an
+   inherit: report it and stop — never dispatch on a guess.
+4. **A refused model retries once.** A dispatch refused for its model (not available, or not
+   allowed on this host) is re-dispatched once without one; a second refusal is reported and
+   stops the run.
+
+A dispatch site names its site and cites this section; it never restates the mechanics.
+
 An iteration task's site follows its route, and a review's its scope — the distribution
 superpowers 6.4.1's Model Selection and its strict-cost evaluations support
 ([design.md](design.md), decision log 2026-10-02). A fix list's first round resolves
 `implementer.fix` whatever the task's route, and the round after a failed one steps up to
-`implementer.stepUp`; the step-up rule is [autonomous-run.md](autonomous-run.md) §5. A dispatch
-refused for its model is re-dispatched once without one; a resolver error (exit `2`) is reported
-and stops the run. Keys, allowed values and defaults: [config.md](config.md), `models`.
+`implementer.stepUp`; the step-up rule is [autonomous-run.md](autonomous-run.md) §5. Keys,
+allowed values and defaults: [config.md](config.md), `models`.
 
 **A skill declares no `model:`.** The orchestrator and every stage skill run on the session's
 model however they are reached: across the host runs of 2026-08-31 to 2026-09-30, typed

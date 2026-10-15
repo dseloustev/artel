@@ -59,6 +59,8 @@ status in brackets, read without the document entering this context:
 A bug ticket that `feature-development` raised to this interview arrives with a
 `DIAGNOSED_STRUCTURAL` diagnosis, and the interview starts from its cause.
 
+Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `agents.analyst`).
+
 Use the `subagent` tool with:
 - the `artel-analyst` agent
 - `description`: `"Interview for <TICKET_ID>"`
@@ -114,14 +116,15 @@ Repeat until the agent returns `INTERVIEW_COMPLETE`:
    — a batch that mixes previewed questions with multi-choice ones is asked as two calls, the
    previewed questions first. Vague user answers ("it depends") are sent back to the agent, which must
    split them into resolvable sub-questions in the next batch.
-2. Dispatch a fresh `subagent` to the `artel-analyst` agent with the answers: `User's answers: [answers]. Resolve these branches. Return
+2. Dispatch a fresh `subagent` to the `artel-analyst` agent with the answers (model per the
+   dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.analyst`): `User's answers: [answers]. Resolve these branches. Return
    the next batch (same format), or INTERVIEW_COMPLETE when every branch is unambiguous or explicitly
    parked as an Assumption with user consent.`
 3. On `NO_QUESTIONS` from Phase 1, skip straight to Phase 3.
 
 ### Phase 3: Finalize the PRD
 
-Dispatch a fresh `subagent` to the `artel-analyst` agent:
+Dispatch a fresh `subagent` to the `artel-analyst` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.analyst`):
 
 ```
 Interview complete. Write the PRD now:

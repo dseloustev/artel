@@ -30,6 +30,8 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
+Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `agents.planner`).
+
 Use the `subagent` tool with:
 - the `artel-planner` agent
 - `description`: `"Draft plan for <TICKET_ID>"`
@@ -87,7 +89,8 @@ This skill never asks the user (`${ARTEL_ROOT}/docs/autonomous-run.md` §3).
 ### Phase 3: Re-dispatch to Finalize Plan
 
 Use the `subagent` tool with the `artel-planner` agent (a fresh dispatch — it re-reads its
-context files, which are its state):
+context files, which are its state; model per the dispatch procedure,
+`${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.planner`):
 - `prompt`:
 
 **If questions were asked:**

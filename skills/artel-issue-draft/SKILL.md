@@ -188,6 +188,8 @@ Then collect:
 
 ## 4. Gather context — the `artel-issue-scout` agent
 
+Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `agents.issue-scout`).
+
 Use the `subagent` tool with:
 
 - the `artel-issue-scout` agent

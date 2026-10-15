@@ -68,6 +68,8 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
+Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `agents.figma-analyst`).
+
 Use the `subagent` tool with:
 - the `artel-figma-analyst` agent
 - `description`: `"Design analysis for <TICKET_ID>"`
@@ -119,7 +121,7 @@ Branch on the agent's return:
 
 ### Phase 3: Finalize
 
-Dispatch a fresh `subagent` to the `artel-figma-analyst` agent:
+Dispatch a fresh `subagent` to the `artel-figma-analyst` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.figma-analyst`):
 
 ```
 User resolutions: [numbered list matching the findings, or "none"].

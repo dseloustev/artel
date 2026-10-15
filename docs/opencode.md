@@ -179,8 +179,13 @@ function" = a v1 bridge or a malformed export). The SQLite transcripts
 (`~/.local/share/opencode/opencode.db`) show whether an injection persisted or was delivered
 in-memory only.
 
-Verified against OpenCode **2.0.19** (plugin SDK 2.0.21). Re-run this smoke after upgrading
+Verified against OpenCode **2.0.29** (2026-10-15). Re-run this smoke after upgrading
 OpenCode.
+
+The probes run isolated: install and every `opencode run` with `XDG_CONFIG_HOME` pointed at a
+throwaway config home, plus `--standalone` on each run — a bare `scripts/install-opencode.sh`
+derives its source root from the script's own location and installs this checkout over the real
+`~/.config/opencode/`.
 
 ## Troubleshooting
 

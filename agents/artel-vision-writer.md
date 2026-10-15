@@ -24,7 +24,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   project's only spec store. Read, check, create, rewrite and edit it exactly as
   `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
-  never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
+  never with `read`/`write`/`edit` and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
@@ -98,7 +98,7 @@ After Section 7, append `## Out of scope` (from PRD + idea) and `## References` 
 ### Step 1 — Draft and list questions
 
 1. Read the idea file, the PRD, and the codebase as needed. Cite real repo paths and confirm
-   every one of them — the host's optional code-symbol index first, else Grep, per
+   every one of them — the host's optional code-symbol index first, else `grep`, per
    `${ARTEL_ROOT}/docs/code-navigation.md` §5.
 2. Draft the complete document (all seven sections) in memory. Header: the document header (`status: DRAFT`),
    `# Vision: {Feature Title} (<TICKET_ID>)`, the **Sources:** line, `---`, then the sections.
@@ -127,7 +127,7 @@ These are pinned for the whole draft. Honor them even if the user's answers woul
 - **No new abstractions.** Reuse existing factories, services, repositories, scopes, DAOs. If you are about to name a `FooManager` that does not exist yet, stop and reuse what is there.
 - **No new APIs or UI** unless the idea file calls for them. A debug-screen button is only in scope when the idea file mentions it.
 - **Prefer destructive migrations** over multi-step row-level migrations when the data is recoverable (cache, computed state). Call out the trade-off.
-- **Reuse, then cite.** When any section references an existing class / service / file, include its repo path, and confirm the path exists before you write it — the host's optional code-symbol index first, else Grep (`${ARTEL_ROOT}/docs/code-navigation.md` §5). Never cite from memory. The index is also how you find what to reuse: `class`/`symbol --fuzzy` and `implementations` surface the existing factory or repository you are about to reinvent.
+- **Reuse, then cite.** When any section references an existing class / service / file, include its repo path, and confirm the path exists before you write it — the host's optional code-symbol index first, else `grep` (`${ARTEL_ROOT}/docs/code-navigation.md` §5). Never cite from memory. The index is also how you find what to reuse: `class`/`symbol --fuzzy` and `implementations` surface the existing factory or repository you are about to reinvent.
 - **Call out every "we could do X but won't".** Explicit non-goals in the relevant section prevent scope creep during implementation.
 - **No speculation.** If the idea file is silent on something, ask in your questions list. Do not invent answers.
 

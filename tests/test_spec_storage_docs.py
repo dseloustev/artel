@@ -199,7 +199,7 @@ class TestImageRules(unittest.TestCase):
     def test_the_guard_section_quotes_the_read_hint(self):
         scope = section(self.text, '## 6. The guard')
         self.assertIn(guard.READ_HINT.format(path='<path>'), scope)
-        self.assertIn('and on `Read`', flat(scope))
+        self.assertIn('and on `read`', flat(scope))
         self.assertIn('Writing an image is always allowed', flat(scope))
 
     def test_migration_classifies_images_like_documents(self):

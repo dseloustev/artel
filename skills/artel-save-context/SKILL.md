@@ -35,7 +35,7 @@ between blocks.
 
 ## Step 0: Resolve the active ticket
 
-Read `<specs.dir>/.active_ticket` (Read tool). Take the first non-empty line, strip any phase
+Read `<specs.dir>/.active_ticket` (the `read` tool). Take the first non-empty line, strip any phase
 suffix per `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2 (e.g. `PROJ-2525-5` →
 `PROJ-2525`). Call the result `ACTIVE`. A missing pointer or file leaves `ACTIVE` empty — that is
 fine; Step 2 then writes only the shared copy.

@@ -32,7 +32,7 @@ If `$0` itself is a `figma.com` URL, treat it as `$1` and resolve the ticket fro
 
 1. An explicit `$1` URL wins — analysis proceeds even when `idea.md` is missing (the
    `artel-figma-analyst` agent creates the ticket directory if needed).
-2. Else Grep `<specs.dir>/<TICKET_ID>/idea.md` for `figma.com/design` and collect every design
+2. Else `grep` `<specs.dir>/<TICKET_ID>/idea.md` for `figma.com/design` and collect every design
    URL.
 3. Other `figma.com` links (`/board/`, `/slides/`, FigJam) are collected separately and passed to
    the agent as "present, not analyzed" — never analysis targets.

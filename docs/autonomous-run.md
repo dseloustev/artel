@@ -410,7 +410,7 @@ the latest approved docs and every completed phase: a **planning checkpoint** ri
 arming (docs only, no verify gate; its subject says `planning artifacts` when a plan exists and
 `work list` otherwise) and a **phase-end checkpoint** after each phase's gates pass
 (the checkpoint gate — `verify.commands` compared against the run's baseline, gates.md §1 — plus capped fixes first). Checkpoints are orchestrator-owned
-Bash actions, pre-approved at the approval pause (§4 exception), never pause, and are journaled as
+`shell` actions, pre-approved at the approval pause (§4 exception), never pause, and are journaled as
 external actions (§11).
 
 The second kind is task commits, and the finer one: one commit per completed implementer cycle —

@@ -35,7 +35,7 @@ The content may be in any language — pass it through as-is; the agent writes t
 
 ### 2. Local docs
 
-Read each of the following with `Read` if the file exists; skip silently otherwise:
+Read each of the following with `read` if the file exists; skip silently otherwise:
 
 - `<specs.dir>/<TICKET_ID>/idea.md`
 - `<specs.dir>/<TICKET_ID>/vision.md`
@@ -45,7 +45,7 @@ Read each of the following with `Read` if the file exists; skip silently otherwi
 
 ### 3. Git data
 
-Run via `Bash` (one block, sequential):
+Run via `shell` (one block, sequential):
 
 ```bash
 BASE_BRANCH=<resolved above>

@@ -33,7 +33,7 @@ stop.
 
 ## 3. Apply
 
-Run `runtime.scaffold.add` via Bash. Capture `{command, exit_code, output}`. Non-zero exit → the
+Run `runtime.scaffold.add` via `shell`. Capture `{command, exit_code, output}`. Non-zero exit → the
 command may still have written part of the scaffold before it failed, so preflight's clean tree
 proves nothing about the tree now: re-check `git status --porcelain -uall -z`. Empty → nothing to
 undo. Non-empty → roll back with the step-4.3 procedure. Report the output and stop either way.

@@ -28,7 +28,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   project's only spec store. Read, check, create, rewrite and edit it exactly as
   `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
-  never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
+  never with `read`/`write`/`edit` and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
@@ -93,4 +93,4 @@ Optionally write an ADR alongside the plan if there are significant architectura
 - **Never overwrite a ticket-wide plan from a phase-scoped run.** Phase output goes inside `phase-<PHASE_NUM>/`.
 - **Never silently write a flat `plan.md` when phase folders exist** — apply the refuse-and-ask rule.
 - **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.
-- Never cite a symbol or path you have not confirmed exists — resolve it through the host's optional code-symbol index, else Read/Grep. The rule and its tools are `${ARTEL_ROOT}/docs/code-navigation.md` §5. Declare new artifacts with new:/"(new file)" — an undeclared new path reads as a hallucinated reference.
+- Never cite a symbol or path you have not confirmed exists — resolve it through the host's optional code-symbol index, else `read`/`grep`. The rule and its tools are `${ARTEL_ROOT}/docs/code-navigation.md` §5. Declare new artifacts with new:/"(new file)" — an undeclared new path reads as a hallucinated reference.

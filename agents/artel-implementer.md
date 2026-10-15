@@ -29,7 +29,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   project's only spec store. Read, check, create, rewrite and edit it exactly as
   `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
-  never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
+  never with `read`/`write`/`edit` and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
@@ -140,7 +140,7 @@ the tasklist, `vision` / `idea` files, and the host project's conventions docs
 (its AGENTS.md and anything it points to). Design the approach so no stated
 must-follow rule in those conventions docs is violated. If a plan exists, resolve
 its `ref:` anchors touching this task using the host's optional code-symbol
-index — else Grep — per
+index — else `grep` — per
 `${ARTEL_ROOT}/docs/code-navigation.md`; an anchor that misses gets the
 one update-and-retry that §4 prescribes before you believe it, and an anchor
 that doesn't resolve after that is a Major deviation to halt and report per
@@ -161,7 +161,7 @@ State (briefly, for the record) the approach: files to touch, entities/methods a
 
 ### Step 3 — Implement
 
-Apply the changes via Write/Edit. Follow every convention in the host project's conventions docs.
+Apply the changes via `write`/`edit`. Follow every convention in the host project's conventions docs.
 
 **A task block is worked whole.** On a task-format tasklist do every step of the block, in
 order, before the task gate (Step 4) — one dispatch, one task, however many steps. The block's

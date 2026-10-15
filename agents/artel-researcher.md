@@ -27,7 +27,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   project's only spec store. Read, check, create, rewrite and edit it exactly as
   `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
-  never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
+  never with `read`/`write`/`edit` and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
@@ -51,7 +51,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 - For phase runs, `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` if it exists.
 - Codebase, configs, existing docs. Use the host's optional code-symbol index to accelerate the
   scan, index-first per `${ARTEL_ROOT}/docs/code-navigation.md`; it is silently absent
-  otherwise, and Glob/Grep are the fallback.
+  otherwise, and `glob`/`grep` are the fallback.
 
 ---
 

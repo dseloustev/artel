@@ -35,7 +35,7 @@ first: `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `f
 → its `store`; otherwise resolve per `${ARTEL_ROOT}/docs/spec-storage.md` §2.1, asking the
 user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
 an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
-operation — never with Read/Write/Edit or a shell file command.
+operation — never with `read`/`write`/`edit` or a shell file command.
 
 ### Step 2: Read the tasklist and context files
 
@@ -43,7 +43,7 @@ operation — never with Read/Write/Edit or a shell file command.
 
 ### Step 3: Find existing phase tasks files
 
-Use Glob to find all phase tasks files: `<specs.dir>/<TICKET_ID>/phase-*/tasks.md`. The phase number is read from the path segment (`phase-1/tasks.md` → phase `1`). On the kartoteka path the phase files are the names `phase-<N>.tasks.md` in `artifact_list(project=<project>, ticket_key=<TICKET_ID>)`.
+Use `glob` to find all phase tasks files: `<specs.dir>/<TICKET_ID>/phase-*/tasks.md`. The phase number is read from the path segment (`phase-1/tasks.md` → phase `1`). On the kartoteka path the phase files are the names `phase-<N>.tasks.md` in `artifact_list(project=<project>, ticket_key=<TICKET_ID>)`.
 
 ### Step 4: Sync completed phases FROM phase tasks files TO tasklist
 

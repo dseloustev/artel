@@ -88,7 +88,7 @@ intent, and intelligently combining changes. Utility procedure — no agent, no 
 
 **Find where the code went, don't guess.** This is symbol work, so it is index work: use the
 host's optional code-symbol index, index-first per
-`${ARTEL_ROOT}/docs/code-navigation.md`; Grep is the fallback and it is silently absent
+`${ARTEL_ROOT}/docs/code-navigation.md`; `grep` is the fallback and it is silently absent
 otherwise. `symbol <name> --fuzzy` / `class <name>` locate a symbol that moved, `usages` and
 `callers` show who now depends on it, and `refs` gives definition, imports and usages in one
 view — which is the whole question when deciding whether a hunk from the source branch still
@@ -126,7 +126,7 @@ Apply the approved resolution strategy for each file:
 
 ### Complex Merges
 
-- Use the `Edit` tool to manually combine changes from both sides
+- Use the `edit` tool to manually combine changes from both sides
 - Remove ALL conflict markers: `<<<<<<<`, `=======`, `>>>>>>>`
 - Ensure the resulting code is syntactically correct and logically consistent
 
@@ -146,11 +146,11 @@ git add <resolved-file>
 
 ### Check for Remaining Conflict Markers
 
-Run via Grep tool across the whole tree (no language-specific file filter — the host project may
+Run via the `grep` tool across the whole tree (no language-specific file filter — the host project may
 use any file types):
 - Pattern: `<<<<<<<`
 
-Grep is correct here and stays Grep even with an index available: a conflict marker is a string
+`grep` is correct here and stays `grep` even with an index available: a conflict marker is a string
 literal, not a symbol (`${ARTEL_ROOT}/docs/code-navigation.md` §3).
 
 If any conflict markers remain, resolve them before proceeding.

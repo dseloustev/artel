@@ -167,7 +167,7 @@ class DeliberateSilences(unittest.TestCase):
         not to reach for the index. The Phase 5 scan stays Grep."""
         text = read('skills/artel-merge-conflicts/SKILL.md')
         self.assertIn('Pattern: `<<<<<<<`', text)
-        self.assertIn('Grep is correct here', text)
+        self.assertIn('`grep` is correct here', text)
 
 
 class GenericizationHolds(unittest.TestCase):

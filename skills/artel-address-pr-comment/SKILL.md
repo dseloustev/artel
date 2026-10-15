@@ -125,7 +125,7 @@ first: `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `f
 → its `store`; otherwise resolve per `${ARTEL_ROOT}/docs/spec-storage.md` §2.1, asking the
 user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
 an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
-operation — never with Read/Write/Edit or a shell file command.
+operation — never with `read`/`write`/`edit` or a shell file command.
 
 ## Step 4 — Read ticket context
 
@@ -154,7 +154,7 @@ failure.
 
 If the comment is **inline** (has a file + line anchor):
 
-1. Use `Read` with `offset`/`limit` on the anchor file to load roughly ±20 lines around the comment's line in the current working tree.
+1. Use `read` with `offset`/`limit` on the anchor file to load roughly ±20 lines around the comment's line in the current working tree.
 2. Fetch the diff as it stood when the comment was written: `gh pr diff <prNumber> --repo <owner>/<repo>` (`"github-cli"`) or `<vcs.mcpToolPrefix>bitbucket_get_pr_diff` (`"bitbucket-mcp"`).
 3. Compare:
    - If the line at the anchor still matches the diff hunk → mark `anchor still valid`.

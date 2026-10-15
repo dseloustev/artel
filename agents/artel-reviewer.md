@@ -35,7 +35,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   project's only spec store. Read, check, create, rewrite and edit it exactly as
   `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
-  never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
+  never with `read`/`write`/`edit` and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
@@ -435,7 +435,7 @@ the lenses: its diff is one task wide and the phase review runs them over the wh
 **Resolve the diff before you judge it.** A diff shows the lines that changed, not what depends
 on them — and every lens below asks a question the hunk itself cannot answer. Use the host's
 optional code-symbol index, index-first per `${ARTEL_ROOT}/docs/code-navigation.md`;
-Grep is the fallback and it is silently absent otherwise. `changed --base <default-branch>` lists
+`grep` is the fallback and it is silently absent otherwise. `changed --base <default-branch>` lists
 the symbols this branch touches, `usages` / `refs` give a changed signature's blast radius,
 `implementations` and `hierarchy` show whether a modified interface left its implementors behind,
 and `callers` tells you who reaches a function whose contract moved. A finding must name a symbol

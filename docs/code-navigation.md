@@ -31,7 +31,7 @@ One input, probed once per run:
 | `command -v ast-index` | Behavior |
 |---|---|
 | found | **Use the index** — §2 for the commands, §3 for the rule |
-| not found | Glob/Grep/Read are the whole toolkit. Record nothing |
+| not found | `glob`/`grep`/`read` are the whole toolkit. Record nothing |
 
 The probe is presence only. Do not run a search to find out whether search
 works, and do not build an index that is not there — creating one is the user's
@@ -39,7 +39,7 @@ call (`/ast-index:initialize`, or the host's own step), never an agent's.
 
 **Absence is silent.** A host that has not wired up an index is not
 misconfigured, and an agent must not report the index as missing, ask for it, or
-degrade its own output because of it. Glob and Grep answer every question below,
+degrade its own output because of it. `glob` and `grep` answer every question below,
 more slowly. This is the same shape as the knowledge gate
 (`docs/knowledge-consultation.md` §1) with one difference: there is no config
 key. An index is project-agnostic — it reads whatever checkout it is pointed
@@ -48,7 +48,7 @@ to use.
 
 When the `ast-index` plugin's skill is loaded in the session, route through
 `/ast-index:ast-index` and let it pick the command. When it is not, run the CLI
-directly with Bash. The probe above answers both cases: the CLI is what the
+directly with `shell`. The probe above answers both cases: the CLI is what the
 skill drives.
 
 ## 2. Reference implementation
@@ -82,14 +82,14 @@ clearing and scheduled refreshes are the host's, not an agent's
 ## 3. The index-first rule
 
 **With an index available, it is the first tool for any code search** — before
-Grep, Glob or the Search tool.
+`grep`, `glob` or the Search tool.
 
 **Its result is the complete answer.** Do not re-run the same question through
 grep "for completeness". A second pass that finds nothing new cost a minute and
 proved nothing; a second pass that finds something means the index is stale, and
 §4 is how that is handled.
 
-Reach for Grep when the question is not about symbols:
+Reach for `grep` when the question is not about symbols:
 
 - **regex** — the index matches literally
 - **string literals inside code** — `"could not connect"`
@@ -97,7 +97,7 @@ Reach for Grep when the question is not about symbols:
 - after the index returns **empty**
 
 `skills/artel-merge-conflicts/SKILL.md` Phase 5 is the worked example: scanning the
-tree for `<<<<<<<` is a literal scan, so it is Grep's job and stays Grep's job,
+tree for `<<<<<<<` is a literal scan, so it is `grep`'s job and stays `grep`'s job,
 in the same skill whose Phase 3 resolves moved symbols through the index.
 
 ## 4. Staleness
@@ -141,4 +141,4 @@ stage states its own consequence for breaking it:
   trusts.
 
 The index makes this cheap enough that there is no excuse for the shortcut.
-Without one it is still the rule — Grep is slower, not optional.
+Without one it is still the rule — `grep` is slower, not optional.

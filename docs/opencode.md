@@ -51,7 +51,7 @@ prepended `<OPENCODE-HOST-NOTES>` glossary translating it to the v2 host:
 - `$0`/`$1`/`$ARGUMENTS` → the arguments the skill was invoked with.
 - the `question` tool.
 - plan mode → present the plan and wait for approval (OpenCode has no plan-mode tool).
-- the v2 tool names: `Read`/`Edit`/`Write`/`Grep`/`Bash` → `read`/`edit`/`write`/`grep`/`shell`.
+- the tool names: `read`, `edit`, `write`, `grep`, `shell`.
 
 `disable-model-invocation: true` becomes `metadata.opencode/autoinvoke: false`, so a
 manual-only skill stays registered and loadable by id but leaves the model's skill list.

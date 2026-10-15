@@ -30,7 +30,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   project's only spec store. Read, check, create, rewrite and edit it exactly as
   `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
-  never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
+  never with `read`/`write`/`edit` and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
@@ -68,7 +68,7 @@ unreachable Figma MCP is an environment error (`${ARTEL_ROOT}/docs/autonomous-ru
 ### 2. Extract metadata
 
 Call the metadata tool per design URL. Large results are saved by the harness to a file — never
-paste raw XML into your reasoning; extract with a python script via Bash:
+paste raw XML into your reasoning; extract with a python script via `shell`:
 
 - `<section>` nodes → form-factor groupings (e.g. `Desktop …`, `Mobile …`) and state-reference
   sections (no flow, e.g. state galleries).
@@ -94,8 +94,8 @@ in one section only) is a **Major** finding; an unpaired state variant is **Mino
 ### 5. Map to code
 
 Use the host's optional code-symbol index for code search, index-first per
-`${ARTEL_ROOT}/docs/code-navigation.md`; it is silently absent otherwise, and Grep is the
-fallback (also use Grep for regex, or for string literals / comments the index does not cover —
+`${ARTEL_ROOT}/docs/code-navigation.md`; it is silently absent otherwise, and `grep` is the
+fallback (also use `grep` for regex, or for string literals / comments the index does not cover —
 §3). Before reading any file over 500 lines, prefer an outline/symbol view of it if the index
 supports one (§2), and read only the targeted slice via offset/limit.
 

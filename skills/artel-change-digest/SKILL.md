@@ -29,7 +29,7 @@ first: `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `f
 → its `store`; otherwise resolve per `${ARTEL_ROOT}/docs/spec-storage.md` §2.1, asking the
 user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
 an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
-operation — never with Read/Write/Edit or a shell file command.
+operation — never with `read`/`write`/`edit` or a shell file command.
 
 ## 2. Read the ticket documentation
 

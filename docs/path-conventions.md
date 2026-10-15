@@ -78,7 +78,7 @@ footer** rather than maintain a parallel list.
 
 This rule governs the **content written into artifact files**. It does NOT restrict:
 
-- Arguments passed to tools (`Read`, `Write`, `Edit`, `Bash`, etc.) — those may use absolute
+- Arguments passed to tools (`read`, `write`, `edit`, `shell`, etc.) — those may use absolute
   paths.
 - Paths the user types in chat or in their own shell.
 - External URLs (RFC links, issue-tracker links, PR links, etc.) — those are not filesystem

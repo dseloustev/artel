@@ -290,7 +290,7 @@ When the agent returns its confirmation line, print it verbatim plus:
 
 - **Ticket-level only.** Ignore any phase passed in `$0`.
 - **Never write the tasklist directly from this skill.** All file writes happen inside the agent
-  (it owns `Write`). The orchestrator only reads, asks, and messages.
+  (it owns `write`). The orchestrator only reads, asks, and messages.
 - **One agent, one draft.** One `subagent` call in Phase 1, at most `MAX_PLAN_REVIEW_ROUNDS`
   fix-round `subagent` dispatches in Phase 1b, one `subagent` dispatch in Phase 3 and at most one post-write
   fix `subagent` dispatch in Phase 3 — all to the same agent. Do not spawn a second agent.

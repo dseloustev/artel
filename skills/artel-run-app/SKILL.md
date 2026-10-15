@@ -27,7 +27,7 @@ caller; it continues without this gate.
 
 ## 2. Launch
 
-Run `runtime.run` via Bash with a bounded timeout generous enough for the host's own build+launch
+Run `runtime.run` via `shell` with a bounded timeout generous enough for the host's own build+launch
 (300s is a reasonable default absent other guidance). Capture the same evidence shape
 `${ARTEL_ROOT}/skills/artel-inner-loop/SKILL.md` uses for a `verify.commands` entry:
 `{command, exit_code, output}` (stdout+stderr, truncated if huge).

@@ -153,7 +153,7 @@ external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)
 ## Checkpoint commits & pushes
 
 This is the phase-level commit and push procedure of a run. Checkpoints keep the branch on `origin` carrying the
-latest approved docs and every completed phase. They are orchestrator-owned Bash actions
+latest approved docs and every completed phase. They are orchestrator-owned `shell` actions
 (`git add` / `git commit` / `git push -u origin`), authorized in advance at the approval pause —
 they never pause, and each one is journaled as an external action (autonomous-run.md §11).
 

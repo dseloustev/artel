@@ -41,7 +41,7 @@ stop.
 
 ## 3. Remove
 
-Run `runtime.scaffold.remove` via Bash. Capture `{command, exit_code, output}`. Non-zero exit →
+Run `runtime.scaffold.remove` via `shell`. Capture `{command, exit_code, output}`. Non-zero exit →
 the command may have removed part of the scaffold before it failed, so report the output together
 with `git status --porcelain -uall` to show what state the tree was left in, and stop. As in
 step 4.4, this skill does not roll back a rollback — the operator resolves it by hand.

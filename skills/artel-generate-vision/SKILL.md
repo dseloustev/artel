@@ -102,5 +102,5 @@ deviations)`, and status `VISION_READY`.
 ## Important Rules
 
 - **One agent, one draft, one checkpoint.** No per-section user interaction.
-- **Never write the vision file from this skill** — the agent owns Write.
+- **Never write the vision file from this skill** — the agent owns `write`.
 - **Never re-ask resolved questions.** The PRD interview record is authoritative.

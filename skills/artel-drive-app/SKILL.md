@@ -21,7 +21,7 @@ Drive-and-verify orchestrator for agent UI interaction. Config key: `runtime.dri
 
 ## 2. Drive
 
-Run `runtime.drive` via Bash with a bounded timeout generous enough for the host's full drive
+Run `runtime.drive` via `shell` with a bounded timeout generous enough for the host's full drive
 sequence (navigation, interaction, verification). Capture `{command, exit_code, output}`
 (stdout+stderr, truncated if huge) — the same evidence shape `/artel:run-app` and
 `${ARTEL_ROOT}/skills/artel-inner-loop/SKILL.md` use. Exit `0` ⇒ verified; non-zero ⇒ not

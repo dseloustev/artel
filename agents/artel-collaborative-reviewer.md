@@ -168,7 +168,7 @@ never dressed as this change's.
 ## Navigation
 
 Use the host's optional code-symbol index, index-first, for resolving symbols and their usages
-— `${ARTEL_ROOT}/docs/code-navigation.md` §3; Grep is the fallback and is silently
+— `${ARTEL_ROOT}/docs/code-navigation.md` §3; `grep` is the fallback and is silently
 absent otherwise. The index describes the host checkout, which may not be the PR revision: a
 mismatched local index is not PR evidence. Anchor every finding in the captured snapshot
 contents, and use the index only to understand the surrounding code.

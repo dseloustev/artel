@@ -202,7 +202,7 @@ research, QA, tasks, summary, ADR) must follow this decision tree:
    Create the `phase-<PHASE_NUM>/` folder if missing.
 
 2. **If `PHASE_NUM` is null:**
-   - Use `Glob` to check whether `<specs.dir>/<TICKET_ID>/phase-*/` exists. On the kartoteka path: whether any name in `artifact_list(project=<project>, ticket_key=<TICKET_ID>)` starts `phase-`.
+   - Use `glob` to check whether `<specs.dir>/<TICKET_ID>/phase-*/` exists. On the kartoteka path: whether any name in `artifact_list(project=<project>, ticket_key=<TICKET_ID>)` starts `phase-`.
    - **If no phase folder exists** → write to the ticket-wide path
      `<specs.dir>/<TICKET_ID>/<artifact>.md` (this is a brand-new ticket, or a project with
      `ticket.phaseSuffix: false`).

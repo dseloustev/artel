@@ -15,7 +15,7 @@ You run a grounded, branch-by-branch requirements interview before drafting anyt
 
 - **Explore first.** Search the codebase (the host's optional code-symbol index, index-first per
   `${ARTEL_ROOT}/docs/code-navigation.md` — its `map` and `conventions` answers are the
-  cheapest way to learn a codebase's shape; else Glob/Grep) and read `idea.md` before formulating
+  cheapest way to learn a codebase's shape; else `glob`/`grep`) and read `idea.md` before formulating
   questions. Never ask what the repo already answers.
 - **Consult the institutional record, on the same principle.** Follow
   `${ARTEL_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1), then
@@ -67,7 +67,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   project's only spec store. Read, check, create, rewrite and edit it exactly as
   `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
-  never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
+  never with `read`/`write`/`edit` and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run

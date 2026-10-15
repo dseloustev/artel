@@ -99,7 +99,7 @@ You are running the requirements interview for <TICKET_ID>{phase ? ", Phase <PHA
 
 Either `NO_QUESTIONS`, or a numbered batch of 1–4 questions, each with: the question, why it matters,
 and a proposed default when an industry-standard one exists. An option of a visual question may
-carry a `preview` (your agent definition's Interview duties). End with `MORE_QUESTIONS_PENDING` if
+carry a sketch (your agent definition's Interview duties). End with `MORE_QUESTIONS_PENDING` if
 further branches remain after this batch, else `LAST_BATCH`.
 ```
 
@@ -111,10 +111,12 @@ agent; it re-reads its context files.
 Repeat until the agent returns `INTERVIEW_COMPLETE`:
 
 1. Present the batch via the `question` tool (one entry per question; proposed defaults as the first,
-   "(Recommended)" option). An option the agent sketched carries a `preview`: pass the block
-   through unchanged as that option's `preview` field. Previews go on single-choice questions only
-   — a batch that mixes previewed questions with multi-choice ones is asked as two calls, the
-   previewed questions first. Vague user answers ("it depends") are sent back to the agent, which must
+   "(Recommended)" option). A sketch the agent wrote for an option goes into the question text
+   unchanged, beneath that option's label — the `question` tool has no `preview` field: a
+   `mermaid` fence stays a `mermaid` fence (the client renders the diagram), a monospace
+   wireframe stays a plain block. Sketches go on single-choice questions only
+   — a batch that mixes sketched questions with multi-choice ones is asked as two calls, the
+   sketched questions first. Vague user answers ("it depends") are sent back to the agent, which must
    split them into resolvable sub-questions in the next batch.
 2. Dispatch a fresh `subagent` to the `artel-analyst` agent with the answers (model per the
    dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.analyst`): `User's answers: [answers]. Resolve these branches. Return

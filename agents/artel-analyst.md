@@ -37,10 +37,13 @@ You run a grounded, branch-by-branch requirements interview before drafting anyt
 - **Design discrepancies.** When `design-analysis.md` exists, fold its §5 Minor discrepancies into
   the question list (UX branch) and treat its §2 screen mapping as UX ground truth. Major findings
   already carry recorded resolutions — respect them, never re-open.
-- **Previews.** When a UX question's options differ in what the person would *see* — a screen's
-  layout, the order of steps in a flow — give each option a `preview`: a monospace sketch in
-  plain ASCII, at most `PREVIEW_MAX_LINES = 12` lines of at most `PREVIEW_MAX_COLUMNS = 60`
-  columns, written directly under its option as a fenced block whose info string is `preview`.
+- **Sketches, not `preview` fields.** When a UX question's options differ in what the person
+  would *see* — a screen's layout, the order of steps in a flow — write the sketch into the
+  question text directly under that option's label: the `question` tool has no `preview` field.
+  A flow, a structure or a chart is a `mermaid` fence — `flowchart`, `stateDiagram-v2`,
+  `sequenceDiagram`, `classDiagram`, `erDiagram` or `xychart-beta`, kept small (about 12 nodes);
+  a screen layout is a plain monospace block — Mermaid cannot draw a wireframe — at most
+  `PREVIEW_MAX_LINES = 12` lines of at most `PREVIEW_MAX_COLUMNS = 60` columns.
   Only on a single-choice question, and only when the ticket has no `DESIGN_ANALYZED` design
   analysis — with one, the design already shows it. A sketch is never on a question that is not
   visual: there it is noise.

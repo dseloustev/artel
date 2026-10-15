@@ -204,7 +204,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Notes:** orchestrator per the skill-orchestrator contract — delegates all PRD writing to the
   `artel-analyst` agent. Never reads `vision.md`; phase scope and never-overwrite rules live in
   ticket-parsing.md §4–§5 and §7. On a question about a layout or a step flow an option may
-  carry a `preview` — a monospace sketch, at most 12 lines of 60 columns — on single-choice
+  carry a sketch in the question text beneath its label — a `mermaid` fence for a flow, a
+  monospace block for a screen layout, at most 12 lines of 60 columns — on single-choice
   questions only, and only when the ticket has no `DESIGN_ANALYZED` design analysis.
 
 ### generate-vision
@@ -221,8 +222,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   skip-if-exists, autonomous-run.md §9).
 - **Notes:** ticket-level only — a phase suffix is ignored with a printed note. One agent
   (`vision-writer`), one draft, one checkpoint — no per-section approvals. On an architecture
-  choice whose options differ in shape, an option may carry a `preview` — a component or
-  data-flow sketch, at most 12 lines of 60 columns — on single-choice questions only.
+  choice whose options differ in shape, an option may carry a `mermaid` sketch in the question
+  text beneath its label — components and the arrows between them, at most 12 lines of 60
+  columns — on single-choice questions only.
 
 ### researcher
 

@@ -269,22 +269,30 @@ class TestHeadInputs(unittest.TestCase):
 
 
 class TestPreviews(unittest.TestCase):
-    """A visual choice may be sketched: the agents draw, the skills pass the sketch through."""
+    """A visual choice may be sketched: the agents write the sketch into the question text
+    beneath its option's label — the `question` tool has no `preview` field — and the skills
+    pass it through unchanged."""
 
     LIMITS = ('`PREVIEW_MAX_LINES = 12`', '`PREVIEW_MAX_COLUMNS = 60`')
 
     def test_the_analyst_sketches_ux_choices_without_a_design(self):
         duties = between(flat('agents/artel-analyst.md'), '## Interview duties', '## Phase Support')
-        rule = between(duties, '- **Previews.**', '- **Termination.**')
-        for phrase in self.LIMITS + ('a `preview`', 'Only on a single-choice question',
+        rule = between(duties, '- **Sketches, not `preview` fields.**', '- **Termination.**')
+        for phrase in self.LIMITS + ('the `question` tool has no `preview` field',
+                                     'directly under that option\'s label',
+                                     'a `mermaid` fence', 'a plain monospace block',
+                                     'Mermaid cannot draw a wireframe',
+                                     'Only on a single-choice question',
                                      'no `DESIGN_ANALYZED` design analysis',
                                      'never on a question that is not visual'):
             self.assertIn(phrase, rule)
 
     def test_the_vision_writer_sketches_architecture_choices(self):
         workflow = between(flat('agents/artel-vision-writer.md'), '### Step 1', '### Step 2')
-        rule = between(workflow, '**Previews.**', '\0')
-        for phrase in self.LIMITS + ('a `preview`', 'differ in *shape*',
+        rule = between(workflow, '**Sketches, not `preview` fields.**', '\0')
+        for phrase in self.LIMITS + ('the `question` tool has no `preview` field',
+                                     'directly under that option\'s label',
+                                     'a `mermaid` fence', 'differ in *shape*',
                                      'Only on a single-choice question'):
             self.assertIn(phrase, rule)
 
@@ -294,7 +302,9 @@ class TestPreviews(unittest.TestCase):
                 ('skills/artel-generate-vision/SKILL.md', '### Phase 2: Ask', '### Phase 3')):
             with self.subTest(rel):
                 phase = between(flat(rel), start, end)
-                for phrase in ("as that option's `preview` field",
+                for phrase in ("beneath that option's label",
+                               'the `question` tool has no `preview` field',
+                               'a `mermaid` fence stays a `mermaid` fence',
                                'single-choice questions only', 'as two calls'):
                     self.assertIn(phrase, phase)
 

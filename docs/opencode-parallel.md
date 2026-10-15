@@ -47,7 +47,7 @@ operator path for plain requests).
 | Send the pinned prompt | `POST /api/session/{id}/prompt` — `{id?, text, files?, agents?, skills?, metadata?, delivery?("steer"\|"queue"), resume?}` | `{data: Session.Inbox.User}` |
 | Read status | `GET /api/session/{id}` | `{data: Session.Info}` |
 | Interrupt | `POST /api/session/{id}/interrupt?resume=true\|false` | `{interrupted: boolean}` |
-| Wait for idle (bounded) | `POST /api/experimental/session/{id}/wait` | `204` when the agent loop is idle |
+| Wait for idle (bounded) | `POST /api/experimental/session/{id}/wait` — experimental route | `204` when the agent loop is idle |
 | Read messages | `GET /api/session/{id}/message?limit&order&cursor&type` | `{data: [Message.Info], cursor}` |
 | List running sessions | `GET /api/session/active` | `{data: {"<sessionID>": {type: "running"}}}` |
 | Pending permissions | `GET /api/session/{id}/permission` | `{data: [Permission.Request]}` |
@@ -110,12 +110,16 @@ recovers state from `Session.Info` and the messages, never from an event it did 
   on `Session.Info.agent` and on every assistant message, and can be switched mid-session.
   A worker must not mutate the queue, run state, tasklist or notes, must not commit, push or
   open a pull request, and must not ask the user — it executes the pinned assignment and
-  returns the structured result. Native permission rules can deny individual actions; the
-  remaining worker-mode protections are not native and are listed in §12.
+  returns the structured result. Native permission rules can deny individual actions, but
+  nothing native enforces the worker role by itself: a worker session can dispatch subagents,
+  act as a second orchestrator, or be re-prompted by an armed run's stop gate unless the
+  implementation prevents it. Those worker-mode protections are not native and are enumerated
+  under "Not native" in §12; they are implementation work, not shipped behavior.
 - **Permissions.** A session carries a ruleset of `{action, resource, effect}` rules; rules
   combine in order, the last match wins, `deny` blocks the operation, and `ask` surfaces a
-  `Permission.Request` that a client answers with `once`, `always` or `reject` (a `reject`
-  also rejects the session's other pending requests). Session rules are evaluated after the
+  `Permission.Request` that a client answers with `once`, `always` or `reject` (the official
+  V2 permissions documentation states that a `reject` also rejects the session's other pending
+  requests; only `once` was exercised in the proof — §12). Session rules are evaluated after the
   agent's rules; a child session inherits the rules in effect when it is created. The only
   native path boundary is the base policy's `external_directory` ask: nothing native scopes a
   worker to its worktree.
@@ -292,7 +296,7 @@ did not declare. When `changed_files` exceeds `files`, the result records a devi
 — minor continues, major halts and escalates. A path escaping `worker_root` is not a
 deviation to route: it is rejected (§5).
 
-## 12. Capability failure and unproven items
+## 12. Capability failure, unproven items and non-native protections
 
 Parallel mode fails preflight: before any production claim or worktree is created, the
 coordinator checks the running service against this contract (the version and the interface
@@ -306,14 +310,41 @@ Unproven on 2.0.29, and therefore not relied on without re-verification:
   exercised; neither was `session.execution.failed`.
 - The event stream is volatile and has no replay; a coordinator must reconcile from durable
   session state after any disconnection.
-- There is no native seat admission, queue or lease: the coordinator enforces
-  `parallel.seats`, and a crashed coordinator leaves its workers running.
 - `prompt.resume` and `interrupt?resume=true` were not exercised; the recovery path is the
   coordinator's decision.
+- The `reject` permission reply — including the documented rejection of the session's other
+  pending requests — was not exercised; only `once` was.
+- `POST /api/experimental/session/{id}/wait` is an experimental route: the proof used it for
+  bounded idle waits (`204`), but its stability across versions is not guaranteed; keep the
+  durable-state fallback.
 - A child session inherits location and permissions but not an explicit agent; the
   child-session path through the native subagent dispatch was not exercised end to end.
 - The barrier that held the two proof workers relied on the model following the pinned
   prompt; it was scratch instrumentation, not protection.
+
+### Not native — worker-mode protections (Task 6)
+
+The proof demonstrated the native session mechanics only; none of these protections ship
+today:
+
+- **No-orchestrator role guard.** Nothing native stops a worker session from dispatching
+  subagents, creating sessions or otherwise acting as a second orchestrator; the base policy
+  allows the `subagent` action unless a permission rule denies it. The implementation must
+  enforce the worker role — workers execute the pinned assignment and never orchestrate — and
+  deny orchestration actions in worker sessions.
+- **Armed stop-gate interaction.** The existing bridge re-prompts a finished root session
+  while the host run is armed (`run_active: true`, `completed: false`, `pause_reason: null`),
+  so a worker that stops under an armed run is re-prompted by the gate. Parallel runs must
+  either keep workers outside the armed stop-gate path or account for the gate in the worker
+  lifecycle; worker stop and router flows need the same role handling.
+- **Seat admission, queue and lease.** There is no native seat limit, queue or lease: the
+  coordinator enforces `parallel.seats`, owns retries, and a crashed coordinator leaves its
+  workers running.
+- **Worktree scoping.** Nothing native scopes a session to `worker_root` (only the base
+  policy's `external_directory` ask limits paths); the coordinator's path validation is the
+  boundary.
+- **Missed-event recovery policy.** The stream has no replay, so the coordinator must
+  reconcile from durable session state and define the reconnect semantics.
 
 ## 13. Proof record
 

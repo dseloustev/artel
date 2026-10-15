@@ -122,7 +122,7 @@ completion's `Deviations:` line names the files each deviation changed (protocol
 - **`DEVIATION` report** (protocol §4) → escalate:
   1. Malformed report (missing Planned / Blocked by / Options) → `SendMessage` asking the agent to
      re-emit before involving the user.
-  2. Present via `AskUserQuestion`: one option per report option, recommendation first labeled
+  2. Present via the `question` tool: one option per report option, recommendation first labeled
      "(Recommended)", plus **Abort task**. (Max 4 options — keep recommendation + strongest, "Other"
      carries the rest; never drop Abort task.)
   3. `SendMessage` the decision: record the deviation per protocol §3, then continue and finish the

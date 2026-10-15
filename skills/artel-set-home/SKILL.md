@@ -53,7 +53,7 @@ reading rule 3 forbids writing an empty one.
 ## 4. Preview and confirm
 
 Show exactly what will change — every config key, every remote — then confirm via
-`AskUserQuestion`: **Apply** / **Abort**. Remote surgery is hard to reverse on a repository
+the `question` tool: **Apply** / **Abort**. Remote surgery is hard to reverse on a repository
 shared with a team, so it never happens unasked. **Abort** leaves everything untouched.
 
 ## 5. Git surgery

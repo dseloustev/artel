@@ -78,7 +78,7 @@ failure handling for when to stop.
    transliterate), lowercase, ASCII letters and digits only, words joined by single `-`, the
    ticket key and filler words dropped, at most five words. "Добавление аккаунтов" →
    `adding-accounts`.
-5. **Ask once** via `AskUserQuestion` (header `Branch`), options in this order:
+5. **Ask once** via the `question` tool (header `Branch`), options in this order:
    - **Check out `<name>`** — one option per `EXISTING` entry, the first two only (if `NEW_BRANCH`
      equals a later entry, that entry replaces the second); the first is marked recommended. None
      when `EXISTING` is empty. An entry checked out in a linked worktree is offered as **Enter
@@ -90,7 +90,7 @@ failure handling for when to stop.
 
    The automatic free-text answer is a branch name the user wants instead.
 
-   In the same `AskUserQuestion` call, ask the **worktree question** (header `Worktree`):
+   In the same `question` tool call, ask the **worktree question** (header `Worktree`):
    **Work here** / **Move to `.opencode/worktrees/<name>`**, where `<name>` is `TICKET_ID`, or
    `<TICKET_ID>-<PHASE_NUM>` when `PHASE_NUM` is set. Its answer is ignored when the branch answer
    is "Stay on …" or "Enter worktree …". Skip the question entirely when the session is already

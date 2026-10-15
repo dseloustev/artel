@@ -101,7 +101,7 @@ Error: Comment <commentId> not found on the PR. The comment may have been delete
 ```
 
 If the comment is **already resolved** (Bitbucket only — GitHub reports "n/a" and this check is
-skipped), surface that via `AskUserQuestion`:
+skipped), surface that via the `question` tool:
 
 > "Comment is marked resolved. Continue with analysis anyway?" — Yes / No.
 

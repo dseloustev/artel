@@ -219,7 +219,7 @@ class TestSkill(unittest.TestCase):
                 self.assertIn(phrase, flat)
 
     def test_asks_once_and_reports_the_rest(self):
-        self.assertIn('AskUserQuestion', self.text)
+        self.assertIn('the `question` tool', self.text)
         self.assertIn('Missing Details', self.text)
         self.assertIn('⚠ NON-CURRENT', self.text)
 

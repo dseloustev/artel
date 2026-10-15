@@ -46,7 +46,7 @@ in the arguments, skip this step as well.
 
 When `docs/debugging.md` §4 says the fix is structural — an interface change, a design
 reversal, scope growth, or three failed fixes — stop without fixing. Report the cause and what
-makes the proper fix structural, then ask via `AskUserQuestion`:
+makes the proper fix structural, then ask via the `question` tool:
 
 - **Draft a bug ticket** — `/artel:issue-draft <the report> --type bug`, when the fault is a
   defect whose right fix is larger than this session;

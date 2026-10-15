@@ -43,7 +43,7 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/o
 ### Step 2: Confirm and move
 
 1. Count the uncommitted paths: `git status --porcelain --untracked-files=all`.
-2. Ask once via `AskUserQuestion` (header `Worktree`):
+2. Ask once via the `question` tool (header `Worktree`):
    - **Move to `.opencode/worktrees/<name>`** (recommended) — description: "`<N>` uncommitted
      files move with it; the main checkout switches to `<BASE_BRANCH>`."
    - **Stay here** — stop without changes.

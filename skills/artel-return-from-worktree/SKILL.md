@@ -31,7 +31,7 @@ session and changes the main checkout's branch.
 3. **In the main checkout:** `TICKET_ID` comes from `$0`, else from `<specs.dir>/.active_ticket`
    (as in `move-to-worktree`). Among the `git worktree list` paths, take those named
    `MAIN/.opencode/worktrees/<TICKET_ID>` or `MAIN/.opencode/worktrees/<TICKET_ID>-<digits>`. One →
-   its directory name is `<name>`. Several → ask which (`AskUserQuestion`, header `Worktree`).
+   its directory name is `<name>`. Several → ask which (the `question` tool, header `Worktree`).
    None → `<name>` = `TICKET_ID`; the script then finishes an interrupted hand-back or refuses.
 
 ### Step 2: Check
@@ -45,7 +45,7 @@ say they may belong to another session, and that they must be committed or stash
 
 ### Step 3: Confirm
 
-Ask once via `AskUserQuestion` (header `Hand back`):
+Ask once via the `question` tool (header `Hand back`):
 
 - **Hand back** (recommended) — description: "The main checkout switches from `<mainWasOn>` to
   `<branch>`; `<uncommitted>` uncommitted files move with it; `.opencode/worktrees/<name>` is

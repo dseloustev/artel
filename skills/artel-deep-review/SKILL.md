@@ -52,7 +52,7 @@ Ticket directory: <specs.dir>/<TICKET_ID>/
 ### 1b: Existing output
 
 If `<specs.dir>/<TICKET_ID>/deep-review.md` exists (kartoteka path: `spec_store.py exists
-<specs.dir>/<TICKET_ID>/deep-review.md`), ask via `AskUserQuestion`:
+<specs.dir>/<TICKET_ID>/deep-review.md`), ask via the `question` tool:
 
 > "`deep-review.md` already exists for <TICKET_ID>. Overwrite it with a fresh review?" — Yes / No.
 
@@ -311,7 +311,7 @@ Critical: <c> · Warnings: <w> · Suggestions: <s>
 If `c` and `w` are both `0`, display `Nothing to apply.` and terminate. (A partial review never
 reaches this step — Step 3b stopped on its gaps.)
 
-Otherwise ask via `AskUserQuestion` which fixes to work. Offer only the options that have rows,
+Otherwise ask via the `question` tool which fixes to work. Offer only the options that have rows,
 using the validated `data.tasks` counts:
 
 - **Critical only** — the `### Tasks (Critical)` block under `## Proposed fixes` (when

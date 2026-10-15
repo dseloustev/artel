@@ -17,7 +17,7 @@ Determine the repo's default branch first (e.g. via `git symbolic-ref refs/remot
 
 ## Pipeline invocation
 
-`feature-development` invokes this skill automatically at run completion — after `validate` reports all gates green, before `run-state.json` is marked complete (`${ARTEL_ROOT}/docs/autonomous-run.md` §9). Pipeline behavior is identical to manual invocation, with one deliberate exception to skip-if-exists (§9 itself): an existing `pr-description.md` is **always regenerated**, never skipped — the branch diff is the input, so a file written earlier in the run is stale by definition. This skill never calls `AskUserQuestion`; tracker/VCS failures degrade gracefully (fallback template) and must never loop, escalate, or block the run.
+`feature-development` invokes this skill automatically at run completion — after `validate` reports all gates green, before `run-state.json` is marked complete (`${ARTEL_ROOT}/docs/autonomous-run.md` §9). Pipeline behavior is identical to manual invocation, with one deliberate exception to skip-if-exists (§9 itself): an existing `pr-description.md` is **always regenerated**, never skipped — the branch diff is the input, so a file written earlier in the run is stale by definition. This skill never calls the `question` tool; tracker/VCS failures degrade gracefully (fallback template) and must never loop, escalate, or block the run.
 
 ## Pre-flight (run in this skill, not in the agent)
 

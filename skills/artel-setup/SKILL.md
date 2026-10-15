@@ -15,7 +15,7 @@ Read `.artel/config.json`.
 
 - **Missing** → step 2 directly (the first-run path the entry point triggers).
 - **Present and parseable** → show the current values in one screen and ask via
-  `AskUserQuestion`: **Revise** (re-run the interview with the current values pre-selected as
+  the `question` tool: **Revise** (re-run the interview with the current values pre-selected as
   defaults) / **Abort** (leave the file untouched, stop).
 - **Present but not strict JSON** → report the parse error, quoting the failing content, and
   ask: **Recreate** (run the interview from config.md's defaults; the broken file is overwritten
@@ -23,7 +23,7 @@ Read `.artel/config.json`.
 
 ## 2. Interview
 
-`AskUserQuestion`, ≤4 questions per round. Pre-select each question's default: the config.md
+the `question` tool, ≤4 questions per round. Pre-select each question's default: the config.md
 default on first run, the current value on Revise. Free-form values (commands, prefixes, globs)
 arrive via the "Other" option.
 

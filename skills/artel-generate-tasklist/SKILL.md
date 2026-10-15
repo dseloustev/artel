@@ -77,7 +77,7 @@ The Phase 2 questions+approval round below is that head's mini-interview and its
 work-list confirmation.
 
 **Manual invocation:** if `tasklist.md` exists (kartoteka path:
-`spec_store.py exists <specs.dir>/<TICKET_ID>/tasklist.md` exits 3), `AskUserQuestion` with two
+`spec_store.py exists <specs.dir>/<TICKET_ID>/tasklist.md` exits 3), a `question` tool call with two
 options — **Overwrite** (regenerate from scratch; progress marks are lost) / **Abort**. No
 "refine in place" — a tasklist partway through implementation is better merged by hand.
 
@@ -89,7 +89,7 @@ Four-phase model, matching `analysis` and `planner`:
    `.artel/run/<TICKET_ID>/tasklist-draft.md` and returns clarifying questions; **Phase 1b**
    checks the draft and sends its findings back to the same agent, for at most
    `MAX_PLAN_REVIEW_ROUNDS` fix rounds.
-2. **Phase 2:** Orchestrator asks the user via `AskUserQuestion` (if any), with the findings the
+2. **Phase 2:** Orchestrator asks the user via the `question` tool (if any), with the findings the
    rounds left open.
 3. **Phase 3:** Orchestrator resumes the agent via `SendMessage` to finalize and write the file,
    then checks it once more.
@@ -199,9 +199,9 @@ before the approval round sees it.
 
 After the agent returns the draft summary and questions:
 
-- **If the agent returned `NO_QUESTIONS`:** skip to a single-question `AskUserQuestion` with
+- **If the agent returned `NO_QUESTIONS`:** skip to one `question` tool call with
   header `Tasklist`: **Approve** / **Request changes** / **Abort**.
-- **If the agent returned questions:** use `AskUserQuestion`. For 1–4 questions, map each to one
+- **If the agent returned questions:** use the `question` tool. For 1–4 questions, map each to one
   question entry. For more, combine into one free-text question listing all items. Add a final
   `Tasklist` question with **Approve** / **Request changes** / **Abort**.
 
@@ -294,7 +294,7 @@ When the agent returns its confirmation line, print it verbatim plus:
   fix-round `SendMessage`s in Phase 1b, one `SendMessage` in Phase 3 and at most one post-write
   fix `SendMessage` in Phase 3 — all to the same agent. Do not spawn a second agent.
 - **Never silently overwrite.** If the tasklist already exists, always confirm via
-  `AskUserQuestion` before proceeding.
+  the `question` tool before proceeding.
 - **KISS is the agent's job.** The orchestrator does not re-check KISS; if the user's answers
   would push the agent past its limits, the agent surfaces the conflict in the next round.
 - **A `RAISE` is not a failure.** It is the writer saying the ticket needs the full head. Never

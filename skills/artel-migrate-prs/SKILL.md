@@ -35,7 +35,7 @@ shape `.../<projectKey>/<repositorySlug>.git`). Call
 call** — MCP servers occasionally rename fields.
 
 Present the list (id, title, source → target branch, author) and let the operator choose via
-`AskUserQuestion`. A non-empty `$0` naming PR ids skips the prompt and migrates exactly those.
+the `question` tool. A non-empty `$0` naming PR ids skips the prompt and migrates exactly those.
 
 No open PRs → report `nothing to migrate` and stop.
 

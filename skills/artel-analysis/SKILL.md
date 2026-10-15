@@ -29,7 +29,7 @@ interaction budget for the silent pipeline that follows.
 
 Before spawning any agent: if `<specs.dir>/<TICKET_ID>/idea.md` does not exist (kartoteka path:
 `spec_store.py exists <specs.dir>/<TICKET_ID>/idea.md` exits 3) AND no description
-file was passed as `$1`, stop and ask the user for a feature description via `AskUserQuestion`, showing
+file was passed as `$1`, stop and ask the user for a feature description via the `question` tool, showing
 one concrete example of an actionable description (e.g. "Add a user-facing export of transaction
 history to CSV from the History screen, per-network, dev flavor first"). If the available description is
 too vague to act on ("make it better", "fix stuff"), reject it the same way. Never guess, never write a
@@ -108,7 +108,7 @@ further branches remain after this batch, else `LAST_BATCH`.
 
 Repeat until the agent returns `INTERVIEW_COMPLETE`:
 
-1. Present the batch via `AskUserQuestion` (one entry per question; proposed defaults as the first,
+1. Present the batch via the `question` tool (one entry per question; proposed defaults as the first,
    "(Recommended)" option). An option the agent sketched carries a `preview`: pass the block
    through unchanged as that option's `preview` field. Previews go on single-choice questions only
    — a batch that mixes previewed questions with multi-choice ones is asked as two calls, the

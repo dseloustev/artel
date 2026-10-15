@@ -593,7 +593,7 @@ class TestTasksAddWritesATaskBlock(unittest.TestCase):
     def test_a_task_block_with_its_title_as_its_one_step(self):
         for phrase in ('### Task <N>.<m>: <title>',
                        "The title is both the heading and the task's one step",
-                       'Ask for every required field still missing in one `AskUserQuestion`',
+                       'Ask for every required field still missing in one `question` tool call',
                        'Never invent a value'):
             self.assertIn(phrase, self.add)
 

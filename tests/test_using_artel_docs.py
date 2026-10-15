@@ -158,7 +158,7 @@ class TestTasksSkill(unittest.TestCase):
 
     def test_release_confirms(self):
         text = read(TASKS)
-        self.assertIn('AskUserQuestion', text)
+        self.assertIn('Ask with the `question` tool', text)
 
     def test_release_never_touches_an_iteration_parent(self):
         text = read(TASKS)

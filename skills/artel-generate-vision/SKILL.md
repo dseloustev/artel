@@ -36,7 +36,7 @@ in <specs.dir>/.active_ticket" and terminate.
 `spec_store.py exists <specs.dir>/<TICKET_ID>/vision.md` exits 3), skip — report `Vision
 exists — skipped` and terminate (`${ARTEL_ROOT}/docs/autonomous-run.md` §9).
 **Manual invocation:** if `vision.md` exists (kartoteka path:
-`spec_store.py exists <specs.dir>/<TICKET_ID>/vision.md` exits 3), `AskUserQuestion`: **Overwrite
+`spec_store.py exists <specs.dir>/<TICKET_ID>/vision.md` exits 3), ask with the `question` tool: **Overwrite
 from scratch** / **Abort**. (Per-section refine no longer exists — the document is regenerated as
 a whole.)
 
@@ -77,7 +77,7 @@ Return THREE things and stop (do not write the file):
 
 ### Phase 2: Ask (only if there are questions)
 
-If the agent returned questions, present them via `AskUserQuestion` (≤4 per call, defaults first)
+If the agent returned questions, present them via the `question` tool (≤4 per call, defaults first)
 and collect answers. An option the agent sketched carries a `preview`: pass the block through
 unchanged as that option's `preview` field. Previews go on single-choice questions only — a batch
 that mixes previewed questions with multi-choice ones is asked as two calls, the previewed
@@ -89,7 +89,7 @@ questions first. If `NO_QUESTIONS`, proceed with `answers = "NO_CHANGES"`.
 header, write it to <specs.dir>/<TICKET_ID>/vision.md, and return a per-section one-line
 summary.` The header is defined in `${ARTEL_ROOT}/docs/spec-storage.md` §3.2.
 
-Then the **wholesale checkpoint** — `AskUserQuestion`: `Vision written — approve?` with options
+Then the **wholesale checkpoint** — the `question` tool: `Vision written — approve?` with options
 **Approve** / **Request changes** (changes via "Other"). On Request changes: `SendMessage` the
 feedback, the agent revises and rewrites the file, repeat the checkpoint. On Approve: done.
 

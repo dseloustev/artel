@@ -132,7 +132,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   shape (an aborted interview writes nothing); optionally `.artel/sensitive-paths.json`
   scaffolded from the shipped defaults (never overwrites an existing one); `.gitignore` entries
   for `.artel/run/` and `.artel/context/`.
-- **Pauses:** the whole skill is an interview (`AskUserQuestion`, ≤4 questions per round:
+- **Pauses:** the whole skill is an interview (the `question` tool, ≤4 questions per round:
   ticket grammar → adapters → quality gate + languages → optional extras); a
   present-and-parseable config asks Revise/Abort first, a broken one asks Recreate/Abort.
 - **Notes:** worker, not orchestrator — runs inline. Invoked automatically by
@@ -196,7 +196,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   one run). Answers found there close Resolved Questions with a citation instead of being asked.
 - **Writes:** (via the agent) the PRD at the phase-aware path (ticket-parsing.md §4) with
   status `PRD_READY`; `<specs.dir>/.active_ticket`.
-- **Pauses:** repeatedly, via `AskUserQuestion`, in batches of up to 4 questions until the agent
+- **Pauses:** repeatedly, via the `question` tool, in batches of up to 4 questions until the agent
   returns `INTERVIEW_COMPLETE` — this is the pipeline's designated chatty stage
   (autonomous-run.md §1); the input gate stops and asks (never guesses) when neither `idea.md`
   nor a description file exists, or the description is too vague.
@@ -294,7 +294,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   with `Files`, `Depends on`, `Route` and `Test`, a `**Test:**` footer per iteration — with
   status `TASKLIST_READY` in its header. Mirrors it into the task queue after approval, unless
   `--local` was passed.
-- **Pauses:** one questions+approval round (`AskUserQuestion`: Approve / Request changes /
+- **Pauses:** one questions+approval round (the `question` tool: Approve / Request changes /
   Abort), which shows every task's route — it is the lean and the bug heads' interview and their
   single work-list confirmation; an
   Overwrite/Abort prompt on manual invocation when `tasklist.md` already exists (pipeline runs
@@ -329,7 +329,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `.artel/run/<TICKET_ID>/reports/NNN-<slug>.md`, so the completion message itself stays a
   short contract (task, changed paths, `Report:` path, `Verify iterations:`, `Deviations:`).
 - **Pauses:** never directly on completion — returns `HITL: <reason>` for the caller to pause
-  on; a `DEVIATION` report is presented by the skill itself via `AskUserQuestion` (recommended
+  on; a `DEVIATION` report is presented by the skill itself via the `question` tool (recommended
   option first, Abort-task always offered) — pipeline callers only bracket that call with
   `pause_reason` set/clear.
 - **Notes:** single-phase autonomous model — implements directly, no proposal/approval
@@ -549,7 +549,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `<specs.dir>/<TICKET_ID>/diagnosis.md` (status `DIAGNOSED`, `DIAGNOSED_STRUCTURAL` or
   `NOT_REPRODUCED`) and leaves no fix, no failing test and no probe in the tree.
 - **Pauses:** asks once for the symptom when none was given; on a structural cause, offers
-  `/artel:issue-draft --type bug|task` or leaving the report in chat (`AskUserQuestion`).
+  `/artel:issue-draft --type bug|task` or leaving the report in chat (the `question` tool).
 - **Notes:** worker, not orchestrator — runs inline (like `knowledge`), because debugging needs
   the person and the session. Reproduces through `verify.py task --files <test>` so red and
   green mean what they mean in a run; with `verify.test` empty, or no config, it uses the host's
@@ -689,7 +689,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   (ticket-wide and `phase-<N>/` variants); optionally the tracker issue (degrades silently).
 - **Writes:** no files — the sole artifact is the plan-mode plan (context, the comment,
   assessment, proposed fix, verification).
-- **Pauses:** an `AskUserQuestion` when the comment is already marked resolved (continue
+- **Pauses:** a `question` tool call when the comment is already marked resolved (continue
   anyway?); then plan mode for approval.
 - **Notes:** the documented carve-out from the skill-orchestrator contract — no `Agent`
   delegation, because the artifact is a plan-mode plan only the main session can author.
@@ -716,7 +716,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   directory): a `=== SUMMARY ===` block and a `=== DESCRIPTION (<type>, <dialect>) ===` block
   whose body pastes into the description field as-is and holds nothing but the issue.
 - **Pauses:** asks for the text or file when none is provided (never invents an issue from
-  nothing) and when a referenced file is unreadable; then **once** more, via `AskUserQuestion`
+  nothing) and when a referenced file is unreadable; then **once** more, via the `question` tool
   with up to four questions, about gaps no source or retrieved fact closed — unanswered
   gaps are listed under Missing Details in the report rather than guessed. Non-interactive
   runs skip the round and report every gap.
@@ -806,7 +806,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Writes:** `.artel/config.json` (`vcs.*` only, read-modify-write preserving key order);
   git remotes (`rename`, `add`, `fetch`, `set-head`, upstream tracking). Never pushes, never
   `--force`s, never deletes a remote or branch.
-- **Pauses:** confirms every change via `AskUserQuestion` (**Apply** / **Abort**) before
+- **Pauses:** confirms every change via the `question` tool (**Apply** / **Abort**) before
   touching remotes or config; asks for `vcs.mcpToolPrefix` when the target is `bitbucket-mcp`
   and it is empty (re-asks until non-empty); asks about `tracker.adapter` only when it names the
   platform being left (e.g. `github-issues` while moving off GitHub).
@@ -834,7 +834,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   pull requests via `gh pr create`, with the Bitbucket description copied verbatim plus a
   `Migrated from <bitbucket-pr-url>` provenance line. Never writes to Bitbucket — no comment, no
   decline, no approval; the `vcs_guard` hook denies it regardless.
-- **Pauses:** `AskUserQuestion` to choose which open PRs to migrate, skipped when `$0` names PR
+- **Pauses:** the `question` tool to choose which open PRs to migrate, skipped when `$0` names PR
   ids explicitly. Otherwise never.
 - **Notes:** worker, not orchestrator — runs inline, directional by design (Bitbucket → GitHub
   only). Re-runnable: each PR's own `gh pr list --head` check runs before anything is pushed or
@@ -970,7 +970,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `--fix`, under a `### manual-<date>` heading in a fix section — and mirrors it through
   `scripts/tasklist_tasks.py` + create-only `task_create`; `done` flips the matching checkbox
   after `task_update`; `block` / `release` update the row only.
-- **Pauses:** `release` always confirms via `AskUserQuestion` (shows holder and age); nothing
+- **Pauses:** `release` always confirms via the `question` tool (shows holder and age); nothing
   else pauses.
 - **Notes:** worker. The write side of [task-queue.md](task-queue.md) applied to the
   conversation, under the same gate as `knowledge`. Never calls `task_ready` (claiming is the

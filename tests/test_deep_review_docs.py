@@ -64,7 +64,7 @@ class TestSkill(unittest.TestCase):
                 self.assertIn(block, self.text)
 
     def test_hands_off_through_the_review_fix_contract(self):
-        self.assertIn('AskUserQuestion', self.text)
+        self.assertIn('the `question` tool', self.text)
         self.assertIn('## Code Review Fixes', self.text)
         self.assertIn('Skill: implementer', self.text)
         self.assertNotIn('EnterPlanMode', self.text)

@@ -60,7 +60,7 @@ updates it in place, it does not relocate it.
   ([deviation-protocol.md](deviation-protocol.md)).
 - **Mid-run interruptions are exceptional**, limited to: a deviation escalation (per the deviation
   protocol above), a `[HITL: …]` task, a loop-cap escalation, the PR-gate pause, or an environment
-  error (kartoteka becoming unreachable while it is the spec store is one — spec-storage.md §5.2). Nothing else may call `AskUserQuestion` after the pause.
+  error (kartoteka becoming unreachable while it is the spec store is one — spec-storage.md §5.2). Nothing else may call the `question` tool after the pause.
 - **Escalate, never spin.** Every loop is capped; counters persist in the artifacts the loop writes.
 - **Run state lives in artifacts**, never in conversation memory. Re-read the relevant artifacts after
   every sub-agent return — never decide on stale state.
@@ -154,7 +154,7 @@ Tasklist writers (`task-planner`, `tasklist-writer` agents) tag tasks at generat
 
 - Untagged task ⇒ **AFK**: runs without any human interaction.
 - A `[HITL: <reason>]` tag ⇒ the orchestrator pauses **before starting** the task, sets
-  `pause_reason: "hitl-task"`, asks the pre-declared question via `AskUserQuestion`, then resumes.
+  `pause_reason: "hitl-task"`, asks the pre-declared question via the `question` tool, then resumes.
   The tag sits on the task's heading —
   `### Task 2.3: <title> [HITL: <reason>]` ([task-grammar.md](task-grammar.md) §1) — and covers
   the whole task: one question before its first step, none between steps; a tag on a step is a
@@ -203,7 +203,7 @@ those keys the gate is recorded as `skipped` (config.md) and this loop never arm
 `runtime.surface` is set (config.md), the gate additionally runs only when the run's diff
 matches it — a non-match is recorded as `skipped (no runtime surface)`.
 
-Cap hit ⇒ set `pause_reason: "cap-escalation"`, present consolidated findings via `AskUserQuestion`, stop.
+Cap hit ⇒ set `pause_reason: "cap-escalation"`, present consolidated findings via the `question` tool, stop.
 
 **Debug it here first.** On three cap escalations — each a red gate in app code — the question
 opens with one more option, **Debug it here first**: a task aborted when `MAX_VERIFY_ITERATIONS`
@@ -366,7 +366,7 @@ claude -p "/artel:feature-development <TICKET_ID> --mode=yolo" --output-format s
 - First `yolo` runs: throwaway branch, low-risk ticket, transcript reviewed against the journal.
 - Crash/sleep mid-run: artifacts + journal survive; re-invoking the same command resumes
   (skip-if-exists); §2 staleness prevents a dead run from arming hooks forever.
-- Headless escalation rules (`AskUserQuestion` does not exist under `-p`): a **deviation escalation**
+- Headless escalation rules (the `question` tool does not exist under `-p`): a **deviation escalation**
   takes the implementer's recommended option and is journaled as
   `paused (deviation-escalation) → auto-resolved`; **HITL tags** and **cap escalations** are never
   auto-resolved — journal the entry, set the `pause_reason`, and stop. A stalled headless run on a
@@ -390,7 +390,7 @@ contains a design-tool link (e.g. a Figma URL) or a URL is passed explicitly. Pr
 `image fetch`; files path: files, as before — see [ticket-parsing.md](ticket-parsing.md)) consumed
 by `analysis`, `researcher`, and `planner`.
 
-- Runs pre-arm (chatty head): its **Major-findings handshake** may call `AskUserQuestion` — plain,
+- Runs pre-arm (chatty head): its **Major-findings handshake** may call the `question` tool — plain,
   no `pause_reason` bracketing.
 - Minor findings never pause — they land in the artifact's minor-findings section and are bundled
   into the analysis interview.

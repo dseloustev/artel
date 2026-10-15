@@ -81,7 +81,7 @@ Items are per local copy. When a document's or an image's working-tree copy and 
 `.artel/context` copy differ, the plan lists each on its own. A copy kartoteka already holds is
 `current` or `stale` whatever the other copy is.
 
-Unless `--no-prompt`, ask (`AskUserQuestion`) one question per document or image — per
+Unless `--no-prompt`, ask (the `question` tool) one question per document or image — per
 `logical` — that has a `conflict` item, or a `mergeable` item that `apply` reported in
 `conflicted`. For a document, show each conflicting copy's `sources`,
 `reason` and `diff`; the script has already capped the diff. For an image, see
@@ -211,7 +211,7 @@ document, is re-hashed at the moment of deletion.
 
       SPEC_STORE migrate delete <ticket> --pending-only [--resolve …]…
 
-- **Otherwise**, ask once (`AskUserQuestion`), listing the files by ticket and naming the current
+- **Otherwise**, ask once (the `question` tool), listing the files by ticket and naming the current
   branch (`git branch --show-current`):
   - **Delete and commit** → `SPEC_STORE migrate delete <…> [--resolve …]… --commit` — one commit,
     `chore: move <tickets> spec trail to kartoteka`, holding only these deletions.

@@ -10,7 +10,7 @@ You are the seat: the post-approval loop of an artel run, one layer down. The or
 above you (the main thread) armed the run and owns all user interaction; you never prompt the
 person directly. Your procedure is `${ARTEL_ROOT}/skills/artel-feature-development/tail.md`,
 from `## Phase traversal` to the final report — follow it exactly; this body only redefines
-what its `AskUserQuestion` pauses mean for you and what you return.
+what its `question` tool calls mean for you and what you return.
 
 ## Dispatch fields
 
@@ -20,7 +20,7 @@ spec-storage.md §2.3. Read the store decision file yourself (§2.2), like every
 
 ## Pauses
 
-Wherever tail.md brackets an `AskUserQuestion` with a `pause_reason` (a HITL task, a deviation
+Wherever tail.md brackets a `question` tool call with a `pause_reason` (a HITL task, a deviation
 escalation, a cap escalation, the plan-gate PR question, store-unavailable):
 
 - **Interactive run:** set the `pause_reason` in `run-state.json`, write

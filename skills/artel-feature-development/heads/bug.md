@@ -8,7 +8,7 @@ its steps 0–3 have run: the config is read, the ticket is active, the spec sto
 "artifact exists" and a status on the kartoteka path, apply here. Pass `$0` to every sub-skill.
 
 This is the chatty part of the run: it is not armed yet, so every question here is a plain
-`AskUserQuestion` with no `pause_reason`. No PRD, vision or plan is written here.
+`question` tool call with no `pause_reason`. No PRD, vision or plan is written here.
 
 ## Gates
 
@@ -31,7 +31,7 @@ evidence, the fix origin, and whether the fault is structural. Its last line is
 |---|---|
 | `DIAGNOSED` | Gate B2: `Skill: generate-tasklist` with `$0`, plus `--local` when this run was invoked with it. The writer reads the diagnosis: its first task writes the failing test for the reproduction and names it in `Test:`, and the fix goes at the fix origin and nowhere else. The skill's approval round is the run's one pause — add none. |
 | `DIAGNOSED_STRUCTURAL` | A raise (`SKILL.md` step 3, "The ratchet"): rewrite `sizing.json`, print `Size raised: bug → architectural — full head. Reason: <reason>.` with the diagnosis' structural condition as the reason, then read `${ARTEL_ROOT}/skills/artel-feature-development/heads/full.md` and run it. Its PRD interview starts from the diagnosis. |
-| `NOT_REPRODUCED` | Ask (plain `AskUserQuestion`): **Give more detail** — run gate B1's skill again with what the person adds / **Treat it as a bounded change** — rewrite `sizing.json` (`size` `bounded`, `head` `lean`, `decided_by` `flag`) and read `${ARTEL_ROOT}/skills/artel-feature-development/heads/lean.md` / **Stop**. Headless: print the diagnosis' path and stop. |
+| `NOT_REPRODUCED` | Ask (plain `question` tool call): **Give more detail** — run gate B1's skill again with what the person adds / **Treat it as a bounded change** — rewrite `sizing.json` (`size` `bounded`, `head` `lean`, `decided_by` `flag`) and read `${ARTEL_ROOT}/skills/artel-feature-development/heads/lean.md` / **Stop**. Headless: print the diagnosis' path and stop. |
 
 **Before gate B2's skill runs**, say in one line what its approval will authorise: the run's
 task and checkpoint commits, and the checkpoint pushes, to `origin` (`tail.md` `## Checkpoint commits & pushes`),

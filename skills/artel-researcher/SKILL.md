@@ -151,7 +151,7 @@ the "Question mode" section of its definition.
   and only what the ticket leaves open about the question itself, each with a proposed answer,
   or `NO_QUESTIONS`.
 - **Phase 2.** A spike has no approval pause to bundle questions at, so this is the one mode in
-  which this skill asks: present the returned questions via `AskUserQuestion` — at most four,
+  which this skill asks: present the returned questions via the `question` tool — at most four,
   the agent's proposed answer as the first option of each. `NO_QUESTIONS`, or a headless run,
   proceeds on the proposed answers. Nothing is written to `open-questions.md`.
 - **Phase 3.** The agent answers the question instead of documenting the code: the same scan

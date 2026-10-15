@@ -116,7 +116,7 @@ the argument hint and stop.
      `--depends` — task numbers of iteration `N`, or `none`; `Route:` from `--route` — `light`,
      or `full — <reason>`; `Test:` from `--test` — backticked paths, or `none — <reason>`;
      `Implements:` only when `<requirements>` is not `absent` — the IDs this task delivers. Ask
-     for every required field still missing in one `AskUserQuestion`, one entry each: `Files:`
+     for every required field still missing in one `question` tool call, one entry each: `Files:`
      and `Test:` as free text, `Depends on:` offering `none` and the iteration's task numbers,
      `Route:` offering `light` and `full — <reason>`, `Implements:` offering the active IDs.
      Never invent a value.
@@ -269,7 +269,7 @@ with any of them → print the argument hint and stop.
    `<CODE> · …` — stop: "task #<id> is a fix-section row; fix rows are never claimed, so
    there is no holder to release, and releasing would make it `ready`. Use `block` or `done`."
    Not `in_progress` → stop: "task #<id> is <status>, not held; nothing to release".
-2. `AskUserQuestion`: "Clear <actor>'s claim on #<id> (held since <updated_at>, <age>)? If that
+2. Ask with the `question` tool: "Clear <actor>'s claim on #<id> (held since <updated_at>, <age>)? If that
    agent is still alive, two agents will be on one task." Options: **Release** / **Keep**.
 3. On Release: `task_update(<task-id>, status="ready")` — this clears the holder and appends the
    reset to the task's history. On Keep: stop, nothing changed.

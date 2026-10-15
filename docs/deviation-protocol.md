@@ -83,7 +83,7 @@ The implementer agent never prompts the user directly — the orchestrator owns 
    - **Recommendation:** 1
    ```
 
-2. **The orchestrating skill asks the user** via `AskUserQuestion`: one option per report
+2. **The orchestrating skill asks the user** via the `question` tool: one option per report
    option — the agent's recommendation first, labeled "(Recommended)" — plus an **Abort task**
    option (stop this task for re-planning). Free-form alternatives arrive via the built-in
    "Other".

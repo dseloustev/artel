@@ -483,7 +483,7 @@ removes its bytes from kartoteka.
 
 ### 5.1 At the start
 
-Before any spec document is read, when §2.1 answers unavailable, ask (`AskUserQuestion`):
+Before any spec document is read, when §2.1 answers unavailable, ask (the `question` tool):
 
 - **Retry** — probe again. A failed retry asks again; never loop on your own.
 - **Work locally for this run** — record it with
@@ -529,7 +529,7 @@ When the store is still down, §5.2 applies again, without the save option.
 
 ### 5.4 Headless
 
-`AskUserQuestion` does not exist under `-p`. `specs.onUnavailable` (`docs/config.md`) answers:
+the `question` tool does not exist under `-p`. `specs.onUnavailable` (`docs/config.md`) answers:
 
 | Situation | `"abort"` (default) | `"local"` |
 |---|---|---|

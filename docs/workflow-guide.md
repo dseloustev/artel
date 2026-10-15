@@ -340,7 +340,7 @@ it to `architectural` until the run is armed (`autonomous-run.md §17`).
   small checkbox tasks and tags any that need a human `[HITL: …]`. You get `tasklist.md` marked
   status `TASKLIST_READY`. (For a phase run, `sync-phases` extracts `phase-<N>/tasks.md` here.)
 
-**THE ONE PAUSE.** In a single `AskUserQuestion`, the orchestrator presents: the plan summary,
+**THE ONE PAUSE.** In a single `question` tool call, the orchestrator presents: the plan summary,
 the task list with its `[HITL: …]` tags called out, every still-open `open-questions.md` entry
 with its proposed default pre-selected as the "(Recommended)" option, and a note that approval
 also authorizes the run's task and checkpoint commits, and the checkpoint pushes, to `origin`. You **Approve** or
@@ -491,7 +491,7 @@ zero risk of the autonomous tail starting.
 PR-gate pause are skipped — open questions proceed on their defaults, folded in silently, and
 the opened PR is the human checkpoint. That holds on every head: a lean or a bug run in `yolo`
 opens its PR unattended as well. The guardrail pauses still fire, but because
-`AskUserQuestion` does not exist under `-p`: a **deviation escalation** auto-takes the
+the `question` tool does not exist under `-p`: a **deviation escalation** auto-takes the
 implementer's recommended option (journaled as `→ auto-resolved`), while **HITL tags** and
 **cap escalations** are *never* auto-resolved — the run journals the entry, sets the
 `pause_reason`, and stops for you to resume interactively. Headless requires a curated

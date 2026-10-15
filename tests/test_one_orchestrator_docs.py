@@ -163,7 +163,7 @@ class TestQuestionMode(unittest.TestCase):
         self.assertIn('`research.md` is not written', self.mode)
 
     def test_question_mode_is_the_one_mode_that_asks(self):
-        for phrase in ('the one mode in which this skill asks', '`AskUserQuestion`',
+        for phrase in ('the one mode in which this skill asks', 'the `question` tool',
                        'Nothing is written to `open-questions.md`',
                        'a headless run'):
             self.assertIn(phrase, self.mode)
@@ -490,7 +490,7 @@ class TestFullHead(unittest.TestCase):
                        '`feature-development` step 4 '
                        '(`${ARTEL_ROOT}/skills/artel-feature-development/SKILL.md`)',
                        'by a head that raises the size',
-                       'every question here is a plain `AskUserQuestion` with no `pause_reason`',
+                       'every question here is a plain `question` tool call with no `pause_reason`',
                        "including planner regeneration and the pause's fold-back",
                        '`**Plan-check bounces:** 0`',
                        'Gate 4.2 has no artifact to skip on either'):
@@ -591,7 +591,7 @@ class TestLayout(unittest.TestCase):
             self.assertIn('| `{}` | `${{ARTEL_ROOT}}/skills/artel-feature-development/heads/'
                           '{}.md` |'.format(size, name), step)
         for phrase in ('A `spike` never reaches this step',
-                       'plain `AskUserQuestion` calls with no `pause_reason`',
+                       'plain `question` tool calls with no `pause_reason`',
                        '- **its approval**', '- **a raise** (step 3, "The ratchet")',
                        '- **a stop the head names itself**',
                        'only when the person chooses **Treat it as a bounded change** there'):
@@ -627,7 +627,7 @@ class TestLayout(unittest.TestCase):
 
     def test_the_rules(self):
         rules = self.skill[self.skill.index('## Important'):]
-        for phrase in ('Every `AskUserQuestion` after step 5 has armed the run MUST be bracketed '
+        for phrase in ('Every `question` tool call after step 5 has armed the run MUST be bracketed '
                        'by a `pause_reason` set/clear',
                        'Before that — steps 2–4, every head — a question is plain.',
                        "A size is raised by a head and lowered only by the person's flag.",
@@ -784,7 +784,7 @@ class TestLeanHead(unittest.TestCase):
                        '(`${ARTEL_ROOT}/skills/artel-feature-development/SKILL.md`)',
                        'No PRD, vision or plan is written here and none is required; one that '
                        'exists is used.',
-                       'every question here is a plain `AskUserQuestion` with no `pause_reason`',
+                       'every question here is a plain `question` tool call with no `pause_reason`',
                        'first invoke `Skill: sync-phases` with `$0`'):
             self.assertIn(phrase, opening)
 
@@ -955,7 +955,7 @@ class TestBugHead(unittest.TestCase):
 
     def test_a_fault_that_did_not_reproduce_asks_and_stops_headless(self):
         row = self.row('NOT_REPRODUCED')
-        for phrase in ('Ask (plain `AskUserQuestion`)', '**Give more detail**',
+        for phrase in ('Ask (plain `question` tool call)', '**Give more detail**',
                        '**Treat it as a bounded change**', '**Stop**',
                        '(`size` `bounded`, `head` `lean`, `decided_by` `flag`)',
                        '`${ARTEL_ROOT}/skills/artel-feature-development/heads/lean.md`',
@@ -984,7 +984,7 @@ class TestBugHead(unittest.TestCase):
         opening = between(self.head, '# The bug head', '## Gates')
         for phrase in ('The head for a `bug` size',
                        'find the cause before anything is planned',
-                       'every question here is a plain `AskUserQuestion` with no `pause_reason`',
+                       'every question here is a plain `question` tool call with no `pause_reason`',
                        'No PRD, vision or plan is written here.'):
             self.assertIn(phrase, opening)
         self.assertNotIn('`dev`', self.head)
@@ -1350,7 +1350,7 @@ class TestWholeSkill(unittest.TestCase):
     def test_every_head_hands_over_to_arming(self):
         for name in self.FILES[1:4]:
             self.assertIn('`SKILL.md` step 5', self.texts[name], name)
-            self.assertIn('plain `AskUserQuestion` with no `pause_reason`',
+            self.assertIn('plain `question` tool call with no `pause_reason`',
                           re.sub(r'\s+', ' ', self.texts[name]), name)
 
     def test_no_two_orchestrator_wording_is_left(self):

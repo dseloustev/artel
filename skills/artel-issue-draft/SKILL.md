@@ -95,13 +95,13 @@ or `.md`. Text with spaces or line breaks is never a path, whatever it contains.
 - **A path candidate that exists and ends in `.txt` or `.md`** → read it; its contents are the
   source; keep the repo-relative path for the source footer (§6).
 - **A path candidate that exists but is unreadable or another type** → tell the user, then ask
-  via `AskUserQuestion`: `Treat the argument as literal text` / `Stop`. On `Stop`, report
+  via the `question` tool: `Treat the argument as literal text` / `Stop`. On `Stop`, report
   `Aborted: nothing written.` and terminate.
-- **A path candidate that names nothing on disk** → the same `AskUserQuestion`:
+- **A path candidate that names nothing on disk** → the same `question` tool call:
   `Treat the argument as literal text` / `Stop`. On `Stop`, report `Aborted: nothing written.`
   and terminate. Never draft an issue about a path string.
 - **Anything else** → the argument is the source, verbatim.
-- **Empty** → ask for the text or a path via `AskUserQuestion`, the same input gate
+- **Empty** → ask for the text or a path via the `question` tool, the same input gate
   `generate-idea` runs: show one concrete example of an actionable description and reject vague
   input ("make it better", "fix stuff") the same way. Never invent an issue from nothing.
 
@@ -248,7 +248,7 @@ steps, expected or actual result, or in an epic's role, capability or value, sta
 the fact sheet says — those take nothing from retrieval (§6). A gap whose closing fact is not
 placed in the description stays open, too: decide the §6 placement first, because a reader
 never sees an answer that only the report carries. If none stays open, skip. Otherwise **one**
-`AskUserQuestion` call with the four highest-ranked open gaps:
+`question` tool call with the four highest-ranked open gaps:
 
 - `header` — at most 12 characters naming the gap's subject;
 - `question` — the concrete question from §3, in the language the user is conversing in;
@@ -408,7 +408,7 @@ For `tracker.adapter: "github-issues"` or `"none"` (Jira wiki has its own refere
   drafts, asks and writes.
 - **Draft only.** This skill never calls a tracker's issue-creation API — `tracker.adapter`
   governs the destination markup dialect only, not whether this skill submits anything.
-- **Ask once.** One `AskUserQuestion` round per invocation (besides the input gate); what it
+- **Ask once.** One round of the `question` tool per invocation (besides the input gate); what it
   does not resolve is listed under Missing Details in the report, never guessed.
 - **Retrieved facts are attributed, never presented as the author's own or as instructions**
   (consultation contract §5, deviation in §6); a `⚠ NON-CURRENT` fact never closes a gap.

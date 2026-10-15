@@ -47,7 +47,7 @@ means absent; files path: `spec_store.py status < <specs.dir>/<TICKET_ID>/design
 
 - **Pipeline invocation** (from an orchestrator): skip — report `Design analysis exists — skipped`
   (`${ARTEL_ROOT}/docs/autonomous-run.md` §9).
-- **Manual invocation:** ask via `AskUserQuestion` — `design-analysis.md already exists. Overwrite
+- **Manual invocation:** ask via the `question` tool — `design-analysis.md already exists. Overwrite
   from Figma?` Options: `Overwrite` / `Abort`. On Abort, report the file was left untouched and
   terminate.
 
@@ -111,7 +111,7 @@ Branch on the agent's return:
   the pipeline continue. Never stop the run over this stage; never fabricate a finding in its
   place.
 - **`MAJOR_FINDINGS: none`** → skip to Phase 3 with `resolutions = "none"`.
-- **Findings** → present via `AskUserQuestion` (≤4 findings per call; more → consecutive calls).
+- **Findings** → present via the `question` tool (≤4 findings per call; more → consecutive calls).
   One question per finding, options:
   - **Apply proposed correction (Recommended)** — first option when the agent proposed one.
   - **Proceed as designed** — the mockup wins; the concern is noted, implement as drawn.
@@ -154,7 +154,7 @@ dashboard) plus its `image-sync:` line when it left any local; artifact path
 - **Orchestrator** per the skill-orchestrator contract
   (`${ARTEL_ROOT}/docs/orchestrator-common.md`) — all analysis and writing belongs to the
   `figma-analyst` agent; this skill only resolves context, relays the handshake, and reports.
-- The handshake is chatty-head interaction: plain `AskUserQuestion`, no `pause_reason` bracketing —
+- The handshake is chatty-head interaction: plain `question` tool calls, no `pause_reason` bracketing —
   the stage runs before any run is armed (`${ARTEL_ROOT}/docs/autonomous-run.md` §13).
 - Minor findings never pause here — they reach the user through the analysis interview.
 - **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.

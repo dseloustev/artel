@@ -57,7 +57,7 @@ Read `<specs.dir>/<TICKET_ID>/idea.md` (kartoteka path: `spec_store.py exists <s
 **Pipeline invocation** (from an orchestrator): if it exists, skip — report `Idea exists —
 skipped` and terminate without touching the tracker (`${ARTEL_ROOT}/docs/autonomous-run.md` §9).
 
-**Manual invocation:** if it exists, ask via `AskUserQuestion`:
+**Manual invocation:** if it exists, ask via the `question` tool:
 - **Question:** `<specs.dir>/<TICKET_ID>/idea.md already exists. Overwrite it?`
 - **Options:** `Overwrite` — replace with freshly gathered content / `Abort` — leave untouched and stop.
 
@@ -69,7 +69,7 @@ Branch on `tracker.adapter` (`${ARTEL_ROOT}/docs/config.md`):
 
 **`"none"`:**
 1. If a description-file argument (`$1`) was passed, read it as the source content.
-2. Otherwise, ask the user for a feature description via `AskUserQuestion` — the same input gate
+2. Otherwise, ask the user for a feature description via the `question` tool — the same input gate
    the `analysis` skill runs: show one concrete example of an actionable description, and reject
    vague input ("make it better", "fix stuff") the same way. Never guess, never write a
    placeholder idea.

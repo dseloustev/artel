@@ -26,7 +26,7 @@ on (a raise, or the bug head's **Treat it as a bounded change**). On resume of a
 inline run reads `tail.md` and no head file; a seated run dispatches a fresh seat (step 6).
 
 `--step` flag: run in legacy step-by-step mode — confirm between major phases via
-`AskUserQuestion`, skip all `run-state.json` writes (autonomous-run.md §6). The remainder of this
+the `question` tool, skip all `run-state.json` writes (autonomous-run.md §6). The remainder of this
 file describes the default autonomous mode. `--mode=full-gates` is an alias for `--step`.
 `--mode=yolo|plan-gate` selects the autonomous mode per `autonomous-run.md` §10 (default:
 `plan-gate`); the classifier may raise it, never lower it. `--head=full|lean|bug` sets the size
@@ -218,7 +218,7 @@ Read the one file the size names and run it to the end of its approval:
 | `bug` | `${ARTEL_ROOT}/skills/artel-feature-development/heads/bug.md` |
 
 A `spike` never reaches this step. The head is the chatty part of the run: nothing is armed yet,
-so its questions are plain `AskUserQuestion` calls with no `pause_reason`. It ends in one of
+so its questions are plain `question` tool calls with no `pause_reason`. It ends in one of
 three ways:
 
 - **its approval** — the full head's pause, the lean head's confirmation, or the approval round
@@ -301,7 +301,7 @@ Returns:
 
 - `COMPLETED` — print its final report and rulings list; the run is done.
 - `PAUSED: <reason>` — the relay (autonomous-run.md §18.2): read
-  `.artel/run/<TICKET_ID>/pause-request.json`, ask its question verbatim via `AskUserQuestion`
+  `.artel/run/<TICKET_ID>/pause-request.json`, ask its question verbatim via the `question` tool
   (the seat has already set `pause_reason`; clear it and delete `pause-request.json` on the answer), then `SendMessage` the
   seat the answer.
 - `STOPPED: <reason>` — report the line and the journal pointer; the run stays paused.
@@ -312,7 +312,7 @@ A dispatch that fails to start, or returns none of the three shapes: journal `se
 ## Important
 
 - Execute gates sequentially — each depends on the previous.
-- Every `AskUserQuestion` after step 5 has armed the run MUST be bracketed by a `pause_reason`
+- Every `question` tool call after step 5 has armed the run MUST be bracketed by a `pause_reason`
   set/clear (autonomous-run.md §2) — the Stop hook depends on it. Before that — steps 2–4, every
   head — a question is plain.
 - On any stop (cap escalation, abort): leave `run_active: true` with the `pause_reason` set —

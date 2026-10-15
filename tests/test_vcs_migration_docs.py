@@ -46,7 +46,7 @@ class SetHomeDocsCase(unittest.TestCase):
         self.assertIn('no** `origin`', self.text)
 
     def test_confirms_before_touching_remotes(self):
-        self.assertIn('AskUserQuestion', self.text)
+        self.assertIn('the `question` tool', self.text)
 
     def test_never_force_pushes_or_deletes_a_remote(self):
         # Assert the prohibition is stated, not that the string is absent -- the skill has to

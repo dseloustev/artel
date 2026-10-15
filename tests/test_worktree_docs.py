@@ -41,7 +41,7 @@ class WorktreeSkillsCase(unittest.TestCase):
 
     def test_both_confirm_first(self):
         for name in NEW_SKILLS:
-            self.assertIn('AskUserQuestion', body(name), name)
+            self.assertIn('the `question` tool', body(name), name)
 
     def test_neither_forces_nor_deletes_a_branch(self):
         # Assert the prohibition is stated, not merely that the string is absent.

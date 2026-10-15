@@ -232,7 +232,7 @@ class TestSkill(unittest.TestCase):
 
     def test_structural_hands_off_to_issue_draft(self):
         for phrase in ('/artel:issue-draft <the report> --type bug',
-                       '/artel:issue-draft <the report> --type task', '`AskUserQuestion`'):
+                       '/artel:issue-draft <the report> --type task', 'the `question` tool'):
             self.assertIn(phrase, self.doc)
 
     def test_footprint(self):

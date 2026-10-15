@@ -9,7 +9,7 @@ flags apply here. Pass `$0` to every sub-skill.
 
 No PRD, vision or plan is written here and none is required; one that exists is used. This is
 the chatty part of the run: it is not armed yet, so every question here is a plain
-`AskUserQuestion` with no `pause_reason`.
+`question` tool call with no `pause_reason`.
 
 On phase-scoped runs (`PHASE_NUM` set), first invoke `Skill: sync-phases` with `$0` to extract
 `phase-<N>/tasks.md` from `tasklist.md` when it is missing.
@@ -44,7 +44,7 @@ and stop, in every mode.
 
    Then present a one-screen summary (tasks + any `[HITL: …]` tags + the check's findings,
    Critical and Important first, each as `<task> <severity> <rule>: <message>`) via
-   `AskUserQuestion` — **Confirm** / **Adjust** (feedback via "Other"). This is the run's one
+   the `question` tool — **Confirm** / **Adjust** (feedback via "Other"). This is the run's one
    pause. There is no automatic fix round here: the person reads the findings and decides.
    An exit `2` from either command shows
    `plan check: not run (<error.kind>)` instead.

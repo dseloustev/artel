@@ -6,14 +6,14 @@
     cleanup_worker(repo, assignment, publication) -> report
 
 Contract: docs/opencode-parallel.md §3 (worker role, permissions and location), §4
-(assignment), §5 (result) and §13.4 (the repository-common ticket lock), plus
-docs/worktrees.md §1 for the `.claude/worktrees/` area. `repo` is any checkout of the
-repository -- the coordinator may itself live in a ticket worktree -- and every operation is
-rooted there: nothing here moves, stashes, switches or cleans the coordinator, and
-`scripts/worktree.py`'s move-in/hand-back are never reused. A worker root is a linked
-worktree of the same repository, detached at the assignment's `base_commit`, under the main
-checkout's `.claude/worktrees/` area; the coordinator's branch, index, stash and
-`.artel/run/` stay byte-for-byte as they were.
+(assignment), §5 (result), §13.4 (the repository-common ticket lock) and §13.7 (the task
+worktree and the cleanup publication proof), plus docs/worktrees.md §1 for the
+`.claude/worktrees/` area. `repo` is any checkout of the repository -- the coordinator may
+itself live in a ticket worktree -- and every operation is rooted there: nothing here moves,
+stashes, switches or cleans the coordinator, and `scripts/worktree.py`'s move-in/hand-back
+are never reused. A worker root is a linked worktree of the same repository, detached at the
+assignment's `base_commit`, under the main checkout's `.claude/worktrees/` area; the
+coordinator's branch, index, stash and `.artel/run/` stay byte-for-byte as they were.
 
 Ownership. Every operation verifies the repository-common ticket lock
 (`<git-common-dir>/artel/parallel/<TICKET>.json`, §13.4) read-only and refuses when the lock
@@ -35,22 +35,27 @@ interrupted create (`interrupted_create`) or an unfinished setup (`incomplete_se
     worker_root/<artifact_root>                  the only evidence root; it must be inside
                                                  the worker root and git-ignored
     refs/artel/parallel/<run_id>/<task>/<attempt>/base      the exact base commit
-    refs/artel/parallel/<run_id>/<task>/<attempt>/result    Tasks 8-9 retain the transport
-                                                           result here
+    refs/artel/parallel/<run_id>/<task>/<attempt>/result    the coordinator's transport
+                                                            result, retained here
 
 Configured `setup.commands` run in the worker root, in order, through a shell with an
 explicit `cwd`, stopping at the first non-zero exit; a failure leaves the root and a
 `setup.failed` record (`command`, `exit_code`, `output` tail, `timed_out`) in the marker.
 
-`cleanup_worker` removes only an owned, complete root whose work is durable: the publication
-proof must carry the canonical `result_ref` pointing at `result_commit`, an existing
-`cycle_commit` both descending from the base commit, `published: true`, and `evidence` --
-the exact set of files under `artifact_root` with their sha256 digests. Worktree content
-outside the lifecycle files that `result_commit` does not represent refuses as
-`dirty_worktree`; extra, missing or changed evidence refuses as `evidence_mismatch`. Only
-then is the root made clean (`git reset --hard <base>` and `git clean -fd`, every path
-already proven durable) and removed with `git worktree remove` -- never `--force`. The
-namespaced refs are retained as the recoverable record.
+`cleanup_worker` removes a root only when the publication proves the work durable and the
+root itself is clean. The proof carries the canonical `result_ref` pointing at
+`result_commit` (the exact worker tree), a real `cycle_ref` -- a `refs/heads/<branch>` branch,
+never a revision expression or the worker result namespace -- under which `cycle_commit`
+(never the base commit itself) is reachable, and `evidence`: the exact set of files under
+`artifact_root` with their sha256 digests, verified independently at the worker artifact root
+and at the coordinator's `collected_root` (`<repo>/.artel/run/<ticket>/parallel/<run_id>/`,
+outside the worker), where a symlink, a hardlink alias or a changed copy refuses. The worker
+HEAD must equal `result_commit` and every file under the root must be accounted for: tracked
+at that commit, one of the lifecycle files create_worker wrote, the verified evidence set, or
+the worktree's gitfile. Anything else -- an ignored file, an untracked file, a symlink, a
+modification hidden by an index flag -- refuses as `dirty_worktree` and is preserved byte for
+byte: this module never resets, cleans or force-removes. Only then is `git worktree remove`
+run (never `--force`), and the namespaced refs stay as the recoverable record.
 
 Shapes:
 
@@ -65,11 +70,11 @@ Shapes:
              config: {present, sha256, matches_marker},
              uncommitted: {total, paths}}
             state is one of missing, unsafe, foreign, interrupted-create,
-            incomplete-setup, setup-failed, unknown, ready, published.
+            incomplete-setup, setup-failed, unknown, ready, published -- where `published`
+            only means "a result ref exists", never the §6 task state of the same name.
     cleanup {status, schema, ticket, phase, run_id, task, attempt, root, removed,
-             cycle_commit, result_commit, retained_refs: {base, result},
-             evidence: {verified, artifact_root},
-             cleaned: {reset_to, untracked_removed}}
+             cycle_commit, cycle_ref, result_commit, retained_refs: {base, result},
+             collected_root, evidence: {verified, artifact_root, collected_root}}
 
 Every failure raises `WorktreeError`, a `ValueError` carrying the `kind` a CLI maps into its
 error envelope; nothing is coerced and nothing is dropped.
@@ -92,10 +97,11 @@ MARKER_PATH = '.artel/parallel-worker.json'
 CONFIG_PATH = '.artel/config.json'
 REF_ROOT = 'refs/artel/parallel'
 # The two paths create_worker itself writes; they are lifecycle metadata, not worker work,
-# and cleanup's durability proof ignores them (it still verifies the config digest).
+# and cleanup's accounting recognizes them (their digests are still verified).
 LIFECYCLE_PATHS = (MARKER_PATH, CONFIG_PATH)
 PUBLICATION_KEYS = ('schema', 'ticket', 'phase', 'run_id', 'task', 'attempt', 'cycle_commit',
-                    'result_commit', 'result_ref', 'evidence', 'published')
+                    'cycle_ref', 'result_commit', 'result_ref', 'collected_root', 'evidence',
+                    'published')
 EVIDENCE_KEYS = ('path', 'sha256')
 LOCK_KEYS = ('schema', 'ticket', 'run_id', 'phase', 'token', 'acquired_at')
 SHA256_RE = re.compile(r'[0-9a-f]{64}\Z')
@@ -203,7 +209,7 @@ def _git(repo, *args, **kwargs):
     text = kwargs.pop('text', True)
     env = kwargs.pop('env', None)
     return _run(['git', '-C', str(repo)] + [str(a) for a in args], cwd=repo, check=check,
-                text=text, env=env)
+                text=text, env=env if env is not None else _setup_env())
 
 
 def _out(repo, *args):
@@ -215,7 +221,7 @@ def _common_dir(repo):
     try:
         proc = subprocess.run(['git', '-C', str(repo), 'rev-parse', '--path-format=absolute',
                                '--git-common-dir'],
-                              cwd=str(repo), capture_output=True, text=True)
+                              cwd=str(repo), capture_output=True, text=True, env=_setup_env())
     except OSError as exc:
         _fail('not_a_repository', 'cannot run git in {}: {}'.format(repo, exc))
     if proc.returncode != 0:
@@ -773,6 +779,17 @@ def _publication(value, assignment):
         if not isinstance(commit, str) or not parallel_contract.COMMIT_RE.match(commit):
             _fail(kind, 'the publication {} is not a full 40-hex commit id: {!r}'.format(
                 name, commit))
+    cycle_ref = value['cycle_ref']
+    if not isinstance(cycle_ref, str) or not cycle_ref.startswith('refs/heads/') \
+            or cycle_ref == 'refs/heads/' or cycle_ref != cycle_ref.strip() \
+            or any(char in cycle_ref for char in '\x00\n\r'):
+        _fail(kind, 'the publication cycle_ref is not an existing `refs/heads/<branch>` '
+                    'refname: {!r}'.format(cycle_ref))
+    collected = value['collected_root']
+    if not isinstance(collected, str) or not collected or not os.path.isabs(collected) \
+            or collected != collected.strip() or any(char in collected for char in '\x00\n\r'):
+        _fail(kind, 'the publication collected_root is not an absolute path: {!r}'.format(
+            collected))
     if value['result_ref'] != _ref_name(assignment, 'result'):
         _fail(kind, 'the publication result_ref is not the run\'s canonical ref {}: {!r}'.format(
             _ref_name(assignment, 'result'), value['result_ref']))
@@ -794,14 +811,8 @@ def _publication(value, assignment):
     return value
 
 
-def _verify_evidence(artifact, evidence):
-    """The evidence under `artifact_root` is exactly what the publication collected."""
-    listed = {entry['path']: entry['sha256'] for entry in evidence}
-    if not artifact.is_dir():
-        if listed:
-            _fail('evidence_mismatch', 'the artifact root {} does not exist but the '
-                                       'publication lists evidence'.format(artifact))
-        return 0
+def _evidence_tree(artifact):
+    """Every file under `artifact_root` with its digest; a symlink is never evidence."""
     found = {}
     for dirpath, dirnames, filenames in os.walk(str(artifact)):
         for name in list(dirnames):
@@ -814,6 +825,25 @@ def _verify_evidence(artifact, evidence):
                 _fail('evidence_mismatch', 'the artifact root carries the symlink {}'.format(
                     path))
             found[path.relative_to(artifact).as_posix()] = _sha256(path.read_bytes())
+    return found
+
+
+def _verify_evidence(artifact, collected, evidence):
+    """The evidence is exactly what the publication lists -- at the worker artifact root
+    and, independently, at the coordinator's collected root.
+
+    The worker side must be the exact set with matching digests; the collected side must
+    hold the same relative paths with matching digests, as real separate copies: a symlink,
+    a missing or changed file and a hardlink alias of the worker file all refuse before
+    anything is removed.
+    """
+    listed = {entry['path']: entry['sha256'] for entry in evidence}
+    if not artifact.is_dir():
+        if listed:
+            _fail('evidence_mismatch', 'the artifact root {} does not exist but the '
+                                       'publication lists evidence'.format(artifact))
+        return 0
+    found = _evidence_tree(artifact)
     extra = sorted(set(found) - set(listed))
     if extra:
         _fail('evidence_mismatch', 'the artifact root carries evidence the publication does '
@@ -825,52 +855,144 @@ def _verify_evidence(artifact, evidence):
     for path in sorted(listed):
         if found[path] != listed[path]:
             _fail('evidence_mismatch', 'the evidence {} changed after collection'.format(path))
+    if not listed:
+        return 0
+    if os.path.islink(str(collected)):
+        _fail('evidence_mismatch', 'the collected root {} is a symlink'.format(collected))
+    if not collected.is_dir():
+        _fail('evidence_mismatch', 'the collected root {} is missing; the publication '
+                                   'evidence was not collected'.format(collected))
+    for path in sorted(listed):
+        destination = collected / path
+        if os.path.islink(str(destination)):
+            _fail('evidence_mismatch', 'the collected evidence {} is a symlink'.format(
+                destination))
+        if not destination.is_file():
+            _fail('evidence_mismatch', 'the collected evidence {} is missing'.format(
+                destination))
+        source = artifact / path
+        if _aliases(source, destination):
+            _fail('evidence_mismatch', 'the collected evidence {} aliases the worker file; '
+                                       'it is not a separate copy'.format(destination))
+        if _sha256(destination.read_bytes()) != listed[path]:
+            _fail('evidence_mismatch', 'the collected evidence {} does not match the '
+                                       'recorded digest'.format(destination))
     return len(listed)
 
 
-def _durable_offenders(root, commit):
-    """Worktree paths whose content `commit` does not represent; empty when durable.
-
-    The worktree is staged into a temporary index -- the worker's own index is never touched
-    -- and compared to `commit`; the lifecycle files create_worker writes are excluded.
-    """
-    directory = tempfile.mkdtemp(prefix='artel-task-worktree-')
+def _aliases(source, destination):
+    """True when both paths resolve to the same inode (a hardlink or the same file)."""
     try:
-        env = dict(os.environ, GIT_INDEX_FILE=os.path.join(directory, 'index'))
-        try:
-            _git(root, 'add', '-A', '.', env=env)
-            diff = _git(root, 'diff', '--name-status', '-z', commit, env=env).stdout
-        except WorktreeError as exc:
-            _fail('dirty_worktree', 'cannot prove the worker root durable: {}'.format(exc))
-        fields = diff.split('\0')
-        paths = []
-        index = 0
-        while index < len(fields):
-            status = fields[index]
-            if not status:
-                index += 1
-                continue
-            if status[0] in 'RC':
-                if index + 2 < len(fields):
-                    paths.extend([fields[index + 1], fields[index + 2]])
-                index += 3
-            else:
-                if index + 1 < len(fields):
-                    paths.append(fields[index + 1])
-                index += 2
-        return sorted(path for path in paths if path and path not in LIFECYCLE_PATHS)
-    finally:
-        shutil.rmtree(directory, ignore_errors=True)
+        left, right = os.stat(str(source)), os.stat(str(destination))
+    except OSError:
+        return False
+    return left.st_ino == right.st_ino and left.st_dev == right.st_dev
+
+
+def _collected_root(proof, repo, root, artifact):
+    """The coordinator's collected-evidence root, task/run/attempt-scoped and separate.
+
+    It must resolve strictly under
+    `<repo>/.artel/run/<ticket>/parallel/<run_id>/`, traverse no symlink, and overlap
+    neither the worker root nor the artifact root -- a destination inside the worker (or a
+    root containing it) would make the "collected copy" disappear with the worktree.
+    """
+    collected = Path(os.path.normpath(proof['collected_root']))
+    prefix = Path(repo) / '.artel' / 'run' / proof['ticket'] / 'parallel' / proof['run_id']
+    if not _under(prefix, collected):
+        _fail('invalid_publication', 'the collected root {} is not under {}'.format(
+            collected, prefix))
+    current = Path(repo)
+    for part in Path(os.path.relpath(str(collected), str(repo))).parts:
+        current = current / part
+        if os.path.islink(str(current)):
+            _fail('invalid_publication', 'the collected root {} traverses the symlink {}'.format(
+                collected, current))
+    for other, what in ((root, 'worker root'), (artifact, 'artifact root')):
+        if _overlaps(collected, other):
+            _fail('invalid_publication', 'the collected root {} overlaps the {} {}'.format(
+                collected, what, other))
+    return collected
+
+
+def _overlaps(left, right):
+    return (os.path.realpath(str(left)) == os.path.realpath(str(right))
+            or _under(left, right) or _under(right, left))
+
+
+def _accounted_paths(root, artifact, evidence):
+    """Every path the removal may delete without proof: tracked files, the lifecycle files
+    create_worker wrote, the verified evidence set, and the worktree's own gitfile."""
+    allowed = set(LIFECYCLE_PATHS) | {'.git'}
+    for entry in evidence:
+        allowed.add(os.path.relpath(str(artifact / entry['path']), str(root)))
+    allowed.update(path for path in _git(root, 'ls-files', '-z').stdout.split('\0') if path)
+    return allowed
+
+
+def _walk_offenders(root, allowed):
+    """Filesystem entries under `root` the accounted set does not cover."""
+    offenders = set()
+    for dirpath, dirnames, filenames in os.walk(str(root)):
+        for name in list(dirnames):
+            path = Path(dirpath) / name
+            relative = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                dirnames.remove(name)  # never follow, and an unaccounted one refuses
+                if relative not in allowed:
+                    offenders.add(relative)
+            elif relative == '.git':
+                dirnames.remove(name)
+                offenders.add(relative)  # a linked worktree carries a gitfile, not a repo
+        for name in filenames:
+            relative = (Path(dirpath) / name).relative_to(root).as_posix()
+            if relative not in allowed:
+                offenders.add(relative)
+    return offenders
+
+
+def _clean_offenders(root, allowed):
+    """Tracked or unaccounted content the retained result does not represent.
+
+    A clean root is one whose tracked files match its HEAD (`H` flags only -- an
+    assume-unchanged or skip-worktree entry could hide a modification), whose status carries
+    no tracked change and no untracked path outside the accounted set, and every filesystem
+    entry of which is accounted for. Ignore rules never hide a file: the walk sees them all.
+    """
+    offenders = set()
+    status = _git(root, 'status', '--porcelain', '--untracked-files=all', check=False)
+    if status.returncode != 0:
+        _fail('dirty_worktree', 'cannot read the worker status in {}: {}'.format(
+            root, (status.stderr or status.stdout).strip()))
+    for line in status.stdout.splitlines():
+        if not line.strip():
+            continue
+        code, path = line[:2], line[3:]
+        if code != '??' or path not in allowed:
+            offenders.add(path)
+    flags = _git(root, 'ls-files', '-v', '-z', check=False)
+    if flags.returncode != 0:
+        _fail('dirty_worktree', 'cannot read the worker index flags in {}: {}'.format(
+            root, (flags.stderr or flags.stdout).strip()))
+    for entry in flags.stdout.split('\0'):
+        if entry and entry[0] != 'H':
+            offenders.add(entry[2:])
+    offenders.update(_walk_offenders(root, allowed))
+    return sorted(offenders)
 
 
 def cleanup_worker(repo, assignment, publication):
-    """Remove the owned worker root whose code and evidence the publication proves durable.
+    """Remove the owned worker root only when the publication proves its work durable.
 
-    The root must be this assignment's complete worker root and the publication must carry
-    the run's canonical result ref, the transport result it retains, an integrated cycle
-    commit descending from the base, and the exact evidence digests. Any worktree content
-    `result_commit` does not represent refuses as `dirty_worktree`; a root that is not
-    provably durable is never cleaned, reset or force-removed. The namespaced refs stay.
+    The root must be this assignment's complete worker root, its tracked tree must be clean
+    at the retained `result_commit`, and every file under it must be accounted for: the
+    tracked files, the lifecycle files `create_worker` wrote, the verified evidence set, and
+    the worktree's gitfile. Anything else -- an ignored file, an untracked file, a symlink,
+    a hidden modification -- refuses as `dirty_worktree` and is preserved byte for byte; this
+    function never resets, cleans or force-removes. The publication must carry the run's
+    canonical `result_ref` pointing at `result_commit`, a real `cycle_ref` branch under which
+    `cycle_commit` (never the base itself) is reachable, and `evidence` verified independently
+    at the worker artifact root and at `collected_root`. The namespaced refs are retained.
     """
     value = _assignment(assignment)
     proof = _publication(publication, value)
@@ -888,29 +1010,38 @@ def cleanup_worker(repo, assignment, publication):
     if not _commit_exists(repo, proof['result_commit']):
         _fail('unpublished', 'the result commit {} does not exist in {}'.format(
             proof['result_commit'], repo))
-    if not _commit_exists(repo, proof['cycle_commit']):
-        _fail('unpublished', 'the cycle commit {} does not exist in {}'.format(
-            proof['cycle_commit'], repo))
     if not _is_ancestor(repo, value['base_commit'], proof['result_commit']):
         _fail('unpublished', 'the result commit {} does not descend from the base {}'.format(
             proof['result_commit'], value['base_commit']))
+    if proof['cycle_commit'] == value['base_commit']:
+        _fail('unpublished', 'the cycle commit is the base commit itself; nothing was '
+                             'integrated')
+    if not _commit_exists(repo, proof['cycle_commit']):
+        _fail('unpublished', 'the cycle commit {} does not exist in {}'.format(
+            proof['cycle_commit'], repo))
     if not _is_ancestor(repo, value['base_commit'], proof['cycle_commit']):
         _fail('unpublished', 'the cycle commit {} does not descend from the base {}'.format(
             proof['cycle_commit'], value['base_commit']))
-    verified = _verify_evidence(artifact, proof['evidence'])
-    offenders = _durable_offenders(root, proof['result_commit'])
+    if _git(repo, 'check-ref-format', proof['cycle_ref'], check=False).returncode != 0:
+        _fail('invalid_publication', 'the cycle ref {} is not a valid refname'.format(
+            proof['cycle_ref']))
+    if _ref_value(repo, proof['cycle_ref']) is None:
+        _fail('unpublished', 'the cycle ref {} does not exist in {}'.format(
+            proof['cycle_ref'], repo))
+    if not _is_ancestor(repo, proof['cycle_commit'], proof['cycle_ref']):
+        _fail('unpublished', 'the cycle commit {} is not reachable from {}'.format(
+            proof['cycle_commit'], proof['cycle_ref']))
+    collected = _collected_root(proof, repo, root, artifact)
+    verified = _verify_evidence(artifact, collected, proof['evidence'])
+    head = _git(root, 'rev-parse', 'HEAD', check=False)
+    if head.returncode != 0 or head.stdout.strip() != proof['result_commit']:
+        _fail('dirty_worktree', 'the worker HEAD {} is not the retained result {}; the root '
+                                'is preserved'.format(head.stdout.strip() or None,
+                                                      proof['result_commit']))
+    offenders = _clean_offenders(root, _accounted_paths(root, artifact, proof['evidence']))
     if offenders:
         _fail('dirty_worktree', 'the worker root carries content the publication does not '
-                                'represent: {}'.format(', '.join(offenders)))
-    cleaned = {'reset_to': None, 'untracked_removed': []}
-    status = [line for line in _git(root, 'status', '--porcelain', '--untracked-files=all')
-              .stdout.splitlines() if line.strip()]
-    if status:
-        cleaned['untracked_removed'] = sorted(line[3:] for line in status
-                                              if line.startswith('??'))
-        _git(root, 'reset', '--hard', value['base_commit'])
-        _git(root, 'clean', '-fd')
-        cleaned['reset_to'] = value['base_commit']
+                                'account for: {}'.format(', '.join(offenders)))
     proc = _git(repo, 'worktree', 'remove', str(root), check=False)
     if proc.returncode != 0:
         _fail('removal_failed', 'git worktree remove failed for {}: {}'.format(
@@ -926,9 +1057,11 @@ def cleanup_worker(repo, assignment, publication):
         'root': str(root),
         'removed': True,
         'cycle_commit': proof['cycle_commit'],
+        'cycle_ref': proof['cycle_ref'],
         'result_commit': proof['result_commit'],
         'retained_refs': {'base': _ref_name(value, 'base'),
                           'result': _ref_name(value, 'result')},
-        'evidence': {'verified': verified, 'artifact_root': str(artifact)},
-        'cleaned': cleaned,
+        'collected_root': str(collected),
+        'evidence': {'verified': verified, 'artifact_root': str(artifact),
+                     'collected_root': str(collected)},
     }

@@ -586,6 +586,58 @@ non-reserved unresolved work is left. Conflicting reservations are the one delib
 exception to "every unresolved task is pairwise compatible": the withheld reservation is
 re-checked on every call and cannot launch while a conflicting task is unresolved.
 
+### 13.7 Task worktrees and the cleanup publication proof
+
+`scripts/task_worktree.py` owns one detached worktree per task and the proof cleanup needs.
+`create_worker(repo, assignment)` requires the repository-common lock of §13.4 to be held by
+the assignment's run (read-only; it never acquires or reclaims), places the worker root
+strictly inside the main checkout's `.claude/worktrees/` area and no other worktree, and adds
+a linked worktree detached at `assignment.base_commit`. The coordinator's branch, index, stash
+and `.artel/run/` are never moved, stashed or switched.
+
+The worker root carries `<worker_root>/.artel/parallel-worker.json` (role `worker`, the
+validated assignment verbatim, the repository identity, the config digest and the setup state)
+and a verbatim copy of the coordinator's validated `.artel/config.json`; the only evidence root
+is `assignment.artifact_root`, which must be inside the worker root and git-ignored. The run's
+namespace holds `refs/artel/parallel/<run_id>/<task>/<attempt>/base` (the exact base commit,
+create-only) and `refs/artel/parallel/<run_id>/<task>/<attempt>/result` (the coordinator's
+transport result). `setup.commands` run in the worker root, and a failure leaves the root and
+the failing command, exit code and output tail in the marker.
+
+`cleanup_worker(repo, assignment, publication)` removes a root only when the publication proves
+its work durable and the root itself is clean. The proof is exactly:
+
+```json
+{"schema": 1, "ticket": "PROJ-123", "phase": 2, "run_id": "…", "task": "3.1", "attempt": 1,
+ "cycle_commit": "<40hex>", "cycle_ref": "refs/heads/<branch>",
+ "result_commit": "<40hex>", "result_ref": "refs/artel/parallel/<run_id>/<task>/<attempt>/result",
+ "collected_root": "/abs/<repo>/.artel/run/PROJ-123/parallel/<run_id>/<task>-a<attempt>",
+ "evidence": [{"path": "result.json", "sha256": "<64hex>"}], "published": true}
+```
+
+Every key is required and no unknown key is accepted. `result_ref` must be the run's canonical
+ref and resolve to `result_commit`, which must descend from the base commit.
+`cycle_ref` must be an existing `refs/heads/` branch — not a revision expression, not the
+worker result namespace — under which `cycle_commit` is reachable; `cycle_commit` must exist,
+descend from the base and never equal it. The `collected_root` must resolve strictly under
+`<repo>/.artel/run/<ticket>/parallel/<run_id>/` (the attempt-scoped subdirectory is the
+coordinator's convention), traverse no symlink, and overlap neither the worker root nor the
+artifact root. Each evidence `{path, sha256}` is verified independently at the worker artifact
+root and at `collected_root`: the artifact root must hold exactly the listed set, and the
+collected copy must be a real separate copy — missing, changed, symlinked or hardlinked to the
+worker file all refuse. Cleanup removes nothing until every one of these holds, the worker
+`HEAD` equals `result_commit`, and every file under the root is accounted for: tracked at that
+commit, one of the two lifecycle files, the verified evidence set, or the worktree's gitfile.
+An ignored, untracked or hidden file refuses as `dirty_worktree` and is preserved byte for
+byte; the module never resets, cleans or force-removes, and `git worktree remove` runs without
+`--force`. The namespaced refs stay as the recoverable record.
+
+The caller still owns the queue and artifact-store receipts, the semantic claim that the cycle
+commit is the task's integration, and the collection step itself; the lifecycle machine-checks
+the Git and evidence proofs available to it and refuses anything it cannot prove. In the
+inspection report, state `published` only means "a result ref exists" — it is not §6's
+`published` task state, which remains the coordinator's record.
+
 ## 14. Proof record
 
 The capability proof ran 2026-10-15 against OpenCode 2.0.29: two workers in two detached

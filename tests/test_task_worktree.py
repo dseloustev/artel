@@ -8,12 +8,14 @@ Every test builds a real Git repository with the coordinator already in a linked
 real ticket lock and real configured setup, so the lifecycle's Git behavior is git's own.
 The invariants worth the most: the worker root is detached at the exact base commit, the
 coordinator's branch/index/stash/run directory are never touched, an interrupted or failed
-setup is retained and reported rather than masked, and cleanup removes only an owned,
-published, provably durable root.
+setup is retained and reported rather than masked, and cleanup removes only an owned root
+that is clean at the retained result, fully accounted for file by file, and backed by a
+branch-reachable cycle commit plus evidence collected to a separate destination.
 """
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -77,6 +79,8 @@ def rejects(test, kind, call):
 class RepoCase(unittest.TestCase):
     """A real repository, the coordinator already in a linked worktree, and a real lock."""
 
+    IGNORE = '.artel/\nbuild/\n'
+
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.space = Path(os.path.realpath(self._tmp.name))
@@ -85,7 +89,7 @@ class RepoCase(unittest.TestCase):
         for key, value in (('user.email', 'test@example.com'), ('user.name', 'Test'),
                            ('commit.gpgsign', 'false')):
             git(self.main, 'config', key, value)
-        self.write('.gitignore', '.artel/\nbuild/\n')
+        self.write('.gitignore', self.IGNORE)
         self.write('app.txt', 'v1\n')
         self.write('docs/my notes.txt', 'notes\n')
         git(self.main, 'add', '.')
@@ -112,7 +116,7 @@ class RepoCase(unittest.TestCase):
     def read(self, rel, base=None):
         return ((base or self.main) / rel).read_text(encoding='utf-8')
 
-    def write_config(self, base=None, commands=(SETUP_COMMAND,), extra=None):
+    def write_config(self, base=None, commands=(), extra=None):
         value = {'specs': {'dir': 'specs/.current'}, 'setup': {'commands': list(commands)}}
         if extra:
             value.update(extra)
@@ -174,8 +178,10 @@ class RepoCase(unittest.TestCase):
     def publication(self, **overrides):
         value = {'schema': 1, 'ticket': TICKET, 'phase': PHASE, 'run_id': RUN_ID,
                  'task': TASK, 'attempt': ATTEMPT, 'cycle_commit': self.base,
-                 'result_commit': self.base, 'result_ref': self.result_ref(),
-                 'evidence': [], 'published': True}
+                 'cycle_ref': 'refs/heads/' + COORD_BRANCH, 'result_commit': self.base,
+                 'result_ref': self.result_ref(),
+                 'collected_root': str(self.collected_root()), 'evidence': [],
+                 'published': True}
         value.update(overrides)
         return value
 
@@ -183,24 +189,54 @@ class RepoCase(unittest.TestCase):
         root = artifact or self.artifact_root()
         return {'path': rel, 'sha256': sha256_file(root / rel)}
 
-    def publish(self, root, evidence=True, cycle=None):
-        """A real publication: a transport commit retained by the result ref and an
-        integrated cycle commit, plus the worker's evidence."""
-        result = self.transport_commit(root)
-        self.set_result_ref(result)
+    def collected_root(self, task=TASK, attempt=ATTEMPT, run_id=RUN_ID):
+        return (self.coord / '.artel' / 'run' / TICKET / 'parallel' / run_id /
+                '{}-a{}'.format(task, attempt))
+
+    def collect(self, evidence=True, text='{"status": "succeeded"}\n'):
+        """The coordinator's copy receipt: the worker evidence copied to the collected root."""
+        root = self.collected_root()
+        root.mkdir(parents=True, exist_ok=True)
+        entries = []
         if evidence:
             artifact = self.artifact_root()
             artifact.mkdir(parents=True, exist_ok=True)
-            (artifact / 'result.json').write_text('{"status": "succeeded"}\n',
-                                                  encoding='utf-8')
-        return self.publication(cycle_commit=cycle or result, result_commit=result,
-                                evidence=[self.evidence('result.json')] if evidence else [])
+            (artifact / 'result.json').write_text(text, encoding='utf-8')
+            shutil.copy2(str(artifact / 'result.json'), str(root / 'result.json'))
+            entries.append(self.evidence('result.json'))
+        return entries
+
+    def publish(self, root, evidence=True, cycle=None):
+        """A real publication: a genuine worker transport commit retained by the result ref,
+        the coordinator's integrated cycle commit on its branch, and the collected copies."""
+        result = self.transport(root)
+        self.set_result_ref(result)
+        entries = self.collect(evidence)
+        if cycle is None:
+            cycle = self.integrate(result)
+        return self.publication(cycle_commit=cycle, cycle_ref='refs/heads/' + COORD_BRANCH,
+                                result_commit=result,
+                                collected_root=str(self.collected_root()), evidence=entries)
 
     # --- operations -------------------------------------------------------------------
 
+    def transport(self, root, message='transport'):
+        """A genuine coordinator-owned transport commit in the worker tree: a normal commit
+        that leaves the worker HEAD at the retained result and a clean tracked tree. Host
+        state under `.artel/` is never transported."""
+        git(root, 'add', '-A')
+        git(root, 'reset', '-q', '--', '.artel')
+        git(root, 'commit', '-q', '--allow-empty', '-m', message)
+        return git(root, 'rev-parse', 'HEAD')
+
+    def integrate(self, result, branch=COORD_BRANCH):
+        """The coordinator's cycle commit on its integration branch (a real fixture)."""
+        git(self.coord, 'cherry-pick', '--allow-empty', result)
+        return git(self.coord, 'rev-parse', 'HEAD')
+
     def transport_commit(self, root, message='transport'):
-        """The coordinator's transport commit: the worktree's exact content, committed
-        without touching the worktree's own index or HEAD."""
+        """A transport commit object built without touching the worktree's own index or
+        HEAD -- the shape a coordinator that has not committed yet would leave behind."""
         index = Path(tempfile.mkdtemp(dir=str(self.space))) / 'index'
         env = dict(os.environ, GIT_INDEX_FILE=str(index))
         subprocess.run(['git', '-C', str(root), 'add', '-A', '.'], cwd=str(root), check=True,
@@ -294,6 +330,7 @@ class TestCreate(RepoCase):
         self.assertIn(self.base_ref(), git(self.coord, 'for-each-ref', '--format=%(refname)'))
 
     def test_second_create_is_idempotent_and_keeps_the_setup_state(self):
+        self.write_config(commands=(SETUP_COMMAND,))
         first = self.create()
         self.assertTrue(first['created'])
         second = self.create()
@@ -423,6 +460,7 @@ class TestOwnership(RepoCase):
 
 class TestSetup(RepoCase):
     def test_setup_runs_in_the_worker_root_and_stays_isolated(self):
+        self.write_config(commands=(SETUP_COMMAND,))
         self.create()
         self.assertEqual(self.read('build/cwd.txt', self.worker_root()),
                          str(self.worker_root()) + '\n')
@@ -569,29 +607,7 @@ class TestInspect(RepoCase):
 
 
 class TestCleanup(RepoCase):
-    def test_cleanup_removes_a_clean_committed_root_and_keeps_the_refs(self):
-        self.create()
-        self.write('app.txt', 'v2\n', base=self.worker_root())
-        self.write('new.txt', 'new\n', base=self.worker_root())
-        git(self.worker_root(), 'add', '-A')
-        git(self.worker_root(), 'commit', '-q', '-m', 'transport')
-        result = git(self.worker_root(), 'rev-parse', 'HEAD')
-        self.set_result_ref(result)
-        artifact = self.artifact_root()
-        artifact.mkdir(parents=True, exist_ok=True)
-        (artifact / 'result.json').write_text('done\n', encoding='utf-8')
-        report = self.cleanup(self.publication(result_commit=result, cycle_commit=result,
-                                               evidence=[self.evidence('result.json')]))
-        self.assertTrue(report['removed'])
-        self.assertFalse(self.worker_root().exists())
-        self.assertNotIn(str(self.worker_root()),
-                         git(self.coord, 'worktree', 'list', '--porcelain'))
-        self.assertEqual(report['evidence']['verified'], 1)
-        self.assertEqual(report['retained_refs']['base'], self.base_ref())
-        self.assertEqual(report['retained_refs']['result'], self.result_ref())
-        self.assertEqual(git(self.coord, 'rev-parse', self.result_ref()), result)
-
-    def test_cleanup_removes_a_durable_dirty_root_with_evidence(self):
+    def test_cleanup_removes_a_transported_clean_root_and_keeps_the_collected_evidence(self):
         self.create()
         self.write('app.txt', 'v2\n', base=self.worker_root())
         self.write('new.txt', 'new\n', base=self.worker_root())
@@ -600,9 +616,17 @@ class TestCleanup(RepoCase):
         report = self.cleanup(publication)
         self.assertTrue(report['removed'])
         self.assertFalse(self.worker_root().exists())
-        self.assertIn('new.txt', report['cleaned']['untracked_removed'])
-        self.assertEqual(report['cleaned']['reset_to'], self.base)
+        self.assertNotIn(str(self.worker_root()),
+                         git(self.coord, 'worktree', 'list', '--porcelain'))
         self.assertEqual(report['evidence']['verified'], 1)
+        self.assertEqual(report['retained_refs']['base'], self.base_ref())
+        self.assertEqual(report['retained_refs']['result'], self.result_ref())
+        self.assertEqual(report['cycle_ref'], 'refs/heads/' + COORD_BRANCH)
+        self.assertEqual(git(self.coord, 'rev-parse', self.result_ref()),
+                         publication['result_commit'])
+        # the collected copy outlives the worker root
+        self.assertEqual((self.collected_root() / 'result.json').read_text(encoding='utf-8'),
+                         '{"status": "succeeded"}\n')
 
     def test_cleanup_without_evidence_lists_nothing_to_verify(self):
         self.create()
@@ -620,118 +644,323 @@ class TestCleanup(RepoCase):
         self.assertEqual(report['root'], str(self.worker_root()))
 
 
+class TestCleanupAccounting(RepoCase):
+    """A dirty or unaccounted root is preserved, never reset, cleaned or force-removed."""
+
+    def test_cleanup_refuses_an_unknown_ignored_file_the_worker_hid(self):
+        self.create()
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        self.write('.gitignore', self.IGNORE + 'dist/\n', base=self.worker_root())
+        hidden = self.write('dist/keep.bin', 'worker data\n', base=self.worker_root())
+        publication = self.publish(self.worker_root())
+        before = digest_tree(self.worker_root())
+        rejects(self, 'dirty_worktree', lambda: self.cleanup(publication))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+        self.assertEqual(hidden.read_text(encoding='utf-8'), 'worker data\n')
+
+    def test_cleanup_refuses_a_tree_retained_but_dirty_root_without_resetting_it(self):
+        self.create()
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        retained = self.transport_commit(self.worker_root())  # object only; HEAD stays base
+        self.set_result_ref(retained)
+        entries = self.collect()
+        cycle = self.integrate(retained)
+        publication = self.publication(cycle_commit=cycle, result_commit=retained,
+                                       collected_root=str(self.collected_root()),
+                                       evidence=entries)
+        before = digest_tree(self.worker_root())
+        calls = []
+        real = subprocess.run
+
+        def recording(argv, **kwargs):
+            calls.append(argv)
+            return real(argv, **kwargs)
+
+        with mock.patch.object(task_worktree.subprocess, 'run', recording):
+            rejects(self, 'dirty_worktree', lambda: self.cleanup(publication))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+        self.assertEqual(git(self.worker_root(), 'rev-parse', 'HEAD'), self.base)
+        self.assertEqual(self.read('app.txt', self.worker_root()), 'v2\n')
+        for argv in calls:
+            self.assertNotIn('reset', argv)
+            self.assertNotIn('clean', argv)
+
+    def test_cleanup_refuses_a_modification_made_after_the_transport_commit(self):
+        self.create()
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        publication = self.publish(self.worker_root())
+        self.write('app.txt', 'v3\n', base=self.worker_root())
+        before = digest_tree(self.worker_root())
+        rejects(self, 'dirty_worktree', lambda: self.cleanup(publication))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_cleanup_refuses_an_untracked_file_outside_the_evidence_root(self):
+        self.create()
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        publication = self.publish(self.worker_root())
+        self.write('later.txt', 'not transported\n', base=self.worker_root())
+        before = digest_tree(self.worker_root())
+        rejects(self, 'dirty_worktree', lambda: self.cleanup(publication))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+        self.assertEqual(self.read('later.txt', self.worker_root()), 'not transported\n')
+
+
+class TestCleanupCycle(RepoCase):
+    """The cycle proof is a real branch-reachable integration commit, never self-asserted."""
+
+    def setUp(self):
+        super().setUp()
+        self.create()
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        self.result = self.transport(self.worker_root())
+        self.set_result_ref(self.result)
+        self.entries = self.collect()
+        self.cycle = self.integrate(self.result)
+        self.proof = self.publication(cycle_commit=self.cycle, result_commit=self.result,
+                                      collected_root=str(self.collected_root()),
+                                      evidence=self.entries)
+
+    def proof_with(self, **overrides):
+        value = dict(self.proof)
+        value.update(overrides)
+        return value
+
+    def test_cleanup_refuses_a_cycle_commit_equal_to_the_base(self):
+        before = digest_tree(self.worker_root())
+        rejects(self, 'unpublished',
+                lambda: self.cleanup(self.proof_with(cycle_commit=self.base)))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_cleanup_refuses_a_cycle_commit_unreachable_from_the_cycle_ref(self):
+        before = digest_tree(self.worker_root())
+        rejects(self, 'unpublished',
+                lambda: self.cleanup(self.proof_with(cycle_commit=self.orphan_commit())))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_cleanup_refuses_a_cycle_commit_off_the_base(self):
+        orphan = self.orphan_commit()
+        git(self.coord, 'update-ref', 'refs/heads/side', orphan)
+        before = digest_tree(self.worker_root())
+        rejects(self, 'unpublished', lambda: self.cleanup(
+            self.proof_with(cycle_commit=orphan, cycle_ref='refs/heads/side')))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_cleanup_refuses_a_missing_cycle_ref(self):
+        before = digest_tree(self.worker_root())
+        rejects(self, 'unpublished', lambda: self.cleanup(
+            self.proof_with(cycle_ref='refs/heads/absent')))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_cleanup_refuses_a_dangling_cycle_ref(self):
+        git(self.coord, 'symbolic-ref', 'refs/heads/dangling', 'refs/heads/absent')
+        before = digest_tree(self.worker_root())
+        rejects(self, 'unpublished', lambda: self.cleanup(
+            self.proof_with(cycle_ref='refs/heads/dangling')))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_cleanup_refuses_a_non_branch_cycle_ref(self):
+        before = digest_tree(self.worker_root())
+        for ref in ('refs/artel/parallel/{}/{}/{}/result'.format(RUN_ID, TASK, ATTEMPT),
+                    'HEAD~1', COORD_BRANCH):
+            rejects(self, 'invalid_publication',
+                    lambda ref=ref: self.cleanup(self.proof_with(cycle_ref=ref)))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+
+class TestCleanupCollection(RepoCase):
+    """The collected copies are independently verified at both roots before removal."""
+
+    def setUp(self):
+        super().setUp()
+        self.create()
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        self.result = self.transport(self.worker_root())
+        self.set_result_ref(self.result)
+        self.entries = self.collect()
+        self.cycle = self.integrate(self.result)
+        self.proof = self.publication(cycle_commit=self.cycle, result_commit=self.result,
+                                      collected_root=str(self.collected_root()),
+                                      evidence=self.entries)
+
+    def proof_with(self, **overrides):
+        value = dict(self.proof)
+        value.update(overrides)
+        return value
+
+    def test_cleanup_refuses_a_missing_collected_copy(self):
+        (self.collected_root() / 'result.json').unlink()
+        before = digest_tree(self.worker_root())
+        rejects(self, 'evidence_mismatch', lambda: self.cleanup(self.proof))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+        self.assertTrue((self.artifact_root() / 'result.json').is_file())
+
+    def test_cleanup_refuses_a_missing_collected_root(self):
+        before = digest_tree(self.worker_root())
+        shutil.rmtree(str(self.collected_root()))
+        rejects(self, 'evidence_mismatch', lambda: self.cleanup(self.proof))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_cleanup_refuses_a_changed_collected_copy(self):
+        (self.collected_root() / 'result.json').write_text('tampered\n', encoding='utf-8')
+        before = digest_tree(self.worker_root())
+        rejects(self, 'evidence_mismatch', lambda: self.cleanup(self.proof))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_cleanup_refuses_a_symlinked_collected_copy(self):
+        before = digest_tree(self.worker_root())
+        target = self.collected_root() / 'result.json'
+        target.unlink()
+        os.symlink(str(self.artifact_root() / 'result.json'), str(target))
+        rejects(self, 'evidence_mismatch', lambda: self.cleanup(self.proof))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_cleanup_refuses_a_hardlinked_collected_copy(self):
+        before = digest_tree(self.worker_root())
+        target = self.collected_root() / 'result.json'
+        target.unlink()
+        os.link(str(self.artifact_root() / 'result.json'), str(target))
+        rejects(self, 'evidence_mismatch', lambda: self.cleanup(self.proof))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_cleanup_refuses_a_collected_root_inside_the_worker(self):
+        inside = self.artifact_root() / 'collected'
+        inside.mkdir(parents=True, exist_ok=True)
+        rejects(self, 'invalid_publication',
+                lambda: self.cleanup(self.proof_with(collected_root=str(inside))))
+
+    def test_cleanup_refuses_a_collected_root_outside_the_run_directory(self):
+        outside = self.coord / '.artel' / 'run' / TICKET / 'elsewhere'
+        outside.mkdir(parents=True, exist_ok=True)
+        rejects(self, 'invalid_publication',
+                lambda: self.cleanup(self.proof_with(collected_root=str(outside))))
+
+    def test_cleanup_refuses_a_symlinked_collected_root(self):
+        link = self.collected_root().parent / 'alias-a1'
+        os.symlink(str(self.collected_root()), str(link))
+        rejects(self, 'invalid_publication',
+                lambda: self.cleanup(self.proof_with(collected_root=str(link))))
+
+
 class TestCleanupRefusals(RepoCase):
     def setUp(self):
         super().setUp()
         self.create()
         self.write('app.txt', 'v2\n', base=self.worker_root())
-        self.result = self.transport_commit(self.worker_root())
+        self.result = self.transport(self.worker_root())
         self.set_result_ref(self.result)
+        self.entries = self.collect()
+        self.cycle = self.integrate(self.result)
+        self.proof = self.publication(cycle_commit=self.cycle, result_commit=self.result,
+                                      collected_root=str(self.collected_root()),
+                                      evidence=self.entries)
+
+    def proof_with(self, **overrides):
+        value = dict(self.proof)
+        value.update(overrides)
+        return value
 
     def test_cleanup_refuses_a_missing_root(self):
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result)
         git(self.coord, 'worktree', 'remove', '--force', str(self.worker_root()))
-        rejects(self, 'not_created', lambda: self.cleanup(publication))
+        rejects(self, 'not_created', lambda: self.cleanup(self.proof))
 
     def test_cleanup_refuses_a_foreign_root(self):
         self.marker_path().unlink()
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result)
-        rejects(self, 'foreign_root', lambda: self.cleanup(publication))
+        rejects(self, 'foreign_root', lambda: self.cleanup(self.proof))
         self.assertTrue(self.worker_root().is_dir())
 
     def test_cleanup_refuses_a_missing_result_ref(self):
         git(self.coord, 'update-ref', '-d', self.result_ref())
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result)
-        rejects(self, 'unpublished', lambda: self.cleanup(publication))
+        rejects(self, 'unpublished', lambda: self.cleanup(self.proof))
         self.assertTrue(self.worker_root().is_dir())
 
     def test_cleanup_refuses_a_moved_result_ref(self):
         self.set_result_ref(self.base)
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result)
-        rejects(self, 'unpublished', lambda: self.cleanup(publication))
+        rejects(self, 'unpublished', lambda: self.cleanup(self.proof))
 
     def test_cleanup_refuses_a_missing_cycle_commit(self):
-        publication = self.publication(result_commit=self.result, cycle_commit='f' * 40)
-        rejects(self, 'unpublished', lambda: self.cleanup(publication))
+        rejects(self, 'unpublished',
+                lambda: self.cleanup(self.proof_with(cycle_commit='f' * 40)))
 
     def test_cleanup_refuses_a_result_commit_off_the_base(self):
         orphan = self.orphan_commit()
         self.set_result_ref(orphan)
-        publication = self.publication(result_commit=orphan, cycle_commit=orphan)
-        rejects(self, 'unpublished', lambda: self.cleanup(publication))
+        rejects(self, 'unpublished',
+                lambda: self.cleanup(self.proof_with(result_commit=orphan)))
 
     def test_cleanup_refuses_a_publication_identity_mismatch(self):
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result,
-                                       attempt=ATTEMPT + 1)
-        rejects(self, 'invalid_publication', lambda: self.cleanup(publication))
+        rejects(self, 'invalid_publication',
+                lambda: self.cleanup(self.proof_with(attempt=ATTEMPT + 1)))
 
     def test_cleanup_refuses_unknown_publication_keys(self):
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result)
-        publication['extra'] = True
-        rejects(self, 'invalid_publication', lambda: self.cleanup(publication))
+        rejects(self, 'invalid_publication', lambda: self.cleanup(self.proof_with(extra=True)))
+
+    def test_cleanup_refuses_a_missing_collected_root_key(self):
+        value = self.proof_with()
+        del value['collected_root']
+        rejects(self, 'invalid_publication', lambda: self.cleanup(value))
+
+    def test_cleanup_refuses_a_missing_cycle_ref_key(self):
+        value = self.proof_with()
+        del value['cycle_ref']
+        rejects(self, 'invalid_publication', lambda: self.cleanup(value))
 
     def test_cleanup_refuses_published_false(self):
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result,
-                                       published=False)
-        rejects(self, 'invalid_publication', lambda: self.cleanup(publication))
+        rejects(self, 'invalid_publication',
+                lambda: self.cleanup(self.proof_with(published=False)))
 
     def test_cleanup_refuses_a_noncanonical_result_ref(self):
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result,
-                                       result_ref='refs/heads/parallel')
-        rejects(self, 'invalid_publication', lambda: self.cleanup(publication))
-
-    def test_cleanup_refuses_a_dirty_root_and_changes_nothing(self):
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result)
-        self.write('later.txt', 'not transported\n', base=self.worker_root())
-        before = digest_tree(self.worker_root())
-        rejects(self, 'dirty_worktree', lambda: self.cleanup(publication))
-        self.assertEqual(digest_tree(self.worker_root()), before)
-        self.assertEqual(git(self.worker_root(), 'rev-parse', 'HEAD'), self.base)
+        rejects(self, 'invalid_publication',
+                lambda: self.cleanup(self.proof_with(result_ref='refs/heads/parallel')))
 
     def test_cleanup_refuses_unproven_evidence(self):
         artifact = self.artifact_root()
-        artifact.mkdir(parents=True, exist_ok=True)
-        (artifact / 'result.json').write_text('done\n', encoding='utf-8')
         (artifact / 'extra.log').write_text('scratch\n', encoding='utf-8')
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result,
-                                       evidence=[self.evidence('result.json')])
-        rejects(self, 'evidence_mismatch', lambda: self.cleanup(publication))
+        rejects(self, 'evidence_mismatch', lambda: self.cleanup(self.proof))
         self.assertTrue((artifact / 'extra.log').is_file())
 
     def test_cleanup_refuses_a_changed_evidence_file(self):
-        artifact = self.artifact_root()
-        artifact.mkdir(parents=True, exist_ok=True)
-        (artifact / 'result.json').write_text('done\n', encoding='utf-8')
-        evidence = [self.evidence('result.json')]
-        (artifact / 'result.json').write_text('changed after collection\n', encoding='utf-8')
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result,
-                                       evidence=evidence)
-        rejects(self, 'evidence_mismatch', lambda: self.cleanup(publication))
+        (self.artifact_root() / 'result.json').write_text('changed after collection\n',
+                                                          encoding='utf-8')
+        rejects(self, 'evidence_mismatch', lambda: self.cleanup(self.proof))
 
     def test_cleanup_refuses_a_missing_evidence_file(self):
-        publication = self.publication(
-            result_commit=self.result, cycle_commit=self.result,
-            evidence=[{'path': 'result.json', 'sha256': 'a' * 64}])
-        rejects(self, 'evidence_mismatch', lambda: self.cleanup(publication))
+        rejects(self, 'evidence_mismatch', lambda: self.cleanup(self.proof_with(
+            evidence=[{'path': 'result.json', 'sha256': 'a' * 64}])))
 
     def test_cleanup_refuses_an_interrupted_setup_root(self):
         marker = json.loads(self.marker_path().read_text(encoding='utf-8'))
         marker['setup']['status'] = 'pending'
         self.marker_path().write_text(json.dumps(marker), encoding='utf-8')
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result)
-        rejects(self, 'incomplete_setup', lambda: self.cleanup(publication))
+        rejects(self, 'incomplete_setup', lambda: self.cleanup(self.proof))
         self.assertTrue(self.worker_root().is_dir())
 
     def test_cleanup_refuses_a_deleted_base_ref(self):
         git(self.coord, 'update-ref', '-d', self.base_ref())
-        publication = self.publication(result_commit=self.result, cycle_commit=self.result)
-        rejects(self, 'unknown_worker', lambda: self.cleanup(publication))
+        rejects(self, 'unknown_worker', lambda: self.cleanup(self.proof))
         self.assertTrue(self.worker_root().is_dir())
+
+
+class LooseArtelCase(RepoCase):
+    """A host that ignores only `.artel/run/`, so the marker and config stay untracked."""
+
+    IGNORE = '.artel/run/\nbuild/\n'
+
+
+class TestCleanupRemoval(LooseArtelCase):
+    def test_cleanup_retains_a_root_git_refuses_to_remove(self):
+        self.create()
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        publication = self.publish(self.worker_root())
+        before = digest_tree(self.worker_root())
+        rejects(self, 'removal_failed', lambda: self.cleanup(publication))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+        self.assertTrue(self.marker_path().is_file())
+        self.assertIn(str(self.worker_root()),
+                      git(self.coord, 'worktree', 'list', '--porcelain'))
 
 
 class TestCoordinatorPreservation(RepoCase):
     def test_create_inspect_and_cleanup_leave_the_coordinator_untouched(self):
-        self.dirty_coordinator()
         before = self.snapshot(self.coord)
         before_main = self.snapshot(self.main)
         self.create()
@@ -739,13 +968,16 @@ class TestCoordinatorPreservation(RepoCase):
         # The only main-checkout change is the local worktree-area exclude entry
         # (docs/worktrees.md §1), asserted by its own test.
         self.assertPreserved(before_main, self.snapshot(self.main), skip=('status',))
-        publication = self.publish(self.worker_root())
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        publication = self.publish(self.worker_root())   # the integration simulation
+        self.dirty_coordinator()
         after_publish = self.snapshot(self.coord)
+        after_main = self.snapshot(self.main)
         self.inspect()
         self.assertPreserved(after_publish, self.snapshot(self.coord))
         self.cleanup(publication)
         self.assertPreserved(after_publish, self.snapshot(self.coord))
-        self.assertPreserved(before_main, self.snapshot(self.main), skip=('status',))
+        self.assertPreserved(after_main, self.snapshot(self.main), skip=('status',))
         self.assertEqual(git(self.coord, 'branch', '--show-current'), COORD_BRANCH)
 
 

@@ -378,7 +378,7 @@ fails, stop and return:
     STORE_UNAVAILABLE: <operation> <name> — <first line of the error>
 
 Never write the document anywhere else. Your unsaved work stays in your context: the
-orchestrator resumes you with the user's answer (§5.2).
+orchestrator re-dispatches you with the user's answer (§5.2).
 
 **A retry must not double-apply.** A call that timed out or lost its connection may have landed.
 Before re-sending an `artifact_patch`, `artifact_get` the newest version and check whether your
@@ -502,7 +502,7 @@ A `STORE_UNAVAILABLE` return, or a failing call of your own, is the environment 
 `docs/autonomous-run.md` §1 lists among legitimate interruptions. Set
 `pause_reason: "store-unavailable"` and ask:
 
-- **Retry** — resume the agent (`SendMessage`) to try again.
+- **Retry** — dispatch a fresh `subagent` to the same agent to try again.
 - **Save it locally and pause** — offered only when a produced document is unsaved. First run
   `spec_store.py pending add <path> --base-version <the version it was based on, 0 for new>` so
   the guard (§6) admits the write, then resume the agent to write it to its logical path, with its

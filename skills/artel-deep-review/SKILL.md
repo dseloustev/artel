@@ -168,7 +168,7 @@ are exactly the reviewed target's. A tree that fails the project's own checks is
 
 ### 3a: Dispatch
 
-Use the Agent tool to spawn the `reviewer` agent (`${ARTEL_ROOT}/agents/artel-reviewer.md`) in
+Use the `subagent` tool to spawn the `artel-reviewer` agent (`${ARTEL_ROOT}/agents/artel-reviewer.md`) in
 standalone mode — no ticket mode. Its report is the ticket's `deep-review.md`: the agent's
 standalone-mode Output section carries the deep-review shape, and the machine report sidecar the
 dispatch names. Ticket files are passed as additional context only.
@@ -177,7 +177,7 @@ Set `ARTIFACT_RETRY_USED = false` before the first dispatch. A missing artifact 
 an invalid artifact (Step 3b) share this one flag: whichever branch claims it first consumes the
 run's only artifact retry, so the run accepts at most two reviewer attempts.
 
-- `subagent_type: "reviewer"`
+- the `artel-reviewer` agent
 - `model`: `"fable"` — the whole-branch review before a pull request, the one review on the most
   capable tier (`${ARTEL_ROOT}/docs/agents.md` `## Models`); a dispatch refused for its
   model is re-dispatched once without one

@@ -70,7 +70,7 @@ Path resolution follows `${ARTEL_ROOT}/docs/ticket-parsing.md`. In summary:
    with the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2): `type: review`,
    `produced_by: artel:reviewer`, no status. The report header
    carries the file-persisted loop counter `**Review round:** N` — read the existing value and write
-   N+1 (first run: 1). Never reset it yourself; the counter resets only when the user resumes with
+   N+1 (first run: 1). Never reset it yourself; the counter resets only when the user re-dispatches you with
    guidance after a cap escalation (`${ARTEL_ROOT}/docs/autonomous-run.md` §5), which the
    orchestrator signals by deleting `review.md`. On the kartoteka path the orchestrator signals it
    by storing a round-0 reset version instead (`${ARTEL_ROOT}/docs/spec-storage.md` §4.4),

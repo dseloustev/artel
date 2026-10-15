@@ -31,8 +31,8 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
-Use the Agent tool with:
-- `subagent_type`: `"planner"`
+Use the `subagent` tool with:
+- the `artel-planner` agent
 - `description`: `"Draft plan for <TICKET_ID>"`
 - `prompt`: pass the parsed values plus the following instructions:
 
@@ -70,7 +70,8 @@ If there are no open questions, return: "NO_QUESTIONS".
 Return control after listing the questions.
 ```
 
-**Important:** Save the agent ID from the Agent result.
+**Important:** a re-dispatch is always a fresh `subagent` call — there is no resume-by-id, so
+the agent re-reads its context files.
 
 ### Phase 2: Collect questions (no user interaction)
 
@@ -84,11 +85,11 @@ This skill never asks the user (`${ARTEL_ROOT}/docs/autonomous-run.md` §3).
   the plan text. The orchestrator bundles them at the approval pause and has this agent amend the plan
   if an answer overrides a default.
 
-### Phase 3: Resume to Finalize Plan
+### Phase 3: Re-dispatch to Finalize Plan
 
-Use the SendMessage tool:
-- `to`: `"[agent_id from Phase 1]"`
-- `message`:
+Use the `subagent` tool with the `artel-planner` agent (a fresh dispatch — it re-reads its
+context files, which are its state):
+- `prompt`:
 
 **If questions were asked:**
 ```

@@ -69,8 +69,8 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
-Use the Agent tool with:
-- `subagent_type`: `"figma-analyst"`
+Use the `subagent` tool with:
+- the `artel-figma-analyst` agent
 - `description`: `"Design analysis for <TICKET_ID>"`
 - `prompt`: the parsed ticket values plus:
 
@@ -92,12 +92,13 @@ write <specs.dir>/<TICKET_ID>/design-analysis.md + design/ screenshots.
 Do NOT resolve Major findings yourself — return them per your Return format.
 ```
 
-**Save the agent ID** — Phase 3 resumes it.
+**Fresh dispatch, not a resume** — Phase 3 re-dispatches the `artel-figma-analyst` agent;
+it re-reads its context files.
 
 **Stale-registry fallback:** if the agent returns `ENV_ERROR` naming ToolSearch / Figma tools as
 unavailable, the session's agent registry may predate the current `figma-analyst` definition
-(agent frontmatter is cached per session). Re-dispatch the same prompt once via `subagent_type:
-"general-purpose"`, prefixed with: "Read `${ARTEL_ROOT}/agents/artel-figma-analyst.md` and
+(agent frontmatter is cached per session). Re-dispatch the same prompt once to the host's
+general-purpose agent, prefixed with: "Read `${ARTEL_ROOT}/agents/artel-figma-analyst.md` and
 follow it as your agent definition." Continue the phases with that agent. If the re-dispatch still
 returns `ENV_ERROR`, treat it as "no Figma MCP connected" per Phase 2 below.
 
@@ -119,7 +120,7 @@ Branch on the agent's return:
 
 ### Phase 3: Finalize
 
-`SendMessage` to the saved agent ID:
+Dispatch a fresh `subagent` to the `artel-figma-analyst` agent:
 
 ```
 User resolutions: [numbered list matching the findings, or "none"].

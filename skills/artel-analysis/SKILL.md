@@ -60,8 +60,8 @@ status in brackets, read without the document entering this context:
 A bug ticket that `feature-development` raised to this interview arrives with a
 `DIAGNOSED_STRUCTURAL` diagnosis, and the interview starts from its cause.
 
-Use the Agent tool with:
-- `subagent_type`: `"analyst"`
+Use the `subagent` tool with:
+- the `artel-analyst` agent
 - `description`: `"Interview for <TICKET_ID>"`
 - `prompt`: the parsed ticket values, the description-file argument, plus:
 
@@ -102,7 +102,8 @@ carry a `preview` (your agent definition's Interview duties). End with `MORE_QUE
 further branches remain after this batch, else `LAST_BATCH`.
 ```
 
-**Save the agent ID** — the interview loop resumes this agent repeatedly.
+**Fresh dispatch, not a resume** — the interview loop re-dispatches the `artel-analyst`
+agent; it re-reads its context files.
 
 ### Phase 2: Interview loop
 
@@ -114,14 +115,14 @@ Repeat until the agent returns `INTERVIEW_COMPLETE`:
    — a batch that mixes previewed questions with multi-choice ones is asked as two calls, the
    previewed questions first. Vague user answers ("it depends") are sent back to the agent, which must
    split them into resolvable sub-questions in the next batch.
-2. `SendMessage` the answers to the agent: `User's answers: [answers]. Resolve these branches. Return
+2. Dispatch a fresh `subagent` to the `artel-analyst` agent with the answers: `User's answers: [answers]. Resolve these branches. Return
    the next batch (same format), or INTERVIEW_COMPLETE when every branch is unambiguous or explicitly
    parked as an Assumption with user consent.`
 3. On `NO_QUESTIONS` from Phase 1, skip straight to Phase 3.
 
 ### Phase 3: Finalize the PRD
 
-`SendMessage`:
+Dispatch a fresh `subagent` to the `artel-analyst` agent:
 
 ```
 Interview complete. Write the PRD now:

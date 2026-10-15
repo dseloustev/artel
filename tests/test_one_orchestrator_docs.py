@@ -622,7 +622,7 @@ class TestLayout(unittest.TestCase):
     def test_the_tail_is_the_last_step(self):
         step = between(self.skill, '### 6. The tail', '## Important')
         for phrase in ('The tail — `${ARTEL_ROOT}/skills/artel-feature-development/tail.md`',
-                       'Agent(artel:seat', 'seat: unavailable'):
+                       'subagent(artel-seat', 'seat: unavailable'):
             self.assertIn(phrase, step)
 
     def test_the_rules(self):

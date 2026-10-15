@@ -133,7 +133,7 @@ End your report with exactly one of:
 
 Or, on preflight failure: `ENV_ERROR: <detail>` (nothing written).
 
-On resume with user resolutions: record each in artifact §5 under its finding as
+On a re-dispatch with user resolutions: record each in artifact §5 under its finding as
 `**Resolution:** <decision>`, set the header's `status:` to `DESIGN_ANALYZED` — or to `DESIGN_BLOCKED` when any
 resolution is Park for designer — and return `DESIGN_ANALYSIS_COMPLETE` plus summary counts
 (screens exists/modify/new, transitions, Major/Minor, evidence files).

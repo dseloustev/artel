@@ -172,7 +172,7 @@ class TestSkill(unittest.TestCase):
         self.assertIn('skills/artel-issue-draft/references/jira-wiki-markup.md', self.text)
 
     def test_dispatches_the_scout(self):
-        self.assertIn('`subagent_type`: `"issue-scout"`', self.text)
+        self.assertIn('the `artel-issue-scout` agent', self.text)
         self.assertIn('${ARTEL_ROOT}/agents/artel-issue-scout.md', self.text)
         for spelling in ('`stated`', '`inferred`', 'Also found'):
             with self.subTest(spelling):

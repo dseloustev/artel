@@ -114,7 +114,7 @@ Return a short summary line. The orchestrator presents; you never do.
 Return one when the current file needs an unchanged dependency that is not in the captured
 `contents/` or an earlier `context/`. Reply with a single fenced `json` block holding an array
 of entries, and stop — the orchestrator validates and acquires them at the recorded revisions,
-then resumes this seat:
+then re-dispatches you with them:
 
 ```json
 [

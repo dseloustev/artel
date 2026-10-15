@@ -29,7 +29,7 @@ class TestSeatDocs(unittest.TestCase):
 
     def test_step6_branches_on_seat_enabled(self):
         step = between(flat(FD + 'SKILL.md'), '### 6. The tail', '## Important')
-        for phrase in ('`seat.enabled` absent or', 'Agent(artel:seat',
+        for phrase in ('`seat.enabled` absent or', 'subagent(artel-seat',
                        'seat: unavailable — running the tail inline',
                        'autonomous-run.md §18.2',
                        'In a `--step` run'):
@@ -39,7 +39,7 @@ class TestSeatDocs(unittest.TestCase):
         body = flat('agents/artel-seat.md')
         for phrase in ('model: sonnet', 'never prompt the person directly',
                        'pause-request.json', 'PAUSED: <reason>', 'STOPPED: <reason>',
-                       'auto-resolved', 'SendMessage'):
+                       'auto-resolved', 'dispatches a fresh `subagent` to you'):
             self.assertIn(phrase, body)
 
     def test_autonomous_run_18(self):

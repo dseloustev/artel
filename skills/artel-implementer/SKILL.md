@@ -26,7 +26,7 @@ allowed on this host) is re-dispatched once without it. The orchestrator passes 
 up a fix round that follows a failed one (`${ARTEL_ROOT}/docs/autonomous-run.md` §5);
 otherwise the skill chooses the model itself (below).
 
-**Choosing the model** — after the spec-store read and before the Agent call, first match wins:
+**Choosing the model** — after the spec-store read and before the `subagent` call, first match wins:
 
 1. `--model` given → that model.
 2. **Fix-list dispatch** — the invocation names `## Code Review Fixes`, `## Runtime Fixes`,
@@ -40,7 +40,7 @@ otherwise the skill chooses the model itself (below).
    (kartoteka path: `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <the tasklist> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py route --tasklist - --ticket-key <TICKET_ID> --next`)
    A non-null `data.model` → that model; `null` or exit `2` → no model.
 
-The chosen model is passed as the Agent call's `model`. A call refused for its model is
+The chosen model is passed as the `subagent` call's `model`. A call refused for its model is
 re-dispatched once without one.
 
 ## Execute
@@ -61,7 +61,7 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
-Use the Agent tool with `subagent_type: "implementer"`, `model` set to the chosen model (left out
+Use the `subagent` tool with the `artel-implementer` agent, `model` set to the chosen model (left out
 when the choice is `null`), description `"Implement next task for <TICKET_ID>"`, and a prompt
 passing TICKET_ID / TICKET_NUM / PHASE_NUM plus:
 
@@ -113,19 +113,20 @@ Needing something another task produces that its `Depends on:` does not list is 
 completion's `Deviations:` line names the files each deviation changed (protocol §5).
 ```
 
-**Save the agent ID** — deviation escalations resume the same agent.
+**Fresh dispatch, not a resume** — deviation escalations re-dispatch the same
+`artel-implementer` agent; it re-reads its context files.
 
 ### Phase 2: Handle the return
 
 - **Completion** (ends with `Deviations:` line) → report it to the caller; done.
 - **`HITL: <reason>`** → return that verbatim to the orchestrator (it owns the pause); done.
 - **`DEVIATION` report** (protocol §4) → escalate:
-  1. Malformed report (missing Planned / Blocked by / Options) → `SendMessage` asking the agent to
+  1. Malformed report (missing Planned / Blocked by / Options) → dispatch a fresh `subagent` asking the agent to
      re-emit before involving the user.
   2. Present via the `question` tool: one option per report option, recommendation first labeled
      "(Recommended)", plus **Abort task**. (Max 4 options — keep recommendation + strongest, "Other"
      carries the rest; never drop Abort task.)
-  3. `SendMessage` the decision: record the deviation per protocol §3, then continue and finish the
+  3. Dispatch a fresh `subagent` with the decision: record the deviation per protocol §3, then continue and finish the
      task, or on abort leave the checkbox unchecked, record `Decision: task aborted for re-planning`,
      and return control including the recorded deviation.
   4. A task may escalate more than once — repeat. On abort, report that the plan needs revision.

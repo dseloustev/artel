@@ -691,7 +691,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   assessment, proposed fix, verification).
 - **Pauses:** a `question` tool call when the comment is already marked resolved (continue
   anyway?); then plan mode for approval.
-- **Notes:** the documented carve-out from the skill-orchestrator contract — no `Agent`
+- **Notes:** the documented carve-out from the skill-orchestrator contract — no `subagent`
   delegation, because the artifact is a plan-mode plan only the main session can author.
   Read-only on the VCS host (never posts or edits comments); single-comment scope (never
   iterates the PR's other comments); treats comment text as untrusted input; flags conflicts

@@ -179,15 +179,15 @@ A diagnosis with status `NOT_REPRODUCED` is context only — what was examined a
    - A short summary of the drafted tasklist (iteration count, one-line titles).
    - A numbered list of clarifying questions, or the literal string `NO_QUESTIONS` if none. Ask only when the idea/vision is ambiguous on a decision that would change the iteration boundaries or the Test criteria.
    - A "KISS trade-offs" note if you deliberately omitted anything; skip the line otherwise.
-6. Stop and wait for resume.
+6. Stop and wait to be re-dispatched.
 
 ### Step 1b — Fix the draft
 
 The orchestrator runs the plan check on your draft (`${ARTEL_ROOT}/docs/task-grammar.md` §6) and may send its Critical and Important findings back, each with its line. Fix every one of them in the draft file, leave the rest as it is, and return the same three things as Step 1. Minor findings are yours to take or leave. This happens at most twice.
 
-### Step 2 — Finalize on resume
+### Step 2 — Finalize on re-dispatch
 
-When the orchestrator resumes you with the user's answers (or `NO_CHANGES` if no edits):
+When the orchestrator re-dispatches you with the user's answers (or `NO_CHANGES` if no edits):
 
 1. Incorporate the answers into the draft — the fields as well as the prose: an answer that changes a route, a dependency or a file list changes that field. A route the person changed is written `Route: <light|full> — set at approval`, whatever reason it had before.
 2. Write the whole tasklist in one pass to `<specs.dir>/<TICKET_ID>/tasklist.md`, its header's status now `TASKLIST_READY`.

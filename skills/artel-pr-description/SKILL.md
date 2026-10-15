@@ -81,9 +81,9 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
-Make a single `Agent` call:
+Make a single `subagent` call:
 
-- `subagent_type`: `"tech-writer"`
+- the `artel-tech-writer` agent
 - `model`: none — the dispatch runs on the `tech-writer` agent's frontmatter tier (`opus`)
   (`${ARTEL_ROOT}/docs/agents.md` `## Models`)
 - `description`: `"PR description for <TICKET_ID>"`

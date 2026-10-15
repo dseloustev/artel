@@ -88,7 +88,8 @@ The implementer agent never prompts the user directly — the orchestrator owns 
    option (stop this task for re-planning). Free-form alternatives arrive via the built-in
    "Other".
 
-3. **The skill resumes the agent** via `SendMessage` with the decision.
+3. **The skill re-dispatches the agent** via the `subagent` tool with the decision (a fresh
+   dispatch; the agent re-reads its context files).
 
 4. **The agent records** the entry (§3) with the user's decision, then:
    - a way forward was chosen → continue implementing accordingly;

@@ -39,8 +39,8 @@ class TestSkill(unittest.TestCase):
         self.assertIn('--local', hints[0])
 
     def test_dispatches_one_reviewer_to_the_ticket_document(self):
-        self.assertIn('subagent_type: "reviewer"', self.text)
-        self.assertNotIn('subagent_type: "review-forecaster"', self.text)
+        self.assertIn('the `artel-reviewer` agent', self.text)
+        self.assertNotIn('artel-review-forecaster', self.text)
         self.assertIn('<specs.dir>/<TICKET_ID>/' + OUTPUT_FILE, self.text)
 
     def test_has_no_forecast_machinery(self):

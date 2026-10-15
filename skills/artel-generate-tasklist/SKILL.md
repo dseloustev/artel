@@ -91,7 +91,7 @@ Four-phase model, matching `analysis` and `planner`:
    `MAX_PLAN_REVIEW_ROUNDS` fix rounds.
 2. **Phase 2:** Orchestrator asks the user via the `question` tool (if any), with the findings the
    rounds left open.
-3. **Phase 3:** Orchestrator resumes the agent via `SendMessage` to finalize and write the file,
+3. **Phase 3:** Orchestrator re-dispatches the agent via the `subagent` tool to finalize and write the file,
    then checks it once more.
 
 ### Phase 1: Draft Tasklist and Extract Questions
@@ -120,9 +120,9 @@ the document entering this context —
 `This diagnosis is structural. Next: /artel:feature-development <TICKET_ID> --head=full` and
 terminate.
 
-Use the `Agent` tool with:
+Use the `subagent` tool with:
 
-- `subagent_type`: `"tasklist-writer"`
+- the `artel-tasklist-writer` agent
 - `description`: `"Draft tasklist for <TICKET_ID>"`
 - `prompt`:
 
@@ -157,10 +157,11 @@ Otherwise return THREE things and stop:
 3. A short "KISS trade-offs" note if you deliberately omitted anything; skip the line otherwise.
 
 Write the draft to .artel/run/<TICKET_ID>/tasklist-draft.md — never to the tasklist path yet —
-and wait for resume.
+and stop.
 ```
 
-**Save the agent ID** — Phase 1b and Phase 3 resume the same agent via `SendMessage`.
+**Fresh dispatch, not a resume** — Phase 1b and Phase 3 re-dispatch the same
+`artel-tasklist-writer` agent; it re-reads its context files.
 
 **A raise ends the skill.** When the agent's return is a `RAISE:` line, print that line
 unchanged, then `Next: /artel:feature-development <TICKET_ID> --head=full`, and stop before
@@ -189,7 +190,7 @@ before the approval round sees it.
    Exit `2` from either command → print `error.kind` and `error.message` and go to Phase 2: the
    approval round still runs, and the Completion says the check did not run.
 3. **Fix round.** A Critical or Important finding (exit `1`), and fewer than
-   `MAX_PLAN_REVIEW_ROUNDS = 2` fix rounds so far → `SendMessage` the saved agent those findings
+   `MAX_PLAN_REVIEW_ROUNDS = 2` fix rounds so far → dispatch a fresh `subagent` to the `artel-tasklist-writer` agent with those findings
    verbatim — `severity`, `task`, `line`, `rule`, `message` — with "Fix these in the draft,
    leave the rest as it is, and return the same three things." Then run step 2 again. Minor
    findings never start a round.
@@ -226,7 +227,7 @@ Collect the answers into a single string:
 
 ### Phase 3: Resume to Finalize Tasklist
 
-Use `SendMessage` to the saved agent ID:
+Dispatch a fresh `subagent` to the `artel-tasklist-writer` agent:
 
 ```
 User's answers:
@@ -246,7 +247,7 @@ first, kartoteka path (`docs/spec-storage.md` §4.2) second:
     python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID> --check --requirements <requirements>
     set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
 
-A Critical or Important finding gets one fix `SendMessage` to the same agent — the findings,
+A Critical or Important finding gets one fix `subagent` dispatch to the same agent — the findings,
 each with its line, and "fix only these in <specs.dir>/<TICKET_ID>/tasklist.md; keep the task
 grammar and the person's answers" — and the check runs once more. When it still has a Critical
 or Important finding, stop and ask the person, even in `yolo` (a tasklist that fails its own
@@ -290,9 +291,9 @@ When the agent returns its confirmation line, print it verbatim plus:
 - **Ticket-level only.** Ignore any phase passed in `$0`.
 - **Never write the tasklist directly from this skill.** All file writes happen inside the agent
   (it owns `Write`). The orchestrator only reads, asks, and messages.
-- **One agent, one draft.** One `Agent` call in Phase 1, at most `MAX_PLAN_REVIEW_ROUNDS`
-  fix-round `SendMessage`s in Phase 1b, one `SendMessage` in Phase 3 and at most one post-write
-  fix `SendMessage` in Phase 3 — all to the same agent. Do not spawn a second agent.
+- **One agent, one draft.** One `subagent` call in Phase 1, at most `MAX_PLAN_REVIEW_ROUNDS`
+  fix-round `subagent` dispatches in Phase 1b, one `subagent` dispatch in Phase 3 and at most one post-write
+  fix `subagent` dispatch in Phase 3 — all to the same agent. Do not spawn a second agent.
 - **Never silently overwrite.** If the tasklist already exists, always confirm via
   the `question` tool before proceeding.
 - **KISS is the agent's job.** The orchestrator does not re-check KISS; if the user's answers

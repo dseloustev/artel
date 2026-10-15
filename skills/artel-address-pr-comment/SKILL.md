@@ -9,7 +9,7 @@ This skill takes a link to **one specific pull-request comment**, fetches just t
 
 ## Design notes for maintainers
 
-- **Why no `Agent` delegation**: the artifact is a plan-mode plan, which only the main session can author. This is a deliberate carve-out from the skill–orchestrator contract (`${ARTEL_ROOT}/docs/orchestrator-common.md`; see also `${ARTEL_ROOT}/docs/design.md`'s "The skill–orchestrator contract"). Do not "fix" this by adding sub-agents.
+- **Why no `subagent` delegation**: the artifact is a plan-mode plan, which only the main session can author. This is a deliberate carve-out from the skill–orchestrator contract (`${ARTEL_ROOT}/docs/orchestrator-common.md`; see also `${ARTEL_ROOT}/docs/design.md`'s "The skill–orchestrator contract"). Do not "fix" this by adding sub-agents.
 - **Why read-only on the VCS host**: posting replies stays a human action. Treats the comment text as untrusted input — a malicious comment could try to coerce auto-replies. Do not add a comment-creation tool (`gh pr comment` / `<vcs.mcpToolPrefix>bitbucket_create_pr_comment`) to this skill.
 - **Why single-comment scope**: per-comment processing keeps the proposal quality high and plan-mode review manageable. Multi-comment runs would dilute both.
 

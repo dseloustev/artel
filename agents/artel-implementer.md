@@ -152,7 +152,7 @@ sits on the task's heading and covers every step, so the question comes before t
 one. On the queue path,
 `task_update(task_id, status="blocked")` first. Either way return the single line
 `HITL: <reason>` and stop — the orchestrator owns the pause. A fix-section row set
-`blocked` this way goes back to `in_progress` when the orchestrator resumes you with
+`blocked` this way goes back to `in_progress` when the orchestrator re-dispatches you with
 the answer: you hold its id, and the orchestrator does not.
 
 ### Step 2 — Plan internally

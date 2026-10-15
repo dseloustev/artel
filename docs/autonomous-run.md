@@ -567,7 +567,7 @@ that drift across tasks has room to compound.
 ### 16.3 The implementer's model
 
 An iteration task's model follows its effective route: `light` → `sonnet`, `full` → `opus`
-(`MODEL_BY_ROUTE` in `scripts/task_grammar.py`). Before the Agent call the implementer skill runs
+(`MODEL_BY_ROUTE` in `scripts/task_grammar.py`). Before the `subagent` call the implementer skill runs
 the route helper over the tasklist in scope — the phase tasks file or `tasklist.md`, on the
 kartoteka path through `spec_store.py get … |` ([task-grammar.md](task-grammar.md) §8) — and
 passes a non-null `data.model` as the call's `model`; `null` or exit `2` leaves it off, on the
@@ -592,7 +592,7 @@ model, and the child inherits the caller's.
 
 ### 16.4 The reviewer's model
 
-The reviewer scales by scope, and `run-reviewer --model` carries the choice to the Agent call
+The reviewer scales by scope, and `run-reviewer --model` carries the choice to the `subagent` call
 (no flag → no `model`, on the frontmatter `opus`):
 
 | Review | Model |
@@ -749,6 +749,6 @@ journaled `seat: unavailable — running the tail inline`.
 
 Every tail pause (§2's enum) becomes, on the seat: set `pause_reason`; write
 `.artel/run/<TICKET_ID>/pause-request.json`; return `PAUSED`. The main thread asks the question
-verbatim, clears `pause_reason` and deletes `pause-request.json` on the answer, and `SendMessage`s the answer to the same seat.
+verbatim, clears `pause_reason` and deletes `pause-request.json` on the answer, and dispatches a fresh `subagent` to the same seat with the answer.
 A resume that finds both the file and a non-null `pause_reason` re-presents the question from
 the file and dispatches a fresh seat carrying the answer.

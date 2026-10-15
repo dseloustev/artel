@@ -24,7 +24,7 @@ describing a change. The agent answers it into `<specs.dir>/<TICKET_ID>/spike.md
 differences from a research run are under "Question mode" below. `feature-development` invokes
 it for a ticket it sized as a spike, and it runs à la carte as well. The agent cannot see your
 arguments: it learns the mode from the **Mode** field of the Context block, in the Phase 1
-prompt **and** in the Phase 3 resume message.
+prompt **and** in the Phase 3 re-dispatch message.
 
 ## Execute
 
@@ -46,8 +46,8 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
-Use the Agent tool with:
-- `subagent_type`: `"researcher"`
+Use the `subagent` tool with:
+- the `artel-researcher` agent
 - `description`: `"Extract questions for <TICKET_ID>"`
 - `prompt`: pass the parsed values plus the following instructions:
 
@@ -84,7 +84,8 @@ If there are truly no questions, return: "NO_QUESTIONS".
 Return control after listing the questions.
 ```
 
-**Important:** Save the agent ID from the Agent result.
+**Important:** a re-dispatch is always a fresh `subagent` call — there is no resume-by-id, so
+the agent re-reads its context files.
 
 ### Phase 2: Collect questions (no user interaction)
 
@@ -92,16 +93,16 @@ Outside question mode this skill never asks the user (`${ARTEL_ROOT}/docs/autono
 
 - **NO_QUESTIONS** → proceed to Phase 3 with `answers = "No additional questions — proceed with research"`.
 - **Refusal** → report it to the caller and stop.
-- **Questions** → for each, have the agent (in the Phase 3 resume message) append an entry to
+- **Questions** → for each, have the agent (in the Phase 3 re-dispatch message) append an entry to
   `.artel/run/<TICKET_ID>/open-questions.md` in the §3 format (`from: researcher`) with a proposed
   default, then proceed with research **using the proposed defaults**. The questions are bundled at the
   approval pause by the orchestrator.
 
-### Phase 3: Resume for Research
+### Phase 3: Re-dispatch for Research
 
-Use the SendMessage tool:
-- `to`: `"[agent_id from Phase 1]"`
-- `message`:
+Use the `subagent` tool with the `artel-researcher` agent (a fresh dispatch — it re-reads its
+context files, which are its state):
+- `prompt`:
 
 ```
 Answers/defaults to proceed on:

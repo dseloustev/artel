@@ -292,18 +292,17 @@ A resumed armed run enters here; its gates skip what is already done.
 `false` (config.md): you do — read `tail.md` now and run it inline. Otherwise dispatch the seat
 once (Claude Code only; the OpenCode build runs the tail inline):
 
-    Agent(artel:seat, prompt: "Run the tail of <$0>. Mode fields: <the six from
+    subagent(artel-seat, prompt: "Run the tail of <$0>. Mode fields: <the six from
     run-state.json>. Headless: <yes|no>. Local: <yes — pass --local to every sub-skill | no>.
     Spec store: <the §2.3 field>.")
 
-On a resume, dispatch a fresh seat — a crashed session's seat is never `SendMessage`-resumed.
+On a resume, dispatch a fresh seat — a crashed session's seat is never reused.
 Returns:
 
 - `COMPLETED` — print its final report and rulings list; the run is done.
 - `PAUSED: <reason>` — the relay (autonomous-run.md §18.2): read
   `.artel/run/<TICKET_ID>/pause-request.json`, ask its question verbatim via the `question` tool
-  (the seat has already set `pause_reason`; clear it and delete `pause-request.json` on the answer), then `SendMessage` the
-  seat the answer.
+  (the seat has already set `pause_reason`; clear it and delete `pause-request.json` on the answer), then dispatch a fresh `subagent` to the `artel-seat` agent with the answer.
 - `STOPPED: <reason>` — report the line and the journal pointer; the run stays paused.
 
 A dispatch that fails to start, or returns none of the three shapes: journal `seat: unavailable
@@ -341,7 +340,7 @@ A dispatch that fails to start, or returns none of the three shapes: journal `se
   `pause_reason: "store-unavailable"` and ask Retry (resume the agent) / Save it locally and pause
   (only when a produced document is unsaved: first
   `python3 ${ARTEL_ROOT}/scripts/spec_store.py pending add <path> --base-version <N>`,
-  then `SendMessage` the agent to write it to its logical path with its header's `version:`
+  then dispatch a fresh `subagent` to the agent to write it to its logical path with its header's `version:`
   set to `<N>`) / Pause without saving. Clear
   `pause_reason` only after a Retry succeeds. There is no "continue locally" mid-run. Headless:
   `specs.onUnavailable` (§5.4).

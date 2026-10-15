@@ -27,7 +27,7 @@ escalation, a cap escalation, the plan-gate PR question, store-unavailable):
   `.artel/run/<TICKET_ID>/pause-request.json` —
   `{"reason": ..., "question": ..., "options": [...], "context": ...}` — with the question and
   options exactly as tail.md words them, and return `PAUSED: <reason> — <one-line summary>`.
-  The orchestrator asks and resumes you with the answer via `SendMessage`; continue as if the
+  The orchestrator asks, then dispatches a fresh `subagent` to you with the answer; continue as if the
   question had been answered inline. The file is deleted when the pause clears (the
   orchestrator owns the deletion).
 - **Headless run** (autonomous-run.md §12): a deviation escalation auto-resolves on the

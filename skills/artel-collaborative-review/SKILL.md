@@ -134,7 +134,7 @@ All code analysis is delegated to the `collaborative-reviewer` agent: the orderi
 every per-file assessment. Never review a file inline, never run a second reviewer, and never
 treat the existence of a report as approval.
 
-Dispatch with the `Agent` tool (`subagent_type: "collaborative-reviewer"`). Every dispatch names
+Dispatch with the `subagent` tool and the `artel-collaborative-reviewer` agent. Every dispatch names
 the mode, the snapshot and preparation paths, the current file's row ID and path when
 applicable, the output path, and the read-only boundaries: no edits, no approvals, no checklist
 writes, no GitHub writes, no code execution.

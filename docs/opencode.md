@@ -46,7 +46,7 @@ prepended `<OPENCODE-HOST-NOTES>` glossary translating it to the v2 host:
 
 - `Skill:` → the `skill` tool (skills are `artel-<name>`).
 - agent dispatch → the `subagent` tool with the `artel-<name>` agent.
-- `SendMessage` → a fresh `subagent` dispatch; there is no resume-by-id, the agent re-reads
+- re-dispatching an agent → a fresh `subagent` dispatch; there is no resume-by-id, the agent re-reads
   its context files.
 - `$0`/`$1`/`$ARGUMENTS` → the arguments the skill was invoked with.
 - the `question` tool.
@@ -105,7 +105,7 @@ names.)
 |---|---|---|
 | Stop gate | blocks the Stop event outright | the completed turn is visible; `session.execution.succeeded` re-prompts the model to continue (the hooks' own block caps — 5 and 2 consecutive — remain the loop bound, under a bridge-side fail-safe of 10 consecutive blocks that resets on any clean stop) |
 | Router injection | SessionStart hook context, before the first prompt | `session.hook("context")` prepends it to the first user message on every model step (sessions only come into being with their first prompt, so there is no pre-prompt moment) |
-| Two-phase skills (`researcher`, `planner`, …) | `SendMessage` resumes the agent by id | a fresh `subagent` dispatch; the agent re-reads its context files |
+| Two-phase skills (`researcher`, `planner`, …) | resumes the agent by id | a fresh `subagent` dispatch; the agent re-reads its context files |
 | Agent model tiers | `opus`/`sonnet` frontmatter, plus a per-dispatch `model` for the route helper, the reviewer's scope and the step-up rounds ([agents.md](agents.md) `## Models`) | frontmatter tiers dropped; per-dispatch models are resolved from `models.opencode` in the host's `.artel/config.json` (via `scripts/models.py`) and passed to the `subagent` tool; unset → the child inherits the caller's model |
 | Orchestrator seat | `seat.enabled: true` runs the post-approval tail one layer down on the `seat` agent (`sonnet`), every pause relayed to the main thread ([autonomous-run.md](autonomous-run.md) §18) | `seat.enabled` is inert — the generated `feature-development` runs the tail inline (no seat dispatch) |
 | `inner-loop` model-invocation guard | `disable-model-invocation: true` | `metadata.opencode/autoinvoke: false`: hidden from the model's skill list, still loadable by id |

@@ -56,7 +56,7 @@ dispatch prompt in this skill carries the result verbatim, as `**Spec store:** k
 unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
 §4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
 
-Use the Agent tool with `subagent_type: "vision-writer"`, description `"Draft vision for
+Use the `subagent` tool with the `artel-vision-writer` agent, description `"Draft vision for
 <TICKET_ID>"`, prompt: the ticket values, resolved input paths, plus:
 
 ```
@@ -73,7 +73,8 @@ Return THREE things and stop (do not write the file):
 3. A "KISS trade-offs" note if anything was deliberately omitted; skip otherwise.
 ```
 
-**Save the agent ID.**
+**Fresh dispatch, not a resume** — the checkpoint re-dispatches the same `artel-vision-writer`
+agent; it re-reads its context files.
 
 ### Phase 2: Ask (only if there are questions)
 
@@ -85,12 +86,12 @@ questions first. If `NO_QUESTIONS`, proceed with `answers = "NO_CHANGES"`.
 
 ### Phase 3: Finalize + checkpoint
 
-`SendMessage`: `User's answers: [answers]. Finalize the document, set status: VISION_READY in its
+Dispatch a fresh `subagent` to the `artel-vision-writer` agent: `User's answers: [answers]. Finalize the document, set status: VISION_READY in its
 header, write it to <specs.dir>/<TICKET_ID>/vision.md, and return a per-section one-line
 summary.` The header is defined in `${ARTEL_ROOT}/docs/spec-storage.md` §3.2.
 
 Then the **wholesale checkpoint** — the `question` tool: `Vision written — approve?` with options
-**Approve** / **Request changes** (changes via "Other"). On Request changes: `SendMessage` the
+**Approve** / **Request changes** (changes via "Other"). On Request changes: dispatch a fresh `subagent` to the `artel-vision-writer` agent with the
 feedback, the agent revises and rewrites the file, repeat the checkpoint. On Approve: done.
 
 ### Completion

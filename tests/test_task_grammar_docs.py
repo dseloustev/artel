@@ -424,7 +424,7 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
 
     def test_the_agent_half_and_the_capped_rounds(self):
         for phrase in ('`Skill: run-reviewer --plan` with `$0`',
-                       '`MAX_PLAN_REVIEW_ROUNDS = 2`', 'the `task-planner` agent',
+                       '`MAX_PLAN_REVIEW_ROUNDS = 2`', 'the `artel-task-planner` agent',
                        'Minor findings never start a round'):
             self.assertIn(phrase, self.gate)
 
@@ -494,7 +494,7 @@ class TestDevPathPlanCheck(unittest.TestCase):
         self.assertIn('`MAX_PLAN_REVIEW_ROUNDS = 2`', self.check)
         self.assertIn('Minor findings never start a round', self.check)
         rules = _w_between(self.gen, '## Important Rules')
-        self.assertIn('at most `MAX_PLAN_REVIEW_ROUNDS` fix-round `SendMessage`s in Phase 1b',
+        self.assertIn('at most `MAX_PLAN_REVIEW_ROUNDS` fix-round `subagent` dispatches in Phase 1b',
                       rules)
 
     def test_the_writer_is_asked_for_task_blocks_and_given_the_prd(self):
@@ -1047,12 +1047,12 @@ class TestWholeBranchReviewFixes(unittest.TestCase):
     def test_a_red_post_write_check_gets_one_round_then_the_person(self):
         gen = flat(read('skills/artel-generate-tasklist/SKILL.md'))
         phase3 = gen.split('### Phase 3:')[1].split('### Phase 4:')[0]
-        for phrase in ('one fix `SendMessage` to the same agent',
+        for phrase in ('one fix `subagent` dispatch to the same agent',
                        'still has a Critical or Important finding',
                        '**Fix it by hand**', '**Proceed anyway**', '**Abort**',
                        'even in `yolo`'):
             self.assertIn(phrase, phase3)
-        self.assertIn('at most one post-write fix `SendMessage` in Phase 3', gen)
+        self.assertIn('at most one post-write fix `subagent` dispatch in Phase 3', gen)
 
 
 if __name__ == '__main__':

@@ -189,9 +189,9 @@ Then collect:
 
 ## 4. Gather context — the `issue-scout` agent
 
-Use the Agent tool with:
+Use the `subagent` tool with:
 
-- `subagent_type`: `"issue-scout"`
+- the `artel-issue-scout` agent
 - `description`: `"Context for an issue draft"`
 - `prompt`:
 
@@ -235,7 +235,7 @@ normal outcome: the draft proceeds exactly as without retrieval.
 
 **Stale-registry fallback:** when no agent named `issue-scout` is registered (agent definitions
 are cached per session), re-dispatch the same prompt once via
-`subagent_type: "general-purpose"`, prefixed with: "Read
+the host's general-purpose agent, prefixed with: "Read
 `${ARTEL_ROOT}/agents/artel-issue-scout.md` and follow it as your agent definition."
 
 **Failure.** When the scout errors or returns no fact sheet, carry `scout: error — <text>` to

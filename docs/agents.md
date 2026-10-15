@@ -17,7 +17,7 @@ that names a concrete tool.
 ## Models
 
 Each agent's frontmatter `model:` is its default. Claude Code resolves a subagent's model as the
-Agent call's `model`, then the agent's frontmatter, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the
+`subagent` call's `model`, then the agent's frontmatter, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the
 session's model — so a frontmatter model already beats the session's, and artel passes a model
 on a call only where it varies:
 

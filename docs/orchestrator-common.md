@@ -8,7 +8,7 @@ the head that size calls for and then one tail ([autonomous-run.md](autonomous-r
 invokes stage skills and agents and keeps state in `<specs.dir>/.active_ticket` plus the ticket's
 artifact tree under `<specs.dir>/<TICKET_ID>/` (see [ticket-parsing.md](ticket-parsing.md)) — an
 orchestrator never writes code itself. This is the contract every workflow skill in the plugin obeys:
-resolve context, invoke the matching agent via the `Agent` tool, report — never inline the
+resolve context, invoke the matching agent via the `subagent` tool, report — never inline the
 agent's work (see [design.md](design.md), "the skill–orchestrator contract").
 
 ---
@@ -36,7 +36,7 @@ Orchestrators:
   (skip-if-exists — [autonomous-run.md](autonomous-run.md) §9). On the kartoteka path one
   `python3 ${ARTEL_ROOT}/scripts/spec_store.py list <TICKET_ID>` answers it
   ([spec-storage.md](spec-storage.md) §4.1).
-- Invoke stage skills via the `Skill` tool and agents via the `Agent` tool, passing the resolved
+- Invoke stage skills via the `Skill` tool and agents via the `subagent` tool, passing the resolved
   identifier so the phase is preserved.
 - **Index refresh** (optional): if the host project maintains a code-symbol index, refreshing it
   after implementation is an optional host hook, not an `.artel/config.json` key — the plugin

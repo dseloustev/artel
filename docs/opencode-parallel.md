@@ -509,6 +509,66 @@ same row `in_progress` under the exact run/sequence/attempt actor, which is the 
 release did not execute. Once the row is observed released — or held by anyone else — it is
 never released again.
 
+### 13.6 Admission — the scheduler and its consumer protocol
+
+`scripts/parallel_scheduler.py` answers the coordinator's admission question from the parsed
+tasklist and the stored manifest. It is pure — no filesystem, Git, queue or session call — and
+the coordinator recomputes it after **every** durable transition or publication:
+
+    select_admissions(iterations, manifest, seats, case_sensitive) -> admission
+
+```json
+{"schema": 1, "start": ["2.4"], "resume": ["2.2"], "claim_capacity": 2, "drain": false,
+ "reasons": ["…"]}
+```
+
+| Field | Meaning |
+|---|---|
+| `start` | new tasks to admit now, in document order; a task with any manifest record is never in it |
+| `resume` | already-owned `reserved` tasks that are safe to launch now, in document order |
+| `claim_capacity` | the cap on new claims — a figure, not a row count |
+| `drain` | `true` while an exclusive task awaits or executes integration |
+| `reasons` | deterministic diagnostics for an empty or shorter `start` |
+
+The consumer protocol:
+
+1. **`resume` — never claim again.** Each listed task is a reservation this run already
+   holds. Persist its `reserved → preparing` transition (revision-checked, §13.3) **before**
+   any effect — no worktree, no session, no prompt — and then launch it. A `resume` entry is
+   never passed to the queue's claim operation and is never re-claimed.
+2. **`start` — claim through the queue's atomic operation.** For each listed task follow
+   §13.5's order: `begin_claim`, persist, call the queue's claim (the operation returns the
+   row; the queue cannot be told which task to claim by id), `record_claim`, persist, and only
+   then reserve and prepare. The **returned mapping is authoritative** — the task claimed is
+   the task the queue returned — and a row that is not this run's stops admission.
+3. **Act on `start`, not on `claim_capacity`.** The capacity figure bounds new claims; it can
+   exceed the number of tasks in `start`, and it never authorizes claiming a task the selector
+   did not list.
+4. **`drain` — stop admission, wait, integrate, publish, recompute.** While `drain` is true
+   nothing starts and nothing resumes: wait for the workers to return, execute the integration
+   transaction, publish the task, and recompute.
+5. **Recompute after every transition.** The selector never mutates the manifest; every
+   durable transition or publication is followed by a fresh call.
+
+Capacity and ordering. `parallel.seats` bounds the workers (`preparing` or `running`), the
+waiting reservations (`reserved`) and — doubled — every unresolved assignment (`reserved`,
+`preparing`, `running`, `verifying/reviewing`, `prepared`, `integrating`). Launch seats are
+reserved for `resume` before `start` is selected; a promotion frees a waiting reservation slot
+without changing the unresolved count; combined resume and start never exceed the caps.
+Conflicting reservations are serialized deterministically in document order: one is resumed,
+the others wait and are re-checked after it is published. A pending exclusive reservation
+stops new claims and starts but not the other reservations: the run drains to it and it
+launches alone once no worker is running.
+
+Launch invariant. A resumed task is compatible with every active or un-integrated task and
+with the other resumes selected with it; a newly admitted task is compatible with every
+unresolved task, waiting reservations included; and two tasks are never launched together when
+their declared paths overlap — equal, case-folded where the platform is not case-sensitive, or
+related as a path-segment prefix (a directory/prefix declaration makes its task exclusive
+instead of being fed to a glob engine). Conflicting reservations are the one deliberate
+exception to "every unresolved task is pairwise compatible": the withheld reservation is
+re-checked on every call and cannot launch while a conflicting task is unresolved.
+
 ## 14. Proof record
 
 The capability proof ran 2026-10-15 against OpenCode 2.0.29: two workers in two detached

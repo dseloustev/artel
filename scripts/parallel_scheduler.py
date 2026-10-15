@@ -3,13 +3,13 @@
 
     select_admissions(iterations, manifest, seats, case_sensitive) -> admission
 
-Contract: docs/opencode-parallel.md §7 (the `Concurrency:` metadata) and §13 (the run
-manifest and its task states), docs/task-grammar.md §7 (`ready_now` and `waves` stay
-dependency facts), and the approved admission clauses of the parallel plan.
+Contract: docs/opencode-parallel.md §7 (the `Concurrency:` metadata), §13 (the run manifest
+and its task states) and §13.6 (the consumer protocol), docs/task-grammar.md §7 (`ready_now`
+and `waves` stay dependency facts), and the approved admission clauses of the parallel plan.
 
 The selector is pure: it reads parsed iterations and a stored run manifest and answers what
-the coordinator may start now. It never touches the filesystem, Git, the queue or a
-session, and it never marks a task done -- publication is the coordinator's transition.
+the coordinator may start now. It never touches the filesystem, Git, the queue or a session,
+and it never marks a task done -- publication is the coordinator's transition.
 
 Readiness. `task_grammar.ready_now` and `task_grammar.waves` keep their meaning: dependency
 facts over the checkboxes. Admission overlays durable publication on top of them. A task is
@@ -21,40 +21,51 @@ passed review or a prepared result never unlocks a dependent -- only `published`
 Resources. Every unresolved task (reserved, preparing, running, verifying/reviewing,
 prepared, integrating) holds its declared `Files:` paths as normalized exact paths, so two
 tasks with overlapping declarations are serialized even though each worker has its own
-worktree; a side state and `published` release the paths. The comparison is case-folded
-when the platform is not case-sensitive. Directory references (a trailing slash), glob
-patterns, absolute paths, parent-relative segments and platform-ambiguous separators are
-uncertain write ownership: such a task is exclusive instead of being fed to a path-conflict
-engine, as are HITL tasks, tasks carrying `Concurrency: exclusive`, and tasks with no
-declared files. An exclusive task is admitted alone and takes the run: nothing behind it is
-admitted until it is published.
+worktree; a side state and `published` release the paths. The comparison is case-folded when
+the platform is not case-sensitive. A declaration whose ownership the exact intersection
+cannot speak about is ambiguous: a directory reference (a trailing slash), a glob pattern, an
+absolute path, a parent-relative segment, a platform-ambiguous separator, no declared files,
+or a path that is a proper path-segment prefix of another declaration -- of another task or
+of the same task. An ambiguous task is exclusive: it is admitted alone and takes the run,
+instead of being fed to a path-conflict engine. HITL tasks and tasks carrying
+`Concurrency: exclusive` are exclusive too.
+
+Admission. `resume` promotes the run's own reservations first: an already-owned `reserved`
+task that is safe to launch -- current iteration, dependencies complete, no overlap with
+active or un-integrated work, a free seat, and no exclusive reservation ahead of it -- is
+handed back for the coordinator to persist as `preparing`; it is never claimed again. Launch
+seats are reserved for `resume` before `start` is selected, and promotions free waiting
+reservation slots without changing the unresolved count. `start` then admits new tasks in
+document order, skipping a head task it cannot admit (an incompatible reservation, a ready
+exclusive task) and admitting a later compatible one. Conflicting reservations are serialized
+deterministically: one resumes, the others wait and are re-checked after it is published. A
+pending exclusive reservation stops new claims and starts but not other reservations: the run
+drains to it and it launches alone when nothing is running.
 
 Capacity. `parallel.seats` bounds the workers (preparing or running); the waiting
-reservations (`reserved`) are bounded by `seats` too, and every unresolved assignment
-together by `2 * seats`. The admission budget is the smallest of the free seats, the free
-reservation slots and the unresolved-assignment bound. The selector looks past a head task
-it cannot admit -- a resource-incompatible reservation or a ready exclusive task -- and
-admits a later compatible one, so a free seat is not wasted, but it never exceeds the
-bounds.
+reservations (`reserved`) are bounded by `seats` too, and every unresolved assignment together
+by `2 * seats`. New starts are bounded by the free seats after the promotions, by the
+reservation slots the promotions free, and by the unresolved-assignment bound.
 
-Drain. A prepared or integrating exclusive task is a pending drain: admission stops
-(`drain` is true and nothing starts) until the integration completes and the task is
+Drain. A prepared or integrating exclusive task is a pending drain: admission stops (`drain`
+is true, nothing starts and nothing resumes) until the integration completes and the task is
 published. Independent workers may keep computing during an ordinary integration; only an
 exclusive transaction requires the drained run.
 
 Shapes:
 
-    admission {schema: 1, start: ["2.4"], claim_capacity: 2, drain: false, reasons: [...]}
+    admission {schema: 1, start: ["2.4"], resume: ["2.2"], claim_capacity: 2, drain: false,
+               reasons: [...]}
 
-`start` is the stable, document-ordered list of task numbers to admit now; a task that
-already has a manifest record is never in it (a `reserved` task is resumed for launch, not
-claimed again). `claim_capacity` is how many new claims the run may begin now: the
-cap-derived budget, or the number of tasks already selected when a ready exclusive task
-suspends admission. `reasons` are the deterministic diagnostics that explain an empty or
-shorter `start`.
+`start` and `resume` are stable, document-ordered lists of task numbers. A task that already
+has a manifest record is never in `start`; a `reserved` task is resumed for launch, never
+claimed again. `claim_capacity` is how many new claims the run may begin now: the cap-derived
+budget, or the number of tasks already selected when a ready exclusive task suspends
+admission. `reasons` are the deterministic diagnostics that explain an empty or shorter
+`start`.
 
-Every failure raises `SchedulerError`, a `ValueError` carrying the `kind` a CLI maps into
-its error envelope (`invalid_iterations`, `invalid_manifest`, `invalid_seats`,
+Every failure raises `SchedulerError`, a `ValueError` carrying the `kind` a CLI maps into its
+error envelope (`invalid_iterations`, `invalid_manifest`, `invalid_seats`,
 `invalid_case_sensitive`). Nothing is coerced and nothing is dropped.
 """
 import re
@@ -225,7 +236,30 @@ def _path_keys(task, case_sensitive):
     return keys
 
 
-def _exclusive(task, case_sensitive):
+def _prefix_owners(tasks, case_sensitive):
+    """{task number: (declared path, covered path)} for directory/prefix declarations.
+
+    A declared path that is a proper path-segment prefix of another declared path -- of
+    another task or of the same task -- is ambiguous write ownership: the declaration may be
+    a directory the exact-path intersection cannot see into, so its task is exclusive.
+    """
+    declarations = []
+    for task in tasks:
+        for entry in task_grammar.files_of(task):
+            key, uncertain = _normalize(entry['path'], case_sensitive)
+            if uncertain is None:
+                declarations.append((key, entry['path'], task['number']))
+    owners = {}
+    for key, path, number in declarations:
+        prefix = key + '/'
+        covered = next((other_path for other_key, other_path, _ in declarations
+                        if other_key.startswith(prefix)), None)
+        if covered is not None and number not in owners:
+            owners[number] = (path, covered)
+    return owners
+
+
+def _exclusive(task, case_sensitive, prefix):
     """The reason the task may not run beside another worker, or `None`."""
     field = task['fields'].get('Concurrency')
     if field is not None and not field['value']:
@@ -246,6 +280,10 @@ def _exclusive(task, case_sensitive):
         _, uncertain = _normalize(entry['path'], case_sensitive)
         if uncertain is not None:
             return 'uncertain write ownership: `{}` ({})'.format(entry['path'], uncertain)
+    if prefix is not None:
+        path, covered = prefix
+        return ('uncertain write ownership: `{}` is a path-segment prefix of'
+                ' `{}`'.format(path, covered))
     return None
 
 
@@ -284,14 +322,17 @@ def _conflict(keys, holders):
     return None
 
 
-def _saturation(active, reservations, unresolved, seats):
-    """The binding cap when the budget is zero."""
-    if seats - active <= 0:
+def _saturation(active, promoted, reservations, unresolved, seats):
+    """The binding cap when the new-start budget is zero."""
+    if seats - active - promoted <= 0:
+        if promoted:
+            return ('no free worker seat: {} of {} seats are preparing or running and {}'
+                    ' reservations resume'.format(active, seats, promoted))
         return 'no free worker seat: {} of {} seats are preparing or running'.format(
             active, seats)
-    if seats - reservations <= 0:
-        return 'no free reservation slot: {} of {} reservations are waiting'.format(
-            reservations, seats)
+    if seats - reservations + promoted <= 0:
+        return 'no free reservation slot: {} of {} reservations stay waiting'.format(
+            reservations - promoted, seats)
     return 'the unresolved-assignment bound is reached: {} of {}'.format(unresolved, 2 * seats)
 
 
@@ -306,20 +347,23 @@ def _drain_reason(exclusive):
     return None
 
 
-def _result(start, claim_capacity, drain, reasons):
-    return {'schema': SCHEMA, 'start': start, 'claim_capacity': claim_capacity,
-            'drain': drain, 'reasons': reasons}
+def _result(start, resume, claim_capacity, drain, reasons):
+    return {'schema': SCHEMA, 'start': start, 'resume': resume,
+            'claim_capacity': claim_capacity, 'drain': drain, 'reasons': reasons}
 
 
 def select_admissions(iterations, manifest, seats, case_sensitive):
-    """What the coordinator may admit now: `start`, `claim_capacity`, `drain`, `reasons`.
+    """What the coordinator may admit now: `start`, `resume`, `claim_capacity`, `drain`,
+    `reasons`.
 
     `iterations` is `task_grammar.parse` output, `manifest` the schema-1 run manifest, and
-    `seats` the run's `parallel.seats`, which must match the manifest's. `case_sensitive`
-    is the platform's path case sensitivity. The returned `start` is the stable
-    document-ordered list of task numbers to admit now, `claim_capacity` the number of new
-    claims the run may begin now, `drain` true while an exclusive integration is pending or
-    in progress, and `reasons` the diagnostics behind an empty or shorter `start`.
+    `seats` the run's `parallel.seats`, which must match the manifest's. `case_sensitive` is
+    the platform's path case sensitivity. `start` is the stable document-ordered list of new
+    task numbers to admit now; `resume` the stable document-ordered list of already-owned
+    `reserved` tasks that are safe to launch (persist `preparing` before any effect, never
+    claim again); `claim_capacity` the number of new claims the run may begin now; `drain`
+    true while an exclusive integration is pending or in progress; and `reasons` the
+    diagnostics behind an empty or shorter `start`.
     """
     _iterations(iterations)
     value = _manifest(manifest)
@@ -332,33 +376,43 @@ def select_admissions(iterations, manifest, seats, case_sensitive):
             case_sensitive))
 
     records = value['tasks']
+    tasks = []
     by_number = {}
+    iteration_of = {}
     for iteration in iterations:
         for task in iteration['tasks']:
+            tasks.append(task)
             by_number[task['number']] = task
+            iteration_of[task['number']] = iteration
+    prefix = _prefix_owners(tasks, case_sensitive)
 
     reasons = []
-    held = []       # (task, state, {key: declared path}) of the unresolved non-exclusive tasks
-    exclusive = []  # (task, state, why) of the unresolved exclusive tasks
-    for iteration in iterations:
-        for task in iteration['tasks']:
-            record = records.get(task['number'])
-            if record is None or record['state'] not in UNRESOLVED_STATES:
-                continue
-            why = _exclusive(task, case_sensitive)
-            if why is not None:
-                exclusive.append((task['number'], record['state'], why))
-            else:
-                held.append((task['number'], record['state'],
-                             _path_keys(task, case_sensitive)))
+    held = []       # (task, state, keys) of the unresolved non-reserved non-exclusive tasks
+    exclusive = []  # (task, state, why) of the unresolved exclusive tasks outside reserved
+    waiting = []    # (task, why) of the reserved tasks, in document order
+    for task in tasks:
+        number = task['number']
+        record = records.get(number)
+        if record is None or record['state'] not in UNRESOLVED_STATES:
+            continue
+        why = _exclusive(task, case_sensitive, prefix.get(number))
+        if record['state'] == 'reserved':
+            waiting.append((number, why))
+        elif why is not None:
+            exclusive.append((number, record['state'], why))
+        else:
+            held.append((number, record['state'], _path_keys(task, case_sensitive)))
     for number in sorted(records):
         if number in by_number:
             continue
         state = records[number]['state']
         if state not in UNRESOLVED_STATES:
             continue
-        exclusive.append((number, state,
-                          'no task block in the tasklist: its write ownership is unknown'))
+        why = 'no task block in the tasklist: its write ownership is unknown'
+        if state == 'reserved':
+            waiting.append((number, why))
+        else:
+            exclusive.append((number, state, why))
 
     drain = any(state in DRAIN_STATES for _, state, _ in exclusive)
 
@@ -366,7 +420,7 @@ def select_admissions(iterations, manifest, seats, case_sensitive):
         reasons.append('admission is stopped for reconciliation ({}); reconcile the queue'
                        ' before admitting'.format(value['stop'].get('reason')
                                                   or 'no reason recorded'))
-        return _result([], 0, drain, reasons)
+        return _result([], [], 0, drain, reasons)
 
     if exclusive:
         number, _, why = exclusive[0]
@@ -374,26 +428,81 @@ def select_admissions(iterations, manifest, seats, case_sensitive):
                        ' publication'.format(number, why))
         if drain:
             reasons.append(_drain_reason(exclusive))
-        return _result([], 0, drain, reasons)
+        return _result([], [], 0, drain, reasons)
 
     active = sum(1 for record in records.values() if record['state'] in ACTIVE_STATES)
-    reservations = sum(1 for record in records.values() if record['state'] == 'reserved')
+    reservations = len(waiting)
     unresolved = sum(1 for record in records.values() if record['state'] in UNRESOLVED_STATES)
-    budget = max(0, min(seats - active, seats - reservations, 2 * seats - unresolved))
-    if budget == 0:
-        reasons.append(_saturation(active, reservations, unresolved, seats))
-        return _result([], 0, drain, reasons)
-
     current = _current_iteration(iterations, by_number, records)
+
+    # Promote the run's own reservations before selecting any new claim.
+    resume = []
+    resumed = []  # (task, 'resumed in this call', keys)
+    exclusive_number = None
+    free = seats - active
+    for number, why in waiting:
+        if len(resume) >= free:
+            reasons.append('{} waits: no free worker seat ({} of {} seats are preparing or'
+                           ' running)'.format(number, active, seats))
+            continue
+        if exclusive_number is not None:
+            reasons.append('{} waits: {} is an exclusive reservation and holds the run until'
+                           ' it is published'.format(number, exclusive_number))
+            continue
+        if current is None or iteration_of.get(number) is not current:
+            reasons.append('{} waits: its iteration is not the current unfinished'
+                           ' one'.format(number))
+            continue
+        missing = next((dependency for dependency in task_grammar.dependencies(by_number[number])
+                        if not _complete(dependency, by_number, records)), None)
+        if missing is not None:
+            reasons.append('{} waits for {}'.format(number, missing))
+            continue
+        if why is not None:
+            if active > 0 or resume:
+                reasons.append('{} is exclusive ({}): it waits for a quiet run'.format(
+                    number, why))
+                continue
+            resume.append(number)
+            exclusive_number = number
+            reasons.append('{} is exclusive ({}): resumed alone; no further admission until'
+                           ' it is published'.format(number, why))
+            continue
+        keys = _path_keys(by_number[number], case_sensitive)
+        conflict = _conflict(keys, held + resumed)
+        if conflict is not None:
+            path, holder, state = conflict
+            reasons.append('{} waits: it shares {} with {}, which is {}'.format(
+                number, path, holder, state))
+            continue
+        resume.append(number)
+        resumed.append((number, 'resumed in this call', keys))
+
+    pending_exclusive = next((number for number, why in waiting if why is not None), None)
+    if pending_exclusive is not None:
+        reasons.append('{} is a pending exclusive reservation: no new claim or start until it'
+                       ' is published'.format(pending_exclusive))
+        return _result([], resume, 0, drain, reasons)
+
+    promoted = len(resume)
+    budget = max(0, min(seats - active - promoted,
+                        seats - reservations + promoted,
+                        2 * seats - unresolved))
+    if budget == 0:
+        reasons.append(_saturation(active, promoted, reservations, unresolved, seats))
+        return _result([], resume, 0, drain, reasons)
+
     if current is None:
         reasons.append('no iteration carries an unfinished task: nothing waits for admission')
-        return _result([], budget, drain, reasons)
+        return _result([], resume, budget, drain, reasons)
 
     ready = [task for task in current['tasks'] if _ready(task, by_number, records)]
     if not ready:
         reasons.append('iteration {} has no ready task'.format(current['number']))
-        return _result([], budget, drain, reasons)
+        return _result([], resume, budget, drain, reasons)
 
+    waiting_holders = [(number, 'reserved', _path_keys(by_number[number], case_sensitive))
+                       for number, _ in waiting if number in by_number]
     start = []
     selected = []  # (task, 'selected in this call', {key: declared path})
     suspended = False
@@ -403,7 +512,7 @@ def select_admissions(iterations, manifest, seats, case_sensitive):
                            ' wait'.format(budget))
             break
         number = task['number']
-        why = _exclusive(task, case_sensitive)
+        why = _exclusive(task, case_sensitive, prefix.get(number))
         if why is not None:
             if not start and unresolved == 0:
                 start.append(number)
@@ -415,7 +524,7 @@ def select_admissions(iterations, manifest, seats, case_sensitive):
             suspended = True
             break
         keys = _path_keys(task, case_sensitive)
-        conflict = _conflict(keys, held + selected)
+        conflict = _conflict(keys, held + waiting_holders + selected)
         if conflict is not None:
             path, holder, state = conflict
             reasons.append('{} shares {} with {}, which is {}'.format(
@@ -425,5 +534,5 @@ def select_admissions(iterations, manifest, seats, case_sensitive):
         selected.append((number, 'selected in this call', keys))
 
     if suspended:
-        return _result(start, len(start), drain, reasons)
-    return _result(start, budget, drain, reasons)
+        return _result(start, resume, len(start), drain, reasons)
+    return _result(start, resume, budget, drain, reasons)

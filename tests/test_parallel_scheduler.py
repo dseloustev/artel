@@ -23,7 +23,7 @@ import task_grammar  # noqa: E402
 RUN_ID = '0f6f0f2e-6b1a-4f2e-9c5d-2b7a1c8e4d10'
 TICKET = 'PROJ-123'
 DIGEST = 'a' * 64
-RESULT_KEYS = ('schema', 'start', 'claim_capacity', 'drain', 'reasons')
+RESULT_KEYS = ('schema', 'start', 'resume', 'claim_capacity', 'drain', 'reasons')
 SIDE_STATES = ('blocked', 'failed', 'cancelled')
 
 # One walk from admission to each state, over the real transition table.
@@ -152,6 +152,7 @@ class TestAdmissionShape(unittest.TestCase):
         self.assertEqual(sorted(result), sorted(RESULT_KEYS))
         self.assertEqual(result['schema'], 1)
         self.assertEqual(result['start'], ['2.1', '2.2'])
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['claim_capacity'], 2)
         self.assertIs(result['drain'], False)
         self.assertEqual(result['reasons'], [])
@@ -234,18 +235,21 @@ class TestNoDuplicateStart(unittest.TestCase):
 
     def test_a_reserved_task_is_resumed_for_launch_not_claimed_again(self):
         result = select(TWO, value=manifest({'2.1': 'reserved'}))
+        self.assertEqual(result['resume'], ['2.1'])
+        self.assertNotIn('2.1', result['start'])
         self.assertEqual(result['start'], ['2.2'])
         self.assertEqual(result['claim_capacity'], 1)
 
     def test_repeated_calls_cannot_oversubscribe(self):
         self.assertEqual(select(TWO)['start'], ['2.1', '2.2'])
         # The coordinator reserves exactly what the first call admitted; the next call
-        # sees the reservations and admits nothing new.
+        # promotes both reservations instead of admitting anything new.
         reserved = manifest({'2.1': 'reserved', '2.2': 'reserved'})
         result = select(TWO, value=reserved)
+        self.assertEqual(result['resume'], ['2.1', '2.2'])
         self.assertEqual(result['start'], [])
         self.assertEqual(result['claim_capacity'], 0)
-        self.assertTrue(any('reservation' in reason for reason in result['reasons']))
+        self.assertTrue(result['reasons'])
 
 
 class TestDependencies(unittest.TestCase):
@@ -366,6 +370,57 @@ class TestFileConflicts(unittest.TestCase):
         self.assertEqual(result['start'], ['2.2'])
 
 
+class TestPrefixAmbiguity(unittest.TestCase):
+    """A directory/prefix declaration is ambiguous ownership: its task is exclusive."""
+
+    def test_a_prefix_declaration_across_tasks_is_exclusive(self):
+        text = iteration(2, block('2.1', files=('src',)),
+                         block('2.2', files=('src/a.py',)))
+        result = select(parse(text))
+        self.assertEqual(result['start'], ['2.1'])
+        self.assertEqual(result['resume'], [])
+        self.assertEqual(result['claim_capacity'], 1)
+        self.assertTrue(any('2.1' in reason and 'prefix' in reason
+                            for reason in result['reasons']))
+
+    def test_a_prefix_declared_within_one_task_is_exclusive(self):
+        text = iteration(2, block('2.1', files=('src', 'src/a.py')),
+                         block('2.2', files=('src/b.py',)))
+        result = select(parse(text))
+        self.assertEqual(result['start'], ['2.1'])
+        self.assertEqual(result['claim_capacity'], 1)
+
+    def test_the_prefix_owner_waits_for_a_quiet_run(self):
+        text = iteration(2, block('2.1', files=('src',)),
+                         block('2.2', files=('src/a.py',)))
+        result = select(parse(text), value=manifest({'2.2': 'running'}))
+        self.assertEqual(result['start'], [])
+        self.assertTrue(any('2.1' in reason for reason in result['reasons']))
+
+    def test_the_covered_declaration_stays_an_ordinary_path(self):
+        text = iteration(2, block('2.1', files=('src',)),
+                         block('2.2', files=('src/a.py',)),
+                         block('2.3', files=('src/b.py',)))
+        published = select(parse(text), value=manifest({'2.1': 'published'}))
+        self.assertEqual(published['start'], ['2.2', '2.3'])
+
+    def test_case_sensitivity_decides_a_prefix_segment(self):
+        text = iteration(2, block('2.1', files=('src/A',)),
+                         block('2.2', files=('src/a/b.py',)))
+        iterations = parse(text)
+        sensitive = select(iterations, case_sensitive=True)
+        self.assertEqual(sensitive['start'], ['2.1', '2.2'])
+        insensitive = select(iterations, case_sensitive=False)
+        self.assertEqual(insensitive['start'], ['2.1'])
+        self.assertEqual(insensitive['claim_capacity'], 1)
+
+    def test_a_string_suffix_is_not_a_segment_prefix(self):
+        text = iteration(2, block('2.1', files=('src/a',)),
+                         block('2.2', files=('src/ab',)))
+        result = select(parse(text))
+        self.assertEqual(result['start'], ['2.1', '2.2'])
+
+
 class TestExclusive(unittest.TestCase):
     def test_a_concurrency_exclusive_task_is_admitted_alone(self):
         result = select(EXCLUSIVE_FIRST)
@@ -417,36 +472,109 @@ class TestExclusive(unittest.TestCase):
         self.assertEqual(result['claim_capacity'], 1)
 
     def test_an_exclusive_task_holds_the_run_from_admission_to_publication(self):
-        for state in ('reserved', 'preparing', 'running', 'verifying/reviewing'):
+        for state in ('preparing', 'running', 'verifying/reviewing'):
             result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': state}))
             self.assertEqual(result['start'], [], state)
+            self.assertEqual(result['resume'], [], state)
             self.assertEqual(result['claim_capacity'], 0, state)
             self.assertIs(result['drain'], False, state)
+        # A pending exclusive reservation is the coordinator's to launch, alone.
+        reserved = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'reserved'}))
+        self.assertEqual(reserved['start'], [])
+        self.assertEqual(reserved['resume'], ['2.1'])
+        self.assertEqual(reserved['claim_capacity'], 0)
 
     def test_pending_exclusive_integration_stops_every_new_admission(self):
         result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'prepared'}))
         self.assertEqual(result['start'], [])
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['claim_capacity'], 0)
         self.assertIs(result['drain'], True)
         self.assertTrue(any('drain' in reason for reason in result['reasons']))
         result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'integrating'}))
         self.assertIs(result['drain'], True)
         self.assertEqual(result['start'], [])
+        self.assertEqual(result['resume'], [])
         # The drain completes with publication: admission reopens.
         result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'published'}))
         self.assertIs(result['drain'], False)
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['start'], ['2.2'])
 
     def test_an_ordinary_integration_does_not_drain_the_run(self):
         result = select(TWO, value=manifest({'2.1': 'prepared'}))
         self.assertIs(result['drain'], False)
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['start'], ['2.2'])
 
     def test_a_side_state_releases_the_run(self):
         for state in SIDE_STATES:
             result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': state}))
             self.assertEqual(result['start'], ['2.2'], state)
+            self.assertEqual(result['resume'], [], state)
             self.assertIs(result['drain'], False, state)
+
+
+class TestExclusiveReservation(unittest.TestCase):
+    def test_a_pending_exclusive_reservation_waits_for_the_workers(self):
+        busy = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'reserved', '2.2': 'running'}))
+        self.assertEqual(busy['resume'], [])
+        self.assertEqual(busy['start'], [])
+        self.assertEqual(busy['claim_capacity'], 0)
+        self.assertIs(busy['drain'], False)
+        quiet = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'reserved'}))
+        self.assertEqual(quiet['resume'], ['2.1'])
+        self.assertEqual(quiet['start'], [])
+        self.assertEqual(quiet['claim_capacity'], 0)
+
+    def test_a_pending_exclusive_reservation_does_not_freeze_another_reservation(self):
+        # 2.1 is exclusive and reserved; 2.2 runs; 2.3 waits and is compatible.
+        text = iteration(2,
+                         block('2.1', files=('src/a.py',),
+                               concurrency='exclusive — the fixture database is shared'),
+                         block('2.2', files=('src/b.py',)),
+                         block('2.3', files=('src/c.py',)))
+        iterations = parse(text)
+        busy = select(iterations, value=manifest({'2.1': 'reserved', '2.2': 'running',
+                                                  '2.3': 'reserved'}))
+        self.assertEqual(busy['resume'], ['2.3'])
+        self.assertEqual(busy['start'], [])
+        after = select(iterations, value=manifest({'2.1': 'reserved', '2.2': 'published',
+                                                   '2.3': 'published'}))
+        self.assertEqual(after['resume'], ['2.1'])
+        self.assertEqual(after['start'], [])
+
+    def test_an_exclusive_reservation_takes_its_turn_before_a_later_reservation(self):
+        value = manifest({'2.1': 'reserved', '2.2': 'reserved'})
+        result = select(EXCLUSIVE_FIRST, value=value)
+        self.assertEqual(result['resume'], ['2.1'])
+        self.assertEqual(result['start'], [])
+        after = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'published', '2.2': 'reserved'}))
+        self.assertEqual(after['resume'], ['2.2'])
+
+    def test_a_reservation_before_an_exclusive_reservation_takes_its_turn_first(self):
+        value = manifest({'2.1': 'reserved', '2.2': 'reserved'})
+        result = select(EXCLUSIVE_LAST, value=value)
+        self.assertEqual(result['resume'], ['2.1'])
+        self.assertEqual(result['start'], [])
+        held = select(EXCLUSIVE_LAST, value=manifest({'2.1': 'preparing', '2.2': 'reserved'}))
+        self.assertEqual(held['resume'], [])
+        after = select(EXCLUSIVE_LAST, value=manifest({'2.1': 'published', '2.2': 'reserved'}))
+        self.assertEqual(after['resume'], ['2.2'])
+
+    def test_two_exclusive_reservations_take_turns_instead_of_deadlocking(self):
+        text = iteration(2,
+                         block('2.1', files=('src/a.py',),
+                               concurrency='exclusive — shared external effects'),
+                         block('2.2', files=('src/b.py',),
+                               concurrency='exclusive — shared external effects'))
+        iterations = parse(text)
+        value = manifest({'2.1': 'reserved', '2.2': 'reserved'})
+        result = select(iterations, value=value)
+        self.assertEqual(result['resume'], ['2.1'])
+        self.assertEqual(result['start'], [])
+        after = select(iterations, value=manifest({'2.1': 'published', '2.2': 'reserved'}))
+        self.assertEqual(after['resume'], ['2.2'])
 
 
 class TestCapacity(unittest.TestCase):
@@ -454,13 +582,23 @@ class TestCapacity(unittest.TestCase):
         for active in ('preparing', 'running'):
             value = manifest({'2.1': active, '2.2': 'reserved', '2.3': 'prepared'})
             result = select(FOUR, value=value)
-            self.assertEqual(result['start'], ['2.4'], active)
-            self.assertEqual(result['claim_capacity'], 1, active)
+            # The one free seat goes to the reservation first, filling both seats.
+            self.assertEqual(result['resume'], ['2.2'], active)
+            self.assertEqual(result['start'], [], active)
+            self.assertEqual(result['claim_capacity'], 0, active)
+
+    def test_prepared_work_counts_toward_the_unresolved_bound_only(self):
+        value = manifest({'2.1': 'running', '2.2': 'prepared'})
+        result = select(FOUR, value=value)
+        self.assertEqual(result['resume'], [])
+        self.assertEqual(result['start'], ['2.3'])
+        self.assertEqual(result['claim_capacity'], 1)
 
     def test_the_unresolved_bound_stops_the_lookahead(self):
         value = manifest({'2.1': 'running', '2.2': 'reserved', '2.3': 'prepared',
                           '2.4': 'reserved'})
         result = select(FOUR, value=value)
+        self.assertEqual(result['resume'], ['2.2'])
         self.assertEqual(result['start'], [])
         self.assertEqual(result['claim_capacity'], 0)
         self.assertTrue(result['reasons'])
@@ -470,14 +608,19 @@ class TestCapacity(unittest.TestCase):
         # 2.1 + 2.2 + 2.3 = 3 unresolved assignments, within the 2 * seats = 4 bound.
         value = manifest({'2.1': 'running', '2.2': 'reserved'})
         result = select(SAME, value=value)
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['start'], ['2.3'])
         self.assertEqual(result['claim_capacity'], 1)
         self.assertNotIn('2.2', result['start'])
         self.assertIs(result['drain'], False)
 
     def test_the_reservation_bound_stops_the_lookahead(self):
+        text = iteration(2, block('2.1', files=('src/a.py',)),
+                         block('2.2', files=('src/a.py',)),
+                         block('2.3', files=('src/a.py',)))
         value = manifest({'2.1': 'running', '2.2': 'reserved', '2.3': 'reserved'})
-        result = select(SAME, value=value)
+        result = select(parse(text), value=value)
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['start'], [])
         self.assertEqual(result['claim_capacity'], 0)
         self.assertTrue(any('reservation' in reason for reason in result['reasons']))
@@ -485,6 +628,7 @@ class TestCapacity(unittest.TestCase):
     def test_saturated_seats_produce_reasons(self):
         value = manifest({'2.1': 'running', '2.2': 'running'})
         result = select(FOUR, value=value)
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['start'], [])
         self.assertEqual(result['claim_capacity'], 0)
         self.assertTrue(any('seat' in reason for reason in result['reasons']))
@@ -492,11 +636,20 @@ class TestCapacity(unittest.TestCase):
     def test_a_side_state_does_not_consume_capacity(self):
         value = manifest({'2.1': 'failed', '2.2': 'cancelled'})
         result = select(FOUR, value=value)
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['start'], ['2.3', '2.4'])
         self.assertEqual(result['claim_capacity'], 2)
 
     def test_an_unknown_manifest_task_holds_the_run_conservatively(self):
         result = select(TWO, value=manifest({'9.9': 'running'}))
+        self.assertEqual(result['resume'], [])
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(any('9.9' in reason for reason in result['reasons']))
+
+    def test_an_unknown_reservation_is_never_resumed(self):
+        result = select(TWO, value=manifest({'9.9': 'reserved'}))
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['start'], [])
         self.assertEqual(result['claim_capacity'], 0)
         self.assertTrue(any('9.9' in reason for reason in result['reasons']))
@@ -505,8 +658,118 @@ class TestCapacity(unittest.TestCase):
         # The quiet run would allow seats=3 claims, but the exclusive task suspends
         # admission behind it after the one compatible task before it.
         result = select(EXCLUSIVE_LAST, value=manifest(seats=3), seats=3)
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['start'], ['2.1'])
         self.assertEqual(result['claim_capacity'], 1)
+
+
+class TestResume(unittest.TestCase):
+    def test_an_incompatible_reservation_waits_then_resumes_after_publication(self):
+        running = select(SAME, value=manifest({'2.1': 'running', '2.2': 'reserved'}))
+        self.assertEqual(running['resume'], [])
+        self.assertEqual(running['start'], ['2.3'])
+        self.assertNotIn('2.2', running['start'])
+        published = select(SAME, value=manifest({'2.1': 'published', '2.2': 'reserved'}))
+        self.assertEqual(published['resume'], ['2.2'])
+        self.assertNotIn('2.2', published['start'])
+        self.assertEqual(published['start'], ['2.3'])
+
+    def test_a_resumed_task_is_never_re_claimed(self):
+        first = select(TWO, value=manifest({'2.1': 'reserved'}))
+        self.assertEqual(first['resume'], ['2.1'])
+        self.assertNotIn('2.1', first['start'])
+        # After the coordinator persists the promotion, it is not a reservation any more.
+        second = select(TWO, value=manifest({'2.1': 'preparing'}))
+        self.assertEqual(second['resume'], [])
+        self.assertNotIn('2.1', second['start'])
+
+    def test_the_free_launch_seat_goes_to_the_reservation_before_a_new_start(self):
+        value = manifest({'2.1': 'running', '2.2': 'reserved'})
+        result = select(FOUR, value=value)
+        self.assertEqual(result['resume'], ['2.2'])
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+
+    def test_resumed_and_new_actions_never_exceed_the_active_capacity(self):
+        result = select(FOUR, value=manifest({'2.2': 'reserved'}))
+        self.assertEqual(result['resume'], ['2.2'])
+        self.assertEqual(result['start'], ['2.1'])
+        self.assertEqual(len(result['resume']) + len(result['start']), 2)
+
+    def test_conflicting_reservations_promote_one_then_the_next_after_publication(self):
+        value = manifest({'2.1': 'reserved', '2.2': 'reserved'})
+        first = select(SAME, value=value)
+        self.assertEqual(first['resume'], ['2.1'])
+        self.assertNotIn('2.2', first['resume'])
+        self.assertTrue(any('2.2' in reason for reason in first['reasons']))
+        # The first reservation runs; the second is re-checked once it is published.
+        running = select(SAME, value=manifest({'2.1': 'running', '2.2': 'reserved'}))
+        self.assertEqual(running['resume'], [])
+        published = select(SAME, value=manifest({'2.1': 'published', '2.2': 'reserved'}))
+        self.assertEqual(published['resume'], ['2.2'])
+
+    def test_a_retried_reservation_waits_for_unresolved_work(self):
+        value = manifest({'2.1': 'prepared', '2.2': 'failed'})
+        retried = parallel_state.transition_task(value, '2.2', 'failed', 'reserved',
+                                                 {'decision': {'reason': 'retry'}})
+        result = select(SAME, value=retried)
+        self.assertEqual(result['resume'], [])
+        self.assertTrue(any('2.2' in reason for reason in result['reasons']))
+        integrated = parallel_state.transition_task(retried, '2.1', 'prepared', 'integrating', {})
+        published = parallel_state.transition_task(integrated, '2.1', 'integrating', 'published',
+                                                   {})
+        self.assertEqual(select(SAME, value=published)['resume'], ['2.2'])
+
+    def test_a_preparation_failure_return_waits_for_unresolved_work(self):
+        value = manifest({'2.1': 'running', '2.2': 'preparing'})
+        returned = parallel_state.transition_task(value, '2.2', 'preparing', 'reserved',
+                                                  {'decision': {'reason': 'the session failed'}})
+        result = select(SAME, value=returned)
+        self.assertEqual(result['resume'], [])
+        self.assertTrue(any('2.2' in reason for reason in result['reasons']))
+
+    def test_a_reservation_outside_the_current_iteration_waits(self):
+        value = manifest({'2.1': 'reserved'})
+        result = select(MULTI, value=value)
+        self.assertEqual(result['resume'], [])
+        self.assertTrue(any('2.1' in reason for reason in result['reasons']))
+        value = manifest({'1.1': 'published', '2.1': 'reserved'})
+        self.assertEqual(select(MULTI, value=value)['resume'], ['2.1'])
+
+    def test_a_reservation_with_incomplete_dependencies_waits(self):
+        value = manifest({'2.1': 'running', '2.2': 'published', '2.3': 'reserved'}, seats=3)
+        result = select(CHAIN, value=value, seats=3)
+        self.assertEqual(result['resume'], [])
+        self.assertTrue(any('2.3' in reason for reason in result['reasons']))
+        value = manifest({'2.1': 'published', '2.2': 'published', '2.3': 'reserved'}, seats=3)
+        self.assertEqual(select(CHAIN, value=value, seats=3)['resume'], ['2.3'])
+
+    def test_a_latched_stop_withholds_resume_too(self):
+        row = {'task_id': 41, 'title': 'I2 · 2.1 · work on 2.1', 'status': 'in_progress',
+               'actor': 'artel@' + RUN_ID + '#1:1', 'phase': 2, 'task': '2.1'}
+        stop = {'reason': 'wrong-phase', 'intent_id': RUN_ID + '#1:1', 'row': row}
+        result = select(TWO, value=manifest({'2.1': 'reserved'}, stop=stop))
+        self.assertEqual(result['resume'], [])
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+
+    def test_the_reservation_bound_bounds_the_promotions_too(self):
+        # seats=2: one running, two reservations -> one promotion, no new start.
+        value = manifest({'2.1': 'running', '2.2': 'reserved', '2.3': 'reserved'})
+        result = select(FOUR, value=value)
+        self.assertEqual(result['resume'], ['2.2'])
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(any('2.3' in reason for reason in result['reasons']))
+
+    def test_the_unresolved_bound_bounds_promotions_and_starts(self):
+        value = manifest({'2.1': 'prepared', '2.2': 'prepared', '2.3': 'prepared',
+                          '2.4': 'prepared'})
+        result = select(FOUR, value=value)
+        self.assertEqual(result['resume'], [])
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['claim_capacity'], 0)
+        self.assertTrue(any('unresolved' in reason for reason in result['reasons']))
 
 
 class TestStop(unittest.TestCase):
@@ -516,6 +779,7 @@ class TestStop(unittest.TestCase):
         stop = {'reason': 'wrong-phase', 'intent_id': RUN_ID + '#1:1', 'row': row}
         result = select(TWO, value=manifest({'2.1': 'running'}, stop=stop))
         self.assertEqual(result['start'], [])
+        self.assertEqual(result['resume'], [])
         self.assertEqual(result['claim_capacity'], 0)
         self.assertIs(result['drain'], False)
         self.assertTrue(any('reconciliation' in reason for reason in result['reasons']))

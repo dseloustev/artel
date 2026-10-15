@@ -197,32 +197,31 @@ class TestReadHint(GuardCase):
 
 
 class TestWiring(unittest.TestCase):
+    """The bridge is the hook layer's only producer: it binds each hook by hand."""
+
     ROOT = Path(__file__).resolve().parent.parent
 
-    def test_hooks_json_runs_the_guard_on_edits(self):
-        hooks = json.loads((self.ROOT / 'hooks' / 'hooks.json').read_text(encoding='utf-8'))
-        entry = next(e for e in hooks['hooks']['PreToolUse'] if e['matcher'] == 'Edit|Write|MultiEdit')
-        commands = [h['command'] for h in entry['hooks']]
-        self.assertTrue(any('spec_store_guard.py' in c for c in commands))
+    def bridge(self):
+        return (self.ROOT / 'opencode' / 'plugin' / 'artel.ts').read_text(encoding='utf-8')
 
     def test_the_opencode_bridge_runs_the_guard(self):
-        bridge = (self.ROOT / 'opencode' / 'plugin' / 'artel.ts').read_text(encoding='utf-8')
-        self.assertIn('runHook("spec_store_guard.py"', bridge)
+        self.assertIn('runHook("spec_store_guard.py"', self.bridge())
 
-    def test_hooks_json_runs_only_the_guard_on_reads(self):
-        hooks = json.loads((self.ROOT / 'hooks' / 'hooks.json').read_text(encoding='utf-8'))
-        entry = next(e for e in hooks['hooks']['PreToolUse'] if e.get('matcher') == 'Read')
-        commands = [h['command'] for h in entry['hooks']]
-        self.assertEqual(len(commands), 1, 'sensitive_guard.py must not run on Read')
-        self.assertIn('spec_store_guard.py', commands[0])
-        self.assertTrue(commands[0].startswith('cd "$CLAUDE_PROJECT_DIR" && '))
+    def test_the_opencode_bridge_runs_only_the_guard_on_reads(self):
+        # sensitive_guard.py must not run on Read: the read branch returns before the
+        # mutation-tools early return.
+        bridge = self.bridge()
+        read = bridge.index('event.tool === "read"')
+        branch = bridge[read:bridge.index('MUTATION_TOOLS.has(event.tool)', read)]
+        self.assertIn('runHook(', branch)
+        self.assertIn('"spec_store_guard.py"', branch)
+        self.assertNotIn('sensitive_guard', branch)
 
     def test_the_opencode_bridge_runs_the_hint_on_reads(self):
-        # scripts/build_opencode.py never reads hooks.json: the bridge binds each hook by hand.
-        bridge = (self.ROOT / 'opencode' / 'plugin' / 'artel.ts').read_text(encoding='utf-8')
+        bridge = self.bridge()
         self.assertIn('event.tool === "read"', bridge)
         # before the mutation-tools early return, or a read never reaches it
         self.assertLess(bridge.index('event.tool === "read"'),
                         bridge.index('MUTATION_TOOLS.has(event.tool)'))
-        # Claude Code's casing, as the VCS guard's payload carries "Bash"
-        self.assertIn('claudePayload(event.sessionID, directory, "Read", filePath)', bridge)
+        # the hook ABI's tool casing, as the VCS guard's payload carries "Bash"
+        self.assertIn('hookPayload(event.sessionID, directory, "Read", filePath)', bridge)

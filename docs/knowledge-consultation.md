@@ -12,7 +12,7 @@ Spelled here once because all of them need the identical rules, and §5 is one
 where copies drifting apart is unsafe rather than untidy.
 
 **This file is read-only toward kartoteka.** Nothing here writes. artel's spec
-trail reaches kartoteka through the `PostToolUse` hook
+trail reaches kartoteka through the `tool.execute.after` hook
 (`hooks/knowledge_mirror.py`) on the files path, or is written there directly on the
 kartoteka path (`docs/spec-storage.md`); its task queue is the other write direction and
 is `docs/task-queue.md`. Consultation itself writes nothing.

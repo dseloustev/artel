@@ -59,7 +59,7 @@ class Failure(Exception):
 
 def load_config():
     if not h.CONFIG_PATH.exists():
-        raise Failure('no_config', '.artel/config.json not found; run /artel:setup')
+        raise Failure('no_config', '.artel/config.json not found; run /artel-setup')
     try:
         return json.loads(h.CONFIG_PATH.read_text(encoding='utf-8'))
     except ValueError as exc:
@@ -1999,7 +1999,7 @@ def cmd_image_put(args, config):
 def image_cache_path(ticket_key, path, version=None):
     """Where `image fetch` keeps a stored image for an agent to Read.
 
-    Under .artel/run/, which /artel:setup gitignores: the cache is per worktree,
+    Under .artel/run/, which /artel-setup gitignores: the cache is per worktree,
     disposable, and never read by migration. A named version gets its own
     `@v<N>/` folder -- `@` is outside the attachment path grammar, so it can
     never collide with a stored path."""

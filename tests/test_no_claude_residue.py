@@ -1,7 +1,8 @@
 """No Claude dialect survives in the canonical instruction surface.
 
-The migration rewrote `skills/`, `agents/` and `docs/` into OpenCode idiom. This is the net
-under it: a dialect token that creeps back into an instruction file fails the suite, naming the
+The migration rewrote `skills/`, `agents/` and `docs/` into OpenCode idiom and renamed the
+Claude-named identifiers out of the hook layer (`hooks/`, `scripts/`). This is the net under
+it: a dialect token that creeps back into an instruction file fails the suite, naming the
 file and the token — fix the file, never the guard's list. Declared port history —
 `docs/design.md`, `docs/porting-plan.md`, the two `source-inventory-*.md` files and
 `docs/comparisons/` — describes the Claude Code era on purpose and is excluded.
@@ -17,6 +18,9 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Every Markdown file an agent reads as instructions.
 INSTRUCTION_TREES = ('skills', 'agents')
+
+# The hook layer and the scripts it calls: executable surface, not prose.
+CODE_TREES = ('hooks', 'scripts')
 
 # Declared port history: describes the Claude Code era on purpose.
 HISTORY = (
@@ -55,6 +59,15 @@ DOC_TOKENS = (
     ('SendMessage', re.compile(r'SendMessage')),
     ('EnterWorktree', re.compile(r'EnterWorktree')),
     ('disable-model-invocation', re.compile(r'disable-model-invocation')),
+)
+
+# The hook ABI's wire shape is deliberately kept (spec §6); only the Claude-named
+# identifiers of the hook layer were renamed.
+CODE_TOKENS = (
+    ('${CLAUDE_PLUGIN_ROOT}', re.compile(re.escape('${CLAUDE_PLUGIN_ROOT}'))),
+    ('$CLAUDE_PROJECT_DIR', re.compile(re.escape('$CLAUDE_PROJECT_DIR'))),
+    ('claudePayload', re.compile(r'claudePayload')),
+    ('claudeToolName', re.compile(r'claudeToolName')),
 )
 
 
@@ -96,6 +109,17 @@ def doc_paths():
         if rel.startswith('docs/superpowers/') or is_history(rel):
             continue
         paths.append(path)
+    return paths
+
+
+def code_paths():
+    """Every source file under hooks/ and scripts/ (the hook ABI's two homes).
+    `__pycache__` is generated, never authored."""
+    paths = []
+    for tree in CODE_TREES:
+        for path in sorted((ROOT / tree).rglob('*')):
+            if path.is_file() and '__pycache__' not in path.parts:
+                paths.append(path)
     return paths
 
 
@@ -143,6 +167,25 @@ class TestInstructionSurface(unittest.TestCase):
         self.addCleanup(probe.unlink)
         self.assertIn(probe, doc_paths())
         self.assertTrue(scan(probe.read_text(encoding='utf-8'), DOC_TOKENS))
+
+
+class TestHookLayer(unittest.TestCase):
+    def test_the_walk_sees_the_real_sources(self):
+        """A walk that silently stops finding files guards nothing."""
+        rels = [relative(p) for p in code_paths()]
+        for rel in ('hooks/hook_common.py', 'hooks/vcs_guard.py',
+                    'scripts/verify.py', 'scripts/install-opencode.sh'):
+            self.assertIn(rel, rels)
+
+    def test_no_claude_residue_in_the_hook_layer(self):
+        """hooks/** and scripts/** are the executable hook surface. The wire shape itself
+        is deliberately kept (spec §6); the four tokens are the names the migration
+        renamed."""
+        findings = []
+        for path in code_paths():
+            for token, number, line in scan(path.read_text(encoding='utf-8'), CODE_TOKENS):
+                findings.append('{}:{}: {} — {}'.format(relative(path), number, token, line))
+        self.assertEqual(findings, [], 'Claude dialect in the hook layer:\n' + '\n'.join(findings))
 
 
 if __name__ == '__main__':

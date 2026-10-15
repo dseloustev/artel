@@ -48,7 +48,7 @@ EMPTY_INPUT = ('no document on stdin; if it was piped from spec_store.py get, th
 # What an old-format iteration heading looks like (`## Iteration N:` or
 # `## Phase N:`, either keyword -- no agent prompt mandated one over the other).
 # A file with one and no `### Task N.M:` block is refused: its work would mirror
-# as nothing and `/artel:tasks list` would read an unstarted ticket as drained.
+# as nothing and `/artel-tasks list` would read an unstarted ticket as drained.
 ITERATION_LIKE_RE = re.compile(r'^##\s+(?:Iteration|Phase)\b')
 # The H1 sync-phases gives a phase extract (`# Phase N: Title`). Such a file
 # never holds an iteration, so a fix section there is no sign of lost ones.
@@ -224,7 +224,7 @@ def malformed_reason(text, sections):
 
     A file of fixes alone -- deep-review's, or a phase extract -- legitimately
     has no iteration. A file that still holds an old-format iteration heading
-    does not: its work would mirror as nothing and `/artel:tasks list` would
+    does not: its work would mirror as nothing and `/artel-tasks list` would
     read an unstarted ticket as drained.
     """
     lines = text.splitlines()

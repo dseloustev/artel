@@ -1,4 +1,4 @@
-"""PostToolUse(Edit|Write|MultiEdit): mirror artel's spec trail into a kartoteka
+"""tool.execute.after (edit|write|patch): mirror artel's spec trail into a kartoteka
 artifact store. Best-effort by contract — never blocks, never retries.
 Addressing, credentials and transport live in kartoteka_http.py, shared with
 scripts/spec_store.py."""

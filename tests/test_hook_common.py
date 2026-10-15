@@ -165,8 +165,8 @@ def make_repo(path):
 
 
 class TestEnterSessionRoot(unittest.TestCase):
-    """hooks.json starts every hook in $CLAUDE_PROJECT_DIR (the main checkout); a session
-    that entered a linked worktree must be gated there instead."""
+    """The bridge starts every hook in the checkout the session belongs to (the main
+    checkout); a session that entered a linked worktree must be gated there instead."""
 
     def setUp(self):
         self._old_cwd = os.getcwd()

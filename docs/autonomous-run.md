@@ -331,7 +331,7 @@ Three ranked modes control how much the run pauses for approval: `yolo=0 < plan-
 the lean head's confirmation, the bug head's work-list approval) — or, in `yolo`, at the moment
 the pause would have occurred — the orchestrator
 appends `"TASKLIST_READY"`. The sensitive-path guard (the plugin's `hooks/sensitive_guard.py`,
-a `PreToolUse` hook) denies writes to floored paths until it is present.
+a `tool.execute.before` hook) denies writes to floored paths until it is present.
 
 ## 11. Run journal
 

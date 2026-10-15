@@ -162,7 +162,7 @@ may exist). Plan and tasklist sit under `specs/.current/FLT-1/`.
 Introduce an analyzer error in `lib/main.dart` (e.g. an unused variable with a typo'd type) via
 a normal edit request to Claude.
 
-**Expected:** after the edit, the PostToolUse hook surfaces the analyzer findings in-session.
+**Expected:** after the edit, the `tool.execute.after` hook surfaces the analyzer findings in-session.
 Ask Claude to end the turn / finish up — the verify stop gate should **block completion**,
 naming the findings introduced this session (pre-existing findings are baselined and never
 block). Fix the error → the next stop passes. State appears under `.artel/run/.hooks/`

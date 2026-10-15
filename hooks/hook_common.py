@@ -1,8 +1,8 @@
 """Shared plumbing for the artel hooks. Stdlib only; every helper fails open.
 
-Cwd is the root of the checkout the session works in. hooks.json starts every hook in
-$CLAUDE_PROJECT_DIR, which stays on the main checkout when a session enters a linked
-worktree; read_hook_input() then moves the process into that worktree (see
+Cwd is the root of the checkout the session works in. The bridge starts every hook in
+the checkout the session belongs to -- the main checkout, which stays put when a session
+enters a linked worktree; read_hook_input() then moves the process into that worktree (see
 enter_session_root). Every hook therefore reads its input before touching `.artel/`.
 The plugin root is derived from this file's own location, so the verify subprocess
 needs no environment variable.
@@ -53,7 +53,7 @@ def enter_session_root(data):
             return  # the common case costs no subprocess
         common = _git_path(cwd, '--git-common-dir')
         if not common or _git_path(cwd, '--git-dir') == common:
-            return  # not a repository, or the main checkout: stay in $CLAUDE_PROJECT_DIR
+            return  # not a repository, or the main checkout: stay in the main checkout
         if _git_path(Path.cwd(), '--git-common-dir') != common:
             return  # a different repository
         root = _git_path(cwd, '--show-toplevel')

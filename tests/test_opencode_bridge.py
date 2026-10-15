@@ -74,8 +74,8 @@ class TestBridgeSource(unittest.TestCase):
                         self.source.index('MUTATION_TOOLS.has(event.tool)'))
 
     def test_binding_is_not_limited_to_the_mcp_prefix(self):
-        # `mcp__` is a Claude Code convention; OpenCode names MCP tools without it, so a
-        # prefix test would leave Bitbucket MCP writes unguarded here.
+        # The ABI tolerates legacy `mcp__`-prefixed names; OpenCode names MCP tools without
+        # the prefix, so a prefix test would leave Bitbucket MCP writes unguarded here.
         self.assertNotIn('startsWith("mcp__")', self.source)
         self.assertIn('PLATFORM_TOKENS', self.source)
         for token in ('"bitbucket"', '"github"', '"jira"'):
@@ -84,7 +84,7 @@ class TestBridgeSource(unittest.TestCase):
         self.assertLess(self.source.index('isPlatformTool(event.tool)'),
                         self.source.index('MUTATION_TOOLS.has(event.tool)'))
 
-    def test_payload_carries_claude_code_tool_casing(self):
+    def test_payload_carries_the_abi_tool_casing(self):
         # hooks/vcs_guard.py matches `tool == 'Bash'` exactly; OpenCode's tool is `shell`.
         self.assertIn('"Bash"', self.source)
         self.assertIn('"Write"', self.source)
@@ -105,8 +105,8 @@ class TestBridgeSource(unittest.TestCase):
         self.assertIn('result.content', self.source)
         self.assertIn('artel_findings', self.source)
 
-    def test_after_hook_order_matches_hooks_json(self):
-        # hooks.json runs fast_verify_post_edit.py before knowledge_mirror.py.
+    def test_after_hook_order_verifies_before_mirroring(self):
+        # The verify gate must run before the side-effect mirror.
         self.assertLess(self.source.index('runHook("fast_verify_post_edit.py"'),
                         self.source.index('runHook("knowledge_mirror.py"'))
 

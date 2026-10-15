@@ -71,13 +71,14 @@ is [spec-storage.md](spec-storage.md).
 
 Once the config exists, every session starts with the
 [`using-artel`](skills-reference.md#using-artel) router in context: the `using_artel`
-`SessionStart` hook ([hooks/README.md](../hooks/README.md)) injects the Quickstart below as a
-routing rule — check whether the request is ticket, feature, queue or knowledge work, and if
-so invoke the matching `artel-<name>` skill before answering — plus the status lines (config
-present, `knowledge.adapter`, `knowledge.tokenEnv` when the adapter is `kartoteka`, the active ticket, whether the `ast-index` CLI is on PATH). When
+`session.hook("context")` hook ([hooks/README.md](../hooks/README.md)) injects the Quickstart
+below as a routing rule — check whether the request is ticket, feature, queue or knowledge
+work, and if so invoke the matching `artel-<name>` skill before answering — plus the status
+lines (config present, `knowledge.adapter`, `knowledge.tokenEnv` when the adapter is
+`kartoteka`, the active ticket, whether the `ast-index` CLI is on PATH). When
 it is, code navigation — find a class, its usages, the project's structure — routes to the
-`ast-index` plugin's `/ast-index:ast-index` before any grep. It re-injects after `/clear` and after
-compaction, so a long run keeps it. Two things it deliberately does not do: fire inside
+`ast-index` plugin's `/ast-index:ast-index` before any grep. It re-injects after compaction, so a
+long run keeps it. Two things it deliberately does not do: fire inside
 dispatched agents (`<SUBAGENT-STOP>`), and wrap an entry point in generic brainstorming or
 plan-writing skills — `feature-development` carries its own interview, on every head. Without a
 config nothing is injected.
@@ -230,9 +231,10 @@ names and their globs are in the policy file; the classifier procedure is
 
 ### The hooks that enforce the contract
 
-Seven hooks — registered across `SessionStart`, `PreToolUse`, `PostToolUse`, and `Stop` — turn
-the contract from a promise into enforcement ([hooks/README.md](../hooks/README.md)); the eighth
-is the session router ([Turn one](#turn-one-the-router)). In a ticket worktree every hook works
+Seven hooks — bound to the bridge's `session.created`, `tool.execute.before`, `tool.execute.after`
+and `session.execution.succeeded` events — turn the contract from a promise into enforcement
+([hooks/README.md](../hooks/README.md)); the eighth is the session router
+([Turn one](#turn-one-the-router)). In a ticket worktree every hook works
 on that worktree, not the main checkout ([worktrees.md](worktrees.md) §7):
 
 - **Run stop gate** (`stop_gate.py`, `autonomous-run.md §8`) — blocks a session from ending

@@ -209,7 +209,10 @@ class TestTheReviewFindings(unittest.TestCase):
 
     def test_the_non_goals_hold(self):
         # Finding 5's missing guards: no hook, and the à la carte skills unchanged.
-        self.assertNotIn('task-commit', raw('hooks/hooks.json'))
+        # hooks.json is gone; the hook layer is hooks/*.py plus its only producer, the bridge.
+        hook_layer = ' '.join(p.read_text(encoding='utf-8')
+                              for p in sorted((ROOT / 'hooks').glob('*.py')))
+        self.assertNotIn('task-commit', hook_layer + raw('opencode/plugin/artel.ts'))
         self.assertIn('Never commits, pushes or opens a PR', flat('skills/artel-debugging/SKILL.md'))
         self.assertNotIn('git commit', flat('skills/artel-implementer/SKILL.md'))
 

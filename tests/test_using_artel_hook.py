@@ -192,7 +192,7 @@ class TestHostStatusSpecStoreLine(unittest.TestCase):
         self.assertIn('- spec store: files (knowledge.adapter is none)', ua.host_status({}))
 
     def test_adapter_on_without_a_decision(self):
-        self.assertIn('- spec store: kartoteka (move local trails in with /artel:migrate-specs)',
+        self.assertIn('- spec store: kartoteka (move local trails in with /artel-migrate-specs)',
                       ua.host_status(self.ON))
 
     def test_a_fresh_files_decision_for_the_active_ticket_is_shown(self):
@@ -218,7 +218,7 @@ class TestHostStatusSpecStoreLine(unittest.TestCase):
         decision['decided_at'] = '2026-09-22T10:00:00'  # no timezone
         sd.write('AW-12', decision)
         status = ua.host_status(self.ON)
-        self.assertIn('- spec store: kartoteka (move local trails in with /artel:migrate-specs)',
+        self.assertIn('- spec store: kartoteka (move local trails in with /artel-migrate-specs)',
                       status)
         self.assertNotIn('AW-12: files', status)
 
@@ -239,7 +239,7 @@ class TestHostStatusSpecStoreLine(unittest.TestCase):
         })
         # Should still return the generic kartoteka line, not crash
         status = ua.host_status(self.ON)
-        self.assertIn('- spec store: kartoteka (move local trails in with /artel:migrate-specs)', status)
+        self.assertIn('- spec store: kartoteka (move local trails in with /artel-migrate-specs)', status)
         # The pending suffix should NOT be present
         self.assertNotIn('pending local save(s)', status)
 

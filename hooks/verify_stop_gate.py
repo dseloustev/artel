@@ -1,5 +1,6 @@
-"""Stop: block completion while the fast gate has findings NEW relative to the session baseline.
-Bounded: after 2 consecutive blocks the stop passes with a loud warning."""
+"""session.execution.succeeded: block completion while the fast gate has findings NEW relative
+to the session baseline. Bounded: after 2 consecutive blocks the stop passes with a loud
+warning."""
 import json
 import sys
 from pathlib import Path

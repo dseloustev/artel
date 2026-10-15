@@ -397,7 +397,7 @@ evidence text ([spec-storage.md](spec-storage.md)).
   ([spec-storage.md](spec-storage.md)): spec documents are written there and nowhere else,
   and `<specs.dir>` keeps only `.active_ticket` and gate evidence text. When kartoteka cannot be
   reached, a run asks before saving anything locally (headless: `specs.onUnavailable`), and
-  `/artel-migrate-specs` moves local trails in. The `PostToolUse` mirror hook still posts
+  `/artel-migrate-specs` moves local trails in. The `tool.execute.after` mirror hook still posts
   files written on the files path — `--local`, or a run the user allowed to work locally —
   best-effort as before: it never blocks and never retries.
 
@@ -533,8 +533,8 @@ override flag, for the third row's reason. `issue-draft` is a third skill a pers
 the conversation and consults the same key, but it is the exception to both of those rules: it
 takes `--local` and resolves the table above in full, and where these two refuse, it degrades — kartoteka is reported off and the scout's other sources
 still run — because a person asked it for a draft, not for the index.
-The `using_artel` `SessionStart` hook reads the key too, only to tell the injected router
-whether those two routes are live.
+The `using_artel` `session.hook("context")` hook reads the key too, only to tell the injected
+router whether those two routes are live.
 
 ### `runtime` — optional runtime and automation commands
 

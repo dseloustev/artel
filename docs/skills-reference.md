@@ -41,9 +41,10 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Route ticket, feature, queue and knowledge requests to the matching `artel-<name>`
   skill before any other response — the plugin's analogue of `superpowers:using-superpowers`.
-- **Invocation:** `/artel-using-artel` — normally never typed: the `using_artel` `SessionStart`
-  hook ([hooks/README.md](../hooks/README.md)) injects its body (frontmatter stripped) plus a
-  host status on `startup|clear|compact` whenever `.artel/config.json` exists.
+- **Invocation:** `/artel-using-artel` — normally never typed: the `using_artel`
+  `session.hook("context")` hook ([hooks/README.md](../hooks/README.md)) injects its body
+  (frontmatter stripped) plus a host status whenever `.artel/config.json` exists, and refreshes
+  both after compaction.
 - **Reads:** nothing itself; the hook reads `.artel/config.json` (`knowledge.adapter`,
   `knowledge.baseUrl`, `knowledge.project`, `knowledge.tokenEnv`, `specs.dir`) and `<specs.dir>/.active_ticket`, and checks whether the
   `ast-index` CLI is on PATH.

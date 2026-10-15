@@ -1,4 +1,4 @@
-"""PreToolUse(Edit|Write|MultiEdit): during an armed autonomous run (run-state.json,
+"""tool.execute.before (edit|write|patch): during an armed autonomous run (run-state.json,
 autonomous-run.md sections 2 and 10), deny writes to sensitive paths whose floor the effective
 mode does not satisfy. Inactive in normal sessions."""
 import fnmatch

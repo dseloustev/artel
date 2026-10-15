@@ -6,7 +6,6 @@ Same guard as tests/test_knowledge_consultation_docs.py and
 tests/test_task_queue_docs.py -- a routing row pointing at a renamed skill, or a
 tool name one underscore off, fails in a session nobody is watching.
 """
-import json
 import re
 import unittest
 from pathlib import Path
@@ -60,21 +59,21 @@ class TestRouter(unittest.TestCase):
 
 
 class TestHookRegistration(unittest.TestCase):
-    def test_hooks_json_registers_the_router_hook_on_session_start(self):
-        groups = json.loads(read('hooks/hooks.json'))['hooks']['SessionStart']
-        matchers = [group.get('matcher')
-                    for group in groups
-                    for hook in group['hooks']
-                    if 'hooks/using_artel.py' in hook['command']]
-        self.assertEqual(matchers, ['startup|clear|compact'])
+    """The bridge is the hook layer's only producer: it binds the router to the context
+    hook and refreshes it when compaction ends."""
+
+    def setUp(self):
+        self.bridge = read('opencode/plugin/artel.ts')
+
+    def test_the_bridge_registers_the_router_hook_on_context(self):
+        context = self.bridge[self.bridge.index('ctx.session.hook("context"'):]
+        self.assertIn('runHook("using_artel.py"', context)
+        self.assertIn('session.compaction.ended', self.bridge)
+        self.assertIn('routerCache.delete(sessionID)', self.bridge)
 
     def test_router_hook_has_a_short_timeout(self):
-        groups = json.loads(read('hooks/hooks.json'))['hooks']['SessionStart']
-        timeouts = [hook['timeout']
-                    for group in groups
-                    for hook in group['hooks']
-                    if 'hooks/using_artel.py' in hook['command']]
-        self.assertEqual(timeouts, [10])
+        self.assertIn('runHook("using_artel.py", { session_id: sessionID, cwd: directory }, '
+                      'directory, 10_000)', self.bridge)
 
 
 # The read-side kartoteka tools the knowledge skill calls. Exact spellings.

@@ -91,7 +91,7 @@ config nothing is injected.
 | Work a ticket end to end (ticket → PR), one approval pause; the work is sized and the head picked for you | `/artel-feature-development PROJ-XXXX` |
 | Same, choosing the head yourself | `/artel-feature-development PROJ-XXXX --head=full` (PRD → plan → tasklist) · `--head=lean` (a work list, no PRD or plan) · `--head=bug` (diagnose first) |
 | Get from ticket to an approved plan or work list, nothing more | `/artel-feature-development PROJ-XXXX --dry-run` |
-| Same, fully unattended (low-risk only) | `claude -p "/artel-feature-development PROJ-XXXX --mode=yolo" --output-format stream-json --verbose` |
+| Same, fully unattended (low-risk only) | `opencode run "/artel-feature-development PROJ-XXXX --mode=yolo"` |
 | Same, supervising every gate | `/artel-feature-development PROJ-XXXX --step` |
 | A small change to an existing flow: a work list, then implement → review → runtime → PR | `/artel-feature-development PROJ-XXXX` — sized `bounded`; `--head=lean` forces it |
 | A bug: reproduce it and find the cause before anything is planned | `/artel-feature-development PROJ-XXXX` — sized `bug`; `--head=bug` forces it |
@@ -487,16 +487,16 @@ zero risk of the autonomous tail starting.
 
 ### Variant: `--mode=yolo` + headless
 
-`claude -p "/artel-feature-development PROJ-XXXX --mode=yolo" --output-format stream-json
---verbose` runs fully unattended (`autonomous-run.md §12`). In `yolo` the approval pause and the
+`opencode run "/artel-feature-development PROJ-XXXX --mode=yolo"` runs fully unattended
+(`autonomous-run.md §12`). In `yolo` the approval pause and the
 PR-gate pause are skipped — open questions proceed on their defaults, folded in silently, and
 the opened PR is the human checkpoint. That holds on every head: a lean or a bug run in `yolo`
 opens its PR unattended as well. The guardrail pauses still fire, but because
-the `question` tool does not exist under `-p`: a **deviation escalation** auto-takes the
+the `question` tool does not exist under `opencode run`: a **deviation escalation** auto-takes the
 implementer's recommended option (journaled as `→ auto-resolved`), while **HITL tags** and
 **cap escalations** are *never* auto-resolved — the run journals the entry, sets the
 `pause_reason`, and stops for you to resume interactively. Headless requires a curated
-`permissions.allow` in the host's Claude Code settings (never `--dangerously-skip-permissions`);
+`permission` allowlist in the host's `opencode.json` (never a bypass flag);
 a stall on a missing permission is the guardrail working — the fix is a deliberate allowlist
 extension, not a bypass. Artifacts and the journal survive a crash, so re-invoking the same
 command resumes.
@@ -656,7 +656,7 @@ what to run next. Run all of these from the host repo root.
 | Guard/Stop hooks seem **inert** on an old run | `run-state.json`'s `started_at` is older than the wall-clock budget (`WALL_CLOCK_HOURS`, `autonomous-run.md §2`) and is treated as stale | Resume by re-invoking the same entry-point command; the orchestrator rewrites `started_at` and re-arms (re-deriving the mode fields — never trusting stale ones). |
 | Need to **abort** a run cleanly | You want to stop for good, not pause | Tell the running orchestrator to abort — it writes `run-state.json` with `pause_reason: "user-abort"`, `run_active: false` (`autonomous-run.md §2`), and the Stop gate then allows the session to end. Hand-edit `.artel/run/<TICKET_ID>/run-state.json` yourself only as a fallback, when no session is live to ask. |
 | Fast-verify Stop gate **keeps blocking** on findings you can't clear right now | Findings introduced this session stay red (hooks/README.md) | Fix them (preferred), or use the escape hatch: delete `.artel/run/.hooks/baseline-<session_id>.json` so the next Stop re-baselines and passes. |
-| Headless run **stalled on a permission** | A tool call isn't in `permissions.allow`; the guardrail refused to self-widen (`autonomous-run.md §12`) | Extend the allowlist in the host's Claude Code settings **deliberately** (a reviewed edit, approved interactively), then resume. Never `--dangerously-skip-permissions`. |
+| Headless run **stalled on a permission** | A tool call isn't in the host's `permission` allowlist; the guardrail refused to self-widen (`autonomous-run.md §12`) | Extend the allowlist in the host's `opencode.json` **deliberately** (a reviewed edit, approved interactively), then resume. Never a bypass flag. |
 | Checkpoint stops: **push rejected / on default branch** | The `autonomous-run.md §14` branch guard or a non-fast-forward push — checkpoints never force-push and never commit to the default branch | Reconcile the branch manually (pull/rebase, or switch to a feature branch), then resume the run. |
 | The run picked a **head you did not want** | Sizing is a judgement over the ticket, and it goes heavier when in doubt (`autonomous-run.md §17`) | Say so at the head's first question, or re-run with `--head=full`, `--head=lean` or `--head=bug`. Only that flag lowers a size; once the run is armed the flag is ignored. |
 | Every gate reports **skipped** | The config's defaults are inert — empty `verify.commands`, no `runtime.run`, `design.figma: false` (config.md) | Configure the gates you want armed via `/artel-setup` or by editing `.artel/config.json`. Skipped is honest, not green. |

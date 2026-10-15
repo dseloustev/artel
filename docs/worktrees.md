@@ -16,10 +16,11 @@ the contract the two skills and `init-branch` follow; the mechanics live in
 ## 1. The model
 
 - **Location:** `.opencode/worktrees/<name>`, where `<name>` is `<TICKET_ID>`, or
-  `<TICKET_ID>-<PHASE_NUM>` when the run carries a phase. Claude Code enters paths there without
-  a permission prompt, and a session already inside a worktree can switch only to paths there.
-  When the host does not ignore that directory, the script adds `/.opencode/worktrees/` to
-  `.git/info/exclude` — local to the clone, never committed.
+  `<TICKET_ID>-<PHASE_NUM>` when the run carries a phase. One directory per ticket under the
+  host's own `.opencode/` tree, so parallel sessions do not collide and the host's config paths
+  (`opencode.json`, `.opencode/`) never move with a worktree. When the host does not ignore
+  that directory, the script adds `/.opencode/worktrees/` to `.git/info/exclude` — local to
+  the clone, never committed.
 - **The session moves.** After the move, the session continues inside the worktree: there is
   no tool that switches into it, so the skill prints `cd <path> && opencode` and stops. Other
   work goes to a new session in the main checkout.

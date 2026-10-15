@@ -356,16 +356,16 @@ A budget breach or guardrail trip is journaled before the run stops.
 ## 12. Headless invocation
 
 ```bash
-claude -p "/artel-feature-development <TICKET_ID> --mode=yolo" --output-format stream-json --verbose
+opencode run "/artel-feature-development <TICKET_ID> --mode=yolo"
 ```
 
-- Requires a curated tool/command permissions allowlist (Claude Code settings) — never a
-  permissions-bypass flag. A stall on a missing permission is the guardrail working; the fix is
-  a deliberate allowlist extension, never a bypass.
+- Requires a curated tool/command allowlist (the host's `opencode.json` `permission` config) —
+  never a bypass flag. A stall on a missing permission is the guardrail working; the fix is a
+  deliberate allowlist extension, never a bypass.
 - First `yolo` runs: throwaway branch, low-risk ticket, transcript reviewed against the journal.
 - Crash/sleep mid-run: artifacts + journal survive; re-invoking the same command resumes
   (skip-if-exists); §2 staleness prevents a dead run from arming hooks forever.
-- Headless escalation rules (the `question` tool does not exist under `-p`): a **deviation escalation**
+- Headless escalation rules (the `question` tool does not exist under `opencode run`): a **deviation escalation**
   takes the implementer's recommended option and is journaled as
   `paused (deviation-escalation) → auto-resolved`; **HITL tags** and **cap escalations** are never
   auto-resolved — journal the entry, set the `pause_reason`, and stop. A stalled headless run on a
@@ -376,9 +376,8 @@ claude -p "/artel-feature-development <TICKET_ID> --mode=yolo" --output-format s
   unarmed: a spike prints its answer and stops, and a `NOT_REPRODUCED` diagnosis prints the
   diagnosis' path and stops. A `yolo` run opens its pull request unattended whichever head ran.
 
-On OpenCode, the same unattended pattern runs through `opencode run` with the host's
-`permission` config as the curated allowlist; the Stop gate fires on the idle event as a
-re-prompt rather than a hard block. Host specifics: `docs/opencode.md`.
+The Stop gate fires on the idle event as a re-prompt rather than a hard block; the host
+specifics, including `opencode run`'s terminal-event caveat, are `docs/opencode.md`.
 
 ## 13. Design analysis stage (`figma-analysis`)
 

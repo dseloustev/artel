@@ -259,9 +259,9 @@ Then delete the scratch project, or keep it — `.artel/config.json` is inert wi
 
 | Symptom | Likely cause / fix |
 |---|---|
-| `/artel-*` skills missing after install | Restart the Claude Code session; confirm `/plugin` lists artel as installed. |
-| Hooks silent in 4.3 | Hooks are inert until `.artel/config.json` exists and `verify.fast` is non-empty; also check `python3` is on the PATH Claude Code runs with. |
-| `verify.py` exits `2` with `command_not_found`/`spawn_failed` | `flutter`/`dart` not on the hook shell's PATH — launch Claude Code from a shell where they resolve. |
+| `/artel-*` skills missing after install | Restart the OpenCode session; re-run `scripts/install-opencode.sh` if they still do not appear. |
+| Hooks silent in 4.3 | Hooks are inert until `.artel/config.json` exists and `verify.fast` is non-empty; also check `python3` is on the PATH OpenCode runs with. |
+| `verify.py` exits `2` with `command_not_found`/`spawn_failed` | `flutter`/`dart` not on the hook shell's PATH — launch OpenCode from a shell where they resolve. |
 | Checkpoint stops on "push rejected / no origin" | Expected without a remote — add a scratch `origin` or accept the stop-and-ask. |
 | Runtime gate hangs | You configured a non-terminating `runtime.run` (e.g. `flutter run`) — use a build-and-exit command; see §3. |
 | Every gate `skipped` | That's the inert default config — arm gates via `verify.commands` etc. (config.md). |

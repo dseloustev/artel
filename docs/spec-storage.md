@@ -529,7 +529,7 @@ When the store is still down, §5.2 applies again, without the save option.
 
 ### 5.4 Headless
 
-the `question` tool does not exist under `-p`. `specs.onUnavailable` (`docs/config.md`) answers:
+the `question` tool does not exist under `opencode run`. `specs.onUnavailable` (`docs/config.md`) answers:
 
 | Situation | `"abort"` (default) | `"local"` |
 |---|---|---|

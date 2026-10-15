@@ -136,10 +136,9 @@ hook reads —
 
 ## Headless runs
 
-`docs/autonomous-run.md` §12's headless guidance is Claude Code-specific. On OpenCode,
-`opencode run "…"` drives a session from the CLI, and OpenCode's `permission` config
-(the `opencode.json` equivalent of a curated allowlist) gates unattended tools — never a
-bypass flag. The same run-state, journal and stop-gate machinery applies unchanged.
+`docs/autonomous-run.md` §12 is the headless run book. `opencode run "…"` drives a session
+from the CLI, and OpenCode's `permission` config in `opencode.json` gates unattended tools —
+never a bypass flag. The same run-state, journal and stop-gate machinery applies unchanged.
 
 One caveat: `opencode run` ends on the session's terminal execution event and waits for idle;
 a stop-gate re-prompt sent after that terminal is not reliably awaited, so a blocked run

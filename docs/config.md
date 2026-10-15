@@ -275,8 +275,7 @@ error under reading rule 3.
 
 ### `models` — the OpenCode dispatch models
 
-The generated OpenCode build resolves every dispatch it covers from this block, through
-`scripts/models.py`; Claude Code ignores it — aliases, frontmatter and `--model` are unchanged
+Every dispatch artel covers resolves its model from this block through `scripts/models.py`
 ([agents.md](agents.md) `## Models`). A site left unset passes no model, and the dispatch
 inherits the caller's model. Unlike the rest of the config (reading rule 4),
 the resolver reads this block at call time: a mid-run edit is picked up by the next resolve.
@@ -450,14 +449,13 @@ by the variable's name before any header exists, and a token is never sent over 
 such a `baseUrl` is a proxy's upstream port reached directly; use the `https://` origin. Both
 send nothing.
 
-The MCP session takes the same variable through the client's own expansion:
-`claude mcp add --transport http kartoteka <baseUrl>/mcp --header "Authorization: Bearer ktk_…"`
-stores the literal in Claude Code's config, while an `.mcp.json` entry with
-`"headers": {"Authorization": "Bearer ${KARTOTEKA_TOKEN}"}` reads the export at session start,
-so one variable feeds both the hook and the session. `tokenEnv` itself is read by the hook and
+The MCP session takes the same variable through the client's own expansion: a remote server
+under `mcp.servers` in `opencode.json` carries
+`"headers": {"Authorization": "Bearer {env:KARTOTEKA_TOKEN}"}`, reads the export at session
+start, and so shares one variable with the hook — the full entry is
+[opencode.md](opencode.md#kartoteka-behind-a-token). `tokenEnv` itself is read by the hook and
 the `using-artel` host status only; nothing in the read half or the task queue consults it —
-those go over MCP, whose token is wired where the server is (`docs/opencode.md` for OpenCode's
-`{env:…}` form).
+those go over MCP, whose token is wired where the server is.
 
 #### The read half
 
@@ -469,7 +467,7 @@ full contract is `docs/knowledge-consultation.md`. The third is the task queue �
 
 Reading goes over kartoteka's **MCP tools** (`search_knowledge`, `related`, `index_status`),
 not over `baseUrl`. There is no MCP URL in this config: the host wires the kartoteka MCP server
-into its own session — with its bearer token, `--header` or `${KARTOTEKA_TOKEN}`, when the
+into its own session — with its bearer header in the server's `headers`, when the
 daemon has `[auth]` on — and `knowledge.adapter` says whether this project wants it used. So the
 config declares intent and the session supplies capability, and the two can disagree:
 
@@ -484,7 +482,7 @@ config declares intent and the session supplies capability, and the two can disa
 The fourth row is the working configuration; the fifth is the one worth knowing about, because
 it is how a correct `.artel/config.json` still produces no citations — the MCP server is not
 wired into the session, or is wired without the token a daemon with `[auth]` on requires, so
-Claude Code never connects. The agent says so in its own output rather than leaving you to
+the session never connects. The agent says so in its own output rather than leaving you to
 guess.
 
 The third row is why the adapter still matters when the tools are present: kartoteka's daemon

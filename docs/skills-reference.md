@@ -8,8 +8,8 @@ six fixed fields.
 - **Invocation** is copied verbatim from each skill's SKILL.md frontmatter hint, in slash form
   (`/artel-<skill-name> ...`). The equivalent `skill` tool call (`skill: "artel-<skill-name>"`,
   `args: "..."`) works identically for agents driving these skills programmatically — this is
-  noted once, here, not per entry. On OpenCode the same skills are named `artel-<name>`
-  (commands `/artel-<name>`); see [opencode.md](opencode.md).
+  noted once, here, not per entry. Skills and commands carry the installed `artel-` prefix
+  ([opencode.md](opencode.md)).
 - Section citations below (`autonomous-run.md §N`) refer to [autonomous-run.md](autonomous-run.md);
   ticket-parsing citations refer to [ticket-parsing.md](ticket-parsing.md); config keys
   (`verify.commands`, `tracker.adapter`, …) are defined in [config.md](config.md); hook
@@ -658,7 +658,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   clickable link, assessment and unresolved findings before presenting it, and a saved report
   never implies approval. The worker may return a bounded supporting-context request (≤ 8
   literal paths), which the orchestrator acquires at the recorded revisions, never from the
-  checkout. On OpenCode the worker's model resolves from the generic
+  checkout. The worker's model resolves from the generic
   `agents.collaborative-reviewer` site.
 
 ### change-digest
@@ -885,7 +885,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Mirror the working context — root `AGENTS.md`/`CHANGELOG.md` plus every ticket's
   spec trail — into the host-local `.artel/context/` store, then clear the working-tree spec
   trail and `CHANGELOG.md`. `AGENTS.md` is mirrored but stays in the working tree — it is the
-  conventions doc OpenCode and Claude Code read, not a declutter target.
+  conventions doc OpenCode reads, not a declutter target.
 - **Invocation:** `/artel-save-context`
 - **Reads:** `AGENTS.md`, `CHANGELOG.md`, `<specs.dir>/.active_ticket`, and every ticket
   directory under `<specs.dir>/`.

@@ -1,5 +1,8 @@
 # Source inventory — informational skills (reference & how-to)
 
+> **Port history.** This inventory records the Claude Code setup artel was ported from and is
+> kept for provenance — not as current state.
+
 *Compiled 2026-08-01 from the sibling checkout `../adguard-wallet/.claude/`.*
 
 Everything here is **knowledge, not process**: reference and how-to skills an agent consults

@@ -12,10 +12,11 @@ Companion docs: [workflow-guide.md](workflow-guide.md) (what each step should do
 
 ## 1. Prerequisites
 
-- **Claude Code** with plugin support (`/plugin` works).
+- **OpenCode 2.x** installed — `opencode --version` works; the bridge plugin requires the 2.x
+  plugin API.
 - **`python3` on PATH** — the hooks and gate scripts require it.
 - **Flutter SDK** — `flutter --version` and `dart --version` work in the same shell you launch
-  Claude Code from (the hooks inherit that PATH).
+  OpenCode from (the hooks inherit that PATH).
 - **A Flutter project in a git repo.** A scratch one is best:
 
   ```bash
@@ -35,16 +36,21 @@ Companion docs: [workflow-guide.md](workflow-guide.md) (what each step should do
 
 ## 2. Install from the local checkout
 
-In the Flutter project's Claude Code session:
+From the artel checkout:
 
-```
-/plugin marketplace add <path-to-this-artel-checkout>
-/plugin install artel@artel
+```bash
+scripts/install-opencode.sh
 ```
 
-**Expected:** install succeeds; typing `/artel-` offers the skills
-(`/artel-feature-development`, `/artel-setup`, `/artel-analysis`, …). If the
-skills don't appear, restart the session once — hooks and skills register at session start.
+This copies the plugin to `~/.config/opencode/artel/` and places the skills, agents and command
+wrappers into OpenCode's discovery directories (layout: [opencode.md](opencode.md)). Restart
+OpenCode, then open it in the Flutter project.
+
+**Expected:** the installer reports `artel: installed <n> skills, <n> agents, <n> commands`;
+typing `/artel-` in the project's session offers the skills
+(`/artel-feature-development`, `/artel-setup`, `/artel-analysis`, …). If the skills don't
+appear, restart the session once — skills and agents register at session start — and re-run the
+installer if they still don't.
 
 ## 3. Configure for Flutter
 
@@ -160,10 +166,10 @@ may exist). Plan and tasklist sit under `specs/.current/FLT-1/`.
 ### 4.3 Hooks: fast verify + stop gate
 
 Introduce an analyzer error in `lib/main.dart` (e.g. an unused variable with a typo'd type) via
-a normal edit request to Claude.
+a normal edit request to the agent.
 
 **Expected:** after the edit, the `tool.execute.after` hook surfaces the analyzer findings in-session.
-Ask Claude to end the turn / finish up — the verify stop gate should **block completion**,
+Ask the agent to end the turn / finish up — the verify stop gate should **block completion**,
 naming the findings introduced this session (pre-existing findings are baselined and never
 block). Fix the error → the next stop passes. State appears under `.artel/run/.hooks/`
 (`baseline-<session>.json`, `stopblocks-<session>.json`); deleting the baseline file is the
@@ -218,8 +224,7 @@ completion entry).
 
 ### 4.6 The gate scripts standalone
 
-From the host repo root (find the plugin root via `/plugin` — the installed path under
-`~/.config/opencode/artel/`):
+From the host repo root (the plugin root is the install directory, `~/.config/opencode/artel/`):
 
 ```bash
 python3 <plugin-root>/scripts/verify.py --fast --files lib/main.dart
@@ -248,9 +253,10 @@ substitutes the paths into `verify.fast`'s `{files}` token.
 
 ## 6. Cleanup
 
-```
-/plugin uninstall artel@artel
-/plugin marketplace remove artel
+From the artel checkout:
+
+```bash
+scripts/install-opencode.sh --remove
 ```
 
 Then delete the scratch project, or keep it — `.artel/config.json` is inert without the plugin.
@@ -266,5 +272,5 @@ Then delete the scratch project, or keep it — `.artel/config.json` is inert wi
 | Runtime gate hangs | You configured a non-terminating `runtime.run` (e.g. `flutter run`) — use a build-and-exit command; see §3. |
 | Every gate `skipped` | That's the inert default config — arm gates via `verify.commands` etc. (config.md). |
 
-Findings that look like plugin defects (rather than environment issues) belong in
-[porting-plan.md](porting-plan.md) Phase 6 notes or a GitHub issue on the artel repo.
+Findings that look like plugin defects (rather than environment issues) belong in a GitHub
+issue on the artel repo.

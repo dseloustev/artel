@@ -111,8 +111,8 @@ config nothing is injected.
 | See or operate the ticket's task queue: list, add, done, block, release | `/artel-tasks list PROJ-XXXX` · `/artel-tasks add PROJ-XXXX "<title>" --iteration N` or `--fix CRF` for a review fix (same requirement) |
 
 (`<plugin-root>` is the plugin's install directory — inside a skill it is
-`${ARTEL_ROOT}`; from your own shell, the path `/plugin` shows for the installed artel
-plugin.)
+`${ARTEL_ROOT}`; from your own shell it is `$ARTEL_ROOT`, defaulting to
+`~/.config/opencode/artel/`.)
 
 One entry point drives everything.
 [`feature-development`](skills-reference.md#feature-development) imports the ticket, sizes the

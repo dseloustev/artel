@@ -50,12 +50,12 @@ manual-only skill declares `metadata.opencode/autoinvoke: false` ([opencode.md](
 
 ## Why this file is in `docs/`, not `agents/`
 
-Claude Code registers **every** `.md` directly under `agents/` as an agent. A `README.md`
-there is loaded as an agent named `README` — no frontmatter, so it lands in the picker with
-an empty description and "All tools", offered to the model as a real dispatch target. The
-directory is a registry, not a place for prose: `agents/` holds agent definitions only.
-`tests/test_plugin_surface.py` enforces that.
+OpenCode registers **every** `.md` directly under `agents/` as an agent, named by its file
+stem. A `README.md` there is loaded as an agent named `README` — no frontmatter, so it
+reaches the picker with an empty description and "All tools", offered to the model as a real
+dispatch target. The directory is a registry, not a place for prose: `agents/` holds agent
+definitions only. `tests/test_plugin_surface.py` enforces that.
 
-(`hooks/README.md` and `skills/README.md` are fine where they are — Claude Code does not
-scan `hooks/`, and skills are discovered as `skills/<name>/SKILL.md`, so a loose `.md`
-in either is inert.)
+(`hooks/README.md` and `skills/README.md` are fine where they are — OpenCode does not scan
+`hooks/`, and skills are discovered as `skills/<name>/SKILL.md`, so a loose `.md` in either
+is inert.)

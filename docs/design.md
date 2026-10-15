@@ -34,19 +34,24 @@ project can install it from a GitHub marketplace repo.
 
 ## Architecture
 
-The plugin follows the standard Claude Code plugin layout. Skills become namespaced commands
-(`/artel:feature-development`), agents become invocable subagent types, hooks register via
-`hooks/hooks.json` using `${CLAUDE_PLUGIN_ROOT}` paths.
+The plugin follows OpenCode's plugin layout. The canonical source is the artifact: skills live
+under `skills/artel-<name>/` and agents under `agents/artel-<name>.md`, carrying their installed
+names, because OpenCode discovers them from flat config directories with no plugin namespace. A
+bridge plugin (`opencode/plugin/artel.ts`) binds the Python hook layer to OpenCode's plugin
+events, and the Markdown addresses the install root through the `${ARTEL_ROOT}` token, baked
+into the installed copy at install time. Nothing is translated on the way in — layout, install
+and bridge: [opencode.md](opencode.md); the hook wire format is artel's own ABI
+([hooks/README.md](../hooks/README.md)).
 
 ### Components
 
 | Layer | Contents | Source of truth ported from |
 |---|---|---|
-| Entry points | `feature-development` (one orchestrator; sizing picks the head) | orchestrator skills |
-| Stage skills | `analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `sync-phases`, `generate-idea`, `generate-vision`, `generate-tasklist`, `figma-analysis`, `inner-loop` (← `flutter-inner-loop`), `deep-review` (← `wallet-review`), `run-app`, `drive-app`, `change-digest`, `address-pr-comment` | orchestrator skills |
-| Ops & utility skills | `init-branch`, `merge-conflicts`, `add-automation`, `remove-automation`, `save-context`, `restore-context`, `issue-draft` (← `jira-issue-ru`), `agents-md-generator` | utility skills |
-| Agents | analyst, figma-analyst, researcher, planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, qa, validator, tech-writer | `.claude/agents/*.md` |
-| Hooks | session baseline, fast per-edit verify, stop gate (+ verify), sensitive guard | `.claude/hooks/*.py` |
+| Entry points | `artel-feature-development` (one orchestrator; sizing picks the head) | orchestrator skills |
+| Stage skills | `artel-analysis`, `artel-researcher`, `artel-planner`, `artel-tasklist`, `artel-implementer`, `artel-run-reviewer`, `artel-qa`, `artel-docs-update`, `artel-validate`, `artel-pr-description`, `artel-pr-create`, `artel-sync-phases`, `artel-generate-idea`, `artel-generate-vision`, `artel-generate-tasklist`, `artel-figma-analysis`, `artel-inner-loop` (← `flutter-inner-loop`), `artel-deep-review` (← `wallet-review`), `artel-run-app`, `artel-drive-app`, `artel-change-digest`, `artel-address-pr-comment` | orchestrator skills |
+| Ops & utility skills | `artel-init-branch`, `artel-merge-conflicts`, `artel-add-automation`, `artel-remove-automation`, `artel-save-context`, `artel-restore-context`, `artel-issue-draft` (← `jira-issue-ru`), `artel-agents-md-generator` | utility skills |
+| Agents | the crew of 14 under `agents/artel-*.md`: analyst, figma-analyst, researcher, planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, qa, validator, tech-writer, issue-scout, collaborative-reviewer | `.claude/agents/*.md` |
+| Hooks | the Python layer under `hooks/`, bound by the bridge: session baseline, fast per-edit verify, stop gate (+ verify), sensitive guard, VCS/tracker guard, knowledge mirror, session router, spec-store guard | `.claude/hooks/*.py` |
 | Contracts | autonomous-run contract, orchestrator-common, ticket-parsing rules, deviation protocol, path conventions | `.claude/docs/`, `.claude/agents/docs/` |
 | Operator docs | workflow guide, skills reference | `.claude/docs/` |
 
@@ -82,6 +87,7 @@ root. Full key reference and defaults: [config.md](config.md).
 | Figma design analysis | optional module, enabled only when `design.figma: true` |
 | `specs/.current/` location | `specs.dir` (default keeps `specs/.current/`) |
 | Spec trail readable only on the machine that produced it | `knowledge.adapter`: `kartoteka` \| `none` (+ base URL) |
+| Per-agent model choice (`model:` aliases, `--model sonnet\|opus\|fable`) | `models.opencode` dispatch sites, resolved at call time by `scripts/models.py` |
 
 Skills and agents reference config values instead of literals. When no config exists, the
 entry-point skills run a short one-time init interview and write the file.
@@ -1395,3 +1401,66 @@ move to the decision log.
   the endpoint is encoded, not expanded), a competing approval ledger, new CLI verbs for the
   helpers, and resolving anything from the host checkout. Locked in by
   `tests/test_collaborative_review.py`.
+- **2026-10-15 — OpenCode-native: the canonical tree is the OpenCode artifact.** The repo was
+  built the other way round: `skills/`, `agents/` and `docs/` were written in what the
+  generator called artel's Claude Code dialect, and `scripts/build_opencode.py` derived the
+  OpenCode install from them — a prepended host glossary plus a table of 18 exact-text
+  `TRANSFORMS`, with `missing_transforms()` failing the build when a transform's source text
+  went stale in the canonical tree. The table was a drift engine: the generator had to police
+  its own coupling to prose, and an entry that silently stopped matching was a skill that
+  silently shipped the wrong dialect. `docs/` was worse than untidy — the installer copied it
+  untransformed, so an agent reading `docs/spec-storage.md` on OpenCode found
+  `${CLAUDE_PLUGIN_ROOT}`, an unset variable. With Claude Code dropped as a target (user's
+  call, 2026-10-15) the fix is not a better generator but no translation at all: the canonical
+  tree **is** the OpenCode artifact. The `artel-` prefix moved into the source
+  (`skills/artel-<name>/SKILL.md`, `agents/artel-<name>.md`) because OpenCode discovers skills,
+  agents and commands from flat config directories with no plugin namespace — a hard host
+  requirement — and carrying it in the source deletes the name mapping, the
+  `name`-vs-directory divergence, the `generated` companion map and `missing_transforms()`'
+  whole failure class; the cost was a repo-wide rename of 42 skill directories and 15 agent
+  files, which the dialect flip touched anyway. What the generator retains is mechanical and
+  semantic-free: the install-time **bake** (`${ARTEL_ROOT}` → the install root, in place in the
+  installed copy's `skills/`, `agents/` and `docs/` Markdown — never Python, whose docstring
+  token is a source-level pointer to a contract file) and the **command wrappers**
+  (`commands/<name>.md` from each skill's `description` and `argument-hint`, so the TUI shows
+  the arguments before invocation). The transform table was deleted rather than inverted:
+  inverting it would keep the generator a semantics engine and preserve the drift class — the
+  canonical text in one dialect and the artifact in another — and with no Claude Code output
+  left to produce, the source column would guard nothing. One rule the flip needed: the doc
+  that describes the token writes it without braces (`$ARTEL_ROOT`), because the bake matches
+  the braced form only and would otherwise rewrite its own explanation; a build test asserts
+  the sentence survives.
+- **2026-10-15 — The hook payload is artel's internal ABI.** The hooks read a
+  Claude-Code-shaped stdin payload (`session_id`, `cwd`, `tool_name`, `tool_input.file_path` /
+  `command`) and emit Claude-shaped output (`hookSpecificOutput`, `permissionDecision`,
+  `additionalContext`, `systemMessage`), which the bridge (`opencode/plugin/artel.ts`)
+  synthesises. The wire shape survives the flip deliberately: it is a contract between the
+  bridge and the Python hooks with **no external consumer**, and a payload redesign touches the
+  whole hook layer — nine hooks today — the bridge and dozens of tests for zero behaviour
+  change: risk without behaviour, which this migration refused everywhere else. What the flip
+  did change is every identifier that named Claude Code: `claudePayload`/`claudeToolName`
+  became `hookPayload`/`hookToolName`, the docstrings that named Claude Code events were
+  corrected, and `hooks/README.md` documents the payload as artel's internal hook ABI.
+  `vcs_guard.py`'s tolerance of legacy `mcp__`-prefixed tool names stays for the same reason,
+  restated as "legacy names, tolerated" — a guard must classify names it did not produce —
+  rather than as a Claude Code convention. What would have to be true to redesign it: OpenCode would have to
+  document a stable plugin-side payload contract that makes synthesising one redundant, or a
+  second host would have to return — and the redesign would have to buy a behaviour change or
+  retire a whole failure class, not tidy a name. Until then the shape stays visible in one
+  documented place rather than looking like an oversight.
+- **2026-10-15 — Ticket worktrees live in `.opencode/worktrees/`.** The worktree location moved
+  with the flip: `scripts/worktree.py` puts a ticket's worktree at `.opencode/worktrees/<name>`,
+  the default `.worktreeinclude` patterns copy the host's `.opencode/`, `opencode.json` and
+  `opencode.jsonc` into it, and `/.opencode/worktrees/` joins `.git/info/exclude` — the same
+  convention as the `.claude/worktrees/` it replaces, under the host's own config tree.
+  Rejected: `.artel/worktrees/`, which the AGENTS.md rule for artel's own state
+  ("host-writable state lives under `.artel/`") would suggest — but a worktree is a git-level
+  checkout of the ticket's branch, not artel run state, and it sits under `.opencode/` precisely
+  because the host's config paths must not move with it ([worktrees.md](worktrees.md) §1).
+  Rejected: OpenCode 2's native worktree API (sandbox worktrees under
+  `~/.local/share/opencode/worktree/<project-hash>/<name>`, with create/list/remove/reset) —
+  `worktree.py` does more than create one: it stashes and re-applies uncommitted work, copies
+  `.worktreeinclude` files, moves run state and the context store, keeps the
+  `.artel/worktree.json` manifest, and hands the branch back. Adopting the API means
+  reimplementing that on a moving interface for no user-visible gain; revisit if the API grows
+  the missing pieces.

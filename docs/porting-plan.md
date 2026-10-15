@@ -1,5 +1,9 @@
 # Porting plan
 
+> **Port history.** This document records the Claude Code port that produced artel and is kept
+> for provenance — not as current state. Artel is an OpenCode plugin now: see
+> [opencode.md](opencode.md) and the decision log in [design.md](design.md).
+
 *Status: draft v0.1 · 2026-07-27*
 
 Source material lives in the originating project's `.claude/` directory (assumed available as a

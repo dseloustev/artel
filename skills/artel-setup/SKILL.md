@@ -77,12 +77,12 @@ arrive via the "Other" option.
   the daemon — and that an unregistered name is refused rather than created. Say that the config
   is committed, which is why it carries the variable's name and the token stays in the shell:
   `kartoteka token add <principal>` on the daemon machine prints it once, and every shell that
-  runs artel exports it; the MCP registration takes the same token (`claude mcp add … --header
-  "Authorization: Bearer …"`, or `${KARTOTEKA_TOKEN}` in `.mcp.json`). Mention that the mirror
+  runs artel exports it; the MCP registration takes the same token (the server's `headers` in
+  `opencode.json`, `"Authorization": "Bearer {env:KARTOTEKA_TOKEN}"`). Mention that the mirror
   is additive and best-effort: the spec-trail files stay primary and a daemon that is down never
   fails a run.
-- **Round 6 — OpenCode models** (optional): if this project also runs the generated OpenCode
-  build, which model should each `models.opencode` dispatch site use? Offer the sites of
+- **Round 6 — OpenCode models** (optional): which model should each `models.opencode` dispatch
+  site use? Offer the sites of
   config.md's `models` section — `implementer.light` / `full` / `fix` / `stepUp`,
   `reviewer.task` / `phase` / `reReview` / `plan` / `deepReview`, `pr-description`, and
   `agents.<name>` for any other agent — and ask for a value only for the sites the person wants

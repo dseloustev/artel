@@ -168,11 +168,11 @@ class TestTokenEnv(unittest.TestCase):
                          'the default and the filled example each spell the key once')
 
     def test_config_wires_the_mcp_session_with_the_same_variable(self):
-        # Claude Code expands ${VAR} inside .mcp.json headers; the hook reads
-        # the variable directly. One export serves both.
+        # OpenCode expands {env:VAR} inside the MCP server's headers; the hook
+        # reads the variable directly. One export serves both.
         text = read(CONFIG)
-        self.assertIn('--header', text)
-        self.assertIn('${' + self.VARIABLE + '}', text)
+        self.assertIn('mcp.servers', text)
+        self.assertIn('{env:' + self.VARIABLE + '}', text)
 
     def test_opencode_names_its_own_expansion_syntax(self):
         self.assertIn('{env:' + self.VARIABLE + '}', read(OPENCODE))
@@ -190,14 +190,14 @@ class TestTokenEnv(unittest.TestCase):
         self.assertIn('--header', text)
 
     def test_the_read_contracts_explain_an_auth_on_daemon_as_tools_absent(self):
-        # Without the header Claude Code cannot connect, so the session sees
+        # Without the bearer header the session cannot connect, so it sees
         # no tools: row 5 of both gating tables, with a fix that is host-side
         # wiring rather than an artel setting.
         for rel in (CONSULTATION, QUEUE):
             with self.subTest(rel):
                 text = read(rel)
                 self.assertIn('[auth]', text)
-                self.assertIn('--header', text)
+                self.assertIn('knowledge.tokenEnv', text)
 
     def test_the_requirements_record_that_kartoteka_shipped_it(self):
         text = read(REQUIREMENTS)

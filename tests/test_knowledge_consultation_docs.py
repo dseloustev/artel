@@ -15,11 +15,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 SKILL_FILES = (
-    'skills/analysis/SKILL.md',
-    'skills/researcher/SKILL.md',
-    'skills/feature-development/SKILL.md',
-    'skills/deep-review/SKILL.md',
-    'skills/issue-draft/SKILL.md',
+    'skills/artel-analysis/SKILL.md',
+    'skills/artel-researcher/SKILL.md',
+    'skills/artel-feature-development/SKILL.md',
+    'skills/artel-deep-review/SKILL.md',
+    'skills/artel-issue-draft/SKILL.md',
 )
 
 DOC_FILES = (
@@ -82,11 +82,12 @@ class LocalFlagSpelling(unittest.TestCase):
         """skills-reference.md's own rule: copied verbatim, in slash form."""
         for rel in SKILL_FILES:
             name = Path(rel).parent.name
+            route = name[len('artel-'):]
             with self.subTest(name):
                 hint = argument_hint(rel)
                 self.assertIsNotNone(hint, 'skill has an argument-hint')
-                self.assertEqual(f'- **Invocation:** `/artel:{name} {hint}`',
-                                 invocation_line(name))
+                self.assertEqual(f'- **Invocation:** `/artel:{route} {hint}`',
+                                 invocation_line(route))
 
     def test_no_near_miss_spellings_anywhere(self):
         for rel in SKILL_FILES + DOC_FILES:

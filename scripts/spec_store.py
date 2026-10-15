@@ -560,7 +560,7 @@ def cmd_pending_add(args, config):
     return OK
 
 
-# ---- Migration: docs/spec-storage.md §7, skills/migrate-specs/SKILL.md ----------
+# ---- Migration: docs/spec-storage.md §7, skills/artel-migrate-specs/SKILL.md ----------
 
 MIGRATION_AUTHOR = 'artel:migrate-specs'
 DIFF_LINES = 200

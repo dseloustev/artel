@@ -23,7 +23,7 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   `setup` skill offers to scaffold it from the shipped defaults.
 - `.artel/templates/issue-draft-<type>.md` (`<type>` is `task`, `bug` or `epic`) and
   `.artel/templates/issue-draft.md` — optional host overrides of the description templates the
-  `issue-draft` skill renders (`skills/issue-draft/assets/templates/<type>.template.md` in the
+  `issue-draft` skill renders (`skills/artel-issue-draft/assets/templates/<type>.template.md` in the
   plugin). A per-type file replaces that type's shipped template wholesale; the single
   `issue-draft.md` replaces all three where no per-type file exists. Presence is the switch,
   as with the sensitive-paths policy, and there is no config key. An override keeps the

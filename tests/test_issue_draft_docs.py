@@ -11,12 +11,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-SKILL_DIR = 'skills/issue-draft'
+SKILL_DIR = 'skills/artel-issue-draft'
 SKILL = f'{SKILL_DIR}/SKILL.md'
 REFERENCE_MARKUP = f'{SKILL_DIR}/references/jira-wiki-markup.md'
 TYPES = ('task', 'bug', 'epic')
 TEMPLATE = SKILL_DIR + '/assets/templates/{}.template.md'
-SHIPPED_PATTERN = '${CLAUDE_PLUGIN_ROOT}/skills/issue-draft/assets/templates/<type>.template.md'
+SHIPPED_PATTERN = '${CLAUDE_PLUGIN_ROOT}/skills/artel-issue-draft/assets/templates/<type>.template.md'
 OVERRIDE = '.artel/templates/issue-draft.md'
 OVERRIDE_TYPED = '.artel/templates/issue-draft-<type>.md'
 CONFIG = 'docs/config.md'
@@ -169,11 +169,11 @@ class TestSkill(unittest.TestCase):
         self.assertIn(SHIPPED_PATTERN, self.text)
         self.assertIn(OVERRIDE_TYPED, self.text)
         self.assertIn(OVERRIDE, self.text)
-        self.assertIn('skills/issue-draft/references/jira-wiki-markup.md', self.text)
+        self.assertIn('skills/artel-issue-draft/references/jira-wiki-markup.md', self.text)
 
     def test_dispatches_the_scout(self):
         self.assertIn('`subagent_type`: `"issue-scout"`', self.text)
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/agents/issue-scout.md', self.text)
+        self.assertIn('${CLAUDE_PLUGIN_ROOT}/agents/artel-issue-scout.md', self.text)
         for spelling in ('`stated`', '`inferred`', 'Also found'):
             with self.subTest(spelling):
                 self.assertIn(spelling, self.text)
@@ -252,7 +252,7 @@ class TestDocs(unittest.TestCase):
                 self.assertIn('issue-draft', row)
 
     def test_consultation_contract_names_the_skill(self):
-        self.assertIn('skills/issue-draft/SKILL.md', read(CONSULTATION))
+        self.assertIn('skills/artel-issue-draft/SKILL.md', read(CONSULTATION))
 
     def test_reference_entry_names_both_overrides_and_no_slack_or_variants(self):
         entry = read(REFERENCE).split('### issue-draft')[1].split('\n### ')[0]

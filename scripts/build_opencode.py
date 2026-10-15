@@ -90,7 +90,7 @@ VALID_NAME = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
 ARTEL_REF = re.compile(r'/artel:([a-z0-9-]+)')
 SKILL_FILE_REF = re.compile(r'\$\{CLAUDE_PLUGIN_ROOT\}/skills/([a-z0-9-]+)/([\w./-]+)')
 MAX_DESCRIPTION = 1024
-AGENTS_EXCLUDE = frozenset({'seat'})  # Claude Code only: OpenCode runs the tail inline (docs/opencode.md)
+AGENTS_EXCLUDE = frozenset({'artel-seat'})  # Claude Code only: OpenCode runs the tail inline (docs/opencode.md)
 
 
 def parse_frontmatter(text):
@@ -176,7 +176,7 @@ def assemble(body, glossary, frontmatter):
 
 def build_skill(src_text, root, generated=None):
     fields, body = parse_frontmatter(src_text)
-    name = 'artel-' + fields['name']
+    name = fields['name']
     description = ARTEL_REF.sub(r'artel-\1', fields.get('description', ''))
     frontmatter = [
         'name: ' + name,
@@ -196,7 +196,7 @@ def build_agent(src_text, root, generated=None):
     name is the agent name on OpenCode; model tiers are dropped (subagents
     inherit the caller's model — see docs/opencode.md)."""
     fields, body = parse_frontmatter(src_text)
-    name = 'artel-' + fields['name']
+    name = fields['name']
     description = ARTEL_REF.sub(r'artel-\1', fields.get('description', ''))
     frontmatter = [
         'description: ' + yaml_quote(clip(description, MAX_DESCRIPTION)),
@@ -232,7 +232,7 @@ def build_command(name, description, hint):
 
 
 TRANSFORMS = [
-    ('implementer', 'SKILL.md', """\
+    ('artel-implementer', 'SKILL.md', """\
 `--model <sonnet|opus|fable>`: dispatch the agent on this model instead of its frontmatter
 `opus`. It may appear in any position; strip it before reading `$0`. Any other value is an
 invocation error — report it and stop. A dispatch refused for that model (not available, or not
@@ -246,7 +246,7 @@ re-dispatched once without it. The orchestrator passes the flag to step up a fix
 follows a failed one (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §5); otherwise the skill
 resolves the model itself (below)."""),
 
-    ('implementer', 'SKILL.md', """\
+    ('artel-implementer', 'SKILL.md', """\
 **Choosing the model** — after the spec-store read and before the Agent call, first match wins:
 
 1. `--model` given → that model.
@@ -287,7 +287,7 @@ wins:
 The chosen model is passed as the `subagent` call's `model`. A call refused for its model is
 re-dispatched once without one."""),
 
-    ('implementer', 'SKILL.md', """\
+    ('artel-implementer', 'SKILL.md', """\
 Add one `Model:` line to the relayed contract, after `Verify iterations:` and before
 `Deviations:`, written so an orchestrator can append its value to a journal line verbatim:
 `Model: sonnet` when the helper's model matched the task worked; `Model: sonnet (predicted task
@@ -303,7 +303,7 @@ line); or `Model: none` with the reason — `fix list: implementer.fix unset`, `
 `route lookup failed: <kind>`, or `model refused` after a refused re-dispatch. `HITL:` and
 `DEVIATION` returns carry no `Model:` line."""),
 
-    ('run-reviewer', 'SKILL.md', """\
+    ('artel-run-reviewer', 'SKILL.md', """\
 `--model <sonnet|opus|fable>`: dispatch the agent on this model instead of its frontmatter
 `opus`. It may appear in any position; strip it before reading `$0` and the mode flags. Any
 other value is an invocation error — report it and stop. A dispatch refused for that model
@@ -322,25 +322,25 @@ and pass it when non-null; a null model → no `model` on the call. The orchestr
 flag for re-reviews (resolved from `reviewer.reReview`) to scale the review to its scope
 (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16.4)."""),
 
-    ('run-reviewer', 'SKILL.md',
+    ('artel-run-reviewer', 'SKILL.md',
      '`model` set to the `--model` value when one was given, description '
      '`"Review changes for <TICKET_ID>"`',
      '`model` set to the `--model` value when one was given, else the resolved '
      '`reviewer.phase`, left out when neither, description `"Review changes for <TICKET_ID>"`'),
 
-    ('run-reviewer', 'SKILL.md', """\
+    ('artel-run-reviewer', 'SKILL.md', """\
 `model` set to the `--model` value when
 one was given, description `"Review task for <TICKET_ID>: <task title>"`""", """\
 `model` set to the `--model` value when
 one was given, else the resolved `reviewer.task`, left out when neither, description `"Review task for <TICKET_ID>: <task title>"`"""),
 
-    ('run-reviewer', 'SKILL.md', """\
+    ('artel-run-reviewer', 'SKILL.md', """\
 `model` set to the `--model` value when one was
 given, description `"Review plan for <TICKET_ID>"`""", """\
 `model` set to the `--model` value when one was
 given, else the resolved `reviewer.plan`, left out when neither, description `"Review plan for <TICKET_ID>"`"""),
 
-    ('feature-development', 'tail.md',
+    ('artel-feature-development', 'tail.md',
      'A `full` task gets the §16.2 wrapper: `diff` + `Skill: run-reviewer --task …` with '
      '`--model sonnet` (plus `--local` when this run was invoked with it) after its completion, '
      'at most one `## Code Review Fixes` implementer round (`MAX_TASK_REVIEW_ROUNDS = 1`, counted '
@@ -354,7 +354,7 @@ given, else the resolved `reviewer.plan`, left out when neither, description `"R
      '`counters.correction_rounds`), one `task review` journal entry (`; model <value>` — '
      '`none` when no flag was passed); a `light` task gets none.'),
 
-    ('feature-development', 'tail.md',
+    ('artel-feature-development', 'tail.md',
      'plus `--model fable` when the findings come from a `review.md` whose `**Review round:**` '
      'is 2 or more — autonomous-run.md §5',
      'plus `--model <value>` when the findings come from a `review.md` whose `**Review round:**` '
@@ -362,20 +362,20 @@ given, else the resolved `reviewer.plan`, left out when neither, description `"R
      'models.py resolve --site implementer.stepUp`); no flag when null, and the implementer\'s '
      '`implementer.fix` applies — autonomous-run.md §5'),
 
-    ('feature-development', 'tail.md',
+    ('artel-feature-development', 'tail.md',
      '→ re-review (the re-review passes `--model sonnet`; journal the round with `; model sonnet`).',
      '→ re-review (the re-review passes `--model <value>` — resolve `reviewer.reReview` '
      '(`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/models.py resolve --site reviewer.reReview`); no '
      'flag when null, and ticket mode\'s `reviewer.phase` applies — and journals the round with '
      '`; model <value>`, `none` when no flag was passed).'),
 
-    ('feature-development', 'tail.md',
+    ('artel-feature-development', 'tail.md',
      'plus `--model fable` on the second round',
      'plus `--model <value>` on the second round — resolve `implementer.stepUp` (`python3 '
      '${CLAUDE_PLUGIN_ROOT}/scripts/models.py resolve --site implementer.stepUp`); no flag when '
      'null'),
 
-    ('deep-review', 'SKILL.md', """\
+    ('artel-deep-review', 'SKILL.md', """\
 - `model`: `"fable"` — the whole-branch review before a pull request, the one review on the most
   capable tier (`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`); a dispatch refused for its
   model is re-dispatched once without one""", """\
@@ -385,7 +385,7 @@ given, else the resolved `reviewer.plan`, left out when neither, description `"R
   capable tier (`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`); a dispatch refused for its
   model is re-dispatched once without one"""),
 
-    ('pr-description', 'SKILL.md', """\
+    ('artel-pr-description', 'SKILL.md', """\
 - `model`: none — the dispatch runs on the `tech-writer` agent's frontmatter tier (`opus`)
   (`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`)""", """\
 - `model`: resolve `pr-description`
@@ -393,7 +393,7 @@ given, else the resolved `reviewer.plan`, left out when neither, description `"R
   when non-null — `null` leaves no model, so the child inherits the caller's model; a dispatch
   refused for its model is re-dispatched once without one"""),
 
-    ('collaborative-review', 'SKILL.md', """\
+    ('artel-collaborative-review', 'SKILL.md', """\
 The dispatch carries no `model`: the agent runs on its frontmatter `opus`
 (`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`); this session's provider/model choices are
 never embedded.""", """\
@@ -462,7 +462,7 @@ def main(argv=None):
     for skill_path in skill_files:
         fields, _ = parse_frontmatter(skill_path.read_text(encoding='utf-8'))
         folder = skill_path.parent
-        dest_dir = out / 'skills' / ('artel-' + fields['name'])
+        dest_dir = out / 'skills' / fields['name']
         for path in sorted(folder.rglob('*.md')):
             rel = path.relative_to(folder).as_posix()
             generated[(folder.name, rel)] = dest_dir / rel

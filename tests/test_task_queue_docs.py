@@ -20,14 +20,14 @@ NEAR_MISSES = ('task_claim', 'task_next', 'tasks_ready', 'task_get',
                'task_ready_claim', 'tasks_create')
 
 MIRROR_FILES = (
-    'skills/generate-tasklist/SKILL.md',
-    'skills/tasklist/SKILL.md',
-    'skills/feature-development/tail.md',
+    'skills/artel-generate-tasklist/SKILL.md',
+    'skills/artel-tasklist/SKILL.md',
+    'skills/artel-feature-development/tail.md',
 )
 
 CLAIM_FILES = (
-    'agents/implementer.md',
-    'skills/implementer/SKILL.md',
+    'agents/artel-implementer.md',
+    'skills/artel-implementer/SKILL.md',
 )
 
 # Files that describe the loop and must agree with the reference doc.
@@ -119,9 +119,9 @@ class TestMirrorStep(unittest.TestCase):
 
 class TestClaimLoop(unittest.TestCase):
     def test_implementer_claims_reports_and_promotes(self):
-        text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        text = (ROOT / 'agents/artel-implementer.md').read_text(encoding='utf-8')
         for name in ('task_ready', 'task_update', 'task_list'):
-            self.assertIn(name, text, 'agents/implementer.md never calls ' + name)
+            self.assertIn(name, text, 'agents/artel-implementer.md never calls ' + name)
 
     def test_both_claim_files_point_at_the_reference_doc(self):
         for rel in CLAIM_FILES:
@@ -130,7 +130,7 @@ class TestClaimLoop(unittest.TestCase):
                           rel + ' does not point at the reference doc')
 
     def test_actor_is_spelled_the_one_way(self):
-        text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        text = (ROOT / 'agents/artel-implementer.md').read_text(encoding='utf-8')
         self.assertIn('artel@<hostname>', text)
 
     def test_actor_hostname_is_a_command_not_a_guess(self):
@@ -138,7 +138,7 @@ class TestClaimLoop(unittest.TestCase):
         # beside `artel@<hostname>` in both documents. Handed the placeholder
         # alone, the implementer composed a name -- one ticket's queue carried
         # rows held by three machines, two of them fictitious (2026-09-02).
-        for rel in ('agents/implementer.md', QUEUE_DOC):
+        for rel in ('agents/artel-implementer.md', QUEUE_DOC):
             text = (ROOT / rel).read_text(encoding='utf-8')
             at = text.rfind('artel@<hostname>')
             self.assertNotEqual(at, -1, rel + ' lost the actor placeholder')
@@ -151,7 +151,7 @@ class TestClaimLoop(unittest.TestCase):
         # Scoped to Step 1's HITL sentence: `blocked` appears half a dozen times
         # in this file now, so an unscoped assertIn passed with the whole clause
         # deleted -- it pinned the word, not the rule.
-        text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        text = (ROOT / 'agents/artel-implementer.md').read_text(encoding='utf-8')
         step_one = text.split('### Step 1')[1].split('### Step 2')[0]
         sentence = step_one.split('If the task carries a `[HITL: …]` tag')[1]
         self.assertIn('do not implement', sentence)
@@ -159,7 +159,7 @@ class TestClaimLoop(unittest.TestCase):
         self.assertIn('HITL: <reason>', sentence)
 
     def test_fallback_path_is_still_described(self):
-        text = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        text = (ROOT / 'agents/artel-implementer.md').read_text(encoding='utf-8')
         self.assertIn('first incomplete `- [ ]`', text)
 
 
@@ -178,20 +178,20 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
         # The mirror invocation is `tasklist_tasks.py --tasklist`; the implementer
         # skill runs the same script in `route` mode, which is not a mirror step.
         carriers = {rel for rel in (
-            'skills/generate-tasklist/SKILL.md',
-            'skills/tasklist/SKILL.md',
-            'skills/feature-development/tail.md',
-            'skills/run-reviewer/SKILL.md',
-            'skills/deep-review/SKILL.md',
-            'skills/implementer/SKILL.md',
-            'agents/reviewer.md',
+            'skills/artel-generate-tasklist/SKILL.md',
+            'skills/artel-tasklist/SKILL.md',
+            'skills/artel-feature-development/tail.md',
+            'skills/artel-run-reviewer/SKILL.md',
+            'skills/artel-deep-review/SKILL.md',
+            'skills/artel-implementer/SKILL.md',
+            'agents/artel-reviewer.md',
         ) if 'tasklist_tasks.py --tasklist' in (ROOT / rel).read_text(encoding='utf-8')}
         self.assertEqual(carriers, {
-            'skills/generate-tasklist/SKILL.md',
-            'skills/tasklist/SKILL.md',
-            'skills/feature-development/tail.md',
-            'skills/run-reviewer/SKILL.md',
-            'skills/deep-review/SKILL.md',
+            'skills/artel-generate-tasklist/SKILL.md',
+            'skills/artel-tasklist/SKILL.md',
+            'skills/artel-feature-development/tail.md',
+            'skills/artel-run-reviewer/SKILL.md',
+            'skills/artel-deep-review/SKILL.md',
         })
 
     def test_autonomous_run_credits_the_tail_with_the_remirror(self):
@@ -201,7 +201,7 @@ class TestMirrorAttributionIsAccurate(unittest.TestCase):
         text = (ROOT / 'docs/autonomous-run.md').read_text(encoding='utf-8')
         bullet = text.split('**Task-queue mirror**')[1].split('\n- ')[0]
         self.assertIn("`feature-development`'s tail runs the parser", bullet)
-        tail = (ROOT / 'skills/feature-development/tail.md').read_text(encoding='utf-8')
+        tail = (ROOT / 'skills/artel-feature-development/tail.md').read_text(encoding='utf-8')
         self.assertIn('scripts/tasklist_tasks.py', tail,
                       'the bullet credits a re-mirror feature-development does not have')
 
@@ -221,7 +221,7 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
                      '## Final Verification')
 
     def setUp(self):
-        self.agent = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        self.agent = (ROOT / 'agents/artel-implementer.md').read_text(encoding='utf-8')
         self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
 
     def test_the_rule_is_scoped_to_iteration_work(self):
@@ -255,7 +255,7 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
         self.assertIn('never earn\na promotion repair', step_one)
 
     def test_the_skill_prompt_keeps_the_fix_row_current(self):
-        text = (ROOT / 'skills/implementer/SKILL.md').read_text(encoding='utf-8')
+        text = (ROOT / 'skills/artel-implementer/SKILL.md').read_text(encoding='utf-8')
         self.assertIn('`task_ready` never offers their rows', text)
         self.assertIn('`row not found; file only`', text)
         self.assertNotIn('those sections are never mirrored', text)
@@ -375,7 +375,7 @@ class TestReviewerGroupingsNeverBecomeTheSource(unittest.TestCase):
         self.assertIn(self.WHERE, source)
 
     def test_the_reviewer_states_it_in_both_writing_modes(self):
-        text = (ROOT / 'agents/reviewer.md').read_text(encoding='utf-8')
+        text = (ROOT / 'agents/artel-reviewer.md').read_text(encoding='utf-8')
         modes = {
             'ticket': text.split('## Ticket mode')[1].split('## Standalone mode')[0],
             'task': text.split('## Task mode')[1].split('## Review focus')[0],
@@ -392,10 +392,10 @@ class TestReviewerGroupingsNeverBecomeTheSource(unittest.TestCase):
 # batch with (§6). run-reviewer's headings are the reviewer agent's, pinned in
 # tests/test_per_task_review_docs.py.
 FIX_WRITERS = {
-    'skills/run-reviewer/SKILL.md': (),
-    'skills/deep-review/SKILL.md': ('### deep-review-<YYYY-MM-DD>',),
-    'skills/feature-development/tail.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
-    'skills/tasks/SKILL.md': ('### manual-<YYYY-MM-DD>',),
+    'skills/artel-run-reviewer/SKILL.md': (),
+    'skills/artel-deep-review/SKILL.md': ('### deep-review-<YYYY-MM-DD>',),
+    'skills/artel-feature-development/tail.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
+    'skills/artel-tasks/SKILL.md': ('### manual-<YYYY-MM-DD>',),
 }
 
 # The orchestrators' own record steps, scoped: dev and feature-development also
@@ -403,9 +403,9 @@ FIX_WRITERS = {
 # `data.sections` -- satisfies a whole-file assertIn with a record step deleted.
 # (file, start, end) -> phrases the step itself must carry.
 FIX_WRITER_STEPS = {
-    ('skills/feature-development/tail.md', '| 8 | `RUNTIME_OK` |', '\n'):
+    ('skills/artel-feature-development/tail.md', '| 8 | `RUNTIME_OK` |', '\n'):
         ('### runtime-r<n>', '### runtime-p<N>-r<n>', 'never on a `--local` run'),
-    ('skills/feature-development/tail.md', '3. **Quality gate (phase-end only).**',
+    ('skills/artel-feature-development/tail.md', '3. **Quality gate (phase-end only).**',
      '4. **Stage explicitly.**'):
         ('### checkpoint-r<k>', '### checkpoint-p<N>-r<k>'),
 }
@@ -447,7 +447,7 @@ class TestFixWritersRecordTheirAppend(unittest.TestCase):
         # Since 0.18.0 no writer emits `## Final Verification` (the gate is the
         # orchestrator's, docs/gates.md §1); the parser keeps the section so an older
         # tasklist still mirrors, and §6's table still names its row shape.
-        writer = (ROOT / 'agents/tasklist-writer.md').read_text(encoding='utf-8')
+        writer = (ROOT / 'agents/artel-tasklist-writer.md').read_text(encoding='utf-8')
         self.assertNotIn('`FV · tasklist · <checkbox text>`', writer)
         self.assertIn('### No `## Final Verification` section', writer)
         contract = (ROOT / 'docs/task-queue.md').read_text(encoding='utf-8')
@@ -473,7 +473,7 @@ class TestLongFixTitlesStayFindable(unittest.TestCase):
         self.assertIn('whitespace runs collapsed to one space', fix_block)
 
     def test_the_implementer_matches_the_capped_title(self):
-        step_one = (ROOT / 'agents/implementer.md').read_text(
+        step_one = (ROOT / 'agents/artel-implementer.md').read_text(
             encoding='utf-8').split('### Step 1')[1].split('### Step 2')[0]
         paragraph = step_one.split('On the queue path that task also has a row')[1].split(
             '**Fallback path.**')[0]
@@ -481,14 +481,14 @@ class TestLongFixTitlesStayFindable(unittest.TestCase):
         self.assertIn('whitespace runs collapsed to one space', paragraph)
 
     def test_done_flips_a_truncated_row_s_box_by_prefix(self):
-        text = (ROOT / 'skills/tasks/SKILL.md').read_text(encoding='utf-8')
+        text = (ROOT / 'skills/artel-tasks/SKILL.md').read_text(encoding='utf-8')
         done = text.split('### `done <task-id>`')[1].split('### `block')[0]
         self.assertIn('500 characters long', done)
         self.assertIn("starts with the title's third segment", done)
 
     def test_runtime_writers_put_a_one_line_summary_on_the_checkbox(self):
         runtime = {
-            'skills/feature-development/tail.md': ('| 8 | `RUNTIME_OK` |', '\n'),
+            'skills/artel-feature-development/tail.md': ('| 8 | `RUNTIME_OK` |', '\n'),
         }
         for rel, (start, end) in runtime.items():
             with self.subTest(rel):
@@ -508,24 +508,24 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
     """
 
     def test_the_dispatch_prompt_carries_the_task_queue_field(self):
-        text = (ROOT / 'skills/implementer/SKILL.md').read_text(encoding='utf-8')
+        text = (ROOT / 'skills/artel-implementer/SKILL.md').read_text(encoding='utf-8')
         self.assertIn('- **Task queue:** <"local-only (--local was passed)" | "enabled">',
                       text)
 
     def test_the_skill_accepts_the_flag_it_forwards(self):
         hints = [ln for ln in
-                 (ROOT / 'skills/implementer/SKILL.md').read_text(encoding='utf-8').splitlines()
+                 (ROOT / 'skills/artel-implementer/SKILL.md').read_text(encoding='utf-8').splitlines()
                  if ln.startswith('argument-hint:')]
         self.assertEqual(1, len(hints), 'exactly one argument-hint line')
         self.assertIn('--local', hints[0])
 
     def test_the_agent_reads_the_field_rather_than_a_flag(self):
-        step_one = (ROOT / 'agents/implementer.md').read_text(
+        step_one = (ROOT / 'agents/artel-implementer.md').read_text(
             encoding='utf-8').split('### Step 1')[1].split('### Step 2')[0]
         self.assertIn('A dispatch carrying **Task queue:**', step_one)
 
     def test_feature_development_passes_it_to_the_implementer_dispatch(self):
-        gate = (ROOT / 'skills/feature-development/tail.md').read_text(
+        gate = (ROOT / 'skills/artel-feature-development/tail.md').read_text(
             encoding='utf-8').split('| 5 | `IMPLEMENT_STEP_OK`')[1].split('\n')[0]
         self.assertIn('--local', gate)
         self.assertIn('**Task queue:**', gate)
@@ -534,16 +534,16 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
         # Only gate 5's main loop carried it, so every fix round -- review,
         # runtime, QA, checkpoint -- ran its implementer on the queue path, and
         # gate 4's tasklist mirrored rows on a run that asked for none.
-        text = (ROOT / 'skills/feature-development/SKILL.md').read_text(encoding='utf-8')
+        text = (ROOT / 'skills/artel-feature-development/SKILL.md').read_text(encoding='utf-8')
         flag = text.split('`--local`: skip')[1].split('## Workflow')[0]
         for skill in ('`analysis`', '`researcher`', '`tasklist`', '`run-reviewer`',
                       '`implementer`'):
             self.assertIn(skill, flag)
         self.assertIn('fix rounds included', flag)
-        head = (ROOT / 'skills/feature-development/heads/full.md').read_text(encoding='utf-8')
+        head = (ROOT / 'skills/artel-feature-development/heads/full.md').read_text(encoding='utf-8')
         gate4 = head.split('| 4 | `TASKLIST_READY`')[1].split('\n')[0]
         self.assertIn('`Skill: tasklist` with `$0`, plus `--local`', gate4)
-        tail = (ROOT / 'skills/feature-development/tail.md').read_text(encoding='utf-8')
+        tail = (ROOT / 'skills/artel-feature-development/tail.md').read_text(encoding='utf-8')
         gate7 = tail.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
         self.assertIn('`Skill: implementer` (fix tasks from `## Code Review Fixes`, plus'
                       ' `--local`', gate7)
@@ -555,7 +555,7 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
         self.assertIn('(plus `--local` on a run that holds it)', step)
 
     def test_the_tasklist_skill_takes_it_and_skips_the_mirror(self):
-        text = (ROOT / 'skills/tasklist/SKILL.md').read_text(encoding='utf-8')
+        text = (ROOT / 'skills/artel-tasklist/SKILL.md').read_text(encoding='utf-8')
         hints = [ln for ln in text.splitlines() if ln.startswith('argument-hint:')]
         self.assertEqual(1, len(hints), 'exactly one argument-hint line')
         self.assertIn('[--local]', hints[0])
@@ -577,7 +577,7 @@ class TestAbortedClaimIsReleased(unittest.TestCase):
 
     def setUp(self):
         self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
-        self.agent = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        self.agent = (ROOT / 'agents/artel-implementer.md').read_text(encoding='utf-8')
 
     def test_agent_sets_an_aborted_task_blocked(self):
         # Scoped to the abort paragraph on purpose. The pre-existing HITL guard
@@ -610,7 +610,7 @@ class TestCountClaimsAreNotStale(unittest.TestCase):
         self.assertIn('Three Python scripts', text)
 
     def test_generate_tasklist_counts_four_phases(self):
-        text = (ROOT / 'skills/generate-tasklist/SKILL.md').read_text(encoding='utf-8')
+        text = (ROOT / 'skills/artel-generate-tasklist/SKILL.md').read_text(encoding='utf-8')
         self.assertNotIn('Three-phase model', text)
         self.assertIn('Four-phase model', text)
 
@@ -628,13 +628,13 @@ class TestCountClaimsAreNotStale(unittest.TestCase):
 class TestEveryNonCompletionExitReleasesTheClaim(unittest.TestCase):
     """One uncovered exit wedges the queue exactly as the red-gate one did.
 
-    agents/implementer.md halts with a DEVIATION report from three places, not
+    agents/artel-implementer.md halts with a DEVIATION report from three places, not
     one, and deviation-protocol.md's Abort task outcome returns control with no
     queue update at all.
     """
 
     def setUp(self):
-        self.agent = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        self.agent = (ROOT / 'agents/artel-implementer.md').read_text(encoding='utf-8')
         self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
 
     def test_rules_carry_the_release_as_a_standing_rule(self):
@@ -696,7 +696,7 @@ class TestSectionParentsClose(unittest.TestCase):
         self.assertIn('task_update(parent_id, status="done")', protocol)
 
     def test_the_implementer_closes_the_parent_on_the_last_child(self):
-        agent = (ROOT / 'agents/implementer.md').read_text(encoding='utf-8')
+        agent = (ROOT / 'agents/artel-implementer.md').read_text(encoding='utf-8')
         step_one = agent.split('### Step 1')[1].split('### Step 2')[0]
         self.assertIn('task_update(parent_id, status="done")', step_one)
         step_five = agent.split('### Step 5')[1].split('### Step 6')[0]
@@ -704,7 +704,7 @@ class TestSectionParentsClose(unittest.TestCase):
 
     def test_tasks_done_closes_the_parent_but_never_promotes(self):
         # Review Focus 5: a fix row's parent closes; an iteration row's promotion stays the loop's.
-        skill = (ROOT / 'skills/tasks/SKILL.md').read_text(encoding='utf-8')
+        skill = (ROOT / 'skills/artel-tasks/SKILL.md').read_text(encoding='utf-8')
         done = skill.split('### `done <task-id>`')[1].split('### `block')[0]
         self.assertIn('task_update(parent_id, status="done")', done)
         self.assertIn('Do **not** promote the iteration', done)
@@ -719,7 +719,7 @@ class TestSectionParentsClose(unittest.TestCase):
     def test_the_fv_row_is_marked_legacy_and_the_writers_no_longer_promise_it(self):
         contract = (ROOT / 'docs/task-queue.md').read_text(encoding='utf-8')
         self.assertIn('before 0.18.0', contract.split('| `## Final Verification` |')[1].split('\n')[0])
-        for rel in ('skills/tasklist/SKILL.md', 'skills/generate-tasklist/SKILL.md'):
+        for rel in ('skills/artel-tasklist/SKILL.md', 'skills/artel-generate-tasklist/SKILL.md'):
             with self.subTest(rel):
                 text = (ROOT / rel).read_text(encoding='utf-8')
                 self.assertNotIn('at generation time that is the `## Final Verification` section', text)

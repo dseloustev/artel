@@ -81,23 +81,23 @@ class TestGates(unittest.TestCase):
                 self.assertNotIn("grep -m1 'Status:'", path.read_text(encoding='utf-8'))
 
     def test_the_gates_read_status_through_the_verb(self):
-        for rel in ('skills/feature-development/SKILL.md', 'skills/figma-analysis/SKILL.md'):
+        for rel in ('skills/artel-feature-development/SKILL.md', 'skills/artel-figma-analysis/SKILL.md'):
             with self.subTest(rel):
                 self.assertIn('spec_store.py status', read(rel))
 
     def test_no_gate_names_a_capitalised_status_line(self):
-        for rel in ('skills/feature-development/SKILL.md', 'skills/figma-analysis/SKILL.md',
-                    'agents/validator.md', 'docs/autonomous-run.md'):
+        for rel in ('skills/artel-feature-development/SKILL.md', 'skills/artel-figma-analysis/SKILL.md',
+                    'agents/artel-validator.md', 'docs/autonomous-run.md'):
             with self.subTest(rel):
                 self.assertIsNone(re.search(r'`Status: [A-Z_]+`', read(rel)))
 
 
 GATE_WRITERS = {
-    'agents/analyst.md': 'type: prd', 'skills/analysis/SKILL.md': 'status: PRD_READY',
-    'agents/vision-writer.md': 'type: vision', 'skills/generate-vision/SKILL.md': 'VISION_READY',
-    'agents/planner.md': 'type: plan', 'skills/planner/SKILL.md': 'status: PLAN_APPROVED',
-    'agents/task-planner.md': 'type: tasklist', 'skills/tasklist/SKILL.md': 'status: TASKLIST_READY',
-    'agents/figma-analyst.md': 'status:', 'skills/figma-analysis/SKILL.md': 'status: DESIGN_ANALYZED',
+    'agents/artel-analyst.md': 'type: prd', 'skills/artel-analysis/SKILL.md': 'status: PRD_READY',
+    'agents/artel-vision-writer.md': 'type: vision', 'skills/artel-generate-vision/SKILL.md': 'VISION_READY',
+    'agents/artel-planner.md': 'type: plan', 'skills/artel-planner/SKILL.md': 'status: PLAN_APPROVED',
+    'agents/artel-task-planner.md': 'type: tasklist', 'skills/artel-tasklist/SKILL.md': 'status: TASKLIST_READY',
+    'agents/artel-figma-analyst.md': 'status:', 'skills/artel-figma-analysis/SKILL.md': 'status: DESIGN_ANALYZED',
 }
 
 
@@ -111,29 +111,29 @@ class TestGateWriters(unittest.TestCase):
                 self.assertIsNone(re.search(r'`Status: [A-Z_]+`', text))
 
     def test_the_inputs_lines_cite_by_reference(self):
-        for rel in ('agents/analyst.md', 'agents/planner.md', 'agents/task-planner.md',
-                    'agents/vision-writer.md'):
+        for rel in ('agents/artel-analyst.md', 'agents/artel-planner.md', 'agents/artel-task-planner.md',
+                    'agents/artel-vision-writer.md'):
             with self.subTest(rel):
                 self.assertIn('spec-storage.md` §3.1', read(rel))
-        self.assertNotIn('pointing at `./idea.md`', read('agents/vision-writer.md'))
+        self.assertNotIn('pointing at `./idea.md`', read('agents/artel-vision-writer.md'))
 
     def test_the_design_analysis_template_opens_with_the_header(self):
-        template = read('skills/figma-analysis/assets/templates/design-analysis.template.md')
+        template = read('skills/artel-figma-analysis/assets/templates/design-analysis.template.md')
         self.assertTrue(template.startswith('---\ntype: design-analysis\nticket: $TICKET_ID\n'))
         self.assertNotIn('- **Status:**', template)
 
     def test_the_vision_names_sensitive_categories_not_the_policy_path(self):
-        self.assertIn('never the policy file', read('agents/vision-writer.md'))
+        self.assertIn('never the policy file', read('agents/artel-vision-writer.md'))
 
 
 OTHER_WRITERS = {
-    'skills/generate-idea/SKILL.md': '$VERSION', 'agents/researcher.md': 'type: research',
-    'agents/reviewer.md': 'type: review',
-    'agents/qa.md': 'type: qa', 'agents/tech-writer.md': 'type: summary',
-    'skills/pr-description/SKILL.md': 'type: pr-description',
+    'skills/artel-generate-idea/SKILL.md': '$VERSION', 'agents/artel-researcher.md': 'type: research',
+    'agents/artel-reviewer.md': 'type: review',
+    'agents/artel-qa.md': 'type: qa', 'agents/artel-tech-writer.md': 'type: summary',
+    'skills/artel-pr-description/SKILL.md': 'type: pr-description',
     'docs/deviation-protocol.md': 'type: implementation-notes',
-    'skills/sync-phases/SKILL.md': 'type: tasklist', 'skills/deep-review/SKILL.md': 'type: tasklist',
-    'agents/tasklist-writer.md': 'type: tasklist',
+    'skills/artel-sync-phases/SKILL.md': 'type: tasklist', 'skills/artel-deep-review/SKILL.md': 'type: tasklist',
+    'agents/artel-tasklist-writer.md': 'type: tasklist',
 }
 
 
@@ -147,28 +147,28 @@ class TestOtherWriters(unittest.TestCase):
                 self.assertIn(field, text)
 
     def test_the_reviewer_names_the_deep_review_type(self):
-        text = read('agents/reviewer.md')
+        text = read('agents/artel-reviewer.md')
         self.assertIn('spec-storage.md` §3.2', text)
         self.assertIn('type: deep-review', text)
 
     def test_the_idea_template_opens_with_the_header(self):
-        self.assertTrue(read('skills/generate-idea/assets/templates/idea.template.md')
+        self.assertTrue(read('skills/artel-generate-idea/assets/templates/idea.template.md')
                         .startswith('---\ntype: idea\nticket: $TICKET_ID\nversion: $VERSION\n'))
 
     def test_patches_name_the_version_bump(self):
-        for rel in ('agents/implementer.md', 'skills/sync-phases/SKILL.md'):
+        for rel in ('agents/artel-implementer.md', 'skills/artel-sync-phases/SKILL.md'):
             with self.subTest(rel):
                 self.assertIn('version bump', read(rel))
 
     def test_the_tasklist_template_cites_the_vision_by_reference(self):
-        text = read('agents/tasklist-writer.md')
+        text = read('agents/artel-tasklist-writer.md')
         self.assertNotIn('[vision.md](./vision.md)', text)
         self.assertIn('workspace:<TICKET_ID>/vision/vision.md', text)
 
 
 class TestWhatLeaves(unittest.TestCase):
     def test_every_posting_path_drops_the_header(self):
-        text = read('skills/pr-create/SKILL.md')
+        text = read('skills/artel-pr-create/SKILL.md')
         files = 'spec_store.py body < <specs.dir>/<TICKET_ID>/pr-description.md) && printf'
         store = ('pr-description.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py body) '
                  '&& printf')
@@ -177,7 +177,7 @@ class TestWhatLeaves(unittest.TestCase):
         self.assertNotIn('--body-file <specs.dir>/<TICKET_ID>/pr-description.md', text)
 
     def test_the_pr_description_cites_no_trail_document(self):
-        text = flat(read('skills/pr-description/SKILL.md'))
+        text = flat(read('skills/artel-pr-description/SKILL.md'))
         self.assertIn('no `workspace:` reference and no spec-trail path', text)
 
 
@@ -212,9 +212,9 @@ class TestReleaseDocs(unittest.TestCase):
             self.assertIn(phrase, text)
 
 
-HEADER_TEMPLATES = ('skills/generate-idea/assets/templates/idea.template.md',
-                    'skills/figma-analysis/assets/templates/design-analysis.template.md',
-                    'skills/sync-phases/SKILL.md', 'agents/tasklist-writer.md',
+HEADER_TEMPLATES = ('skills/artel-generate-idea/assets/templates/idea.template.md',
+                    'skills/artel-figma-analysis/assets/templates/design-analysis.template.md',
+                    'skills/artel-sync-phases/SKILL.md', 'agents/artel-tasklist-writer.md',
                     STORAGE)
 
 
@@ -225,7 +225,7 @@ class TestFinalReviewFixes(unittest.TestCase):
         self.assertIn("with its header's `version:` set to that same base",
                       flat(section(read(STORAGE), '### 5.2 Mid-run')))
         self.assertIn("with its header's `version:` set to `<N>`",
-                      flat(read('skills/feature-development/SKILL.md')))
+                      flat(read('skills/artel-feature-development/SKILL.md')))
 
     def test_titles_and_summaries_are_double_quoted(self):
         self.assertIn('`title` and `summary` are double-quoted',
@@ -245,12 +245,12 @@ class TestFinalReviewFixes(unittest.TestCase):
         text = flat(read('docs/deviation-protocol.md'))
         self.assertIn('On the kartoteka path every append is a patch that bumps its version line',
                       text)
-        for rel in ('agents/tasklist-writer.md', 'docs/deviation-protocol.md'):
+        for rel in ('agents/artel-tasklist-writer.md', 'docs/deviation-protocol.md'):
             with self.subTest(rel):
                 self.assertNotIn('version: <per spec-storage.md §4.1>', read(rel))
 
     def test_the_skill_answers_keep_merged_with_merged_against(self):
-        skill = read('skills/migrate-specs/SKILL.md')
+        skill = read('skills/artel-migrate-specs/SKILL.md')
         self.assertIn('keep-merged@<merged_against>', skill)
         self.assertIn('keep-local@<newest_version>', skill)
 

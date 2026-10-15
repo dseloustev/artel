@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
 import build_opencode  # noqa: E402
 
-FD = 'skills/feature-development/'
+FD = 'skills/artel-feature-development/'
 
 
 def raw(path):
@@ -36,7 +36,7 @@ class TestSeatDocs(unittest.TestCase):
             self.assertIn(phrase, step)
 
     def test_the_seat_body(self):
-        body = flat('agents/seat.md')
+        body = flat('agents/artel-seat.md')
         for phrase in ('model: sonnet', 'never prompt the person directly',
                        'pause-request.json', 'PAUSED: <reason>', 'STOPPED: <reason>',
                        'auto-resolved', 'SendMessage'):
@@ -66,7 +66,7 @@ class TestSeatDocs(unittest.TestCase):
         self.assertIn('`seat`', between(doc, '## Models', '## Why this file'))
 
     def test_the_generator_excludes_the_seat(self):
-        self.assertIn('seat', build_opencode.AGENTS_EXCLUDE)
+        self.assertIn('artel-seat', build_opencode.AGENTS_EXCLUDE)
 
 
 if __name__ == '__main__':

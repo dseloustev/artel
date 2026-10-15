@@ -14,8 +14,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-ADD = 'skills/add-automation/SKILL.md'
-REMOVE = 'skills/remove-automation/SKILL.md'
+ADD = 'skills/artel-add-automation/SKILL.md'
+REMOVE = 'skills/artel-remove-automation/SKILL.md'
 
 
 def read(rel):

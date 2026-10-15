@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
 import build_opencode  # noqa: E402
 
-FD = 'skills/feature-development/'
+FD = 'skills/artel-feature-development/'
 
 
 def raw(path):
@@ -134,7 +134,7 @@ class TestTheImplementerNeverCommits(unittest.TestCase):
     """Spec §4.2: the invariant lives in the agent body, not only in prose around it."""
 
     def test_the_agent_says_so(self):
-        text = flat('agents/implementer.md')
+        text = flat('agents/artel-implementer.md')
         self.assertIn('never commit, never stage and never push', text)
         self.assertIn('the orchestrator commits your cycle', text)
 
@@ -224,8 +224,8 @@ class TestTheReviewFindings(unittest.TestCase):
     def test_the_non_goals_hold(self):
         # Finding 5's missing guards: no hook, and the à la carte skills unchanged.
         self.assertNotIn('task-commit', raw('hooks/hooks.json'))
-        self.assertIn('Never commits, pushes or opens a PR', flat('skills/debugging/SKILL.md'))
-        self.assertNotIn('git commit', flat('skills/implementer/SKILL.md'))
+        self.assertIn('Never commits, pushes or opens a PR', flat('skills/artel-debugging/SKILL.md'))
+        self.assertNotIn('git commit', flat('skills/artel-implementer/SKILL.md'))
 
 
 class TestNoNinthCompletionFact(unittest.TestCase):

@@ -11,7 +11,8 @@ NEW_SKILLS = ('move-to-worktree', 'return-from-worktree')
 
 
 def body(name):
-    return (SKILLS / name / 'SKILL.md').read_text(encoding='utf-8')
+    """The skill's SKILL.md — `name` is the route name; its folder carries the `artel-` prefix."""
+    return (SKILLS / ('artel-' + name) / 'SKILL.md').read_text(encoding='utf-8')
 
 
 def read(rel):
@@ -21,7 +22,8 @@ def read(rel):
 class WorktreeSkillsCase(unittest.TestCase):
     def test_frontmatter_names_each_skill(self):
         for name in NEW_SKILLS:
-            self.assertTrue(body(name).startswith('---\nname: {}\n'.format(name)), name)
+            self.assertTrue(
+                body(name).startswith('---\nname: artel-{}\n'.format(name)), name)
 
     def test_both_are_user_invoked_only(self):
         # They move the session and change two checkouts: never auto-triggered.

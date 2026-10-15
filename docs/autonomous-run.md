@@ -215,7 +215,7 @@ The option runs the `debugging` skill on the red evidence while `pause_reason` s
 adds the files to `deviation_files` (§2) and re-runs the gate that was red; green resets that
 loop's counter as a resume with guidance does. Red again → the question is asked again without
 the option: `MAX_DEBUG_HERE_ATTEMPTS = 1`, one attempt per halt. The procedure is in the
-`feature-development` skill (`../skills/feature-development/tail.md`, `## Debug it here first`).
+`feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Debug it here first`).
 
 **Step-up rounds.** A fix round that follows a failed one runs one tier up, on `fable`: the
 review loop's fix round whose findings come from a `review.md` with `**Review round:**` 2 or
@@ -254,7 +254,7 @@ open `## Code Review Fixes` box), `RUNTIME_OK` (green or skipped, newer than the
 `DOCS_UPDATED` (`summary.md` exists — written on the last phase before its checkpoint, so that
 checkpoint commit carries the docs; `skipped (no PRD)` when the ticket has no PRD, because the
 docs stage runs only with one) and `AUTOMATION_REMOVED`; the table is in the
-`feature-development` skill (`../skills/feature-development/tail.md`, `## Completion gate`). A
+`feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Completion gate`). A
 fact that reads `skipped` is green. Those readings are keyed on what exists for the ticket,
 never on the head that ran. No
 agent is dispatched: `/artel:validate` is à la carte. The final report always includes the
@@ -422,7 +422,7 @@ stopping the run) commits the in-flight cycle as
 are orchestrator-owned and pre-authorized the same way, are journaled as external actions, and
 **never push on their own**: they reach `origin` at the next phase-end checkpoint, or at
 `pr-create`'s close-out. The trigger table, the subject rules and the staging discipline are in the
-`feature-development` skill (`../skills/feature-development/tail.md`, `## Task commits`).
+`feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Task commits`).
 
 **A push follows a build gate, never precedes it.** The checkpoint procedure's step 6 pushes only
 when step 3's verdict was green or `skipped` — a red gate runs its capped fix rounds instead, and a
@@ -435,7 +435,7 @@ follows the completion gate's final verify pass.
 
 The full procedure (branch guard, the image sweep, idempotence, the verify
 gate, explicit staging, push, journal) and the commit-subject table are defined in the `feature-development`
-skill (`../skills/feature-development/tail.md`, `## Checkpoint commits & pushes`). On the
+skill (`../skills/artel-feature-development/tail.md`, `## Checkpoint commits & pushes`). On the
 kartoteka path the planning checkpoint stages the same paths, and when, images
 aside, only `.active_ticket` changed it skips the commit and journals
 `planning checkpoint: skipped — the spec trail is in kartoteka`. On the kartoteka path every
@@ -621,7 +621,7 @@ passes it on the `subagent` call; unset → no model.
 (gate 0) it sizes the work, records the size, says it aloud with its reasons and runs the head
 that fits — never a pause, and no agent is dispatched: sizing is the orchestrator's own
 procedure, like the mode classifier (§10). The orchestrator acts from its skill, so the rules
-are stated in full there (`../skills/feature-development/SKILL.md`, step 3); this section is
+are stated in full there (`../skills/artel-feature-development/SKILL.md`, step 3); this section is
 their contract.
 
 ### 17.1 The four sizes
@@ -633,7 +633,7 @@ their contract.
 | `bounded` | `lean` — `heads/lean.md` | it changes a flow that already exists in the repo, in one area, with acceptance that can be stated in a few lines and no open product question |
 | `architectural` | `full` — `heads/full.md` | a new flow, screen or subsystem; an interface other code depends on; a data-model change or migration; a Figma design to analyse; work that needs several phases; or acceptance that is unclear |
 
-The head files sit beside the skill, in `../skills/feature-development/`. The full head runs
+The head files sit beside the skill, in `../skills/artel-feature-development/`. The full head runs
 gates 0.5–4.5 with the plan review and ends in the plan+tasklist pause. The lean head takes an
 existing tasklist with open tasks as the work list, or has `generate-tasklist` write one, and
 confirms it once. The bug head has the `debugging` skill diagnose first (`diagnosis.md`) and
@@ -731,7 +731,7 @@ and stops, without a second dispatch.
 
 With `seat.enabled: true` (config.md) — Claude Code only, never in a `--step` or `--dry-run` run — the
 post-approval loop runs one layer down: step 6 of `feature-development` dispatches the `seat`
-agent (frontmatter `sonnet`) whose procedure is `skills/feature-development/tail.md` unchanged.
+agent (frontmatter `sonnet`) whose procedure is `skills/artel-feature-development/tail.md` unchanged.
 The interview, the approval pause and arming stay on the main thread. OpenCode runs the tail
 inline (no seat dispatch). One dispatch per run; a resume dispatches a fresh seat.
 

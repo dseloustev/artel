@@ -28,10 +28,10 @@ def between(text, start, end=None):
 
 class TestImplementerSkill(unittest.TestCase):
     def setUp(self):
-        self.skill = flat(read('skills/implementer/SKILL.md'))
+        self.skill = flat(read('skills/artel-implementer/SKILL.md'))
 
     def test_the_model_flag(self):
-        self.assertIn('[--model sonnet|opus|fable]', frontmatter('skills/implementer/SKILL.md'))
+        self.assertIn('[--model sonnet|opus|fable]', frontmatter('skills/artel-implementer/SKILL.md'))
         for phrase in ('`--model <sonnet|opus|fable>`: dispatch the agent on this model instead '
                        'of its frontmatter `opus`',
                        'Any other value is an invocation error',
@@ -61,8 +61,8 @@ class TestImplementerSkill(unittest.TestCase):
                       '`opus` on `full`', ref)
 
 
-FD = 'skills/feature-development/SKILL.md'
-TAIL = 'skills/feature-development/tail.md'
+FD = 'skills/artel-feature-development/SKILL.md'
+TAIL = 'skills/artel-feature-development/tail.md'
 
 
 class TestOrchestrators(unittest.TestCase):
@@ -98,7 +98,7 @@ class TestOrchestrators(unittest.TestCase):
 
 class TestReviewerSide(unittest.TestCase):
     def test_deep_review_runs_its_reviewer_on_fable(self):
-        text = flat(read('skills/deep-review/SKILL.md'))
+        text = flat(read('skills/artel-deep-review/SKILL.md'))
         step3 = between(text, '## Step 3:', '## Step 4:')
         self.assertIn('- `model`: `"fable"`', step3)
         self.assertIn('re-dispatch once with the same prompt and model', step3)
@@ -145,12 +145,12 @@ class TestPinnedDefaults(unittest.TestCase):
     """The step-up rule and the `## Models` table rest on these defaults."""
 
     def test_the_implementer_and_the_reviewer_default_to_opus(self):
-        for rel in ('agents/implementer.md', 'agents/reviewer.md'):
+        for rel in ('agents/artel-implementer.md', 'agents/artel-reviewer.md'):
             self.assertRegex(frontmatter(rel), r'(?m)^model: opus$')
 
     def test_run_reviewer_takes_a_model_flag(self):
-        body = read('skills/run-reviewer/SKILL.md')
-        self.assertIn('[--model sonnet|opus|fable]', frontmatter('skills/run-reviewer/SKILL.md'))
+        body = read('skills/artel-run-reviewer/SKILL.md')
+        self.assertIn('[--model sonnet|opus|fable]', frontmatter('skills/artel-run-reviewer/SKILL.md'))
         for phrase in ('`--model <sonnet|opus|fable>`', 'is re-dispatched once without it',
                        '`model` set to the `--model` value'):
             self.assertIn(phrase, flat(body))

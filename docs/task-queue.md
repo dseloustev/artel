@@ -3,11 +3,11 @@
 How artel's execution agents take work from the host project's kartoteka task
 queue, and what they do when it is not there.
 
-Referenced by `agents/implementer.md`, `skills/implementer/SKILL.md`,
-`skills/generate-tasklist/SKILL.md`, `skills/tasklist/SKILL.md`,
-`skills/feature-development/SKILL.md` with its head files and `tail.md`,
-`skills/run-reviewer/SKILL.md`, `skills/deep-review/SKILL.md` and
-`skills/tasks/SKILL.md`. Spelled here
+Referenced by `agents/artel-implementer.md`, `skills/artel-implementer/SKILL.md`,
+`skills/artel-generate-tasklist/SKILL.md`, `skills/artel-tasklist/SKILL.md`,
+`skills/artel-feature-development/SKILL.md` with its head files and `tail.md`,
+`skills/artel-run-reviewer/SKILL.md`, `skills/artel-deep-review/SKILL.md` and
+`skills/artel-tasks/SKILL.md`. Spelled here
 once because they need identical rules and two copies drifting apart hands the
 same task to two agents.
 
@@ -49,12 +49,12 @@ is considered, exactly as in `docs/knowledge-consultation.md` §1.
 **Where `--local` is available.** The flag exists on the orchestrators that carry
 it — `feature-development`, `analysis`, `researcher`, `deep-review` — and on the
 skills that write or keep rows on an orchestrator's behalf: `tasklist`, `generate-tasklist` and
-`run-reviewer`, and `skills/implementer/SKILL.md`, which receives it from its caller
+`run-reviewer`, and `skills/artel-implementer/SKILL.md`, which receives it from its caller
 rather than from the user. `feature-development` takes it on every head. An
 orchestrator holding the flag passes it to each of those it invokes — to the
 implementer skill on every dispatch, fix rounds included — and the implementer skill sets
 the **Task queue:** field of the agent's dispatch to
-`local-only (--local was passed)`; `agents/implementer.md` reads that field rather
+`local-only (--local was passed)`; `agents/artel-implementer.md` reads that field rather
 than parsing a flag of its own. Without the flag, rows 2-4 alone decide.
 
 **One precondition is resolved before the table, not in it.** With the adapter
@@ -229,7 +229,7 @@ If `task_ready` hands it one from another phase, return that task with
 `task_update(task_id, status="ready")` — which clears the holder — and report
 that the queue offered work from another phase, most often an earlier one this
 run is not authorised to finish, rather than crossing the boundary
-`agents/implementer.md`'s `## Phase support` rule forbids.
+`agents/artel-implementer.md`'s `## Phase support` rule forbids.
 
 **A wrong-phase claim is the one exception to releasing a held task `blocked`.**
 Every other exit that is not a completion goes to `blocked`, because the task

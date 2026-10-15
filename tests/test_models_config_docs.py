@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 CONFIG = 'docs/config.md'
-SETUP = 'skills/setup/SKILL.md'
+SETUP = 'skills/artel-setup/SKILL.md'
 SECTION = '### `models` — the OpenCode dispatch models'
 
 

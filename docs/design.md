@@ -180,7 +180,7 @@ move to the decision log.
   name, the whole-tree review snapshot, every task patching one tasklist, the shared
   `implementation-notes.md`, and whole-tree codegen.
 - **Follow-up work on a finished ticket.** A lean run on a ticket whose work list has no open
-  task stops before arming and says so (0.25.0, `skills/feature-development/heads/lean.md`):
+  task stops before arming and says so (0.25.0, `skills/artel-feature-development/heads/lean.md`):
   `generate-tasklist` skips a tasklist that exists, and before the merge such a request was
   either dropped or improvised around — a host run of 2026-09-28 appended tasks to a finished
   tasklist by hand. A follow-up mode, in which the writer appends one iteration from the
@@ -264,11 +264,11 @@ move to the decision log.
   blocks MCP tools and ToolSearch. Skills keep `model:` and `argument-hint:` — those are portable
   and don't name adapter-specific tools.
 - **2026-08-01 — Introduced `specs.releases` config key (default `"specs/releases"`).**
-  `agents/qa.md` and `agents/validator.md` kept a `specs/releases/<RELEASE_ID>` literal, each with
+  `agents/artel-qa.md` and `agents/artel-validator.md` kept a `specs/releases/<RELEASE_ID>` literal, each with
   a caveat noting config.md had no dedicated key for it yet. Per the genericization strategy
   ("everything project-specific becomes configuration"), added `specs.releases` to config.md's
   `specs` section — repo-relative, sibling to `specs.dir` rather than nested inside it, since a
-  release spans multiple tickets. `agents/qa.md`, `agents/validator.md`, and the ported
+  release spans multiple tickets. `agents/artel-qa.md`, `agents/artel-validator.md`, and the ported
   `skills/qa` / `skills/validate` bodies now reference `<specs.releases>` instead of the literal.
   Where a project keeps its release-scope QA/validation artifacts is project-specific state, not
   workflow-structural, so it belongs in configuration alongside `specs.dir`, not hardcoded.
@@ -289,9 +289,9 @@ move to the decision log.
   isn't obvious from tests alone, the agent could launch the app to look. The Phase-3 implementer
   port (Task 3) dropped it — Dart/Flutter-specific launcher mechanics, no generic launcher to
   point at yet. Now that `run-app` exists with a config-driven `runtime.run`, restored as one
-  sentence in `skills/implementer/SKILL.md`'s Phase-1 dispatch prompt: "you may launch via the
+  sentence in `skills/artel-implementer/SKILL.md`'s Phase-1 dispatch prompt: "you may launch via the
   `/artel:run-app` skill flow to observe it; this is not the RUNTIME_OK gate." Not duplicated into
-  `agents/implementer.md` — source only ever carried the hint in the skill's dispatch prompt, and
+  `agents/artel-implementer.md` — source only ever carried the hint in the skill's dispatch prompt, and
   the agent already receives it whenever the skill invokes it; adding a second copy in the agent
   body would only risk drift between the two without adding capability.
 - **2026-08-01 — Context store lives at `.artel/context/` (Task 7: `save-context`/
@@ -1287,7 +1287,7 @@ move to the decision log.
 - **2026-10-13 — Every completed cycle leaves a commit, and a push still follows a build gate.**
   A phase's work was unprotected for its whole duration: nothing was committed until the phase-end
   checkpoint, so an accidental edit or a clobbering fix round could destroy reviewed, verified work
-  with nothing to recover from — and `agents/implementer.md` never said it did not commit, leaving
+  with nothing to recover from — and `agents/artel-implementer.md` never said it did not commit, leaving
   the rule only in prose around it. The tail gains `## Task commits`: one commit per completed
   implementer cycle (an iteration task, or a fix task from a review/runtime/verify round — one per
   dispatch), orchestrator-owned
@@ -1309,7 +1309,7 @@ move to the decision log.
   passed no model, so it inherited the caller's — often the most expensive one — while the
   implementer and reviewer dispatches resolved their sites. `models.opencode.pr-description`
   closes that: a fixed site in `scripts/models.py`, a canonical model passage in
-  `skills/pr-description/SKILL.md` with its build transform, a config.md row and
+  `skills/artel-pr-description/SKILL.md` with its build transform, a config.md row and
   filled-example entry, and the setup interview's Round 6 list. Claude Code is unchanged — the
   dispatch stays on `tech-writer`'s frontmatter `opus`. A dedicated site rather than wiring the
   generic `agents.tech-writer` key, because `docs-update` dispatches the same agent and the two

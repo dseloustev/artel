@@ -28,12 +28,12 @@ LIVE_FILES = tuple(sorted(
 CONFIG = 'docs/config.md'
 CONSULTATION = 'docs/knowledge-consultation.md'
 QUEUE = 'docs/task-queue.md'
-SETUP = 'skills/setup/SKILL.md'
+SETUP = 'skills/artel-setup/SKILL.md'
 HOOKS_README = 'hooks/README.md'
 OPENCODE = 'docs/opencode.md'
 REQUIREMENTS = 'docs/kartoteka-requirements.md'
-KNOWLEDGE_SKILL = 'skills/knowledge/SKILL.md'
-TASKS_SKILL = 'skills/tasks/SKILL.md'
+KNOWLEDGE_SKILL = 'skills/artel-knowledge/SKILL.md'
+TASKS_SKILL = 'skills/artel-tasks/SKILL.md'
 
 # The one record line for "adapter on, project missing", inherited byte for
 # byte by the reading contracts, the same way the tools-absent reason is.

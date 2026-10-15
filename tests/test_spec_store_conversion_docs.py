@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # never reaches them: `issue-scout` reads none, the `seat`'s store contract lives in
 # its procedure, `tail.md`, not in an agent section, and `collaborative-reviewer` is
 # the standalone GitHub utility's worker. Guarded for the absence, not the presence.
-OUTSIDE_TRAIL = ('issue-scout', 'seat', 'collaborative-reviewer')
+OUTSIDE_TRAIL = ('artel-issue-scout', 'artel-seat', 'artel-collaborative-reviewer')
 AGENTS = sorted(p.stem for p in (ROOT / 'agents').glob('*.md') if p.stem not in OUTSIDE_TRAIL)
 DISPATCHERS = ('analysis', 'researcher', 'planner', 'tasklist', 'generate-tasklist',
                'generate-vision', 'implementer', 'run-reviewer', 'qa', 'validate',
@@ -31,7 +31,8 @@ def read(rel):
 
 
 def skill(name):
-    return read('skills/{}/SKILL.md'.format(name))
+    """The skill's SKILL.md — `name` is the route name; its folder carries the `artel-` prefix."""
+    return read('skills/artel-{}/SKILL.md'.format(name))
 
 
 class TestAgents(unittest.TestCase):
@@ -51,18 +52,18 @@ class TestAgents(unittest.TestCase):
                 self.assertIn('spec_store.py decision <TICKET_ID>', text)
 
     def test_the_implementer_ticks_with_one_patch(self):
-        text = read('agents/implementer.md')
+        text = read('agents/artel-implementer.md')
         self.assertIn('artifact_patch', text)
         self.assertIn('§4.3', text)
 
     def test_the_reviewer_knows_the_reset_and_the_batch_patch(self):
-        text = read('agents/reviewer.md')
+        text = read('agents/artel-reviewer.md')
         self.assertIn('§4.4', text)
         self.assertIn('§4.3', text)
         self.assertIn('review-claude.md', text)
 
     def test_qa_finds_previous_reports_in_the_store(self):
-        self.assertIn('artifact_list(project=<project>)', read('agents/qa.md'))
+        self.assertIn('artifact_list(project=<project>)', read('agents/artel-qa.md'))
 
 
 class TestDispatchers(unittest.TestCase):
@@ -149,7 +150,7 @@ class TestOrchestrators(unittest.TestCase):
                 self.assertIn('spec_store.py pending add', text)
                 self.assertIn('only `.active_ticket` changed', text)
         # The review-round reset (§4.4) is the tail's since 0.25.0.
-        self.assertIn('§4.4', read('skills/feature-development/tail.md'))
+        self.assertIn('§4.4', read('skills/artel-feature-development/tail.md'))
 
     def test_feature_development_passes_local_to_decide(self):
         self.assertIn('--decided-by feature-development` (plus `--local`',

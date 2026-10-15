@@ -33,8 +33,8 @@ CAP = 'MAX_TASK_REVIEW_ROUNDS = 1'
 
 # The implementation loop (gate 5) is feature-development's tail.md since 0.25.0.
 # One orchestrator since 0.25.0, so one file.
-ORCHESTRATORS = ('skills/feature-development/tail.md',)
-WORKER_AGENTS = ('agents/implementer.md', 'agents/reviewer.md')
+ORCHESTRATORS = ('skills/artel-feature-development/tail.md',)
+WORKER_AGENTS = ('agents/artel-implementer.md', 'agents/artel-reviewer.md')
 
 
 def read(rel):
@@ -67,7 +67,7 @@ class TestConfigKey(unittest.TestCase):
         self.assertIn('"review": {\n    "perTask": true\n  }', example)
 
     def test_setup_interview_offers_and_validates_the_key(self):
-        text = read('skills/setup/SKILL.md')
+        text = read('skills/artel-setup/SKILL.md')
         self.assertIn('`review.perTask`', section(text, '## 2. Interview'))
         self.assertIn('`review.perTask`', section(text, '## 3. Validate'))
 
@@ -109,14 +109,14 @@ class TestGateContract(unittest.TestCase):
         self.assertIn("add_parser('diff'", text)
 
     def test_run_reviewer_has_the_task_flags_and_no_fallback(self):
-        text = read('skills/run-reviewer/SKILL.md')
+        text = read('skills/artel-run-reviewer/SKILL.md')
         for flag in ('--task', '--report', '--package'):
             self.assertIn(flag, text)
         self.assertIn('Mode: task', text)
         self.assertIn('never fall back to the\nticket review', text)
 
     def test_reviewer_agent_task_mode_leaves_the_phase_review_artifacts_alone(self):
-        text = read('agents/reviewer.md')
+        text = read('agents/artel-reviewer.md')
         self.assertIn('## Task mode', text)
         body = section(text, '## Task mode')
         self.assertIn('NNN-<slug>-review.md', body)
@@ -128,7 +128,7 @@ class TestGateContract(unittest.TestCase):
 
 class TestCompletionContract(unittest.TestCase):
     def test_implementer_writes_a_report_and_returns_its_path(self):
-        text = read('agents/implementer.md')
+        text = read('agents/artel-implementer.md')
         step6 = section(text, '### Step 6 — Report', r'^(### |---)')
         self.assertIn('.artel/run/<TICKET_ID>/reports/NNN-<slug>.md', step6)
         self.assertIn('`Report: <path>`', step6)
@@ -136,7 +136,7 @@ class TestCompletionContract(unittest.TestCase):
         self.assertNotIn('(with the actual diff)', step6)
 
     def test_implementer_skill_relays_without_opening_the_report(self):
-        text = read('skills/implementer/SKILL.md')
+        text = read('skills/artel-implementer/SKILL.md')
         self.assertIn('`Report: <path>`', text)
         self.assertIn('Do not open\nthe report file', text)
 
@@ -160,21 +160,21 @@ class TestReviewFixesAreRecorded(unittest.TestCase):
     """
 
     def test_ticket_mode_opens_its_batch_with_the_round(self):
-        ticket = section(read('agents/reviewer.md'), '## Ticket mode')
+        ticket = section(read('agents/artel-reviewer.md'), '## Ticket mode')
         self.assertIn('### review-r<R>', ticket)
         self.assertIn('### review-p<PHASE_NUM>-r<R>', ticket)
 
     def test_task_mode_opens_its_batch_with_the_report_number(self):
         self.assertIn('### task-gate-<NNN>',
-                      section(read('agents/reviewer.md'), '## Task mode'))
+                      section(read('agents/artel-reviewer.md'), '## Task mode'))
 
     def test_the_agent_never_writes_rows(self):
-        text = read('agents/reviewer.md')
+        text = read('agents/artel-reviewer.md')
         for name in ('task_create', 'task_update'):
             self.assertNotIn(name, text)
 
     def test_run_reviewer_mirrors_the_batch_and_takes_local(self):
-        text = read('skills/run-reviewer/SKILL.md')
+        text = read('skills/artel-run-reviewer/SKILL.md')
         hint = [ln for ln in text.splitlines() if ln.startswith('argument-hint:')][0]
         self.assertIn('--local', hint)
         self.assertIn('## Record the fix tasks', text)
@@ -182,7 +182,7 @@ class TestReviewFixesAreRecorded(unittest.TestCase):
         self.assertIn('data.sections', text)
 
     def test_feature_development_passes_local_to_both_review_calls(self):
-        text = read('skills/feature-development/tail.md')
+        text = read('skills/artel-feature-development/tail.md')
         gate7 = text.split('| 7 | `REVIEW_OK` |')[1].split('\n')[0]
         self.assertIn('--local', gate7)
         gate5 = text.split('| 5 | `IMPLEMENT_STEP_OK`')[1].split('\n')[0]

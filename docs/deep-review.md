@@ -7,8 +7,8 @@ artifacts — the ticket's `deep-review.md` and a machine report — and `script
 pins the target they are judged against and validates them before any fix is offered. This
 document is the single home of that contract: the pinned manifest, the machine report's schema,
 the report's exact metadata, finding IDs and task format, and the verification and completeness
-rules. The steps live in [skills/deep-review/SKILL.md](../skills/deep-review/SKILL.md); the
-writer's rules in [agents/reviewer.md](../agents/reviewer.md); the mechanical half in
+rules. The steps live in [skills/artel-deep-review/SKILL.md](../skills/artel-deep-review/SKILL.md); the
+writer's rules in [agents/artel-reviewer.md](../agents/artel-reviewer.md); the mechanical half in
 `scripts/deep_review.py`.
 
 `<specs.dir>` is the host's configured `specs.dir` ([config.md](config.md)); the target manifest

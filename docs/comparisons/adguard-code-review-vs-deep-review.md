@@ -26,8 +26,8 @@ fetch returns 404. The analysis below is against a local clone of **v0.1.0 (comm
 2026-09-28)** — re-clone with the corporate credentials for anything newer. The repo carries
 no licence file, so only mechanics were adapted into artel; all prose is written fresh.
 
-The artel side is `skills/deep-review/` with its two agents and contracts:
-`agents/reviewer.md`, `agents/review-forecaster.md`, `docs/review-forecast.md`.
+The artel side is `skills/artel-deep-review/` with its two agents and contracts:
+`agents/artel-reviewer.md`, `agents/review-forecaster.md`, `docs/review-forecast.md`.
 
 ## TL;DR
 
@@ -131,12 +131,12 @@ there.
 
 1. **Evidence contract for every finding** — exact `file:line` + the observed failure or
    violated contract; reading-only correctness claims marked; no named failure path → no
-   finding. Landed in `agents/reviewer.md`, `## Evidence and anchoring`.
+   finding. Landed in `agents/artel-reviewer.md`, `## Evidence and anchoring`.
 2. **Mechanical anchor validation** — `scripts/validate_findings.py` checks anchors and
    `scope` against the reviewed diff's new-side hunks; the reviewer runs it before returning.
 3. **Large-diff triage** — classify skip/skim/full, read risk-first, consolidate repeated
    patterns, state coverage, staged passes at commit boundaries, recommend splitting past
-   ~1000 lines. Landed in `agents/reviewer.md`, `## Large changes`.
+   ~1000 lines. Landed in `agents/artel-reviewer.md`, `## Large changes`.
 4. **Out-of-diff routing** — `"scope": "repository"` for defects in unchanged code; a
    **Pre-existing issues (out of diff)** report section; never a fix task, a forecast unit or
    a counted finding. Landed in the reviewer, `docs/review-forecast.md` §2 and the

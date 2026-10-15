@@ -15,12 +15,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 CONTRACT = 'docs/debugging.md'
 NOTICES = 'THIRD_PARTY_NOTICES.md'
-INNER_LOOP = 'skills/inner-loop/SKILL.md'
-IMPLEMENTER = 'agents/implementer.md'
-REVIEWER = 'agents/reviewer.md'
-DEEP_REVIEW = 'skills/deep-review/SKILL.md'
-TASKS = 'skills/tasks/SKILL.md'
-SKILL = 'skills/debugging/SKILL.md'
+INNER_LOOP = 'skills/artel-inner-loop/SKILL.md'
+IMPLEMENTER = 'agents/artel-implementer.md'
+REVIEWER = 'agents/artel-reviewer.md'
+DEEP_REVIEW = 'skills/artel-deep-review/SKILL.md'
+TASKS = 'skills/artel-tasks/SKILL.md'
+SKILL = 'skills/artel-debugging/SKILL.md'
 
 
 def read(rel):
@@ -84,7 +84,7 @@ class TestContract(unittest.TestCase):
 
     def test_where_it_applies(self):
         table = self.section('## 7. Where this applies in artel')
-        for reader in ('skills/inner-loop', 'agents/implementer.md', 'agents/reviewer.md',
+        for reader in ('skills/artel-inner-loop', 'agents/artel-implementer.md', 'agents/artel-reviewer.md',
                        '/artel:debugging'):
             self.assertIn(reader, table)
 
@@ -209,7 +209,7 @@ class TestSkill(unittest.TestCase):
         self.doc = flat(self.raw)
 
     def test_frontmatter(self):
-        self.assertTrue(self.raw.startswith('---\nname: debugging\n'))
+        self.assertTrue(self.raw.startswith('---\nname: artel-debugging\n'))
         frontmatter = self.raw.split('---', 2)[1]
         description = re.search(r'(?m)^description: (.*)$', frontmatter).group(1)
         self.assertIn('artel-configured repo', description)

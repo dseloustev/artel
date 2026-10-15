@@ -3,7 +3,7 @@ the real engine on a real repository, and the baseline hand-off scenarios go thr
 the actual CLI.
 
 Behavioral where it can be -- the fixture builds a tiny repo, `prepare` and `check`
-are executed exactly as `skills/deep-review/SKILL.md` documents them (the pinned
+are executed exactly as `skills/artel-deep-review/SKILL.md` documents them (the pinned
 target under `.artel/run/`, the machine report beside it, the report in the specs
 dir, the kartoteka shape piped with `pipefail`), and the four pressure scenarios of
 the hand-off baseline are driven through the engine: a non-current target, a
@@ -12,7 +12,7 @@ accepted audit. Prose pins cover only what has no code path: the step order, the
 dispatch templates' **Spec store:** line, the retry rule, and the single-home
 contract doc.
 
-Contract: skills/deep-review/SKILL.md, agents/reviewer.md, docs/deep-review.md,
+Contract: skills/artel-deep-review/SKILL.md, agents/artel-reviewer.md, docs/deep-review.md,
 scripts/deep_review.py.
 """
 import json
@@ -34,8 +34,8 @@ MANIFEST = '.artel/run/PROJ-1/deep-review/target.json'
 MACHINE = '.artel/run/PROJ-1/deep-review/machine.json'
 REPORT = 'specs/.current/PROJ-1/deep-review.md'
 
-SKILL = 'skills/deep-review/SKILL.md'
-REVIEWER = 'agents/reviewer.md'
+SKILL = 'skills/artel-deep-review/SKILL.md'
+REVIEWER = 'agents/artel-reviewer.md'
 CONTRACT = 'docs/deep-review.md'
 
 TASK_DR001 = (

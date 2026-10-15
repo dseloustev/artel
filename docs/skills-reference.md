@@ -818,7 +818,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `github` / `old-origin`, suffixed on a name collision) so the old remote survives for
   `/artel:migrate-prs`; the operator removes it by hand once done. Runs
   `git remote set-head origin -a` after the swap — required, not cosmetic: `pr-create` and
-  `agents/reviewer.md`'s standalone mode resolve the default branch through
+  `agents/artel-reviewer.md`'s standalone mode resolve the default branch through
   `refs/remotes/origin/HEAD`. Offers `/artel:migrate-prs` in its report when the old platform
   was Bitbucket and open PRs exist.
 

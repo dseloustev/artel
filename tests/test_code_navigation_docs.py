@@ -32,34 +32,34 @@ CONTRACT = 'docs/code-navigation.md'
 # worker that does: the agents and skills that reached for an index before this
 # contract, and the ones wired up alongside it.
 CITING_AGENTS = (
-    'agents/analyst.md',
-    'agents/researcher.md',
-    'agents/planner.md',
-    'agents/implementer.md',
-    'agents/figma-analyst.md',
-    'agents/reviewer.md',
-    'agents/collaborative-reviewer.md',
-    'agents/tech-writer.md',
-    'agents/vision-writer.md',
-    'agents/issue-scout.md',
+    'agents/artel-analyst.md',
+    'agents/artel-researcher.md',
+    'agents/artel-planner.md',
+    'agents/artel-implementer.md',
+    'agents/artel-figma-analyst.md',
+    'agents/artel-reviewer.md',
+    'agents/artel-collaborative-reviewer.md',
+    'agents/artel-tech-writer.md',
+    'agents/artel-vision-writer.md',
+    'agents/artel-issue-scout.md',
 )
 CITING_SKILLS = (
-    'skills/agents-md-generator/SKILL.md',
-    'skills/merge-conflicts/SKILL.md',
-    'skills/collaborative-review/SKILL.md',
+    'skills/artel-agents-md-generator/SKILL.md',
+    'skills/artel-merge-conflicts/SKILL.md',
+    'skills/artel-collaborative-review/SKILL.md',
 )
 CITING = CITING_AGENTS + CITING_SKILLS
 
 # Artifact readers, not code readers. Guarded for the absence, not the presence.
 NON_NAVIGATING = (
-    'agents/qa.md',
-    'agents/validator.md',
-    'agents/task-planner.md',
+    'agents/artel-qa.md',
+    'agents/artel-validator.md',
+    'agents/artel-task-planner.md',
 )
 
 # The router is the first sanctioned exception (design.md, 2026-08-25); the
 # contract is the second. Nothing else under agents/ or skills/ may name a tool.
-NAMING_ALLOWED = ('skills/using-artel/SKILL.md',)
+NAMING_ALLOWED = ('skills/artel-using-artel/SKILL.md',)
 
 # `orchestrator-common.md` §1 keeps the refresh hook and must hand off the rest.
 REFRESH_HOOK_DOC = 'docs/orchestrator-common.md'
@@ -147,7 +147,7 @@ class EveryNavigatingBodyCitesIt(unittest.TestCase):
         `tasklist-writer` legitimately cited it -- its Final Verification step *was* a
         refresh; that step is the orchestrator's now (docs/gates.md §1), so no body
         cites the refresh hook at all."""
-        for rel in CITING + ('agents/tasklist-writer.md',):
+        for rel in CITING + ('agents/artel-tasklist-writer.md',):
             with self.subTest(rel):
                 self.assertNotIn('orchestrator-common.md` §1', read(rel))
 
@@ -165,7 +165,7 @@ class DeliberateSilences(unittest.TestCase):
     def test_merge_conflicts_keeps_grep_for_the_conflict_marker(self):
         """A conflict marker is a string literal -- §3's worked example of when
         not to reach for the index. The Phase 5 scan stays Grep."""
-        text = read('skills/merge-conflicts/SKILL.md')
+        text = read('skills/artel-merge-conflicts/SKILL.md')
         self.assertIn('Pattern: `<<<<<<<`', text)
         self.assertIn('Grep is correct here', text)
 

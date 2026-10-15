@@ -22,8 +22,8 @@ import kartoteka_http as kh  # noqa: E402
 # and `collaborative-reviewer` is the standalone GitHub utility's worker
 # (tests/test_spec_store_conversion_docs.py, OUTSIDE_TRAIL).
 AGENTS = sorted(p.stem for p in (ROOT / 'agents').glob('*.md')
-                if p.name != 'README.md' and p.stem != 'issue-scout' and p.stem != 'seat'
-                and p.stem != 'collaborative-reviewer')
+                if p.name != 'README.md' and p.stem != 'artel-issue-scout'
+                and p.stem != 'artel-seat' and p.stem != 'artel-collaborative-reviewer')
 
 STOCK = ('Evidence text (`review/findings.json`, `verify/`, `runtime/*.md`) and `.active_ticket` '
          'stay files on both paths. On the kartoteka path, images under the trail (`design/`, '
@@ -54,7 +54,8 @@ def read(rel):
 
 
 def skill(name):
-    return read('skills/{}/SKILL.md'.format(name))
+    """The skill's SKILL.md — `name` is the route name; its folder carries the `artel-` prefix."""
+    return read('skills/artel-{}/SKILL.md'.format(name))
 
 
 def flat(text):
@@ -80,7 +81,7 @@ class TestAgents(unittest.TestCase):
                 self.assertNotIn(OLD_STOCK, flat(text))
 
     def test_figma_analyst_hands_its_screenshots_to_the_sweep(self):
-        step = flat(between(read('agents/figma-analyst.md'),
+        step = flat(between(read('agents/artel-figma-analyst.md'),
                             '### 7. Write the artifact + evidence', '\n## '))
         self.assertIn(flat(FIGMA_STEP_7), step)
         self.assertNotIn('screenshots stay files on both paths', step)
@@ -90,7 +91,7 @@ class TestCheckpointProcedure(unittest.TestCase):
     """The run's one checkpoint procedure -- feature-development's tail.md since 0.25.0."""
 
     def setUp(self):
-        self.text = read('skills/feature-development/tail.md')
+        self.text = read('skills/artel-feature-development/tail.md')
         self.start = skill('feature-development')
 
     def part(self, start, end):

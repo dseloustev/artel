@@ -83,7 +83,7 @@ Inside a run the evidence is on disk, so a reviewer can check it without trustin
 wording.
 
 - **Hypotheses.** A task whose `test` stage went red lists each iteration's hypothesis in its
-  report file (`agents/implementer.md`, Step 6):
+  report file (`agents/artel-implementer.md`, Step 6):
 
   ```markdown
   ## Verify iterations
@@ -92,7 +92,7 @@ wording.
   | 2 | test | `total()` sums before the discount because `apply()` runs after it | confirmed — fixed at `cart.py:41` |
   ```
 
-- **The reproduction.** A behavioural fix-section row (`agents/implementer.md`, Step 3) keeps its
+- **The reproduction.** A behavioural fix-section row (`agents/artel-implementer.md`, Step 3) keeps its
   red evidence in the ticket's `verify/` directory as `repro-<code>-<source>-<N>`: `<code>` the
   section's code in lower case (`crf`, `rtf`, `vf`), `<source>` the nearest `###` heading above
   the row inside its section (`tasklist` when there is none), `<N>` the row's 1-based position
@@ -170,9 +170,9 @@ holds:
 
 | Reader | When | Follows |
 |---|---|---|
-| `skills/inner-loop` (the implementer's task gate) | a red `test` stage | §2.3 — one hypothesis per iteration; §3 — the hypothesis table; §4 — a structural cause is a Major deviation |
-| `agents/implementer.md` | a behavioural fix-section row | §2, §3 (the reproduction), §4, §6 |
-| `agents/reviewer.md` | re-reviewing a fix round | §3 — a `behavior` row closed without red-first evidence is Important |
+| `skills/artel-inner-loop` (the implementer's task gate) | a red `test` stage | §2.3 — one hypothesis per iteration; §3 — the hypothesis table; §4 — a structural cause is a Major deviation |
+| `agents/artel-implementer.md` | a behavioural fix-section row | §2, §3 (the reproduction), §4, §6 |
+| `agents/artel-reviewer.md` | re-reviewing a fix round | §3 — a `behavior` row closed without red-first evidence is Important |
 | `/artel:debugging` | a person's bug, outside a run | §1–§6 |
 | `/artel:debugging --diagnose` | the bug head (`heads/bug.md` of `feature-development`), before any work list | §2.1–§2.3, §3, §4, §5, §6 — and stops before §2.4 |
 | `/artel:debugging` | a red-gate halt (`tail.md`, "Debug it here first"), at the person's choice | §1–§6; the orchestrator journals the fix and re-runs the gate |

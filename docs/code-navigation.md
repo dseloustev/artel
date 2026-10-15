@@ -3,11 +3,11 @@
 How artel agents and skills find code: which tool answers a question about the
 host codebase, and what to do when the fast one is not there.
 
-Referenced by `agents/analyst.md`, `agents/researcher.md`, `agents/planner.md`,
-`agents/implementer.md`, `agents/reviewer.md`, `agents/collaborative-reviewer.md`,
-`agents/tech-writer.md`, `agents/vision-writer.md`, `agents/figma-analyst.md`,
-`agents/issue-scout.md`, `skills/agents-md-generator/SKILL.md`,
-`skills/merge-conflicts/SKILL.md` and `skills/collaborative-review/SKILL.md`.
+Referenced by `agents/artel-analyst.md`, `agents/artel-researcher.md`, `agents/artel-planner.md`,
+`agents/artel-implementer.md`, `agents/artel-reviewer.md`, `agents/artel-collaborative-reviewer.md`,
+`agents/artel-tech-writer.md`, `agents/artel-vision-writer.md`, `agents/artel-figma-analyst.md`,
+`agents/artel-issue-scout.md`, `skills/artel-agents-md-generator/SKILL.md`,
+`skills/artel-merge-conflicts/SKILL.md` and `skills/artel-collaborative-review/SKILL.md`.
 Spelled here once because all thirteen need the identical rules, and §3 and §5 are
 ones where two copies drifting apart is wrong rather than untidy.
 
@@ -96,7 +96,7 @@ Reach for Grep when the question is not about symbols:
 - **comment text**
 - after the index returns **empty**
 
-`skills/merge-conflicts/SKILL.md` Phase 5 is the worked example: scanning the
+`skills/artel-merge-conflicts/SKILL.md` Phase 5 is the worked example: scanning the
 tree for `<<<<<<<` is a literal scan, so it is Grep's job and stays Grep's job,
 in the same skill whose Phase 3 resolves moved symbols through the index.
 

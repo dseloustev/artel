@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import hook_common as h  # noqa: E402
 import spec_decision as sd  # noqa: E402
 
-SKILL_PATH = h.PLUGIN_ROOT / 'skills' / 'using-artel' / 'SKILL.md'
+SKILL_PATH = h.PLUGIN_ROOT / 'skills' / 'artel-using-artel' / 'SKILL.md'
 
 HEADER = ('<EXTREMELY_IMPORTANT>\n'
           'This repository is configured for artel. Below is your `artel:using-artel` skill '

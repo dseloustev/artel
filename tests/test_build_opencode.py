@@ -58,7 +58,7 @@ class TestSkillBuild(BuildBase):
 
     def test_every_skill_is_built_prefixed(self):
         for name in source_skills():
-            path = self.out / 'skills' / ('artel-' + name) / 'SKILL.md'
+            path = self.out / 'skills' / name / 'SKILL.md'
             self.assertTrue(path.is_file(), 'missing ' + str(path))
 
     def test_generated_names_are_opencode_legal(self):
@@ -109,17 +109,17 @@ class TestSkillBuild(BuildBase):
 class TestCommandBuild(BuildBase):
     def test_a_command_wrapper_per_skill(self):
         for name in source_skills():
-            path = self.out / 'commands' / ('artel-' + name + '.md')
+            path = self.out / 'commands' / (name + '.md')
             self.assertTrue(path.is_file(), 'missing ' + str(path))
 
     def test_wrapper_passes_arguments_and_stays_in_the_main_session(self):
         for name in source_skills():
-            text = (self.out / 'commands' / ('artel-' + name + '.md')).read_text(
+            text = (self.out / 'commands' / (name + '.md')).read_text(
                 encoding='utf-8')
             self.assertIn('agent: build', text)
             self.assertNotIn('subtask: true', text)
             self.assertIn('$ARGUMENTS', text)
-            self.assertIn('`artel-' + name + '`', text)
+            self.assertIn('`' + name + '`', text)
 
     def test_wrapper_quotes_the_argument_hint(self):
         # researcher carries an argument-hint in its frontmatter.
@@ -134,9 +134,9 @@ class TestCommandBuild(BuildBase):
 
     def test_commands_without_a_hint_get_no_args_suffix(self):
         # using-artel and agents-md-generator declare no hint; setup declares "".
-        for name in ('using-artel', 'agents-md-generator', 'setup'):
+        for name in ('artel-using-artel', 'artel-agents-md-generator', 'artel-setup'):
             with self.subTest(name):
-                text = (self.out / 'commands' / ('artel-' + name + '.md')).read_text(
+                text = (self.out / 'commands' / (name + '.md')).read_text(
                     encoding='utf-8')
                 self.assertNotIn('args:', text.split('---')[1])
 
@@ -179,7 +179,7 @@ def source_agents():
 class TestAgentBuild(BuildBase):
     def test_every_agent_is_built_prefixed(self):
         for name in source_agents():
-            path = self.out / 'agents' / ('artel-' + name + '.md')
+            path = self.out / 'agents' / (name + '.md')
             self.assertTrue(path.is_file(), 'missing ' + str(path))
 
     def test_agent_names_are_opencode_legal(self):
@@ -262,9 +262,9 @@ class TestCompanionFiles(BuildBase):
     def test_every_other_markdown_file_is_generated_beside_its_skill(self):
         pairs = source_companions()
         for rel in self.PARTS:
-            self.assertIn(('feature-development', rel), pairs)
+            self.assertIn(('artel-feature-development', rel), pairs)
         for skill, rel in pairs:
-            path = self.out / 'skills' / ('artel-' + skill) / rel
+            path = self.out / 'skills' / skill / rel
             self.assertTrue(path.is_file(), 'missing ' + str(path))
         self.assertIn('{} other skill files'.format(len(pairs)), self.proc.stdout)
 
@@ -289,7 +289,7 @@ class TestCompanionFiles(BuildBase):
     def test_a_file_with_no_dialect_in_it_is_generated_unchanged(self):
         rel = Path('assets') / 'templates' / 'idea.template.md'
         self.assertEqual(
-            (ROOT / 'skills' / 'generate-idea' / rel).read_text(encoding='utf-8'),
+            (ROOT / 'skills' / 'artel-generate-idea' / rel).read_text(encoding='utf-8'),
             (self.out / 'skills' / 'artel-generate-idea' / rel).read_text(encoding='utf-8'))
 
     def test_the_skill_points_at_the_generated_copies(self):
@@ -297,7 +297,7 @@ class TestCompanionFiles(BuildBase):
         here = str((self.out / 'skills' / self.SKILL).resolve()) + '/'
         for rel in self.PARTS:
             self.assertIn('`' + here + rel + '`', skill, rel)
-        self.assertNotIn(str(self.root.resolve()) + '/skills/feature-development/', skill)
+        self.assertNotIn(str(self.root.resolve()) + '/skills/artel-feature-development/', skill)
         # the head files point at each other and at the tail the same way
         self.assertIn('`' + here + 'heads/full.md`', self.part('heads/lean.md'))
         self.assertIn('`' + here + 'heads/lean.md`', self.part('heads/bug.md'))
@@ -319,18 +319,18 @@ class TestCompanionFiles(BuildBase):
         self.assertGreater(found, len(self.PARTS))
 
     def test_a_pointer_at_a_file_the_build_does_not_emit_stays_under_the_install_root(self):
-        generated = {('demo', 'heads/a.md'): Path('/out/skills/artel-demo/heads/a.md')}
-        body = ('read `${CLAUDE_PLUGIN_ROOT}/skills/demo/heads/a.md`, '
-                '`${CLAUDE_PLUGIN_ROOT}/skills/demo/assets/t.html` and '
+        generated = {('artel-demo', 'heads/a.md'): Path('/out/skills/artel-demo/heads/a.md')}
+        body = ('read `${CLAUDE_PLUGIN_ROOT}/skills/artel-demo/heads/a.md`, '
+                '`${CLAUDE_PLUGIN_ROOT}/skills/artel-demo/assets/t.html` and '
                 '`${CLAUDE_PLUGIN_ROOT}/docs/x.md`, then run /artel:demo')
         self.assertEqual(build_opencode.bake(body, Path('/root'), generated),
                          'read `/out/skills/artel-demo/heads/a.md`, '
-                         '`/root/skills/demo/assets/t.html` and `/root/docs/x.md`, '
+                         '`/root/skills/artel-demo/assets/t.html` and `/root/docs/x.md`, '
                          'then run artel-demo')
         # with no map a pointer keeps resolving under the install root, as before
-        self.assertEqual(build_opencode.bake('`${CLAUDE_PLUGIN_ROOT}/skills/demo/heads/a.md`',
+        self.assertEqual(build_opencode.bake('`${CLAUDE_PLUGIN_ROOT}/skills/artel-demo/heads/a.md`',
                                              Path('/root')),
-                         '`/root/skills/demo/heads/a.md`')
+                         '`/root/skills/artel-demo/heads/a.md`')
 
     def test_agents_land_on_the_generated_skill_too(self):
         agent = (self.out / 'agents' / 'artel-implementer.md').read_text(encoding='utf-8')
@@ -349,12 +349,12 @@ class TestModelTransforms(BuildBase):
         return ' '.join(self.text_of(*parts).split())
 
     def test_the_canonical_sources_keep_the_claude_dialect(self):
-        for rel, phrase in (('skills/implementer/SKILL.md', '`--model <sonnet|opus|fable>`'),
-                            ('skills/run-reviewer/SKILL.md', '`--model <sonnet|opus|fable>`'),
-                            ('skills/feature-development/tail.md', '--model fable'),
-                            ('skills/deep-review/SKILL.md', '- `model`: `"fable"`'),
-                            ('skills/pr-description/SKILL.md', '- `model`: none'),
-                            ('skills/collaborative-review/SKILL.md', 'frontmatter `opus`')):
+        for rel, phrase in (('skills/artel-implementer/SKILL.md', '`--model <sonnet|opus|fable>`'),
+                            ('skills/artel-run-reviewer/SKILL.md', '`--model <sonnet|opus|fable>`'),
+                            ('skills/artel-feature-development/tail.md', '--model fable'),
+                            ('skills/artel-deep-review/SKILL.md', '- `model`: `"fable"`'),
+                            ('skills/artel-pr-description/SKILL.md', '- `model`: none'),
+                            ('skills/artel-collaborative-review/SKILL.md', 'frontmatter `opus`')):
             self.assertIn(phrase, (ROOT / rel).read_text(encoding='utf-8'), rel)
 
     def test_the_glossary_states_the_model_rule(self):
@@ -417,10 +417,10 @@ class TestModelTransforms(BuildBase):
         source_dir = tempfile.TemporaryDirectory()
         self.addCleanup(source_dir.cleanup)
         source = Path(source_dir.name)
-        stub = source / 'skills' / 'implementer'
+        stub = source / 'skills' / 'artel-implementer'
         stub.mkdir(parents=True)
         (stub / 'SKILL.md').write_bytes(
-            b'---\nname: implementer\ndescription: "stub"\n---\n\xff\n')
+            b'---\nname: artel-implementer\ndescription: "stub"\n---\n\xff\n')
         out_dir = tempfile.TemporaryDirectory()
         self.addCleanup(out_dir.cleanup)
         proc = subprocess.run(
@@ -436,10 +436,10 @@ class TestModelTransforms(BuildBase):
         source_dir = tempfile.TemporaryDirectory()
         self.addCleanup(source_dir.cleanup)
         source = source_dir.name
-        stub = Path(source) / 'skills' / 'implementer'
+        stub = Path(source) / 'skills' / 'artel-implementer'
         stub.mkdir(parents=True)
         (stub / 'SKILL.md').write_text(
-            '---\nname: implementer\ndescription: "stub"\n---\n\nStub body.\n',
+            '---\nname: artel-implementer\ndescription: "stub"\n---\n\nStub body.\n',
             encoding='utf-8')
         out_dir = tempfile.TemporaryDirectory()
         self.addCleanup(out_dir.cleanup)
@@ -528,13 +528,13 @@ class TestAutoinvoke(BuildBase):
     so a manual-only skill stays loadable by id but leaves the model's skill list."""
 
     def head(self, name):
-        text = (self.out / 'skills' / ('artel-' + name) / 'SKILL.md').read_text(encoding='utf-8')
+        text = (self.out / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8')
         return text.split('---')[1]
 
     def test_manual_only_skills_hide_from_the_model(self):
         manual = [p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md')
                   if 'disable-model-invocation: true' in p.read_text(encoding='utf-8')]
-        self.assertIn('inner-loop', manual)
+        self.assertIn('artel-inner-loop', manual)
         for name in manual:
             with self.subTest(name):
                 head = self.head(name)
@@ -542,7 +542,7 @@ class TestAutoinvoke(BuildBase):
                 self.assertIn('opencode/autoinvoke: false', head)
 
     def test_model_invocable_skills_get_no_metadata_block(self):
-        self.assertNotIn('opencode/autoinvoke', self.head('feature-development'))
+        self.assertNotIn('opencode/autoinvoke', self.head('artel-feature-development'))
 
 
 @unittest.skipUnless(shutil.which('bash'), 'the installer is a bash script')

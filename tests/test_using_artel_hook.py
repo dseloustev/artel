@@ -62,7 +62,7 @@ class TestConfiguredHost(unittest.TestCase):
     def test_emits_the_router_body_without_frontmatter(self):
         ctx = self.context()
         self.assertIn('<SUBAGENT-STOP>', ctx)
-        self.assertNotIn('\nname: using-artel', ctx)
+        self.assertNotIn('\nname: artel-using-artel', ctx)
         self.assertNotIn('\ndescription:', ctx)
 
     def test_reports_the_adapter_and_base_url(self):

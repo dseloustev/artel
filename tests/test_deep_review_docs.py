@@ -11,8 +11,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-SKILL = 'skills/deep-review/SKILL.md'
-REVIEWER = 'agents/reviewer.md'
+SKILL = 'skills/artel-deep-review/SKILL.md'
+REVIEWER = 'agents/artel-reviewer.md'
 CONFIG = 'docs/config.md'
 HOOK = 'hooks/kartoteka_http.py'  # MIRRORED's home; knowledge_mirror.py imports it
 REFERENCE = 'docs/skills-reference.md'
@@ -159,7 +159,7 @@ class TestRetiredNames(unittest.TestCase):
     def test_crew_doc_and_router_know_the_skill(self):
         self.assertNotIn('review-forecaster', read('docs/agents.md'))
         self.assertIn('/artel:deep-review <ticket> [branch] [pr-link] [--local]',
-                      read('skills/using-artel/SKILL.md'))
+                      read('skills/artel-using-artel/SKILL.md'))
 
     def test_reviewer_no_longer_calls_it_a_dual_pass(self):
         self.assertNotIn('dual pass', read(REVIEWER))

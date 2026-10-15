@@ -13,9 +13,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-ROUTER = 'skills/using-artel/SKILL.md'
-KNOWLEDGE = 'skills/knowledge/SKILL.md'
-TASKS = 'skills/tasks/SKILL.md'
+ROUTER = 'skills/artel-using-artel/SKILL.md'
+KNOWLEDGE = 'skills/artel-knowledge/SKILL.md'
+TASKS = 'skills/artel-tasks/SKILL.md'
 
 # Every session pays for the router; the spec caps it.
 ROUTER_MAX_BYTES = 10240
@@ -27,8 +27,9 @@ def read(rel):
 
 
 def skill_names():
-    """Every skill shipped under skills/, by folder name."""
-    return sorted(p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md'))
+    """Every skill's route name: its installed folder name without the `artel-` prefix
+    (the router's `/artel:<name>` spellings still name the route, not the folder)."""
+    return sorted(p.parent.name[len('artel-'):] for p in (ROOT / 'skills').glob('*/SKILL.md'))
 
 
 class TestRouter(unittest.TestCase):
@@ -220,7 +221,7 @@ class TestDocs(unittest.TestCase):
 
     def test_reference_invocation_quotes_the_frontmatter_hint(self):
         for name in ('knowledge', 'tasks'):
-            hint = argument_hint('skills/' + name + '/SKILL.md')
+            hint = argument_hint('skills/artel-' + name + '/SKILL.md')
             line = invocation_line(name)
             self.assertIsNotNone(line, REFERENCE + ' has no Invocation line for ' + name)
             self.assertIn('/artel:' + name + ' ' + hint, line)

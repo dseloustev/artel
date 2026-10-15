@@ -4,7 +4,7 @@ The reviewer's evidence contract says a guessed line number is worse than none â
 cites the `file:line`, so a guessed anchor propagates into a document a human acts on. This
 suite pins the mechanical half: diff parsing that reads new-side hunks (and
 never mistakes an added line for a file header), the per-finding checks, and the CLI's
-exit codes. Contract: agents/reviewer.md, `## Evidence and anchoring`.
+exit codes. Contract: agents/artel-reviewer.md, `## Evidence and anchoring`.
 """
 import json
 import subprocess

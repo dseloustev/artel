@@ -2,7 +2,7 @@
 
 Evaluation-only data for the `collaborative-review` skill. Nothing here is shipped, imported by
 plugin code, or reached by `scripts/build_opencode.py` — these files only back the offline
-behavioral scenarios in `skills/collaborative-review/evals/evals.json` and the sandbox replay
+behavioral scenarios in `skills/artel-collaborative-review/evals/evals.json` and the sandbox replay
 instructions in each `scenario.md`.
 
 ## Layout

@@ -346,6 +346,17 @@ The tasklist stays one document with today's shape; its writers change verb, not
 - **File scan** (`docs/task-queue.md` §4 and §6) — `artifact_get`, then the same scan.
 - **The queue mirror** (`docs/task-queue.md` §2) — reads the document through §4.2's pipe.
 
+**A parallel cycle's store publication is the coordinator's, once, after the code commit.**
+The worker never ticks, appends or publishes. The coordinator's
+`scripts/parallel_publication.py` plans the expected-version tasklist tick and one numbered
+implementation note per accepted deviation proposal, publishes them only after the cycle's code
+commit lands, and completes the owned queue row last
+([opencode-parallel.md](opencode-parallel.md) §13.9). A repeated callback or a crash between an
+append and its receipt is reconciled from the stored content — the tick already present, the
+note key already numbered — never by a second append; a concurrent edit moves the stored
+version, so the coordinator re-reads and re-applies its change once against the fresh version
+instead of overwriting or dropping it (§4.1's Conflict rule).
+
 ### 4.4 The review-round reset
 
 Where the files path deletes `review.md` to reset `**Review round:**` (at a phase boundary, after

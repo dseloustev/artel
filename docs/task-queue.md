@@ -507,3 +507,14 @@ repository-wide lock, `<git-common-dir>/artel/parallel/<TICKET_ID>.json`
 ([opencode-parallel.md](opencode-parallel.md) §13), so two checkouts of one repository
 cannot both claim for one ticket; the lock is released only for the matching completed,
 quiescent run.
+
+**A parallel run's queue completion is the last publication step.** The coordinator's
+`scripts/parallel_publication.py` marks the run's own recorded row done only after the cycle's
+code commit, its required tasklist/notes publication and the worker-evidence collection are
+durable ([opencode-parallel.md](opencode-parallel.md) §13.9), and the task's manifest state
+moves `integrating → published` only after that — a dependent is admitted no earlier. The row
+is completed only under the run's exact recorded mapping: the same row id, the same
+`artel@<run_id>#<seq>:<attempt>` actor. A row observed released, held by another actor or
+naming another task is never completed, released, adopted or cleared, and a repeated callback
+does not complete it twice. A queue-free (local) run keeps the same completion lifecycle
+without any queue call.

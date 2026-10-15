@@ -841,7 +841,81 @@ retry; write the files-path tick/ordered notes only after a successful apply and
 `documents`; run the bounded fix/review procedure after a red gate or a conflict; call
 `recover_cycle` after a restart before retrying anything; and only after the record reaches
 `committed` (or `recovered`) does Task 9 publish and the queue mark the task done. Normal
-admission resumes once no `integrating` record remains.
+admission resumes once no `integrating` record remains. §13.9 is the coordinator's publication
+loop: plan with `next_publication_actions`, persist each intent, execute the effect through the
+configured store/queue adapter, and record the receipt with `record_publication` until it returns
+the promoted manifest.
+
+### 13.9 Restartable completion publication
+
+`scripts/parallel_publication.py` owns the last step of a worker cycle: everything between a
+`committed` integration record and the durable `published` task state a dependent may consume.
+Its public interface is
+
+    next_publication_actions(manifest, task, observed) -> [action, ...]
+    record_publication(manifest, task, action_id, receipt) -> {manifest, publication}
+
+Both are pure reducers: they never call the artifact store, the queue, a session or Git, and
+they never schedule. The configured coordinator performs every external call and persists what
+they return — the publication record into the integration record's reserved `publication` field
+(§13.8), the returned manifest through the revision-checked `parallel_state.write_manifest`.
+
+**The observed bundle.** `next_publication_actions` answers from the stored manifest and one
+fresh observation bundle the coordinator assembles: the `committed`/`recovered` transaction
+record, the native worker `lifecycle` disposition (`succeeded` is required — a worker
+completion, a result ref or the code commit alone is never publication), the configured
+`store` mode with the pending tasklist tick and the accepted deviation proposals, the fresh
+observation of the run's own recorded `queue` row, and the worker `evidence` files with the
+coordinator's `collected_root` copy. A record that is not `committed`/`recovered`
+(`not_committed`), a foreign or incomplete identity, a review that does not cover the effective
+route, a missing green integrated-tree gate and a non-`succeeded` disposition all refuse before
+any action is planned.
+
+**Ordering.** The plan is fixed. On the **files path** the tick and ordered notes are already in
+the final cycle commit (Task 8's `documents`): the reducer recognizes that committed effect
+(`committed-documents`) and never emits a post-commit file write: it never produces a file
+tick after the fact and never a second completion commit. On the **artifact-store path** the
+accepted code
+commit lands first (`documents` empty) and the reducer plans the expected-version tasklist tick
+and one numbered implementation note per accepted proposal, in proposal order. Both paths then
+collect the worker evidence into the coordinator's task/attempt-scoped `collected_root`, and
+queue done is last of the external effects: the owned row is completed only after the committed
+code, the store patches and the collected evidence are durable. Only after every required receipt is
+durable does the manifest move `integrating → published` — the single transition the scheduler
+treats as complete, so dependents move only then, and the `integrating` latch holds through
+every partial publication.
+
+**Actions, intents and receipts.** Each action carries a stable
+`artel-publish-<run_id>-<task>-a<attempt>-<suffix>` id (suffix `documents`, `tick`,
+`note-<proposal index>`, `collect`, `queue`, `promote`), the transaction identity, the full
+ordered plan and its kind-specific payload (`committed-documents` paths, `store-tick`
+expected_version, `note-append` number and key, `collect-evidence` roots and entries,
+`queue-done` the recorded owned row, `promote` nothing). An action whose effect the fresh
+observation already proves — a tick already present, a note key already numbered, collected
+copies already matching, the owned row already `done` — is returned as `observed`: the
+coordinator records its receipt and never repeats the effect. The coordinator persists each
+action's intent (`state: planned`) **before** the effect and its confirmed receipt
+(`applied`/`observed`) after; an identical repeat is idempotent, a conflicting one is
+`conflicting_receipt`, and a receipt without its intent, out of plan order, or naming another
+task/attempt/transaction is refused. A store action whose durable intent's base moved is
+re-based on the fresh version and re-applied once — the write still carries the fresh
+`expected_version`, so an unrelated concurrent edit is never overwritten or dropped, and a
+re-base may never move the expected version backwards (`intent_conflict`); a note renumbering
+over a concurrent append takes the next free number and consumes it once. A queue row observed
+under a foreign actor, a changed row id or task, a missing row, or a status that is neither
+`in_progress` nor `done` is never completed (`foreign_row`, `row_changed`, `row_missing`,
+`row_not_in_progress`); a queue-free (local) run keeps the same lifecycle with no queue action.
+
+**Completion and cleanup.** When the last required receipt lands, the reducer marks the record
+`complete`, builds the §13.7 cleanup publication proof — `cycle_commit` under
+`refs/heads/<branch>`, the retained `result_ref`/`result_commit` (the transport commit), the
+task/attempt-scoped `collected_root` and the collected evidence digests — and returns the
+promoted manifest. The cleanup itself stays a later, conservative lifecycle operation: it
+re-verifies the real copies and refuses a dirty or unknown root, and such a refusal never
+undoes a valid publication or requires a relaunch. Evidence collection is a publication
+prerequisite, not a cleanup one. A lost reply is reconciled from fresh observation, and a
+complete record whose manifest write was lost is finished by the single `promote` action,
+whose receipt re-checks the durable record instead of asserting anything new.
 
 ## 14. Proof record
 

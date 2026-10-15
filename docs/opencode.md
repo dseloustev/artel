@@ -61,9 +61,9 @@ token `$CLAUDE_PLUGIN_ROOT`, without braces, so the bake cannot rewrite its own 
 `feature-development`'s `heads/*.md` and `tail.md`, templates, references — are generated next
 to its `SKILL.md`, baked the same way but with no frontmatter and no glossary: their reader
 already has the glossary through `SKILL.md`. A pointer into a skill's directory
-(`${CLAUDE_PLUGIN_ROOT}/skills/<name>/<file>`) resolves to the generated copy under
-`~/.config/opencode/artel/opencode/dist/skills/artel-<name>/`, never to the Claude-dialect
-source. Every skill also gets a `/artel-<name>` command wrapper: its body loads the skill and
+(`${CLAUDE_PLUGIN_ROOT}/skills/<name>/<file>`) resolves to the baked install copy under
+`~/.config/opencode/artel/skills/artel-<name>/`, not to anything under `opencode/dist/`.
+Every skill also gets a `/artel-<name>` command wrapper: its body loads the skill and
 passes `$ARGUMENTS`, and its `description` carries the skill's `argument-hint` (for example
 `· args: [ticket-id]`), so the TUI command list shows what arguments the skill expects before
 you invoke it.

@@ -146,6 +146,12 @@ scripts. Each hook reads one JSON object on stdin:
 
 Each hook writes at most one JSON object on stdout (side-effect-only hooks write none):
 
+- `hookSpecificOutput.hookEventName` — the event the reply belongs to, retained from the
+  original hook ABI: `PreToolUse` from the three guards (`sensitive_guard.py`,
+  `spec_store_guard.py`, `vcs_guard.py`), `PostToolUse` from `fast_verify_post_edit.py`,
+  `SessionStart` from `using_artel.py`. The bridge ignores it — it reads the sibling fields —
+  but the field stays: the shape is frozen, and a harness that keys on the event name can still
+  consume a reply.
 - `hookSpecificOutput.permissionDecision: "deny"` with `permissionDecisionReason` — a
   `tool.execute.before` refusal; the bridge turns it into the tool call's error.
 - `hookSpecificOutput.additionalContext` — fast-verify findings (appended to the tool result)

@@ -150,5 +150,31 @@ class TestLocationScoping(unittest.TestCase):
         self.assertIn('sessionLocations.delete(sessionID)', deleted)
 
 
+class TestHookReplyShape(unittest.TestCase):
+    """hooks/README.md's ABI list is what the bridge answers: the retained
+    `hookSpecificOutput.hookEventName` is documented, and the hooks that emit it keep their
+    historical event names."""
+
+    EVENTS = {
+        'hooks/sensitive_guard.py': 'PreToolUse',
+        'hooks/spec_store_guard.py': 'PreToolUse',
+        'hooks/vcs_guard.py': 'PreToolUse',
+        'hooks/fast_verify_post_edit.py': 'PostToolUse',
+        'hooks/using_artel.py': 'SessionStart',
+    }
+
+    def test_the_readme_documents_the_field(self):
+        readme = (ROOT / 'hooks' / 'README.md').read_text(encoding='utf-8')
+        self.assertIn('hookSpecificOutput.hookEventName', readme)
+        for event in ('`PreToolUse`', '`PostToolUse`', '`SessionStart`'):
+            self.assertIn(event, readme)
+
+    def test_the_hooks_keep_their_historical_event_names(self):
+        for rel, event in self.EVENTS.items():
+            with self.subTest(rel=rel):
+                text = (ROOT / rel).read_text(encoding='utf-8')
+                self.assertIn("'hookEventName': '{}'".format(event), text)
+
+
 if __name__ == '__main__':
     unittest.main()

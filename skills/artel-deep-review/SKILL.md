@@ -177,7 +177,9 @@ an invalid artifact (Step 3b) share this one flag: whichever branch claims it fi
 run's only artifact retry, so the run accepts at most two reviewer attempts.
 
 - the `artel-reviewer` agent
-- `model`: `"fable"` — the whole-branch review before a pull request, the one review on the most
+- `model`: resolve `reviewer.deepReview`
+  (`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site reviewer.deepReview`) and set
+  it when non-null — the whole-branch review before a pull request is the one review on the most
   capable tier (`${ARTEL_ROOT}/docs/agents.md` `## Models`); a dispatch refused for its
   model is re-dispatched once without one
 - `description`: `"Code review for <TICKET_ID>"`

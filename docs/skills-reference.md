@@ -312,10 +312,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Implement the next incomplete tasklist task, verify it, and flip its checkbox —
   on a task-format tasklist one whole `### Task N.M:` block per dispatch, every step ticked.
-- **Invocation:** `/artel-implementer [ticket-id] or [ticket-id]-[phase] [--local] [--model sonnet|opus|fable]`
-- **Model:** an iteration task follows its route — `sonnet` on `light`, `opus` on `full`, chosen
-  by `tasklist-tasks route`; `--model` overrides it for one dispatch (the orchestrator passes
-  `fable` on a fix round that follows a failed one, `autonomous-run.md` §5).
+- **Invocation:** `/artel-implementer [ticket-id] or [ticket-id]-[phase] [--local] [--model <provider/model[#variant]>]`
+- **Model:** resolved from `models.opencode` — an iteration task follows its route
+  (`implementer.light` / `implementer.full`), a fix list its round (`implementer.fix` /
+  `implementer.stepUp`); `--model` overrides it for one dispatch (the orchestrator passes
+  `implementer.stepUp` on a fix round that follows a failed one, `autonomous-run.md` §5).
 - **Reads:** on the queue path a `task_ready` claim from kartoteka, else the phase tasks
   file or `tasklist.md` (first `- [ ]` task in scope; on a task-format tasklist the first task
   of the parser's `ready_now`) — `--local` forces the file
@@ -375,11 +376,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Review the ticket's changes and classify findings as Blocking / Important /
   Nice-to-have; with `--task`, review one task's diff right after its implementer returned.
 - **Invocation:** `/artel-run-reviewer [ticket-id] or [ticket-id]-[phase]
-  [--task "<task title>" --report <path> --package <path>] [--local] [--model sonnet|opus|fable]`
-- **Model:** by scope — `sonnet` for a task review (the `full` route's wrapper) and for a
-  re-review after a fix round; `opus` (frontmatter) for the ticket/phase review's round 1 and
-  plan review; `deep-review`'s standalone whole-branch review runs the same agent on `fable`
-  (autonomous-run.md §16.4).
+  [--task "<task title>" --report <path> --package <path>] [--local] [--model <provider/model[#variant]>]`
+- **Model:** by scope, from `models.opencode` — `reviewer.task` for a task review (the `full`
+  route's wrapper), `reviewer.reReview` for a re-review after a fix round, `reviewer.phase` for
+  the ticket/phase review's round 1 and `reviewer.plan` for plan review; `deep-review`'s
+  standalone whole-branch review resolves `reviewer.deepReview` (autonomous-run.md §16.4).
 - **Reads:** input artifacts and the priority taxonomy, resolved internally by the `reviewer`
   agent (PRD/plan/conventions in ticket mode). In task mode: the task's text from the
   tasklist, the implementer's report and the diff package `scripts/review_package.py` wrote
@@ -619,7 +620,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   exists (overwrite?); after a validated report, to ask which fixes to apply (critical only /
   critical and warnings / none).
 - **Notes:** standalone utility, not part of the autonomous pipeline. Orchestrator: dispatches
-  the `reviewer` once, in standalone mode, on `fable`; the agent writes the report and the
+  the `artel-reviewer` agent once, in standalone mode, on `reviewer.deepReview`; the agent writes the report and the
   machine report directly, and `scripts/deep_review.py check` validates them — identities,
   anchors, the report contract and the completion counts — before the skill offers anything
   ([deep-review.md](deep-review.md)). A requested branch that is not checked out stops the run

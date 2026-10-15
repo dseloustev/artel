@@ -1,7 +1,7 @@
 ---
 name: artel-implementer
 description: "Implement the following task from the tasklist according to the agreed plan"
-argument-hint: "[ticket-id] or [ticket-id]-[phase] [--local] [--model sonnet|opus|fable]"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [--local] [--model <provider/model[#variant]>]"
 ---
 
 ## Ticket Resolution
@@ -18,18 +18,21 @@ on every spawn. Default is the queue; see
 `${ARTEL_ROOT}/docs/task-queue.md` §1 for how it resolves against
 `knowledge.adapter` and tool availability.
 
-`--model <sonnet|opus|fable>`: dispatch the agent on this model instead of its frontmatter
-`opus`. It may appear in any position; strip it before reading `$0`. Any other value is an
-invocation error — report it and stop. A dispatch refused for that model (not available, or not
-allowed on this host) is re-dispatched once without it. The orchestrator passes the flag to step
-up a fix round that follows a failed one (`${ARTEL_ROOT}/docs/autonomous-run.md` §5);
-otherwise the skill chooses the model itself (below).
+`--model <provider/model[#variant]>`: dispatch the agent on this concrete model. It may appear
+in any position; strip it before reading `$0`. Any other value is an invocation error — report
+it and stop. A dispatch refused for that model (not available, or not allowed on this host) is
+re-dispatched once without it. The orchestrator passes the flag to step up a fix round that
+follows a failed one (`${ARTEL_ROOT}/docs/autonomous-run.md` §5); otherwise the skill
+resolves the model itself (below).
 
-**Choosing the model** — after the spec-store read and before the `subagent` call, first match wins:
+**Choosing the model** — after the spec-store read and before the `subagent` call, first match
+wins:
 
 1. `--model` given → that model.
 2. **Fix-list dispatch** — the invocation names `## Code Review Fixes`, `## Runtime Fixes`,
-   `## Verify Fixes` or Final Verification → no model (the frontmatter `opus`), no helper run.
+   `## Verify Fixes` or Final Verification → resolve `implementer.fix`
+   (`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site implementer.fix`); a `null`
+   model → no model, no helper run.
 3. **Iteration dispatch** → run the route helper (`route --next`) over the tasklist in scope
    (`<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` on a phase-scoped run,
    `<specs.dir>/<TICKET_ID>/tasklist.md` otherwise):
@@ -37,7 +40,11 @@ otherwise the skill chooses the model itself (below).
        python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py route --tasklist <the tasklist> --ticket-key <TICKET_ID> --next
 
    (kartoteka path: `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <the tasklist> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py route --tasklist - --ticket-key <TICKET_ID> --next`)
-   A non-null `data.model` → that model; `null` or exit `2` → no model.
+   take its `route_effective` (the helper's `model` alias is not used here) and resolve
+   `implementer.<route_effective>`
+   (`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site implementer.<route_effective>`);
+   a `null` route, a route-helper exit `2` or a `null` model → no model; a resolver exit `2` is
+   reported and stops the run.
 
 The chosen model is passed as the `subagent` call's `model`. A call refused for its model is
 re-dispatched once without one.
@@ -137,11 +144,11 @@ Relay the agent's completion message as it is — the short contract: task, chan
 
 Add one `Model:` line to the relayed contract, after `Verify iterations:` and before
 `Deviations:`, written so an orchestrator can append its value to a journal line verbatim:
-`Model: sonnet` when the helper's model matched the task worked; `Model: sonnet (predicted task
-2.3 at route light; worked task 2.4)` when it did not (compare the completion's first line);
-`Model: opus (frontmatter: fix list)` — or `no ready task`, `route lookup failed: <kind>`;
-`Model: fable (--model)`; `Model: opus (frontmatter: sonnet refused)` after a refused
-re-dispatch. `HITL:` and `DEVIATION` returns carry no `Model:` line.
+`Model: <value>` — the model the dispatch ran on — with the `(predicted task 2.3 at route
+light; worked task 2.4)` suffix when the prediction missed (compare the completion's first
+line); or `Model: none` with the reason — `fix list: implementer.fix unset`, `no ready task`,
+`route lookup failed: <kind>`, or `model refused` after a refused re-dispatch. `HITL:` and
+`DEVIATION` returns carry no `Model:` line.
 
 Do not open
 the report file to expand it into your own output; the diff and evidence live there so that

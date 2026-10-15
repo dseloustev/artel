@@ -816,7 +816,7 @@ class TestRoutes(unittest.TestCase):
 
     def test_the_journal_line(self):
         for phrase in ('task 2.3: route full (declared full; floor: sensitive path (payments): '
-                       'lib/ramps/ramps_bloc.dart); model opus',
+                       'lib/ramps/ramps_bloc.dart); model tokenguard/opus-5.5',
                        '`task <N.M>: route <effective> (declared <route>[; floor: <reason>[, '
                        '<reason>…]]); model <value>`',
                        '`earlier deviation: <path>`'):

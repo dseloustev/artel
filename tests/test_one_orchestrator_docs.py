@@ -437,7 +437,7 @@ class TestTail(unittest.TestCase):
                        '`docs: <TICKET_ID> work list` otherwise',
                        '--author artel:feature-development',
                        'plus `--local` when the run holds it, naming `## Verify Fixes`, plus '
-                       '`--model fable` on the second round'):
+                       '`--model <value>` on the second round'):
             self.assertIn(phrase, procedure)
         self.assertNotIn('artel:<skill>', self.raw)
 
@@ -1103,7 +1103,7 @@ class TestDebugHere(unittest.TestCase):
             self.assertIn(phrase, flat_section)
 
     def test_it_adds_no_step_up_round(self):
-        self.assertEqual(self.tail.count('--model fable'), 2)
+        self.assertEqual(self.tail.count('--site implementer.stepUp'), 2)
 
 
 class TestRouter(unittest.TestCase):
@@ -1435,7 +1435,8 @@ class TestReaders(unittest.TestCase):
         self.assertIn('`feature-development`, gate 8 (`tail.md`) |', config)
         self.assertIn('**The entry point** (`feature-development`) finds no '
                       '`.artel/config.json`', config)
-        self.assertIn('(`feature-development`) declares none', flat('docs/agents.md'))
+        self.assertIn("The orchestrator and every stage skill run on the session's model",
+                      flat('docs/agents.md'))
         self.assertIn('the orchestrator records the baseline at arm time',
                       flat('docs/gates.md'))
 

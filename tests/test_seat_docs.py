@@ -63,7 +63,9 @@ class TestSeatDocs(unittest.TestCase):
     def test_agents_md(self):
         doc = flat('docs/agents.md')
         self.assertIn('seat (the orchestrator', doc)
-        self.assertIn('`seat`', between(doc, '## Models', '## Why this file'))
+        # the seat carries no site of its own: `seat.enabled` is inert on OpenCode
+        self.assertIn('| every other agent | `agents.<name>` |',
+                      between(doc, '## Models', '## Why this file'))
 
     def test_the_generator_excludes_the_seat(self):
         self.assertIn('artel-seat', build_opencode.AGENTS_EXCLUDE)

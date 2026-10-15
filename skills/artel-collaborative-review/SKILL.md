@@ -139,9 +139,11 @@ the mode, the snapshot and preparation paths, the current file's row ID and path
 applicable, the output path, and the read-only boundaries: no edits, no approvals, no checklist
 writes, no GitHub writes, no code execution.
 
-The dispatch carries no `model`: the agent runs on its frontmatter `opus`
-(`${ARTEL_ROOT}/docs/agents.md` `## Models`); this session's provider/model choices are
-never embedded.
+The dispatch resolves its model from the host config before every call: resolve the site
+`agents.collaborative-reviewer` with
+`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site agents.collaborative-reviewer`
+and set it on the `subagent` call when non-null; a `null` model passes no `model`, and a
+resolver exit `2` (e.g. `invalid_config`) is reported and stops the run — it is not an inherit.
 
 If the agent is not registered in the host, dispatch the host's general-purpose agent with the
 shipped definition instead: read `${ARTEL_ROOT}/agents/artel-collaborative-reviewer.md` and

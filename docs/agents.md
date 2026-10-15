@@ -16,43 +16,39 @@ that names a concrete tool.
 
 ## Models
 
-Each agent's frontmatter `model:` is its default. Claude Code resolves a subagent's model as the
-`subagent` call's `model`, then the agent's frontmatter, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the
-session's model — so a frontmatter model already beats the session's, and artel passes a model
-on a call only where it varies:
+No agent carries a frontmatter `model:`. Every dispatch artel covers resolves its model from
+`models.opencode` in the host's `.artel/config.json` through `scripts/models.py`, at call time,
+and passes the concrete `provider/model[#variant]` on the `subagent` call; a site left unset
+passes no model, so the child inherits the caller's:
 
-| Dispatch | Model |
+| Dispatch | Config site |
 |---|---|
-| `implementer` — an iteration task on route `light` | `sonnet` (route helper) |
-| `implementer` — an iteration task on route `full` | `opus` (route helper) |
-| `implementer` — a fix list, first round | `opus` (frontmatter) |
-| `implementer` — a fix list, a round after a failed one (review round 2 or more, checkpoint verify round 2) | `fable` |
-| `reviewer` — a task review (route `full` tasks) | `sonnet` (dispatched) |
-| `reviewer` — a ticket/phase review, round 1, and plan review | `opus` (frontmatter) |
-| `reviewer` — a re-review after a fix round | `sonnet` (dispatched) |
-| `reviewer` — `deep-review`'s whole-branch review | `fable` |
-| `seat` | `sonnet` (frontmatter) |
-| every other agent | its frontmatter |
+| `implementer` — an iteration task on route `light` | `implementer.light` |
+| `implementer` — an iteration task on route `full` | `implementer.full` |
+| `implementer` — a fix list, first round | `implementer.fix` |
+| `implementer` — a fix list, a round after a failed one (review round 2 or more, checkpoint verify round 2) | `implementer.stepUp` |
+| `reviewer` — a task review (route `full` tasks) | `reviewer.task` |
+| `reviewer` — a ticket/phase review, round 1 | `reviewer.phase` |
+| `reviewer` — a re-review after a fix round | `reviewer.reReview` |
+| `reviewer` — plan review (gate 4.2) | `reviewer.plan` |
+| `reviewer` — `deep-review`'s whole-branch review | `reviewer.deepReview` |
+| `tech-writer` — the `pr-description` dispatch | `pr-description` |
+| `collaborative-reviewer` | `agents.collaborative-reviewer` |
+| every other agent | `agents.<name>` |
 
-An iteration task's model follows its route, and a review's follows its scope — the distribution
+An iteration task's site follows its route, and a review's its scope — the distribution
 superpowers 6.4.1's Model Selection and its strict-cost evaluations support
-([design.md](design.md), decision log 2026-10-02). Fix lists keep `opus`, and `fable` on the
-round after a failed one; the step-up rule is [autonomous-run.md](autonomous-run.md) §5.
-Models are named by alias (`sonnet`, `opus`, `fable`): Claude Code maps each to a model of that
-family — which one depends on the Claude Code build — and under an `availableModels`
-restriction substitutes the newest permitted one. A call refused for its model is re-dispatched
-once without `model`, on the frontmatter default.
+([design.md](design.md), decision log 2026-10-02). A fix list's first round resolves
+`implementer.fix` whatever the task's route, and the round after a failed one steps up to
+`implementer.stepUp`; the step-up rule is [autonomous-run.md](autonomous-run.md) §5. A dispatch
+refused for its model is re-dispatched once without one; a resolver error (exit `2`) is reported
+and stops the run. Keys, allowed values and defaults: [config.md](config.md), `models`.
 
-**A skill's `model:` applies only when the person types the skill.** Invoked through the Skill
-tool — by the router, or by one skill composing another — the line is ignored and the session's
-model runs it: across the host runs of 2026-08-31 to 2026-09-30, typed invocations switched model
-in 156 of 166 activations, Skill-tool invocations in 0 of 230. So the orchestrator
-(`feature-development`) declares none and runs on the session's
-model however it is reached; a stage skill's line matters only when that skill is typed on its own.
-
-OpenCode drops the frontmatter tiers; per-dispatch models are resolved from `models.opencode`
-in the host's `.artel/config.json` and passed on the `subagent` call; a manual-only skill
-declares `metadata.opencode/autoinvoke: false` ([opencode.md](opencode.md)).
+**A skill declares no `model:`.** The orchestrator and every stage skill run on the session's
+model however they are reached: across the host runs of 2026-08-31 to 2026-09-30, typed
+invocations switched the session's model in 156 of 166 activations, tool invocations in 0 of
+230 — the measurement behind declaring none. Only the agent dispatches above carry a model. A
+manual-only skill declares `metadata.opencode/autoinvoke: false` ([opencode.md](opencode.md)).
 
 ## Why this file is in `docs/`, not `agents/`
 

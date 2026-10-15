@@ -83,8 +83,10 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 Make a single `subagent` call:
 
 - the `artel-tech-writer` agent
-- `model`: none — the dispatch runs on the `artel-tech-writer` agent's frontmatter tier (`opus`)
-  (`${ARTEL_ROOT}/docs/agents.md` `## Models`)
+- `model`: resolve `pr-description`
+  (`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site pr-description`) and set it
+  when non-null — `null` leaves no model, so the child inherits the caller's model; a dispatch
+  refused for its model is re-dispatched once without one
 - `description`: `"PR description for <TICKET_ID>"`
 - `prompt`: built from the captured inputs using the template below.
 

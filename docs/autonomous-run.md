@@ -217,16 +217,15 @@ loop's counter as a resume with guidance does. Red again → the question is ask
 the option: `MAX_DEBUG_HERE_ATTEMPTS = 1`, one attempt per halt. The procedure is in the
 `artel-feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Debug it here first`).
 
-**Step-up rounds.** A fix round that follows a failed one runs one tier up, on `fable`: the
-review loop's fix round whose findings come from a `review.md` with `**Review round:**` 2 or
-more, and a checkpoint's second `## Verify Fixes` round. The orchestrator passes the
-`artel-implementer` skill `--model fable`. A fix list's first round runs on `opus`, whatever the
-task's route — a fix list is run-level correction, not a task dispatch. Rounds that exist once —
-the per-task review's fix round, the runtime retry, review fix round 1 — keep the default, and a
-stepped-up round counts toward `MAX_TOTAL_CORRECTION_ROUNDS` like any other.
-**OpenCode:** the generated build resolves the stepped-up round from `models.opencode`'s
-`implementer.stepUp` — and a first fix round from `implementer.fix` — via `scripts/models.py`;
-unset → no flag ([opencode.md](opencode.md)).
+**Step-up rounds.** A fix round that follows a failed one runs one tier up: the review loop's
+fix round whose findings come from a `review.md` with `**Review round:**` 2 or more, and a
+checkpoint's second `## Verify Fixes` round. The orchestrator passes the `artel-implementer`
+skill `--model <value>`, resolved from `models.opencode`'s `implementer.stepUp`
+(`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site implementer.stepUp`); unset → no flag.
+A fix list's first round resolves `implementer.fix`, whatever the task's route — a fix list is
+run-level correction, not a task dispatch. Rounds that exist once — the per-task review's fix
+round, the runtime retry, review fix round 1 — keep the default, and a stepped-up round counts
+toward `MAX_TOTAL_CORRECTION_ROUNDS` like any other.
 
 Environment errors (toolchain/dependency mismatches, subprocess failures, missing tools) are **never**
 loop findings — immediate stop-and-ask pointing at setup.
@@ -509,7 +508,7 @@ its own), floor 4 and `review.perTask`. A `light` task's snapshot is never used.
 
 One journal line per dispatched task (§11), in this form:
 
-    task 2.3: route full (declared full; floor: sensitive path (payments): lib/ramps/ramps_bloc.dart); model opus
+    task 2.3: route full (declared full; floor: sensitive path (payments): lib/ramps/ramps_bloc.dart); model tokenguard/opus-5.5
 
 — `task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]]); model <value>`,
 the reasons the row's `route_reasons`, plus `earlier deviation: <path>` for floor 4 and
@@ -566,54 +565,49 @@ that drift across tasks has room to compound.
 
 ### 16.3 The implementer's model
 
-An iteration task's model follows its effective route: `light` → `sonnet`, `full` → `opus`
-(`MODEL_BY_ROUTE` in `scripts/task_grammar.py`). Before the `subagent` call the implementer skill runs
-the route helper over the tasklist in scope — the phase tasks file or `tasklist.md`, on the
-kartoteka path through `spec_store.py get … |` ([task-grammar.md](task-grammar.md) §8) — and
-passes a non-null `data.model` as the call's `model`; `null` or exit `2` leaves it off, on the
-frontmatter `opus`. The choice is relayed as a `Model:` line, after `Verify iterations:` and
-before `Deviations:`, and §16.1's journal line takes the line's value verbatim as the
-`; model <value>` suffix.
+An iteration task's model is resolved from `models.opencode`, keyed by the task's effective
+route: `implementer.light` or `implementer.full`. Before the `subagent` call the implementer
+skill runs the route helper over the tasklist in scope — the phase tasks file or `tasklist.md`,
+on the kartoteka path through `spec_store.py get … |` ([task-grammar.md](task-grammar.md) §8) —
+takes its `route_effective` (the helper's alias `model` is not used), and resolves
+`implementer.<route_effective>`
+(`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site implementer.<route_effective>`),
+passing a non-null value as the call's `model`; a `null` route, a route-helper exit `2` or a
+`null` model leaves it off, and a resolver exit `2` is reported and stops the run. The choice is
+relayed as a `Model:` line, after `Verify iterations:` and before `Deviations:`, and §16.1's
+journal line takes the line's value verbatim as the `; model <value>` suffix.
 
 The prediction can miss — the helper answers for the task that was ready when it ran, while the
 completion's first line names the task actually worked. The relayed line then reads
-`Model: sonnet (predicted task 2.3 at route light; worked task 2.4)`. The worked task's route
-still decides whether its task review runs (§16.2): a task that ran on `sonnet` by a missed
-prediction is wrapped when its effective route came out `full`.
+`Model: <value> (predicted task 2.3 at route light; worked task 2.4)`. The worked task's route
+still decides whether its task review runs (§16.2): a task whose model came from
+`implementer.light` by a missed prediction is wrapped when its effective route came out `full`.
 
 Fix lists are the exception: a fix list is correction of a failed gate, not a task dispatch, so
-its base is `opus` whatever the task's route, with `fable` on the round after a failed one (§5);
-the skill runs no helper for one.
-
-**OpenCode:** the generated build drops the helper's alias `model`; it still runs the helper for
-`route_effective` and the reasons, then resolves `implementer.<route_effective>` from
-`models.opencode` via `scripts/models.py` and passes it on the `subagent` call — unset → no
-model, and the child inherits the caller's.
+it resolves `implementer.fix` whatever the task's route, and `implementer.stepUp` on the round
+after a failed one (§5); the skill runs no route helper for one.
 
 ### 16.4 The reviewer's model
 
-The reviewer scales by scope, and `run-reviewer --model` carries the choice to the `subagent` call
-(no flag → no `model`, on the frontmatter `opus`):
+The reviewer scales by scope. `run-reviewer --model` carries an explicit choice to the
+`subagent` call; with no flag the skill resolves the mode's site from `models.opencode` and
+passes it when non-null:
 
-| Review | Model |
+| Review | Config site |
 |---|---|
-| task review (the §16.2 wrapper, `full` tasks only) | `sonnet` |
-| ticket / phase review, round 1 | `opus` (frontmatter) |
-| re-review after a fix round | `sonnet` |
-| plan review (gate 4.2) | `opus` (frontmatter) |
-| `deep-review`'s standalone whole-branch review | `fable` (its own direct dispatch) |
+| task review (the §16.2 wrapper, `full` tasks only) | `reviewer.task` |
+| ticket / phase review, round 1 | `reviewer.phase` |
+| re-review after a fix round | `reviewer.reReview` |
+| plan review (gate 4.2) | `reviewer.plan` |
+| `deep-review`'s standalone whole-branch review | `reviewer.deepReview` (its own direct dispatch) |
 
-The tail passes `--model sonnet` on the task-review wrapper and on every re-review dispatch,
-and both journal the model (`; model sonnet`); round 1's entries are unchanged. A re-review is
-not a fix-diff-only review — it verdicts the fix batch and repeats on the surface round 1
-already read — so `sonnet` is the mid-tier floor superpowers measured, with the final `fable`
-review and the review cap as the backstops. `deep-review` step 3 is untouched: it dispatches
-the same agent on `fable` directly, with its own refused-model fallback.
-
-**OpenCode:** the generated build resolves the scope's site from `models.opencode` via
-`scripts/models.py` — task → `reviewer.task`, ticket → `reviewer.phase`, re-review →
-`reviewer.reReview`, plan → `reviewer.plan`; `deep-review` resolves `reviewer.deepReview` — and
-passes it on the `subagent` call; unset → no model.
+The tail passes the re-review flag (resolved from `reviewer.reReview`) on every re-review
+dispatch, and both the task-review wrapper and the re-review journal the resolved model
+(`; model <value>`); round 1's entries are unchanged. A re-review is not a fix-diff-only review
+— it verdicts the fix batch and repeats on the surface round 1 already read — so its site is
+the mid-tier floor superpowers measured, with the `reviewer.deepReview` review and the review
+cap as the backstops. `deep-review` step 3 is untouched: it dispatches the same agent and
+resolves `reviewer.deepReview` directly, with its own refused-model fallback.
 
 ## 17. Sizing and heads
 
@@ -731,7 +725,7 @@ and stops, without a second dispatch.
 
 With `seat.enabled: true` (config.md) — Claude Code only, never in a `--step` or `--dry-run` run — the
 post-approval loop runs one layer down: step 6 of `feature-development` dispatches the `seat`
-agent (frontmatter `sonnet`) whose procedure is `skills/artel-feature-development/tail.md` unchanged.
+agent whose procedure is `skills/artel-feature-development/tail.md` unchanged.
 The interview, the approval pause and arming stay on the main thread. OpenCode runs the tail
 inline (no seat dispatch). One dispatch per run; a resume dispatches a fresh seat.
 

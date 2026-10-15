@@ -527,6 +527,19 @@ class TestExclusiveReservation(unittest.TestCase):
         self.assertEqual(quiet['start'], [])
         self.assertEqual(quiet['claim_capacity'], 0)
 
+    def test_an_exclusive_reservation_waits_for_every_unresolved_state(self):
+        for state in ('preparing', 'running', 'verifying/reviewing', 'prepared',
+                      'integrating'):
+            result = select(EXCLUSIVE_FIRST, value=manifest({'2.1': 'reserved', '2.2': state}))
+            self.assertEqual(result['resume'], [], state)
+            self.assertEqual(result['start'], [], state)
+            self.assertTrue(any('2.1' in reason for reason in result['reasons']), state)
+        # With the other work published, the exclusive reservation launches alone.
+        result = select(EXCLUSIVE_FIRST,
+                        value=manifest({'2.1': 'reserved', '2.2': 'published'}))
+        self.assertEqual(result['resume'], ['2.1'])
+        self.assertEqual(result['start'], [])
+
     def test_a_pending_exclusive_reservation_does_not_freeze_another_reservation(self):
         # 2.1 is exclusive and reserved; 2.2 runs; 2.3 waits and is compatible.
         text = iteration(2,

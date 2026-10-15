@@ -532,23 +532,35 @@ the coordinator recomputes it after **every** durable transition or publication:
 
 The consumer protocol:
 
-1. **`resume` — never claim again.** Each listed task is a reservation this run already
-   holds. Persist its `reserved → preparing` transition (revision-checked, §13.3) **before**
-   any effect — no worktree, no session, no prompt — and then launch it. A `resume` entry is
-   never passed to the queue's claim operation and is never re-claimed.
-2. **`start` — claim through the queue's atomic operation.** For each listed task follow
-   §13.5's order: `begin_claim`, persist, call the queue's claim (the operation returns the
-   row; the queue cannot be told which task to claim by id), `record_claim`, persist, and only
-   then reserve and prepare. The **returned mapping is authoritative** — the task claimed is
-   the task the queue returned — and a row that is not this run's stops admission.
-3. **Act on `start`, not on `claim_capacity`.** The capacity figure bounds new claims; it can
+1. **`resume` — never claim again; the only launch gate.** Each listed task is a reservation
+   this run already holds. Persist its `reserved → preparing` transition (revision-checked,
+   §13.3) **before** any effect — no worktree, no session, no prompt — and then launch it. A
+   `resume` entry is never passed to the queue's claim operation and is never re-claimed.
+2. **`start` — claim through the queue's atomic operation; the returned row decides the
+   task.** For each listed task follow §13.5's order: `begin_claim`, persist, call the queue's
+   claim (the operation returns the row; the queue cannot be told which task to claim by id),
+   `record_claim`, persist. The **returned mapping is authoritative**: the returned row is the
+   reservation this run now holds, and it may name a different task than the `start` candidate
+   — the tracker's next claimable row can be a task the selector did not list. Reserve that
+   task; never claim by id, never release or re-claim a row to obtain the listed candidate. A
+   row that is not this run's stops admission.
+3. **Every launch goes through `resume` — the returned row, a local reservation and a retry
+   alike.** `start` and `claim_capacity` authorize bounded **admission attempts** (claims),
+   not launches. After any transition that lands a task in `reserved` — a fresh claim, a local
+   reservation, a retry (`blocked`/`failed`/`cancelled → reserved`) or a preparation-failure
+   return — the coordinator recomputes `select_admissions` and launches only the tasks
+   `resume` lists, persisting `preparing` first. A claimed task that is not resumable (a
+   conflict, an exclusive task waiting for quiet, no free seat) stays `reserved`, holds its
+   row and waits; it is never prepared blind.
+4. **Act on `start`, not on `claim_capacity`.** The capacity figure bounds new claims; it can
    exceed the number of tasks in `start`, and it never authorizes claiming a task the selector
    did not list.
-4. **`drain` — stop admission, wait, integrate, publish, recompute.** While `drain` is true
+5. **`drain` — stop admission, wait, integrate, publish, recompute.** While `drain` is true
    nothing starts and nothing resumes: wait for the workers to return, execute the integration
    transaction, publish the task, and recompute.
-5. **Recompute after every transition.** The selector never mutates the manifest; every
-   durable transition or publication is followed by a fresh call.
+6. **Recompute after every transition.** The selector never mutates the manifest; every
+   durable transition or publication — a recorded claim, a retry and a preparation-failure
+   return included — is followed by a fresh call.
 
 Capacity and ordering. `parallel.seats` bounds the workers (`preparing` or `running`), the
 waiting reservations (`reserved`) and — doubled — every unresolved assignment (`reserved`,
@@ -558,14 +570,19 @@ without changing the unresolved count; combined resume and start never exceed th
 Conflicting reservations are serialized deterministically in document order: one is resumed,
 the others wait and are re-checked after it is published. A pending exclusive reservation
 stops new claims and starts but not the other reservations: the run drains to it and it
-launches alone once no worker is running.
+launches alone once no other unresolved work outside the waiting reservations is left —
+`verifying/reviewing`, `prepared` and `integrating` included, so it never launches beside a
+pending integration, while a passive waiting reservation does not hold it back and mutually
+exclusive reservations still take turns.
 
 Launch invariant. A resumed task is compatible with every active or un-integrated task and
 with the other resumes selected with it; a newly admitted task is compatible with every
 unresolved task, waiting reservations included; and two tasks are never launched together when
 their declared paths overlap — equal, case-folded where the platform is not case-sensitive, or
 related as a path-segment prefix (a directory/prefix declaration makes its task exclusive
-instead of being fed to a glob engine). Conflicting reservations are the one deliberate
+instead of being fed to a glob engine). An exclusive task is launched alone: an unclaimed one
+is admitted only when nothing is unresolved, an exclusive reservation only when no other
+non-reserved unresolved work is left. Conflicting reservations are the one deliberate
 exception to "every unresolved task is pairwise compatible": the withheld reservation is
 re-checked on every call and cannot launch while a conflicting task is unresolved.
 

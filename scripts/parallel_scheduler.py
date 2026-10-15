@@ -33,14 +33,18 @@ instead of being fed to a path-conflict engine. HITL tasks and tasks carrying
 Admission. `resume` promotes the run's own reservations first: an already-owned `reserved`
 task that is safe to launch -- current iteration, dependencies complete, no overlap with
 active or un-integrated work, a free seat, and no exclusive reservation ahead of it -- is
-handed back for the coordinator to persist as `preparing`; it is never claimed again. Launch
-seats are reserved for `resume` before `start` is selected, and promotions free waiting
-reservation slots without changing the unresolved count. `start` then admits new tasks in
-document order, skipping a head task it cannot admit (an incompatible reservation, a ready
-exclusive task) and admitting a later compatible one. Conflicting reservations are serialized
-deterministically: one resumes, the others wait and are re-checked after it is published. A
-pending exclusive reservation stops new claims and starts but not other reservations: the run
-drains to it and it launches alone when nothing is running.
+handed back for the coordinator to persist as `preparing`; it is never claimed again. An
+exclusive reservation is handed back only when no other non-reserved unresolved work is left
+-- `verifying/reviewing`, `prepared` and `integrating` included -- so it cannot launch beside
+a pending integration; passive waiting reservations do not hold it back, so mutually
+exclusive reservations still take turns. Launch seats are reserved for `resume` before
+`start` is selected, and promotions free waiting reservation slots without changing the
+unresolved count. `start` then admits new tasks in document order, skipping a head task it
+cannot admit (an incompatible reservation, a ready exclusive task) and admitting a later
+compatible one. Conflicting reservations are serialized deterministically: one resumes, the
+others wait and are re-checked after it is published. A pending exclusive reservation stops
+new claims and starts but not other reservations: the run drains to it and it launches alone
+once no other unresolved work outside the waiting reservations is left.
 
 Capacity. `parallel.seats` bounds the workers (preparing or running); the waiting
 reservations (`reserved`) are bounded by `seats` too, and every unresolved assignment together
@@ -459,7 +463,7 @@ def select_admissions(iterations, manifest, seats, case_sensitive):
             reasons.append('{} waits for {}'.format(number, missing))
             continue
         if why is not None:
-            if active > 0 or resume:
+            if held or resume:
                 reasons.append('{} is exclusive ({}): it waits for a quiet run'.format(
                     number, why))
                 continue

@@ -76,17 +76,20 @@ DO NOT conduct research yet. Your job in this phase is to read context and retur
 
 ## Return Format
 
-Return a numbered list of ALL questions for the user. Include:
-- Open questions from the PRD (if any)
-- Your own clarifying questions
+Return:
+1. The research output path you resolved per `${ARTEL_ROOT}/docs/ticket-parsing.md` §4, or your refusal message.
+2. A numbered list of ALL questions for the user. Include:
+   - Open questions from the PRD (if any)
+   - Your own clarifying questions
 
-If there are truly no questions, return: "NO_QUESTIONS".
+If there are truly no questions, return "NO_QUESTIONS" in place of the list.
 
 Return control after listing the questions.
 ```
 
 **Important:** a re-dispatch is always a fresh `subagent` call — there is no resume-by-id, so
-the agent re-reads its context files.
+the agent re-reads its context files; every continuation prompt carries the resolved output path,
+the ticket and phase and the **Spec store:** decision.
 
 ### Phase 2: Collect questions (no user interaction)
 
@@ -107,6 +110,8 @@ context files, which are its state; model per the dispatch procedure,
 - `prompt`:
 
 ```
+Ticket <TICKET_ID>{phase ? ", Phase <PHASE_NUM>" : ""} — **Spec store:** <the decision>.
+
 Answers/defaults to proceed on:
 [user's answers when the caller supplied them; otherwise: "No user answers available — for every open
 question, append an entry to .artel/run/<TICKET_ID>/open-questions.md (format:
@@ -123,7 +128,7 @@ defaults."]
 1. Incorporate the user's answers into your understanding.
 2. Scan the codebase for components, endpoints, contracts, patterns, limitations, and risks. Scope to the active phase when one is set.
 3. Alongside that scan, consult the institutional record per your agent definition's Step 2 and `${ARTEL_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1) — the **Knowledge consultation** field above is its `--local` input — then `index_status()`, `related(<project>, <canonical ticket key>)` and up to four `search_knowledge` queries scoped to `<project>` (`knowledge.project`) (§§2–3).
-4. Document at the path you determined in Phase 1:
+4. Document at <output-path>:
    - existing endpoints and contracts
    - layers and dependencies
    - patterns used

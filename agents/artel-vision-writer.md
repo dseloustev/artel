@@ -99,11 +99,13 @@ After Section 7, append `## Out of scope` (from PRD + idea) and `## References` 
 1. Read the idea file, the PRD, and the codebase as needed. Cite real repo paths and confirm
    every one of them — the host's optional code-symbol index first, else `grep`, per
    `${ARTEL_ROOT}/docs/code-navigation.md` §5.
-2. Draft the complete document (all seven sections) in memory. Header: the document header (`status: DRAFT`),
+2. Draft the complete document (all seven sections) and write it to
+   `.artel/run/<TICKET_ID>/vision-draft.md` (run state — a file on both spec-store paths; never
+   the spec trail). Header: the document header (`status: DRAFT`),
    `# Vision: {Feature Title} (<TICKET_ID>)`, the **Sources:** line, `---`, then the sections.
-3. Return: the full draft; a numbered question list (or `NO_QUESTIONS`) — strictly items where
+3. Return: the draft's path; a numbered question list (or `NO_QUESTIONS`) — strictly items where
    idea+PRD are silent and the answer changes the design; an optional KISS trade-offs note. Do not
-   write the file. Stop and wait to be re-dispatched.
+   write the vision file. Stop and wait to be re-dispatched.
 
 **Sketches, not `preview` fields.** When a question is an architecture choice whose options
 differ in *shape* — which component owns a step, which way the data flows — write the sketch
@@ -115,7 +117,7 @@ single-choice question. Options that differ in a name or a number get none.
 
 ### Step 2 — Finalize on re-dispatch
 
-Incorporate the answers, set the header's `status:` to `VISION_READY`, write the whole file in one pass, and return a
+Read the draft at `.artel/run/<TICKET_ID>/vision-draft.md`, incorporate the answers, set the header's `status:` to `VISION_READY`, write the whole file in one pass, and return a
 per-section one-line summary. On checkpoint feedback (revision request): revise, rewrite the file,
 return the updated summary.
 

@@ -58,24 +58,28 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `agents.vision-writer`).
 
 Use the `subagent` tool with the `artel-vision-writer` agent, description `"Draft vision for
-<TICKET_ID>"`, prompt: the ticket values, resolved input paths, plus:
+<TICKET_ID>"`, prompt: the ticket values, the **Spec store:** field, the resolved input paths and
+the run-state paths, plus:
 
 ```
 Read the idea file, the PRD (especially Resolved Questions / Assumptions / Out of Scope), and the
 codebase as needed. Draft the COMPLETE vision document — all seven sections from your section
-contract — in memory. Any section fully answered by repo conventions closes as
+contract — and write it to `.artel/run/<TICKET_ID>/vision-draft.md` (run state — a file on both
+spec-store paths; never the spec trail). Any section fully answered by repo conventions closes as
 "Standard — no deviations" plus a one-line justification.
 
-Return THREE things and stop (do not write the file):
-1. The full draft (raw markdown).
+Return THREE things and stop (do not write <specs.dir>/<TICKET_ID>/vision.md yet):
+1. The draft's path: `.artel/run/<TICKET_ID>/vision-draft.md`.
 2. A numbered list of clarifying questions (only where idea+PRD are silent AND the answer changes
    the design), or `NO_QUESTIONS`. Never re-ask anything answered in Resolved Questions. An
    architecture choice may carry a sketch on each option (your agent definition, Step 1).
 3. A "KISS trade-offs" note if anything was deliberately omitted; skip otherwise.
 ```
 
-**Fresh dispatch, not a resume** — the checkpoint re-dispatches the same `artel-vision-writer`
-agent; it re-reads its context files.
+**Fresh dispatch, not a resume** — every re-dispatch is a fresh child that remembers nothing: the
+draft lives at `.artel/run/<TICKET_ID>/vision-draft.md` and every continuation prompt carries it
+plus the accumulated answers, the ticket and phase, the resolved paths and the **Spec store:**
+decision.
 
 ### Phase 2: Ask (only if there are questions)
 
@@ -89,13 +93,33 @@ questions first. If `NO_QUESTIONS`, proceed with `answers = "NO_CHANGES"`.
 
 ### Phase 3: Finalize + checkpoint
 
-Dispatch a fresh `subagent` to the `artel-vision-writer` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.vision-writer`): `User's answers: [answers]. Finalize the document, set status: VISION_READY in its
-header, write it to <specs.dir>/<TICKET_ID>/vision.md, and return a per-section one-line
-summary.` The header is defined in `${ARTEL_ROOT}/docs/spec-storage.md` §3.2.
+Dispatch a fresh `subagent` to the `artel-vision-writer` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.vision-writer`), prompt:
+
+```
+Ticket <TICKET_ID> — **Spec store:** <the decision>.
+Read the draft at `.artel/run/<TICKET_ID>/vision-draft.md`, the idea file at <idea-path> and the
+PRD at <prd-path> or `none`.
+
+User's answers: [answers].
+
+Finalize the document from the draft, set status: VISION_READY in its header, write it to
+<vision-path>, and return a per-section one-line summary.
+```
+The header is defined in `${ARTEL_ROOT}/docs/spec-storage.md` §3.2.
 
 Then the **wholesale checkpoint** — the `question` tool: `Vision written — approve?` with options
-**Approve** / **Request changes** (changes via "Other"). On Request changes: dispatch a fresh `subagent` to the `artel-vision-writer` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.vision-writer`) with the
-feedback, the agent revises and rewrites the file, repeat the checkpoint. On Approve: done.
+**Approve** / **Request changes** (changes via "Other"). On Request changes: dispatch a fresh `subagent` to the `artel-vision-writer` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.vision-writer`), prompt:
+
+```
+Ticket <TICKET_ID> — **Spec store:** <the decision>.
+Read the current document at <vision-path> (kartoteka path: `spec_store.py get <vision-path>`).
+
+Feedback: [the user's feedback].
+
+Revise the document, rewrite <vision-path> whole, and return the updated per-section summary.
+```
+
+Repeat the checkpoint until **Approve** — on Approve, done.
 
 ### Completion
 

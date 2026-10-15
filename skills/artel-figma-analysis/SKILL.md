@@ -94,7 +94,7 @@ Do NOT resolve Major findings yourself — return them per your Return format.
 ```
 
 **Fresh dispatch, not a resume** — Phase 3 re-dispatches the `artel-figma-analyst` agent;
-it re-reads its context files.
+it re-reads its context files, and the artifact it wrote in Phase 1 is the state it finalizes.
 
 **Stale-registry fallback:** if the agent returns `ENV_ERROR` naming ToolSearch / Figma tools as
 unavailable, the session's agent registry may predate the current `figma-analyst` definition
@@ -124,6 +124,8 @@ Branch on the agent's return:
 Dispatch a fresh `subagent` to the `artel-figma-analyst` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.figma-analyst`):
 
 ```
+Ticket <TICKET_ID> — **Spec store:** <the decision>.
+
 User resolutions: [numbered list matching the findings, or "none"].
 Record each in §5 Major as **Resolution:** <decision>, finalize the artifact (header `status: DESIGN_ANALYZED`, or `status: DESIGN_BLOCKED` if any resolution
 is Park for designer — `${ARTEL_ROOT}/docs/spec-storage.md` §3.2), and return DESIGN_ANALYSIS_COMPLETE with summary counts.

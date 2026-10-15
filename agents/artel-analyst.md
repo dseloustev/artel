@@ -95,6 +95,10 @@ Always read for context:
 - `<specs.dir>/<TICKET_ID>/diagnosis.md` — only when your dispatch names it: a bug ticket's cause, found before this interview. With status `DIAGNOSED_STRUCTURAL` it is where the interview starts: its **Root Cause**, **Fix Origin** and **Structural** sections are facts, not questions. Ask what the proper fix should be, never what is broken.
 - `<specs.dir>/<TICKET_ID>/spike.md` — only when your dispatch names it: the researcher's answer to the question the ticket asked. What its **Answer** settled is not asked again; its **Open Questions** join your question list.
 - Existing PRD at the target path (if a draft already exists), used as a starting point.
+- `.artel/run/<TICKET_ID>/interview.md` — the interview transcript when your dispatch names it:
+  the durable record of every earlier batch and its answers (run state — a file on both spec-store
+  paths; never the spec trail). Re-read it before resolving branches — you are re-dispatched fresh
+  and it, not your memory, holds the interview.
 
 ## Output
 

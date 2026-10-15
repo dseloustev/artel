@@ -45,6 +45,7 @@ You are creating the architecture and implementation plan for ticket <TICKET_ID>
 - **Ticket ID:** <TICKET_ID>
 - **Ticket Number:** <TICKET_NUM>
 - **Phase:** <PHASE_NUM> (or "all phases" when ticket-wide)
+- **Spec store:** <the decision, e.g. `kartoteka` or `files (<reason>)`>
 
 ## Instructions — Draft Plan and Identify Questions
 
@@ -58,13 +59,14 @@ You are creating the architecture and implementation plan for ticket <TICKET_ID>
    - For phase runs, `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` if it exists.
 4. Draft the plan. Phase-scoped plans use the structure: Phase Scope, Components, API contract, Data flows, NFR, Risks, Dependencies, Open questions. Ticket-wide plans omit Phase Scope/Dependencies.
 5. If there are architectural alternatives, note them for potential ADR creation alongside the plan (`phase-<PHASE_NUM>/adr.md` or `adr.md`).
-6. DO NOT finalize yet.
+6. Write the draft to `.artel/run/<TICKET_ID>/plan-draft.md` (run state — a file on both spec-store paths; never the spec trail) and DO NOT finalize yet: do not write the plan output path.
 
 ## Return Format
 
 Return:
-1. A summary of the drafted plan (key architectural decisions, components, data flows).
-2. A numbered list of open questions that need user input.
+1. The plan output path you resolved per `${ARTEL_ROOT}/docs/ticket-parsing.md` §4, or your refusal message.
+2. A summary of the drafted plan (key architectural decisions, components, data flows).
+3. A numbered list of open questions that need user input.
 
 If there are no open questions, return: "NO_QUESTIONS".
 
@@ -72,7 +74,9 @@ Return control after listing the questions.
 ```
 
 **Important:** a re-dispatch is always a fresh `subagent` call — there is no resume-by-id, so
-the agent re-reads its context files.
+the agent re-reads its context files. The draft plan lives at
+`.artel/run/<TICKET_ID>/plan-draft.md`, and every continuation prompt carries it, the resolved
+plan path, the ticket and phase, and the **Spec store:** decision.
 
 ### Phase 2: Collect questions (no user interaction)
 
@@ -95,25 +99,33 @@ context files, which are its state; model per the dispatch procedure,
 
 **If questions were asked:**
 ```
+Ticket <TICKET_ID>{phase ? ", Phase <PHASE_NUM>" : ""} — **Spec store:** <the decision>.
+
+Read the draft plan at `.artel/run/<TICKET_ID>/plan-draft.md`.
+
 Answers/defaults to proceed on:
 [the caller's resolved answers when supplied; otherwise proceed on the proposed defaults you will record in .artel/run/<TICKET_ID>/open-questions.md]
 
 ## Finalize the Plan
 
-1. Incorporate the user's answers.
+1. Incorporate the user's answers into the draft.
 2. For every unresolved question, append an open-questions.md entry (format: ${ARTEL_ROOT}/docs/autonomous-run.md §3, from: planner) with your proposed default, and mark the affected plan decisions "(provisional — Q<n>)".
-3. Save the finalized plan to the path you determined in Phase 1.
+3. Save the finalized plan to <plan-path>.
 4. If there are architectural alternatives, create the ADR document alongside the plan.
 5. Set the plan header's `status:` (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2) to `PLAN_APPROVED` when no provisional markers remain, else `PLAN_DRAFTED`.
 ```
 
 **If no questions (NO_QUESTIONS):**
 ```
+Ticket <TICKET_ID>{phase ? ", Phase <PHASE_NUM>" : ""} — **Spec store:** <the decision>.
+
+Read the draft plan at `.artel/run/<TICKET_ID>/plan-draft.md`.
+
 No open questions — the plan is approved.
 
 ## Finalize the Plan
 
-1. Save the finalized plan to the path you determined in Phase 1.
+1. Save the finalized plan to <plan-path>.
 2. If there are architectural alternatives, create the ADR document alongside the plan.
 3. Set the plan header's `status: PLAN_APPROVED`.
 ```

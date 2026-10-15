@@ -309,6 +309,57 @@ class TestPreviews(unittest.TestCase):
                     self.assertIn(phrase, phase)
 
 
+class TestFreshDispatchState(unittest.TestCase):
+    """A re-dispatch is a fresh child with no memory: every continuation prompt carries the
+    accumulated state — the transcript or draft, the ticket and phase, the resolved paths and
+    the **Spec store:** decision — instead of assuming the previous child remembers."""
+
+    def test_the_interview_transcript_is_durable(self):
+        text = flat('skills/artel-analysis/SKILL.md')
+        self.assertIn('`.artel/run/<TICKET_ID>/interview.md`', text)
+        self.assertIn("append this batch and the user's answers", text)
+        phase3 = between(text, '### Phase 3: Finalize the PRD', '### Completion')
+        self.assertIn('Read the interview transcript at `.artel/run/<TICKET_ID>/interview.md`',
+                      phase3)
+        self.assertIn('**Spec store:**', phase3)
+        analyst = flat('agents/artel-analyst.md')
+        self.assertIn('`.artel/run/<TICKET_ID>/interview.md`', analyst)
+
+    def test_the_vision_draft_is_a_file(self):
+        text = flat('skills/artel-generate-vision/SKILL.md')
+        self.assertIn('`.artel/run/<TICKET_ID>/vision-draft.md`', text)
+        self.assertNotIn('in memory', text)
+        phase3 = between(text, '### Phase 3: Finalize + checkpoint', '### Completion')
+        self.assertIn('Read the draft at `.artel/run/<TICKET_ID>/vision-draft.md`', phase3)
+        self.assertIn('**Spec store:**', phase3)
+        writer = flat('agents/artel-vision-writer.md')
+        self.assertIn('`.artel/run/<TICKET_ID>/vision-draft.md`', writer)
+        self.assertNotIn('in memory', writer)
+
+    def test_the_plan_draft_is_a_file_and_the_path_is_relayed(self):
+        text = flat('skills/artel-planner/SKILL.md')
+        self.assertIn('`.artel/run/<TICKET_ID>/plan-draft.md`', text)
+        self.assertNotIn('the path you determined in Phase 1', text)
+        self.assertEqual(text.count('Save the finalized plan to <plan-path>.'), 2)
+        phase1 = between(text, '## Instructions — Draft Plan and Identify Questions', '### Phase 2')
+        self.assertIn('The plan output path you resolved', phase1)
+        self.assertIn('**Spec store:**', phase1)
+
+    def test_the_research_path_is_relayed(self):
+        text = flat('skills/artel-researcher/SKILL.md')
+        self.assertIn('The research output path you resolved', text)
+        self.assertNotIn('the path you determined in Phase 1', text)
+        phase3 = between(text, '### Phase 3: Re-dispatch for Research', '### Question mode')
+        self.assertIn('Document at <output-path>', phase3)
+        self.assertIn('**Spec store:**', phase3)
+
+    def test_the_lean_writer_finalizes_from_its_draft(self):
+        text = flat('skills/artel-generate-tasklist/SKILL.md')
+        phase3 = between(text, '### Phase 3: Resume to Finalize Tasklist', '### Phase 4')
+        self.assertIn('Read the draft at `.artel/run/<TICKET_ID>/tasklist-draft.md`', phase3)
+        self.assertIn('**Spec store:**', phase3)
+
+
 class TestNewDocuments(unittest.TestCase):
     """`spike.md` and `diagnosis.md` are spec documents: stored, addressed and excluded like
     the rest, and the diagnosis is a gate document with three statuses."""

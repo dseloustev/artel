@@ -231,12 +231,16 @@ Collect the answers into a single string:
 Dispatch a fresh `subagent` to the `artel-tasklist-writer` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.tasklist-writer`):
 
 ```
+Ticket <TICKET_ID> — **Spec store:** <the decision>.
+
+Read the draft at `.artel/run/<TICKET_ID>/tasklist-draft.md`.
+
 User's answers:
 [answers]
 
 ## Finalize the Tasklist
 
-1. Incorporate the answers.
+1. Incorporate the answers into the draft.
 2. Write the whole tasklist in one pass to <specs.dir>/<TICKET_ID>/tasklist.md.
 3. Return the single confirmation line.
 ```

@@ -72,6 +72,7 @@ You are running the requirements interview for <TICKET_ID>{phase ? ", Phase <PHA
 ## Context
 
 - **Ticket ID:** <TICKET_ID> / **Ticket Number:** <TICKET_NUM> / **Phase:** <PHASE_NUM> (or "all phases" when ticket-wide)
+- **Spec store:** <the decision, e.g. `kartoteka` or `files (<reason>)`>
 - **Description file:** [path or "none"]
 - **Knowledge consultation:** <"local-only (--local was passed)" | "enabled">
 - **Diagnosis (input):** <specs.dir>/<TICKET_ID>/diagnosis.md (<status>), or none
@@ -104,7 +105,8 @@ further branches remain after this batch, else `LAST_BATCH`.
 ```
 
 **Fresh dispatch, not a resume** — the interview loop re-dispatches the `artel-analyst`
-agent; it re-reads its context files.
+agent; it re-reads its context files, and the interview transcript at
+`.artel/run/<TICKET_ID>/interview.md` is the accumulated state every continuation carries.
 
 ### Phase 2: Interview loop
 
@@ -117,9 +119,13 @@ Repeat until the agent returns `INTERVIEW_COMPLETE`:
    wireframe stays a plain block. Sketches go on single-choice questions only
    — a batch that mixes sketched questions with multi-choice ones is asked as two calls, the
    sketched questions first. Vague user answers ("it depends") are sent back to the agent, which must
-   split them into resolvable sub-questions in the next batch.
-2. Dispatch a fresh `subagent` to the `artel-analyst` agent with the answers (model per the
-   dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.analyst`): `User's answers: [answers]. Resolve these branches. Return
+   split them into resolvable sub-questions in the next batch. **Record the round before the next
+   dispatch:** append this batch and the user's answers to
+   `.artel/run/<TICKET_ID>/interview.md` (run state — a file on both spec-store paths; never the
+   spec trail). The analyst is re-dispatched fresh and remembers nothing, so the transcript is the
+   interview's memory.
+2. Dispatch a fresh `subagent` to the `artel-analyst` agent (model per the
+   dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.analyst`) with the round and the transcript: `Questions asked: [this round's batch]. User's answers: [answers]. The full transcript is at .artel/run/<TICKET_ID>/interview.md. Resolve these branches. Return
    the next batch (same format), or INTERVIEW_COMPLETE when every branch is unambiguous or explicitly
    parked as an Assumption with user consent.`
 3. On `NO_QUESTIONS` from Phase 1, skip straight to Phase 3.
@@ -129,16 +135,20 @@ Repeat until the agent returns `INTERVIEW_COMPLETE`:
 Dispatch a fresh `subagent` to the `artel-analyst` agent (model per the dispatch procedure, `${ARTEL_ROOT}/docs/agents.md` `## Models`, site `agents.analyst`):
 
 ```
+Ticket <TICKET_ID>{phase ? ", Phase <PHASE_NUM>" : ""} — **Spec store:** <the decision>.
+
 Interview complete. Write the PRD now:
 1. Follow the PRD structure from your agent definition's Output section (goal/context, user
    stories, metrics, requirements, risks, out of scope, assumptions, resolved questions).
    Write `## Requirements` as your agent definition's "Requirements in the PRD" section
    prescribes — `R<n>` entries, each with its *Accepts when:* line; `PRD_READY` requires it.
-2. Record every Q&A pair in `## Resolved Questions`, parked items in `## Assumptions`, exclusions in
+2. Read the interview transcript at `.artel/run/<TICKET_ID>/interview.md` — the interview's
+   durable record; you are a fresh dispatch and have no memory of the rounds — then record every
+   Q&A pair in `## Resolved Questions`, parked items in `## Assumptions`, exclusions in
    `## Out of Scope`. `## Open Questions` must be empty. A question the institutional record
    answered is recorded there too, in the cited form your agent definition's Output section gives —
    status and ⚠ NON-CURRENT marker included.
-3. Open the PRD with the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2) — `type: prd`, `status: PRD_READY` — and save to the path from Phase 1.
+3. Open the PRD with the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2) — `type: prd`, `status: PRD_READY` — and save to <prd-path> (the phase-aware path per `${ARTEL_ROOT}/docs/ticket-parsing.md` §4).
 4. Return a summary: goals, key decisions, scope, count of resolved questions and assumptions.
 ```
 

@@ -68,6 +68,9 @@ A plan file at the path determined by `ticket-parsing.md` §4, containing:
 - NFRs
 - risks and alternatives
 
+Until it is finalized, the draft lives at `.artel/run/<TICKET_ID>/plan-draft.md` (run state — a
+file on both spec-store paths; never the spec trail).
+
 For phase-scoped runs, prefix sections with phase context:
 - **Phase Scope** — what this phase covers.
 - **Components**, **API contract**, **Data flows**, **NFR**, **Risks**, **Dependencies** (what must be done in prior phases), **Open questions**.

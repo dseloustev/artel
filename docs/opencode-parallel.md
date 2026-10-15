@@ -6,9 +6,12 @@ Sub-project 2c runs one worker session per task on the OpenCode host. This file 
 contract the native capability gate froze: it fixes the session interfaces the adapter
 uses, the worker's role, permissions and location, the assignment and result `schema: 1`, the
 task states and their transitions, integration ownership, the concurrency metadata, and what
-happens when a capability is missing. It records a contract, not shipped behavior: no
-parallel code exists yet, and `parallel.seats` absent or `1` keeps the serial procedure
-exactly as it is (a boolean is not an integer and fails configuration validation).
+happens when a capability is missing. It records a contract, not shipped behavior: the
+schema, run-state and claim helpers exist (`scripts/parallel_contract.py`,
+`scripts/parallel_state.py`, `scripts/parallel_queue.py`), no coordinator, scheduler or
+worker adapter drives them yet, and `parallel.seats` absent or `1` keeps the serial
+procedure exactly as it is (a boolean is not an integer and fails configuration
+validation).
 
 Proven against **OpenCode 2.0.29** only. The names below are the installed v2 HTTP API and
 event stream, retrieved through `opencode api get /openapi.json`; capability coverage is
@@ -346,7 +349,162 @@ today:
 - **Missed-event recovery policy.** The stream has no replay, so the coordinator must
   reconcile from durable session state and define the reconnect semantics.
 
-## 13. Proof record
+## 13. Run state, ticket ownership and claim recovery
+
+The coordinator drives a parallel run from durable host state: one run manifest, one
+repository-wide ticket lock, and a claim intent that survives a crash between the queue
+call and its record. `scripts/parallel_state.py` owns the manifest and the lock,
+`scripts/parallel_queue.py` owns the claim intents and their reconciliation; the
+coordinator is their only caller and performs every queue call itself.
+
+### 13.1 The run manifest — `schema: 1`
+
+One manifest per run, host-owned under `.artel/run/<TICKET_ID>/parallel/<run-id>/` (never
+in the plugin install), JSON-safe and carrying exactly these keys:
+
+```json
+{
+  "schema": 1,
+  "ticket": "PROJ-123",
+  "phase": 2,
+  "run_id": "0f6f0f2e-6b1a-4f2e-9c5d-2b7a1c8e4d10",
+  "seats": 2,
+  "graph_digest": "…",
+  "revision": 3,
+  "tasks": {},
+  "claims": {"seq": 0, "intents": []},
+  "stop": null
+}
+```
+
+| Field | Rules |
+|---|---|
+| `schema` | exactly `1`. |
+| `ticket` | canonical `<PROJECT_KEY>-<number>`. |
+| `phase` | integer ≥ 1, or `null` for a ticket-wide run. |
+| `run_id` | the run's transaction id, a canonical UUID; the same vocabulary as the assignment (§4). |
+| `seats` | the run's `parallel.seats`, a positive integer. |
+| `graph_digest` | the digest of the pinned task graph, an opaque non-empty string. |
+| `revision` | the write guard, starting at 0; see §13.3. |
+| `tasks` | the task records; see §13.2. |
+| `claims` | the claim intents and the sequence counter; see §13.5. |
+| `stop` | `null`, or the latched stop that halts admission for reconciliation; see §13.5. |
+
+### 13.2 Task records and transitions
+
+`tasks` maps a task's `<iteration>.<n>` to one record:
+
+```json
+{"state": "running", "attempt": 2, "decision": {"reason": "retried after the session failed"}}
+```
+
+`state` is §6's vocabulary. `attempt` is 1 when the task is admitted and grows by one on
+the retry transition only; a retry keeps the task's identity. `decision` is the last retry
+or recovery decision recorded on the task, `null` until one is.
+
+The transition table is §6's sequence plus its side states:
+
+| From | To |
+|---|---|
+| `reserved` | `preparing`, `blocked`, `cancelled` |
+| `preparing` | `running`, `reserved` (a preparation failure returns the task), `blocked`, `failed`, `cancelled` |
+| `running` | `verifying/reviewing`, `blocked`, `failed`, `cancelled` |
+| `verifying/reviewing` | `prepared`, `blocked`, `failed`, `cancelled` |
+| `prepared` | `integrating`, `blocked`, `cancelled` |
+| `integrating` | `published`, `blocked`, `failed`, `cancelled` |
+| `published` | — (terminal) |
+| `blocked` / `failed` / `cancelled` | `reserved` (the retry) |
+
+A task enters the manifest at `reserved` and only there. Every side entry, the
+preparation-failure return to `reserved` and every retry carries the decision that produced
+it; any other transition may carry one. A mismatched expected state, a pair outside the
+table, an unknown state or a malformed decision is refused, so the recorded state never
+silently drifts.
+
+### 13.3 Revision-checked writes
+
+`revision` starts at 0 and is the write guard. `write_manifest(path, value,
+expected_revision)` refuses a value or a file that is not at exactly `expected_revision`
+(0 when nothing is persisted yet), writes the next revision, and returns the manifest it
+wrote; the reducers never change `revision`, so the coordinator persists each reducer
+result before doing anything else with it. The bytes go to a temporary sibling and then
+through `os.replace`: a reader sees the previous manifest or the next one, never a
+half-written file, and a corrupt file is refused rather than overwritten. `read_manifest`
+refuses a missing, unreadable or malformed manifest with its own error kind, so a damaged
+run stops instead of re-initialising itself.
+
+### 13.4 Repository-wide ticket ownership
+
+Before it arms, the coordinator owns the ticket across every checkout of the repository.
+The lock is one JSON record per ticket in the **repository-common Git directory**:
+
+    <git-common-dir>/artel/parallel/<TICKET_ID>.json
+
+Every checkout — the main one and every linked worktree — resolves that same path through
+`git rev-parse --git-common-dir`, so a competing coordinator cannot bypass ownership by
+working from another tree. `acquire_ticket(repo, ticket, owner)` creates the record
+exclusively and refuses one that already exists, whatever its age, its phase or its run;
+the record is the run's ownership proof:
+
+```json
+{
+  "schema": 1, "ticket": "PROJ-123", "run_id": "0f6f0f2e-…", "phase": 2,
+  "token": "…", "acquired_at": "2026-10-15T12:00:00Z"
+}
+```
+
+Only the owning run (same `run_id` and `phase`) re-acquires its own record; another run is
+refused, and a lock that cannot be read is ambiguous and is never overwritten, released or
+reclaimed. `release_ticket(repo, ticket, owner)` removes the lock only for that matching
+run — the `token` from acquisition is the proof — and only with `completed` and
+`quiescent` asserted: a pause, an unfinished run and an expired timeout all keep the lock.
+Nothing is ever inferred from age.
+
+### 13.5 Claim intents and recovery
+
+The coordinator is the only claimer and claims through the queue's atomic operation —
+never by task ID, never with an unguarded status write. A claim is made recoverable by its
+order and its actor. `begin_claim(manifest)` appends one intent:
+
+```json
+{
+  "intent_id": "<run_id>#<seq>:<attempt>",
+  "seq": 1, "attempt": 1,
+  "actor": "artel@<run_id>#<seq>:<attempt>",
+  "state": "pending", "row": null
+}
+```
+
+The actor is unique per run, claim sequence and attempt; every claim of one run shares the
+`artel@<run_id>#` prefix, which is how a restarted coordinator recognises the rows its own
+crashed attempts still hold. The order is fixed:
+
+1. `begin_claim`, then persist the manifest — **before** the claim call, so the intent is
+   durable while the queue call is in flight.
+2. call the queue's claim with the intent's actor.
+3. `record_claim(manifest, intent_id, row)` with the returned row, then persist the manifest
+   — **before any worker is launched**. Only a durable `mapped` row mapping authorizes the
+   launch.
+4. an unknown outcome — a timeout, or a crash between the call and the record — leaves the
+   intent `pending`, and it is never retried blindly. `reconcile_claims(manifest, rows)`
+   over the queue's rows resolves it: a row held by this run's prefix is this run's orphan
+   and is released; no such row means the claim never landed (`lost`), after which the next
+   `begin_claim` retries that sequence with the next attempt; a row held by anyone else is
+   never adopted, cleared or reclaimed.
+
+`record_claim` classifies the returned row against the intent:
+
+| Observation | Intent state | Action |
+|---|---|---|
+| held by the intent's actor, in the run's phase | `mapped` | run: launch the worker once the mapping is durable |
+| held by another actor, or by nobody | `foreign` | stop admission for diagnosis; the row is never touched |
+| a phase-scoped run's row from another phase | `wrong-phase` | release once, then stop admission — never a release-and-reclaim loop |
+
+A stop is a latched record in the manifest — `{"reason", "intent_id", "row"}` — and
+`begin_claim` refuses while it is set. `reconcile_claims` releases only rows this run's
+prefix holds and never releases a wrong-phase claim a second time.
+
+## 14. Proof record
 
 The capability proof ran 2026-10-15 against OpenCode 2.0.29: two workers in two detached
 worktrees of an auto-cleaned scratch host, with the barrier, interrupt, missed-event,

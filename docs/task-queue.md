@@ -456,3 +456,50 @@ and it is a state read off the file, never inferred from an empty queue.
 that needs: a fix dispatch could claim from its own section and gain the holder
 these rows lack today. It changes the claim protocol, so it is the open follow-up
 in [design.md](design.md#open-follow-ups), not this section.
+
+## 7. Parallel claims
+
+A parallel run's coordinator is the only claimer for its ticket, and it claims through the
+same atomic `task_ready` as §3 — never by task ID, never with an unguarded `task_update`.
+What differs is the actor and the write order, both fixed in
+[opencode-parallel.md](opencode-parallel.md) §13 and implemented by
+`scripts/parallel_queue.py`.
+
+**The actor is per run.** `artel@<run_id>#<seq>:<attempt>` — the run's transaction id, the
+claim sequence within the run, and the claim attempt. Every claim of one run shares the
+`artel@<run_id>#` prefix, which is how a restarted coordinator recognises the rows its own
+crashed attempts still hold. Like the serial actor it is self-reported and unverified;
+unlike it, two runs on one host never share it.
+
+**The order is durable before each external step.**
+
+    prepare   begin_claim: append the claim intent to the run manifest
+              write the manifest        <- durable BEFORE the queue call
+    claim     task_ready(project=<project>, actor=<the intent's actor>, ticket_key=<TICKET_KEY>)
+                -> nothing returned: no ready work; reconcile the intent, then §5 applies
+    record    record_claim: record the returned row mapping in the manifest
+              write the manifest        <- durable BEFORE any worker launch
+    launch    only a `mapped` row in phase authorizes the worker
+
+**An unknown outcome is reconciled, never retried blind.** A `task_ready` that times out, or
+a crash between the call and the record, leaves the intent `pending`. The coordinator then
+reads `task_list(project=<project>, ticket_key=<TICKET_KEY>)` and reconciles:
+
+- a row held by this run's prefix is this run's orphan: release it once,
+  `task_update(task_id, ready)` — the §3 release that is not `blocked` — and only
+  then claim again;
+- no such row: the claim never landed; the next `begin_claim` retries that sequence with the
+  next attempt;
+- a row held by anyone else: never adopted, cleared or reclaimed; admission stops for
+  diagnosis.
+
+**A wrong-phase row is released once and admission then stops.** §3's one release that is
+not `blocked` applies: the coordinator releases the row with `task_update(task_id, ready)`
+and stops claiming for reconciliation, rather than release-and-reclaiming in a loop. Every
+stop is latched in the run manifest and reported.
+
+**Ownership comes first.** Before any claim the coordinator takes the ticket's
+repository-wide lock, `<git-common-dir>/artel/parallel/<TICKET_ID>.json`
+([opencode-parallel.md](opencode-parallel.md) §13), so two checkouts of one repository
+cannot both claim for one ticket; the lock is released only for the matching completed,
+quiescent run.

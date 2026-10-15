@@ -57,7 +57,7 @@ if [ "${1:-}" = "--remove" ]; then
   exit 0
 fi
 
-if [ ! -f "$SRC/.claude-plugin/plugin.json" ] || [ ! -f "$SRC/opencode/plugin/artel.ts" ]; then
+if [ ! -f "$SRC/VERSION" ] || [ ! -f "$SRC/opencode/plugin/artel.ts" ]; then
   echo "artel: $SRC does not look like the artel checkout" >&2
   exit 1
 fi

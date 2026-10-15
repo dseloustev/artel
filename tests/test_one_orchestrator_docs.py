@@ -1636,14 +1636,16 @@ class TestRelease(unittest.TestCase):
             self.assertIn(phrase, upgrading)
 
     def test_the_version_and_the_changelog_stay_in_step(self):
-        import json
-        version = json.loads(raw('.claude-plugin/plugin.json'))['version']
+        version = raw('VERSION').strip()
+        self.assertRegex(version, r'^\d+\.\d+\.\d+$')
+        self.assertEqual(raw('VERSION'), version + '\n',
+                         'VERSION holds the bare semver and one trailing newline, nothing else')
         number = tuple(int(part) for part in version.split('.'))
         released = '\n## [0.25.0]' in raw('CHANGELOG.md')
         # Before the cut the entry sits under [Unreleased] and the version is still 0.24.0;
         # /bump-version moves both at once, and later releases keep both true.
         self.assertEqual(released, number >= (0, 25, 0),
-                         'plugin.json says {} but CHANGELOG.md {} a [0.25.0] section'.format(
+                         'VERSION says {} but CHANGELOG.md {} a [0.25.0] section'.format(
                              version, 'has' if released else 'has no'))
 
     def test_the_design_log_records_the_merge(self):

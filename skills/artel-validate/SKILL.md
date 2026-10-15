@@ -7,13 +7,13 @@ model: sonnet
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. Release identifiers start with `R-` and are passed through as-is. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. Release identifiers start with `R-` and are passed through as-is. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 ## Execute
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or

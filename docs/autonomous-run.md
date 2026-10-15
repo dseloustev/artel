@@ -523,12 +523,12 @@ the reasons the row's `route_reasons`, plus `earlier deviation: <path>` for floo
 The `full` wrapper, per iteration-task dispatch:
 
 1. **Snapshot** — before dispatching the implementer, run
-   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/review_package.py snapshot` and keep the printed tree
+   `python3 ${ARTEL_ROOT}/scripts/review_package.py snapshot` and keep the printed tree
    id as `BASE`. It captures the working tree (tracked + untracked, ignore rules honoured)
    through a temporary index — the real index, HEAD and the checkpoint's explicit staging are
    untouched. Exit 2 → journal it and run this task without the gate; never skip the task.
 2. **Package** — on a completion (not a `HITL:` return or a `DEVIATION` halt), run
-   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/review_package.py diff <BASE> --out
+   `python3 ${ARTEL_ROOT}/scripts/review_package.py diff <BASE> --out
    .artel/run/<TICKET_ID>/reports/NNN-<slug>.diff`, `NNN-<slug>` taken from the completion's
    `Report:` path so the three files pair up. The one-line output carries the file count:
    `0 file(s)` → journal `task review: skipped (empty diff)` and move on.

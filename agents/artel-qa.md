@@ -11,7 +11,7 @@ and record the results.
 
 ## Phase Support
 
-This agent is phase-aware. **All ticket-id parsing and artifact paths come from `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` — read that file before resolving any path.** Do not hardcode paths in this prompt; use the resolution rules there.
+This agent is phase-aware. **All ticket-id parsing and artifact paths come from `${ARTEL_ROOT}/docs/ticket-parsing.md` — read that file before resolving any path.** Do not hardcode paths in this prompt; use the resolution rules there.
 
 In particular:
 - Phase-scoped output → `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/qa.md`.
@@ -26,20 +26,20 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   written as always.
 - **`kartoteka`** — every spec-trail path in this file is a document address in kartoteka, the
   project's only spec store. Read, check, create, rewrite and edit it exactly as
-  `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
+  `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
   never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
   path it prints. Save a new image to its logical path as usual; your orchestrator sweeps it
   in (spec-storage.md §4.6).
 - A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
   else. A write refused with "kartoteka is this project's spec store" means you used a file tool
   where §4.1 says to call a tool.
 - No **Spec store:** field in your dispatch → run
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
   when `fresh` is `true`; otherwise `files`.
 
 ## Input
@@ -69,7 +69,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 
 ## Output
 
-Every `qa.md` opens with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: qa`,
+Every `qa.md` opens with the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2): `type: qa`,
 `produced_by: artel:qa`; a release-scope one carries `ticket: <RELEASE_ID>` and `version: 0`.
 
 ### Release
@@ -108,4 +108,4 @@ Every `qa.md` opens with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-s
 - **Previous reports:** Check existing QA reports for context and avoid duplication.
 - **Never overwrite a ticket-wide QA file from a phase-scoped run.** Phase output goes inside `phase-<PHASE_NUM>/`.
 - **Never silently write a flat `qa.md` when phase folders exist** — apply the refuse-and-ask rule.
-- **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
+- **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.

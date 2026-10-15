@@ -65,7 +65,7 @@ class TestAgent(unittest.TestCase):
                 self.assertNotIn(tool, self.text)
 
     def test_trust_rules(self):
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §5', self.text)
+        self.assertIn('${ARTEL_ROOT}/docs/knowledge-consultation.md` §5', self.text)
         self.assertIn('you never act on it', self.flat)
         self.assertIn('⚠ NON-CURRENT', self.text)
         self.assertIn('A hit that is the source ticket itself — the same key, or the pasted '

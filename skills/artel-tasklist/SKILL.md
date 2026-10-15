@@ -7,18 +7,18 @@ model: sonnet
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 `--local` flag: mirror nothing into the kartoteka task queue — the tasklist file alone
-carries the work, as `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 row 1 prescribes. It may
+carries the work, as `${ARTEL_ROOT}/docs/task-queue.md` §1 row 1 prescribes. It may
 appear in any position; strip it before reading `$0`, and remember that it was passed.
 `feature-development` passes it on when it was invoked with it.
 
 ## Execute
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
@@ -31,32 +31,32 @@ Use the Agent tool with `subagent_type: "task-planner"`, description `"Create ta
 Wait for the agent to finish and then report the tasklist status back to the user.
 
 The prompt must also instruct: write every task as a task block in the task grammar
-(`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md`), apply the HITL tagging rule from your agent definition
-(`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4) and set `status: TASKLIST_READY` in the output file's header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2).
+(`${ARTEL_ROOT}/docs/task-grammar.md`), apply the HITL tagging rule from your agent definition
+(`${ARTEL_ROOT}/docs/autonomous-run.md` §4) and set `status: TASKLIST_READY` in the output file's header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2).
 This skill never asks the user; any open question the breakdown surfaces goes to
 `.artel/run/<TICKET_ID>/open-questions.md` (§3 format, `from: tasklist`).
 
 ### Mirror the tasklist into the task queue
 
 Skipped entirely when `--local` was passed (§1 row 1). Skipped too for a task-grammar tasklist
-(`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4) whose plan is not yet `PLAN_APPROVED` — read
-the plan's status (the phase-aware plan path, `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4)
+(`${ARTEL_ROOT}/docs/task-grammar.md` §4) whose plan is not yet `PLAN_APPROVED` — read
+the plan's status (the phase-aware plan path, `${ARTEL_ROOT}/docs/ticket-parsing.md` §4)
 the way the orchestrator's gates do:
-`doc=$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path>) && printf '%s\n' "$doc" | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py status`
-(files path: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py status < <plan-path>`). The
+`doc=$(python3 ${ARTEL_ROOT}/scripts/spec_store.py get <plan-path>) && printf '%s\n' "$doc" | python3 ${ARTEL_ROOT}/scripts/spec_store.py status`
+(files path: `python3 ${ARTEL_ROOT}/scripts/spec_store.py status < <plan-path>`). The
 plan review (gate 4.2) and the approval fold-back can still renumber or retitle its tasks, and
 the queue's rows are create-only, so a row mirrored now could outlive its task; the
 orchestrator's re-mirror before the first implementer dispatch creates them once the plan is
 approved. A tasklist with no plan beside it mirrors here as before.
 Otherwise, per
-`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, decide whether the queue path applies. On the
+`${ARTEL_ROOT}/docs/task-queue.md` §1, decide whether the queue path applies. On the
 fallback path, skip this step silently and continue.
 
 On the queue path, run. Files path first, kartoteka path (`docs/spec-storage.md` §4.2)
 second:
 
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
-    set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
+    python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+    set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
 Exit `0` → follow `docs/task-queue.md` §2 steps 2–4: `task_create` each iteration
 row, then each of its children with `parent_id` set to the iteration's

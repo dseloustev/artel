@@ -15,11 +15,11 @@ home of these workflow files once saved.
 ## Store layout
 
 `.artel/context/` lives in the host repo, alongside `.artel/run/`
-(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`, "Purpose and location"). Host-writable, gitignored — never
+(`${ARTEL_ROOT}/docs/config.md`, "Purpose and location"). Host-writable, gitignored — never
 committed. Skills run with the host repo as their working directory, so every path below is a
 plain repo-relative path — no toplevel lookup needed.
 
-**With kartoteka as the spec store** (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`), `<specs.dir>/<TICKET_ID>/` holds gate evidence text, plus any images a failed sweep left behind, and `.active_ticket` is the only pointer: those are saved exactly as below, and the spec documents — which live in kartoteka — are neither saved nor needed here. Old spec copies already in the store are moved into kartoteka by `/artel:migrate-specs`.
+**With kartoteka as the spec store** (`${ARTEL_ROOT}/docs/spec-storage.md`), `<specs.dir>/<TICKET_ID>/` holds gate evidence text, plus any images a failed sweep left behind, and `.active_ticket` is the only pointer: those are saved exactly as below, and the spec documents — which live in kartoteka — are neither saved nor needed here. Old spec copies already in the store are moved into kartoteka by `/artel:migrate-specs`.
 
 ```
 .artel/context/
@@ -36,7 +36,7 @@ between blocks.
 ## Step 0: Resolve the active ticket
 
 Read `<specs.dir>/.active_ticket` (Read tool). Take the first non-empty line, strip any phase
-suffix per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2 (e.g. `PROJ-2525-5` →
+suffix per `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2 (e.g. `PROJ-2525-5` →
 `PROJ-2525`). Call the result `ACTIVE`. A missing pointer or file leaves `ACTIVE` empty — that is
 fine; Step 2 then writes only the shared copy.
 
@@ -112,7 +112,7 @@ older working copy (no copy attempted) is simply dropped — the store already h
 
 ## Step 3: Active-ticket pointer
 
-Substitute the literal `<specs.dir>` value (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`; default
+Substitute the literal `<specs.dir>` value (`${ARTEL_ROOT}/docs/config.md`; default
 `specs/.current`):
 
 ```bash
@@ -171,7 +171,7 @@ IMPORTANT:
   mutable subset of its `docs/` folder and a handful of fixed top-level `specs/` files
   (project-specific filenames with no generic equivalent here). Only what maps onto artel's own
   ported vocabulary — root docs and the `<specs.dir>` spec trail — is saved. See
-  `${CLAUDE_PLUGIN_ROOT}/docs/design.md`'s decision log.
+  `${ARTEL_ROOT}/docs/design.md`'s decision log.
 
 Report: files per store target, confirmation that `<specs.dir>` was cleared and `AGENTS.md` kept
 in the working tree, and which ticket folder received the root-file snapshot (or "shared only —

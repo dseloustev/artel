@@ -7,9 +7,9 @@ model: sonnet
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
-**Path resolution and the refuse-and-ask rule live in `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5.** The `planner` subagent already understands them — this skill does not duplicate path tables.
+**Path resolution and the refuse-and-ask rule live in `${ARTEL_ROOT}/docs/ticket-parsing.md` §4–§5.** The `planner` subagent already understands them — this skill does not duplicate path tables.
 
 ## Execute
 
@@ -22,8 +22,8 @@ This skill uses a **two-phase execution model**:
 ### Phase 1: Draft Plan and Extract Questions
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
@@ -47,7 +47,7 @@ You are creating the architecture and implementation plan for ticket <TICKET_ID>
 
 ## Instructions — Draft Plan and Identify Questions
 
-1. Determine the plan output path per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4 (phase-scoped → `phase-<PHASE_NUM>/plan.md`; ticket-wide → `plan.md`).
+1. Determine the plan output path per `${ARTEL_ROOT}/docs/ticket-parsing.md` §4 (phase-scoped → `phase-<PHASE_NUM>/plan.md`; ticket-wide → `plan.md`).
 2. Apply the **refuse-and-ask rule** in §5: if `PHASE_NUM` is null but `phase-*/` folders exist, do not write — return a refusal message naming the discovered phases and asking the user to disambiguate (`<TICKET_ID>-N` for phase-scoped, or explicit `--ticket-level` intent).
 3. Read input:
    - PRD at the corresponding scope (phase-scoped → `phase-<PHASE_NUM>/prd.md` with ticket-wide `prd.md` as read-only fallback; ticket-wide → `prd.md`).
@@ -74,7 +74,7 @@ Return control after listing the questions.
 
 ### Phase 2: Collect questions (no user interaction)
 
-This skill never asks the user (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §3).
+This skill never asks the user (`${ARTEL_ROOT}/docs/autonomous-run.md` §3).
 
 - **NO_QUESTIONS** → proceed to Phase 3.
 - **Refusal** → report it to the caller and stop.
@@ -98,10 +98,10 @@ Answers/defaults to proceed on:
 ## Finalize the Plan
 
 1. Incorporate the user's answers.
-2. For every unresolved question, append an open-questions.md entry (format: ${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md §3, from: planner) with your proposed default, and mark the affected plan decisions "(provisional — Q<n>)".
+2. For every unresolved question, append an open-questions.md entry (format: ${ARTEL_ROOT}/docs/autonomous-run.md §3, from: planner) with your proposed default, and mark the affected plan decisions "(provisional — Q<n>)".
 3. Save the finalized plan to the path you determined in Phase 1.
 4. If there are architectural alternatives, create the ADR document alongside the plan.
-5. Set the plan header's `status:` (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2) to `PLAN_APPROVED` when no provisional markers remain, else `PLAN_DRAFTED`.
+5. Set the plan header's `status:` (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2) to `PLAN_APPROVED` when no provisional markers remain, else `PLAN_DRAFTED`.
 ```
 
 **If no questions (NO_QUESTIONS):**

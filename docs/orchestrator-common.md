@@ -34,7 +34,7 @@ Orchestrators:
   directory holds only evidence text.
 - Check which artifacts already exist under it and skip gates that are already satisfied
   (skip-if-exists — [autonomous-run.md](autonomous-run.md) §9). On the kartoteka path one
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py list <TICKET_ID>` answers it
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py list <TICKET_ID>` answers it
   ([spec-storage.md](spec-storage.md) §4.1).
 - Invoke stage skills via the `Skill` tool and agents via the `Agent` tool, passing the resolved
   identifier so the phase is preserved.

@@ -15,8 +15,8 @@ must test what actually matters.
 
 ## 1. Resolve the ticket
 
-- If an argument was passed, parse it per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and
-  `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2.
+- If an argument was passed, parse it per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and
+  `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2.
 - Otherwise read `<specs.dir>/.active_ticket` (single line; may carry a phase suffix).
 - If neither yields a ticket, stop and ask the user for one — do not guess from the branch name.
 - If `PHASE_NUM` is set but `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/` does **not** exist,
@@ -25,8 +25,8 @@ must test what actually matters.
   don't invent a phase folder for a derived artifact.
 
 **Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
-first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
-→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+first: `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${ARTEL_ROOT}/docs/spec-storage.md` §2.1, asking the
 user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
 an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
 operation — never with Read/Write/Edit or a shell file command.
@@ -36,7 +36,7 @@ operation — never with Read/Write/Edit or a shell file command.
 Read from `<specs.dir>/<TICKET_ID>/` — everything that exists, silently skipping what doesn't.
 On the kartoteka path list the ticket's documents with `artifact_list(project=<project>, ticket_key=<TICKET_ID>)` and read each with `artifact_get`; `change-report.html` is still written as a file (it is derived output, spec-storage.md §1). One
 exception: `open-questions.md` lives outside the spec trail, at
-`.artel/run/<TICKET_ID>/open-questions.md` (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §3,
+`.artel/run/<TICKET_ID>/open-questions.md` (`${ARTEL_ROOT}/docs/autonomous-run.md` §3,
 written by `planner`/`researcher`/`tasklist`) — read it from there, silently skipping it too if
 missing. Each file answers a different question the report needs:
 
@@ -50,7 +50,7 @@ missing. Each file answers a different question the report needs:
 | `implementation-notes.md`, `review.md`, `qa.md`, `summary.md` | Deviations from plan, review findings and their fixes, verification status |
 
 On a phase-scoped run, prefer `phase-<N>/` files and use ticket-wide files as context (read
-fallback per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §5).
+fallback per `${ARTEL_ROOT}/docs/ticket-parsing.md` §5).
 
 The gap between *planned* and *shipped* is the most valuable content in these files — deviations,
 overridden questions, and review-driven fixes capture decisions that exist nowhere else. Hunt for
@@ -63,7 +63,7 @@ specifics — real class, method, and file names, real behavior. A report writte
 is a summary of promises, not of the change.
 
 - Determine the repo's default branch first (e.g. via `git symbolic-ref refs/remotes/origin/HEAD`,
-  or ask if ambiguous — the same resolution `${CLAUDE_PLUGIN_ROOT}/agents/artel-reviewer.md`'s standalone mode uses); call it
+  or ask if ambiguous — the same resolution `${ARTEL_ROOT}/agents/artel-reviewer.md`'s standalone mode uses); call it
   `<default-branch>` below.
 - Establish scope: `git diff <default-branch>...HEAD --stat` and `git log <default-branch>..HEAD --oneline`.
 - Exclude workflow noise from the *code* analysis: `<specs.dir>`, `.artel/`, `AGENTS.md`, and any
@@ -108,7 +108,7 @@ Writing bar: explain *why*, not just *what*; call out the non-obvious; every cla
 diff or a doc — never invent. Prefer prose a teammate would enjoy reading over bullet dumps.
 Audience knows the codebase but didn't watch this work happen.
 
-**Language:** write the report and quiz in `language.docs` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`).
+**Language:** write the report and quiz in `language.docs` (`${ARTEL_ROOT}/docs/config.md`).
 An explicit language instruction from the user for this invocation overrides it for this run only,
 per config.md's precedence rules.
 

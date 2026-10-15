@@ -6,7 +6,7 @@ model: sonnet
 ---
 
 Launch-and-observe orchestrator for the `RUNTIME_OK` gate. Config key: `runtime.run`
-(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`, "runtime" section). Counterpart for UI driving:
+(`${ARTEL_ROOT}/docs/config.md`, "runtime" section). Counterpart for UI driving:
 `/artel:drive-app` (requires `/artel:add-automation` applied first).
 
 ## Arguments
@@ -14,7 +14,7 @@ Launch-and-observe orchestrator for the `RUNTIME_OK` gate. Config key: `runtime.
 `$0` may contain the `--gate` flag.
 
 - **Gate mode** (`--gate`): pipeline use — fresh run, capture the outcome, report a GREEN/RED
-  verdict. This is the only mode `${CLAUDE_PLUGIN_ROOT}/agents/artel-validator.md`'s `RUNTIME_OK` gate
+  verdict. This is the only mode `${ARTEL_ROOT}/agents/artel-validator.md`'s `RUNTIME_OK` gate
   treats as authoritative.
 - **Interactive mode** (default): launch for the caller to inspect; the app is left running (or,
   when `runtime.run` itself stays in the foreground, running for the rest of the session).
@@ -29,7 +29,7 @@ caller; it continues without this gate.
 
 Run `runtime.run` via Bash with a bounded timeout generous enough for the host's own build+launch
 (300s is a reasonable default absent other guidance). Capture the same evidence shape
-`${CLAUDE_PLUGIN_ROOT}/skills/artel-inner-loop/SKILL.md` uses for a `verify.commands` entry:
+`${ARTEL_ROOT}/skills/artel-inner-loop/SKILL.md` uses for a `verify.commands` entry:
 `{command, exit_code, output}` (stdout+stderr, truncated if huge).
 
 - Exit `0` — or, for a command designed to keep running (a dev server, an app process), a clean
@@ -44,7 +44,7 @@ adapter command (config.md), so this skill never assumes a companion status/stop
 ## 3. Evidence
 
 Resolve `TICKET_ID` / `PHASE_NUM` from `<specs.dir>/.active_ticket` per
-`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. When an identifier is available, write to
+`${ARTEL_ROOT}/docs/ticket-parsing.md`. When an identifier is available, write to
 `<specs.dir>/<TICKET_ID>/[phase-<PHASE_NUM>/]runtime/observation.md`:
 
     # Runtime observation — <TICKET_ID>
@@ -56,7 +56,7 @@ Resolve `TICKET_ID` / `PHASE_NUM` from `<specs.dir>/.active_ticket` per
     RUNTIME_OK: green | red (<reason>) | skipped (not configured)
 
 Evidence is written in both modes when a ticket is active; only gate mode's fresh run is what the
-`RUNTIME_OK` gate treats as authoritative (`${CLAUDE_PLUGIN_ROOT}/agents/artel-validator.md`: "Green
+`RUNTIME_OK` gate treats as authoritative (`${ARTEL_ROOT}/agents/artel-validator.md`: "Green
 requires gate-mode evidence, not merely an interactive run, or a recorded skip"). No active ticket
 → report the same content inline instead.
 

@@ -10,8 +10,8 @@ model: sonnet
 
 `move-to-worktree` moves a ticket that is already on its branch in the main checkout into
 `.opencode/worktrees/<name>` and switches this session into it. The contract — what moves, where,
-the statuses — is `${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md`; the mechanics are
-`${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py`.
+the statuses — is `${ARTEL_ROOT}/docs/worktrees.md`; the mechanics are
+`${ARTEL_ROOT}/scripts/worktree.py`.
 
 It is a **worker that runs inline**: it runs `git` and the script directly, no agent. It moves the
 session and changes two checkouts, so it is user-invoked only (`disable-model-invocation: true`).
@@ -19,7 +19,7 @@ The way back is `/artel:return-from-worktree`.
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 `<name>` is `TICKET_ID`, or `<TICKET_ID>-<PHASE_NUM>` when `PHASE_NUM` is set.
 
@@ -33,7 +33,7 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT
 2. **An existing worktree is entered, not recreated.** If `git worktree list --porcelain` lists
    `<repo root>/.opencode/worktrees/<name>`, skip to Step 3 with that path.
 3. **The branch carries the ticket.** `git branch --show-current` → `CURRENT_BRANCH`. Scan it for
-   `TICKET_ID` exactly as `${CLAUDE_PLUGIN_ROOT}/skills/artel-init-branch/SKILL.md` Step 1 does. No
+   `TICKET_ID` exactly as `${ARTEL_ROOT}/skills/artel-init-branch/SKILL.md` Step 1 does. No
    match (another ticket, no ticket, detached HEAD) → stop: "`<CURRENT_BRANCH>` is not a branch
    for `<TICKET_ID>`. Run `/artel:init-branch <TICKET_ID>` — it sets up the branch and offers the
    move to a worktree."
@@ -50,10 +50,10 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT
 3. Run from the repo root:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py move-in --ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <CURRENT_BRANCH>
+   python3 ${ARTEL_ROOT}/scripts/worktree.py move-in --ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <CURRENT_BRANCH>
    ```
 
-4. Act on `status` per `${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md` §6. Anything but `ok` → report
+4. Act on `status` per `${ARTEL_ROOT}/docs/worktrees.md` §6. Anything but `ok` → report
    and stop; on `conflict`, name the stash commit ID, the conflicted files and the worktree path.
 
 ### Step 3: Enter the worktree
@@ -66,7 +66,7 @@ stop — the move itself is complete.
 ### Step 4: Run the post-branch setup commands
 
 Now inside the worktree, run `setup.commands` exactly as `init-branch` Step 3 does
-(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`, "setup"): in order, from the worktree root, stop at the
+(`${ARTEL_ROOT}/docs/config.md`, "setup"): in order, from the worktree root, stop at the
 first non-zero exit and report the command and its output. Dependencies and generated code are
 per checkout and were not copied.
 

@@ -2,7 +2,7 @@
 
 The head for an `architectural` size: design analysis, the PRD interview, the vision, research
 and the plan, the plan check, the tasklist and its review, then THE ONE PAUSE. Read by
-`feature-development` step 4 (`${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/SKILL.md`), and
+`feature-development` step 4 (`${ARTEL_ROOT}/skills/artel-feature-development/SKILL.md`), and
 by a head that raises the size. `SKILL.md` below is that file; its steps 0–3 have run: the
 config is read, the ticket is active, the spec store is resolved, `idea.md` exists (gate 0) and
 the size is recorded. Its flags, and its step 2 rule for reading "artifact exists" and a gate's
@@ -25,34 +25,34 @@ is not yet `PLAN_APPROVED` (its own section follows the table).
 | 1 | `PRD_READY` — PRD status `PRD_READY` | `Skill: analysis` with `$0 $1`, plus `--local` when this run was invoked with it — runs the upfront interview (chatty by design). When the ticket has a `diagnosis.md` or a `spike.md`, the skill hands each to the analyst as an input beside `idea.md`. |
 | 2 | `VISION_READY` — `vision.md` status `VISION_READY` | `Skill: generate-vision` with `$0` — consumes the PRD; ends with its one wholesale checkpoint. |
 | 3 | plan drafted — `plan.md` exists | `Skill: researcher` then `Skill: planner` (both `$0`; `researcher` also takes `--local` when this run was invoked with it) — **silent**: their questions land in `.artel/run/<TICKET_ID>/open-questions.md` (autonomous-run.md §3). |
-| 3.5 | `PLAN_GROUNDED` — plan-check green | Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan - --strict`), where `<plan-path>` is the phase-aware plan path per ticket-parsing.md §4. Exit 0 → proceed. Exit 1 → append/update `**Plan-check bounces:** N` at the bottom of `<plan-path>` (kartoteka path: `artifact_patch(project=<project>, …)` replacing the existing bounce line, or `append` it), and while `N <= MAX_PLAN_CHECK_BOUNCES = 2`: `SendMessage` the `data.unresolved` list to the `planner` agent ("resolve or declare `new:`"), regenerate, re-run the check. Planner regeneration rewrites `<plan-path>` and drops the bounce line with it; after each regeneration re-append `**Plan-check bounces:** N` (N = bounces performed so far) before re-running the check. Third failure → stop and ask (chatty head — plain `AskUserQuestion`, no `pause_reason`) without writing N=3 — the file shows `**Plan-check bounces:** 2` at the stop. Exit 2 → environment error: stop-and-ask pointing at setup, never a bounce. |
+| 3.5 | `PLAN_GROUNDED` — plan-check green | Run `python3 ${ARTEL_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path: `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${ARTEL_ROOT}/scripts/plan_check.py --plan - --strict`), where `<plan-path>` is the phase-aware plan path per ticket-parsing.md §4. Exit 0 → proceed. Exit 1 → append/update `**Plan-check bounces:** N` at the bottom of `<plan-path>` (kartoteka path: `artifact_patch(project=<project>, …)` replacing the existing bounce line, or `append` it), and while `N <= MAX_PLAN_CHECK_BOUNCES = 2`: `SendMessage` the `data.unresolved` list to the `planner` agent ("resolve or declare `new:`"), regenerate, re-run the check. Planner regeneration rewrites `<plan-path>` and drops the bounce line with it; after each regeneration re-append `**Plan-check bounces:** N` (N = bounces performed so far) before re-running the check. Third failure → stop and ask (chatty head — plain `AskUserQuestion`, no `pause_reason`) without writing N=3 — the file shows `**Plan-check bounces:** 2` at the stop. Exit 2 → environment error: stop-and-ask pointing at setup, never a bounce. |
 | 4 | `TASKLIST_READY` — tasklist status `TASKLIST_READY` | `Skill: tasklist` with `$0`, plus `--local` when this run was invoked with it — silent, HITL-tagged; the flag keeps its task-queue mirror from writing rows. |
 | 4.2 | `PLAN_REVIEWED` — the plan review ran (the plan is not yet `PLAN_APPROVED`) | The plan review before the pause — Gate 4.2, below the table: the mechanical check (`tasklist_tasks.py --check`), then `Skill: run-reviewer --plan`, with at most `MAX_PLAN_REVIEW_ROUNDS = 2` fix rounds to `task-planner`. |
 | 4.5 | phase extraction (phase runs only) | `Skill: sync-phases` with `$0` — creates `phase-<N>/tasks.md` when missing. |
 
 ### Gate 4.2 — the plan review
 
-Runs while the plan's status is not `PLAN_APPROVED` (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md`
+Runs while the plan's status is not `PLAN_APPROVED` (`${ARTEL_ROOT}/docs/task-grammar.md`
 §4). A resume after approval never re-runs it. It belongs to the chatty head: the run is not armed
 yet, its questions carry no `pause_reason`, and its rounds never count toward
 `counters.correction_rounds`. `<tasklist-path>` is the phase-aware tasklist and `<prd-path>` the
-phase-aware PRD with its read fallback (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5);
+phase-aware PRD with its read fallback (`${ARTEL_ROOT}/docs/ticket-parsing.md` §4–§5);
 `--ticket-key` takes the canonical `<TICKET_ID>`, without the phase suffix.
 
 1. **Requirements.** Read the PRD's active requirement IDs. Files path first, kartoteka path
    (`docs/spec-storage.md` §4.2) second:
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd <prd-path>
-       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd <prd-path>
+       set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd -
 
    Turn `data` into `<requirements>`: `present: false` → `absent`; `present: true` with an empty
    `ids` → `none`; otherwise the `ids` joined by `,`. Exit `2` → environment error: stop-and-ask
    (plain `AskUserQuestion`), never a round.
-2. **Mechanical check** (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §6). Files path first,
+2. **Mechanical check** (`${ARTEL_ROOT}/docs/task-grammar.md` §6). Files path first,
    kartoteka path second:
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <requirements>
-       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <requirements>
+       set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
 
    Exit `2` → environment error, as in step 1. Otherwise keep `data.findings` and
    `data.coverage`: exit `1` means a Critical or Important finding, exit `0` none.
@@ -114,7 +114,7 @@ task cycle — see `tail.md`, `## Checkpoint commits & pushes`, and `## Task com
   is a guardrail, not a pause preference — the lean head's confirmation makes the same
   exception. Minor findings never stop a `yolo` run; the run-start journal entry lists them.
 
-**Routes at the pause** (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md`
+**Routes at the pause** (`${ARTEL_ROOT}/docs/autonomous-run.md`
 §16.1). The same interaction lists every task's effective route with its reasons, one line each
 — `2.3 full — declared: money-movement path; floor: sensitive path (payments): src/payments/refund.py`
 — from the parser's rows (`route`, `route_reason`, `route_reasons`, `route_effective`; the

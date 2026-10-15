@@ -170,7 +170,7 @@ class TestWhatLeaves(unittest.TestCase):
     def test_every_posting_path_drops_the_header(self):
         text = read('skills/artel-pr-create/SKILL.md')
         files = 'spec_store.py body < <specs.dir>/<TICKET_ID>/pr-description.md) && printf'
-        store = ('pr-description.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py body) '
+        store = ('pr-description.md | python3 ${ARTEL_ROOT}/scripts/spec_store.py body) '
                  '&& printf')
         self.assertEqual((text.count(files), text.count(store)), (2, 2))  # gh edit, gh create
         self.assertIn('spec_store.py body < <path>', text)                # Bitbucket

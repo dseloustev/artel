@@ -6,7 +6,7 @@ Several sessions can work on one host repo at once when each ticket lives in its
 worktree: its own branch, its own uncommitted files, generated code and `.artel/run/` state.
 Artel moves a ticket's work into a worktree and hands it back when the task is done. This doc is
 the contract the two skills and `init-branch` follow; the mechanics live in
-`${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py`.
+`${ARTEL_ROOT}/scripts/worktree.py`.
 
 | Operation | Entry points |
 |---|---|
@@ -71,7 +71,7 @@ Skills follow these steps; `init-branch` supplies the branch arguments from its 
 3. **Run** from the main checkout:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py move-in --ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <branch> [--create-from <ref> [--track]]
+   python3 ${ARTEL_ROOT}/scripts/worktree.py move-in --ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <branch> [--create-from <ref> [--track]]
    ```
 
 4. **Act on `status`** (§6). Only `ok` continues.
@@ -90,7 +90,7 @@ Skills follow these steps; `init-branch` supplies the branch arguments from its 
 2. **Check** — changes nothing:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name> --check
+   python3 ${ARTEL_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name> --check
    ```
 
 3. **Ask.** Confirm once (header `Hand back`), naming the branch the main checkout switches to,

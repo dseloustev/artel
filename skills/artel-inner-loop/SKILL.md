@@ -9,10 +9,10 @@ disable-model-invocation: true
 
 Composed by Read, not the Skill tool: `disable-model-invocation: true` hides this skill from
 model-side Skill-tool invocation, and subagents do not inherit skills — the `implementer` agent
-(`${CLAUDE_PLUGIN_ROOT}/agents/artel-implementer.md`) consumes it by Read-ing this file by path in its
+(`${ARTEL_ROOT}/agents/artel-implementer.md`) consumes it by Read-ing this file by path in its
 prompt. User slash-command invocation (`/artel:inner-loop`) still works.
 
-Bounded discipline over the **task gate** (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1: `verify.fast`
+Bounded discipline over the **task gate** (`${ARTEL_ROOT}/docs/gates.md` §1: `verify.fast`
 on the changed paths, then `verify.test` on the test files among them — `docs/config.md`).
 Judgement (what to fix, how) stays here; a command's exit code is the verdict, never yours. The
 whole-tree gate (`verify.commands`) is the orchestrator's checkpoint gate and runs nowhere in this
@@ -23,11 +23,11 @@ loop (gates.md §1, rule 3).
 - `PATHS` — comma-separated changed paths (from `$0`, or derive via `git status --porcelain` +
   `git diff --name-only HEAD`), excluding paths the host marks as generated (analyzer/linter
   exclusion lists, generated-file headers — the same convention
-  `${CLAUDE_PLUGIN_ROOT}/agents/artel-implementer.md`'s "Generated code is read-only" rule uses).
-  On a task-format tasklist (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4) the caller adds
+  `${ARTEL_ROOT}/agents/artel-implementer.md`'s "Generated code is read-only" rule uses).
+  On a task-format tasklist (`${ARTEL_ROOT}/docs/task-grammar.md` §4) the caller adds
   every file the task's `Test:` field lists, touched or not (gates.md §1), so the `test` stage
   runs the tests the task must leave green even when the task never opened them.
-- `EVIDENCE_DIR` — resolve per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`:
+- `EVIDENCE_DIR` — resolve per `${ARTEL_ROOT}/docs/ticket-parsing.md`:
   `<specs.dir>/<TICKET_ID>/[phase-<PHASE_NUM>/]verify/` (read `<specs.dir>/.active_ticket` when the
   caller didn't pass a ticket id explicitly). No active ticket → skip evidence writes, report
   findings inline instead.
@@ -52,7 +52,7 @@ failure as an environment error rather than guessing at a code fix.
 
 Each iteration is exactly: **edit** (already done by the caller before the first iteration, or by
 this loop's own fix step thereafter) → **task gate**
-(`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify.py task --files <PATHS>`). Only the commands are
+(`python3 ${ARTEL_ROOT}/scripts/verify.py task --files <PATHS>`). Only the commands are
 configuration; the loop shape below is fixed. The runner writes one envelope with two named
 stages, `fast` and `test`; a half with no command, or no test path in scope, is `skipped`, never
 green (gates.md §3, §4).
@@ -69,7 +69,7 @@ loop:
   if findings == last_findings: STOP-AND-ASK — no progress (do not burn budget)
   red stage fast → fix minimally, targeting each finding's file:line (and rule, when the tool reports one)
   red stage test → read its keys and tail in full; state ONE hypothesis ("X is the cause
-    because Y", ${CLAUDE_PLUGIN_ROOT}/docs/debugging.md §2.3) for the caller's report;
+    because Y", ${ARTEL_ROOT}/docs/debugging.md §2.3) for the caller's report;
     a structural cause (§4) → STOP as a Major deviation, no further iteration;
     else make the one change the hypothesis calls for
   last_findings = findings; i += 1
@@ -87,7 +87,7 @@ carries `scoped` and `files`; `data.missing` lists paths that no longer exist.
   the test files among them), so a finding on a file outside it can only come from a
   `verify.test` without the `{files}` token — pre-existing baseline, not something to fix here.
   Report it (labeled `pre-existing-baseline` in `residual.json`) rather than silently dropping it.
-- **A red `test` stage is debugged, not patched** (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md`
+- **A red `test` stage is debugged, not patched** (`${ARTEL_ROOT}/docs/debugging.md`
   §2.3, §4). One hypothesis per iteration, recorded by the caller (the implementer's report,
   Step 6); a hypothesis that fails is replaced, never stacked on — the no-progress stop above is
   the same rule seen from the gate. A red `fast` stage is an analyzer or formatter finding: the
@@ -95,14 +95,14 @@ carries `scoped` and `files`; `data.missing` lists paths that no longer exist.
   one first run and three fixes.
 - **Never weaken a failing test.** Changing, skipping or deleting a failing test to turn the gate
   green is a Major deviation, unless the task's own acceptance criteria change the behaviour
-  that test pins (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §6).
+  that test pins (`${ARTEL_ROOT}/docs/debugging.md` §6).
 - **Never mark work complete while the last task gate was red or unresolved.** A `skipped` half
   (no command, or no test path in scope) is not green, but it is not blocking either — the
-  caller's own completion contract (e.g. `${CLAUDE_PLUGIN_ROOT}/agents/artel-implementer.md`'s "Gate
+  caller's own completion contract (e.g. `${ARTEL_ROOT}/agents/artel-implementer.md`'s "Gate
   before done") decides what a `skipped` gate means for its own sign-off.
 - **STOP-AND-ASK** means: report the residual findings (or the environment error) to the
   caller/user and halt — no retries beyond the budget, no silent continuation.
-- **Gate degradation** (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`): an empty `verify.fast` makes the
+- **Gate degradation** (`${ARTEL_ROOT}/docs/config.md`): an empty `verify.fast` makes the
   fast half a no-op; an empty `verify.test` makes the test half `skipped`, never `green`. The
   whole-tree gate (`verify.commands`) is not this loop's: it runs at the orchestrator's
   checkpoint (gates.md §1).

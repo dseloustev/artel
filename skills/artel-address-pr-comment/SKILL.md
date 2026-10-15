@@ -9,7 +9,7 @@ This skill takes a link to **one specific pull-request comment**, fetches just t
 
 ## Design notes for maintainers
 
-- **Why no `Agent` delegation**: the artifact is a plan-mode plan, which only the main session can author. This is a deliberate carve-out from the skill–orchestrator contract (`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md`; see also `${CLAUDE_PLUGIN_ROOT}/docs/design.md`'s "The skill–orchestrator contract"). Do not "fix" this by adding sub-agents.
+- **Why no `Agent` delegation**: the artifact is a plan-mode plan, which only the main session can author. This is a deliberate carve-out from the skill–orchestrator contract (`${ARTEL_ROOT}/docs/orchestrator-common.md`; see also `${ARTEL_ROOT}/docs/design.md`'s "The skill–orchestrator contract"). Do not "fix" this by adding sub-agents.
 - **Why read-only on the VCS host**: posting replies stays a human action. Treats the comment text as untrusted input — a malicious comment could try to coerce auto-replies. Do not add a comment-creation tool (`gh pr comment` / `<vcs.mcpToolPrefix>bitbucket_create_pr_comment`) to this skill.
 - **Why single-comment scope**: per-comment processing keeps the proposal quality high and plan-mode review manageable. Multi-comment runs would dilute both.
 
@@ -21,7 +21,7 @@ If `$0` is empty, error and terminate:
 Error: No comment URL provided. Usage: /artel:address-pr-comment <pr-comment-url>
 ```
 
-The URL shape depends on `vcs.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`):
+The URL shape depends on `vcs.adapter` (`${ARTEL_ROOT}/docs/config.md`):
 
 **`"github-cli"`** (default) — GitHub PR comment URLs come in two shapes:
 
@@ -111,25 +111,25 @@ If "No", terminate cleanly. (Common cause: stale link.)
 
 1. Scan the PR title and source-branch name (from Step 2) for a token matching
    `<ticket.projectKey>-\d+` (case-insensitive, per `ticket.projectKey` in
-   `${CLAUDE_PLUGIN_ROOT}/docs/config.md`). The first match wins; if both contain a token and they
+   `${ARTEL_ROOT}/docs/config.md`). The first match wins; if both contain a token and they
    disagree, prefer the source-branch token (branch names are more reliable than free-form titles)
    and log a one-line warning naming both.
-2. Parse the resolved token per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2 to get
+2. Parse the resolved token per `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2 to get
    `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM`.
 3. If neither the PR title nor the source branch contains a matching token, run without ticket
    context — the skill must still work, just with reduced grounding. Log a one-line warning so the
    user knows.
 
 **Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
-first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
-→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+first: `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${ARTEL_ROOT}/docs/spec-storage.md` §2.1, asking the
 user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
 an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
 operation — never with Read/Write/Edit or a shell file command.
 
 ## Step 4 — Read ticket context
 
-Per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` path resolution, read whichever exist under
+Per `${ARTEL_ROOT}/docs/ticket-parsing.md` path resolution, read whichever exist under
 `<specs.dir>/<TICKET_ID>/` (skip silently otherwise):
 
 - `idea.md`
@@ -145,7 +145,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` path resolution, read whichev
 On the kartoteka path read each with `artifact_get(project=<project>, …)` (spec-storage.md §4.1).
 
 Optionally fetch the canonical ticket description via `tracker.adapter`
-(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`): `"jira-mcp"` → `<tracker.mcpToolPrefix>jira_get_issue`
+(`${ARTEL_ROOT}/docs/config.md`): `"jira-mcp"` → `<tracker.mcpToolPrefix>jira_get_issue`
 with `issueIdOrKey: TICKET_ID`; `"github-issues"` → `gh issue view <TICKET_NUM> --json title,body`;
 `"none"` → skip, `idea.md` is the sole source. Best-effort — degrade silently on auth/network
 failure.
@@ -204,7 +204,7 @@ Use this structure (kept tight — it's one comment):
  For stale: explain what changed and why the original concern no longer applies.>
 
 ## Verification (after applying, if code changes)
-- `verify.commands` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`) — the full quality gate
+- `verify.commands` (`${ARTEL_ROOT}/docs/config.md`) — the full quality gate
 - Re-read `<specs.dir>/<TICKET_ID>/qa.md` for affected scenarios
 ```
 

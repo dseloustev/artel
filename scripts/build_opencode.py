@@ -2,7 +2,7 @@
 """Generate the OpenCode build of artel: a baked install copy and command wrappers.
 
 The install root carries the canonical skills/, agents/ and docs/. Every `*.md`
-under those three trees is baked in place: `${CLAUDE_PLUGIN_ROOT}` becomes the
+under those three trees is baked in place: `${ARTEL_ROOT}` becomes the
 install root and `/artel:<name>` references become `artel-<name>`, so an agent on
 OpenCode reads a real path, never an unset variable. Python files are never
 rewritten: a hook docstring's token is a source-level pointer to a contract file,
@@ -73,9 +73,9 @@ def bake(body, root):
 
 
 def bake_root(text, root):
-    """The `${CLAUDE_PLUGIN_ROOT}` rewrite alone; bake() layers the `/artel:` rewrite
+    """The `${ARTEL_ROOT}` rewrite alone; bake() layers the `/artel:` rewrite
     on top."""
-    return text.replace('${CLAUDE_PLUGIN_ROOT}', str(root))
+    return text.replace('${ARTEL_ROOT}', str(root))
 
 
 def clip(value, limit):

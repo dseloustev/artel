@@ -9,8 +9,8 @@ model: sonnet
 ## Overview
 
 `return-from-worktree` is the way back from `/artel:move-to-worktree` (or `init-branch`'s
-worktree option). The contract is `${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md` §5–§6; the mechanics
-are `${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py hand-back`, which always works on the **main
+worktree option). The contract is `${ARTEL_ROOT}/docs/worktrees.md` §5–§6; the mechanics
+are `${ARTEL_ROOT}/scripts/worktree.py hand-back`, which always works on the **main
 checkout** and refuses to start inside the worktree — that directory is about to be deleted —
 except with `--check`, which changes nothing.
 
@@ -25,7 +25,7 @@ session and changes the main checkout's branch.
    `git worktree list --porcelain` → `MAIN`.
 2. **Inside a linked worktree** (`git rev-parse --path-format=absolute --git-dir` differs from
    `--git-common-dir`): `<name>` is the worktree directory's name. `TICKET_ID` comes from `$0`
-   (parsed per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2), else from the `ticket` field of
+   (parsed per `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2), else from the `ticket` field of
    `.artel/worktree.json`. A worktree outside `MAIN/.opencode/worktrees/`, or one with neither
    source → stop: "This worktree was not created by artel; hand it back with git."
 3. **In the main checkout:** `TICKET_ID` comes from `$0`, else from `<specs.dir>/.active_ticket`
@@ -37,7 +37,7 @@ session and changes the main checkout's branch.
 ### Step 2: Check
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name> --check
+python3 ${ARTEL_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name> --check
 ```
 
 `refused` → report `reason` and stop. The usual one: the main checkout has uncommitted changes —
@@ -65,10 +65,10 @@ checkout; this session's directory is about to be removed."
 ### Step 5: Hand back
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name>
+python3 ${ARTEL_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name>
 ```
 
-Act on `status` per `${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md` §6. On `conflict`, the stash was
+Act on `status` per `${ARTEL_ROOT}/docs/worktrees.md` §6. On `conflict`, the stash was
 kept: name its commit ID and the conflicted files in `MAIN`. On `rolled-back`, the worktree is
 intact — report `reason`.
 

@@ -108,7 +108,7 @@ class TestInlineSkills(unittest.TestCase):
     def test_pr_create_pipes_the_body(self):
         text = skill('pr-create')
         self.assertIn('spec_store.py get <specs.dir>/<TICKET_ID>/pr-description.md | '
-                      'python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py body) && printf', text)
+                      'python3 ${ARTEL_ROOT}/scripts/spec_store.py body) && printf', text)
         self.assertIn('"$doc" | gh pr create', text)
         self.assertIn('--body-file -', text)
 

@@ -106,7 +106,7 @@ class TestMirrorStep(unittest.TestCase):
         for rel in MIRROR_FILES:
             text = (ROOT / rel).read_text(encoding='utf-8')
             self.assertIn(
-                'python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py', text,
+                'python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py', text,
                 rel + ' does not invoke the script the plugin-root way')
 
     def test_every_producer_creates_the_sections_too(self):
@@ -422,7 +422,7 @@ class TestFixWritersRecordTheirAppend(unittest.TestCase):
         for rel, _ in FIX_WRITERS.items():
             with self.subTest(rel):
                 text = (ROOT / rel).read_text(encoding='utf-8')
-                self.assertIn('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py', text)
+                self.assertIn('python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py', text)
                 self.assertIn('data.sections', text)
                 self.assertIn('docs/task-queue.md', text)
 
@@ -436,7 +436,7 @@ class TestFixWritersRecordTheirAppend(unittest.TestCase):
     def test_each_orchestrator_record_step_runs_the_script_where_it_appends(self):
         for (rel, start, end), phrases in FIX_WRITER_STEPS.items():
             step = (ROOT / rel).read_text(encoding='utf-8').split(start)[1].split(end)[0]
-            for phrase in ('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py'
+            for phrase in ('python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py'
                            ' --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>',
                            'without the phase suffix',
                            'data.sections', 'task_create') + phrases:

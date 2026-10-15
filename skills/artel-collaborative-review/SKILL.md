@@ -65,7 +65,7 @@ lives in the `--output` artifact.
        python3 -c "
        import json, runpy
        s = json.load(open('<run>/snapshot.json', encoding='utf-8'))
-       m = runpy.run_path('${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py')
+       m = runpy.run_path('${ARTEL_ROOT}/scripts/collaborative_review.py')
        for e in s['files']:
            sides = m['capture_sides'](e)
            for side in ('base', 'head'):
@@ -93,7 +93,7 @@ lives in the `--output` artifact.
 
 6. **The normalized snapshot** through the helper:
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py inventory \
+       python3 ${ARTEL_ROOT}/scripts/collaborative_review.py inventory \
          --metadata <run>/metadata.json --pages <run>/pages.json \
          --merge-base <merge_base_sha> --output <run>/snapshot.json
 
@@ -110,7 +110,7 @@ inventory, orders it, and names each file's role and review focus. Dispatch the 
 (`## The worker`, mode `prepare`) with the snapshot and run paths; it writes
 `<run>/preparation.json`. Then render the ledger through the helper:
 
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py render \
+    python3 ${ARTEL_ROOT}/scripts/collaborative_review.py render \
       --snapshot <run>/snapshot.json --preparation <run>/preparation.json \
       --output <run>/review-checklist.md
 
@@ -140,11 +140,11 @@ applicable, the output path, and the read-only boundaries: no edits, no approval
 writes, no GitHub writes, no code execution.
 
 The dispatch carries no `model`: the agent runs on its frontmatter `opus`
-(`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`); this session's provider/model choices are
+(`${ARTEL_ROOT}/docs/agents.md` `## Models`); this session's provider/model choices are
 never embedded.
 
 If the agent is not registered in the host, dispatch the host's general-purpose agent with the
-shipped definition instead: read `${CLAUDE_PLUGIN_ROOT}/agents/artel-collaborative-reviewer.md` and
+shipped definition instead: read `${ARTEL_ROOT}/agents/artel-collaborative-reviewer.md` and
 put its body into the prompt. Never fall back to reviewing inline.
 
 Modes:
@@ -166,7 +166,7 @@ Modes:
 
 The worker reads old content at the merge base and new content at head from `<run>/contents/`,
 any supporting context acquired earlier from `<run>/context/`, and uses the host's optional
-code-symbol index, index-first, for navigation (`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`
+code-symbol index, index-first, for navigation (`${ARTEL_ROOT}/docs/code-navigation.md`
 §3). A mismatched local index is not PR evidence — the captured snapshot contents are.
 
 ## Supporting context
@@ -182,7 +182,7 @@ never patterns.
 Save the returned request to `<run>/context-request.json` and validate it through the helper
 before acquiring anything; an unsafe or oversized request is refused whole:
 
-    python3 -c "import json, runpy; m=runpy.run_path('${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py'); r=json.load(open('<run>/context-request.json')); print(json.dumps(m['validate_context_request'](r)))"
+    python3 -c "import json, runpy; m=runpy.run_path('${ARTEL_ROOT}/scripts/collaborative_review.py'); r=json.load(open('<run>/context-request.json')); print(json.dumps(m['validate_context_request'](r)))"
 
 Acquire each requested path only at the recorded snapshot's revisions — the base side from
 the base repository at `merge_base_sha`, the head side from the head repository at
@@ -202,7 +202,7 @@ paths, and present only when its report exists.
 
 Read the ledger through the helper:
 
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py status --checklist <run>/review-checklist.md
+    python3 ${ARTEL_ROOT}/scripts/collaborative_review.py status --checklist <run>/review-checklist.md
 
 `current` is the first unchecked row, regardless of whether it carries findings — a checked file
 can still have unresolved findings, and a report existing never advances anything. `status`
@@ -227,7 +227,7 @@ and before any advancement. Compose the note from the report itself as
 `<run>/report-note.json`: `link` is the report path **relative to the checklist**
 (`reports/<NNN>.md`), plus its assessment and its unresolved findings. Persist it atomically:
 
-    python3 -c "import json, runpy; m=runpy.run_path('${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py'); print(json.dumps(m['record_report_file']('<run>/review-checklist.md', json.load(open('<run>/report-note.json')))))"
+    python3 -c "import json, runpy; m=runpy.run_path('${ARTEL_ROOT}/scripts/collaborative_review.py'); print(json.dumps(m['record_report_file']('<run>/review-checklist.md', json.load(open('<run>/report-note.json')))))"
 
 The helper checks the link against the ledger's directory and canonicalizes it to the
 ledger-relative path, so the recorded hyperlink always reaches the report beside the checklist;
@@ -265,7 +265,7 @@ then:
 
 - **`reviewed`** — run the helper:
 
-      python3 ${CLAUDE_PLUGIN_ROOT}/scripts/collaborative_review.py advance \
+      python3 ${ARTEL_ROOT}/scripts/collaborative_review.py advance \
         --checklist <run>/review-checklist.md --snapshot <run>/fresh.json \
         --entry <current> --response '<the message>'
 

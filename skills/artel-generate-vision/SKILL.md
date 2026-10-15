@@ -11,11 +11,11 @@ Drives the `vision-writer` agent to produce `<specs.dir>/<TICKET_ID>/vision.md` 
 and `prd.md`. Runs **after** the analysis interview; consumes the PRD's Resolved Questions so
 nothing is re-asked. The agent drafts all seven sections internally, returns only genuine
 questions (batched); the finished document gets **one wholesale checkpoint**. No per-section
-approvals. Contract: `${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §1.
+approvals. Contract: `${ARTEL_ROOT}/docs/autonomous-run.md` §1.
 
 ## Ticket Resolution
 
-Parse `$0` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. Vision is **ticket-level**:
+Parse `$0` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. Vision is **ticket-level**:
 if `PHASE_NUM` is non-null, ignore it and print `Note: phase argument ignored — vision is
 ticket-level.` If `$0` is empty, read `<specs.dir>/.active_ticket`; if no identifier is
 available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it
@@ -34,7 +34,7 @@ in <specs.dir>/.active_ticket" and terminate.
 
 **Pipeline invocation** (from an orchestrator): if `vision.md` exists (kartoteka path:
 `spec_store.py exists <specs.dir>/<TICKET_ID>/vision.md` exits 3), skip — report `Vision
-exists — skipped` and terminate (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9).
+exists — skipped` and terminate (`${ARTEL_ROOT}/docs/autonomous-run.md` §9).
 **Manual invocation:** if `vision.md` exists (kartoteka path:
 `spec_store.py exists <specs.dir>/<TICKET_ID>/vision.md` exits 3), `AskUserQuestion`: **Overwrite
 from scratch** / **Abort**. (Per-section refine no longer exists — the document is regenerated as
@@ -47,8 +47,8 @@ Three-phase model (draft → ask → finalize), plus one checkpoint.
 ### Phase 1: Draft the full document
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
@@ -87,7 +87,7 @@ questions first. If `NO_QUESTIONS`, proceed with `answers = "NO_CHANGES"`.
 
 `SendMessage`: `User's answers: [answers]. Finalize the document, set status: VISION_READY in its
 header, write it to <specs.dir>/<TICKET_ID>/vision.md, and return a per-section one-line
-summary.` The header is defined in `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2.
+summary.` The header is defined in `${ARTEL_ROOT}/docs/spec-storage.md` §3.2.
 
 Then the **wholesale checkpoint** — `AskUserQuestion`: `Vision written — approve?` with options
 **Approve** / **Request changes** (changes via "Other"). On Request changes: `SendMessage` the

@@ -7,7 +7,7 @@ model: sonnet
 ---
 
 Removes the **transient committed-lane artifacts** applied by `/artel:add-automation`, via the
-host's `runtime.scaffold.remove` command (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`, "runtime"
+host's `runtime.scaffold.remove` command (`${ARTEL_ROOT}/docs/config.md`, "runtime"
 section). **Re-derive, never `git revert`** — the ticket may have legitimately edited files the
 scaffold also touches in between; this skill commits only what `runtime.scaffold.remove` itself
 changes — and then checks, from git alone, that everything the add commit put on the branch is
@@ -22,7 +22,7 @@ reach (drive-app, "Aftermath").
 ## 1. Configuration gate
 
 Read `runtime.scaffold.remove` (config.md). Absent or empty → report "not configured" (the
-`AUTOMATION_REMOVED` gate — `${CLAUDE_PLUGIN_ROOT}/agents/artel-validator.md` — records `skipped`) and
+`AUTOMATION_REMOVED` gate — `${ARTEL_ROOT}/agents/artel-validator.md` — records `skipped`) and
 stop.
 
 ## 2. Preflight (stop-and-report on any failure)

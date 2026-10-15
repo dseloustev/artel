@@ -9,7 +9,7 @@ model: sonnet
 
 Produces `<specs.dir>/<TICKET_ID>/tasklist.md` with the Progress Report table at the top,
 `Iteration N` sections underneath holding task blocks in the task grammar
-(`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md`), `**Test:**` footer per iteration. Reads the
+(`${ARTEL_ROOT}/docs/task-grammar.md`), `**Test:**` footer per iteration. Reads the
 ticket's idea file as input — and its vision, a spike answer, a diagnosis and the PRD's
 requirement IDs, when they exist — checks the draft mechanically before anyone approves it,
 applies KISS, and asks the user a short set of clarifying questions before finalizing.
@@ -22,12 +22,12 @@ and the code, and work that needs a design is raised to the full head instead of
 written (Phase 1).
 
 `--local` flag: mirror nothing into the kartoteka task queue (Phase 4) — the tasklist alone
-carries the work list for this run (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1).
+carries the work list for this run (`${ARTEL_ROOT}/docs/task-queue.md` §1).
 
 ## Ticket Resolution
 
 Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per
-`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2.
+`${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2.
 
 Tasklist is **ticket-level**. If `PHASE_NUM` is non-null, ignore it and print the one-line notice
 `Note: phase argument ignored — tasklist is ticket-level; iterations are the phases.`
@@ -72,7 +72,7 @@ Ensure `<specs.dir>/<TICKET_ID>/` exists before writing.
 **Pipeline invocation** (from `feature-development`'s lean head or bug head): if `tasklist.md`
 exists (kartoteka path:
 `spec_store.py exists <specs.dir>/<TICKET_ID>/tasklist.md` exits 3), skip — report
-`Tasklist exists — skipped` and terminate (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9).
+`Tasklist exists — skipped` and terminate (`${ARTEL_ROOT}/docs/autonomous-run.md` §9).
 The Phase 2 questions+approval round below is that head's mini-interview and its single
 work-list confirmation.
 
@@ -97,8 +97,8 @@ Four-phase model, matching `analysis` and `planner`:
 ### Phase 1: Draft Tasklist and Extract Questions
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
@@ -114,8 +114,8 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 **Vision, spike answer, diagnosis.** Each goes on its prompt line as a path when it exists and
 as `none` when it does not (the same existence check). For a diagnosis, read its status without
 the document entering this context —
-`doc=$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/diagnosis.md) && printf '%s\n' "$doc" | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py status`
-(files path: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py status < <specs.dir>/<TICKET_ID>/diagnosis.md`)
+`doc=$(python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/diagnosis.md) && printf '%s\n' "$doc" | python3 ${ARTEL_ROOT}/scripts/spec_store.py status`
+(files path: `python3 ${ARTEL_ROOT}/scripts/spec_store.py status < <specs.dir>/<TICKET_ID>/diagnosis.md`)
 — and put it on the line in brackets. A `DIAGNOSED_STRUCTURAL` diagnosis is never passed: print
 `This diagnosis is structural. Next: /artel:feature-development <TICKET_ID> --head=full` and
 terminate.
@@ -169,21 +169,21 @@ the ticket to its full head; run by hand, the second line says what to do.
 
 ### Phase 1b: Check the draft
 
-The mechanical plan review (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §6), run on the draft
+The mechanical plan review (`${ARTEL_ROOT}/docs/task-grammar.md` §6), run on the draft
 before the approval round sees it.
 
 1. **Requirements.** No PRD (the **PRD.** check in Phase 1) → `<requirements>` is `absent`.
    Otherwise read its active IDs. Files path first, kartoteka path (`docs/spec-storage.md`
    §4.2) second:
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd <specs.dir>/<TICKET_ID>/prd.md
-       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/prd.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd <specs.dir>/<TICKET_ID>/prd.md
+       set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/prd.md | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd -
 
    Turn `data` into `<requirements>`: `present: false` → `absent`; `present: true` with an empty
    `ids` → `none`; otherwise the `ids` joined by `,`.
 2. **Check.** The draft is a file on both paths — run state, never the spec trail:
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist .artel/run/<TICKET_ID>/tasklist-draft.md --ticket-key <TICKET_ID> --check --requirements <requirements>
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist .artel/run/<TICKET_ID>/tasklist-draft.md --ticket-key <TICKET_ID> --check --requirements <requirements>
 
    No Critical or Important finding (exit `0`) → go to Phase 2.
    Exit `2` from either command → print `error.kind` and `error.message` and go to Phase 2: the
@@ -211,9 +211,9 @@ first, each as `<task> <severity> <rule>: <message>` — the person approves kno
 On a task-grammar draft the `Tasklist` question also lists every task's effective route with
 its reasons, one line each — `2.3 full — declared: payment path; floor: sensitive path
 (payments): src/checkout/pay.py` — read from a parser run over the draft that creates nothing:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist .artel/run/<TICKET_ID>/tasklist-draft.md --ticket-key <TICKET_ID>`
+`python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist .artel/run/<TICKET_ID>/tasklist-draft.md --ticket-key <TICKET_ID>`
 (each child's `route_effective` and `route_reasons`; every task `full` when `review.perTask` is
-`true` — `${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16). A draft the parser rejects
+`true` — `${ARTEL_ROOT}/docs/autonomous-run.md` §16). A draft the parser rejects
 shows its findings and no routes. The person may change any route, down as well as up — a
 **Request changes** answer such as `route 2.3: light` — and Phase 3 carries it to the writer,
 which records it as `Route: <light|full> — set at approval`.
@@ -243,8 +243,8 @@ When the agent confirms, run Phase 1b's check once more on the written tasklist 
 folded in can break what the draft check passed (a dropped task renumbers the rest). Files path
 first, kartoteka path (`docs/spec-storage.md` §4.2) second:
 
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID> --check --requirements <requirements>
-    set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
+    python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID> --check --requirements <requirements>
+    set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
 
 A Critical or Important finding gets one fix `SendMessage` to the same agent — the findings,
 each with its line, and "fix only these in <specs.dir>/<TICKET_ID>/tasklist.md; keep the task
@@ -256,15 +256,15 @@ Minor findings go into the Completion report.
 
 ### Phase 4: Mirror the tasklist into the task queue
 
-Per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1, decide whether the queue path
+Per `${ARTEL_ROOT}/docs/task-queue.md` §1, decide whether the queue path
 applies — its first row is the flag: a run invoked with `--local` mirrors nothing. On the
 fallback path, skip this phase silently and continue.
 
 On the queue path, run. Files path first, kartoteka path (`docs/spec-storage.md` §4.2)
 second:
 
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
-    set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
+    python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+    set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
 Exit `0` → follow `docs/task-queue.md` §2 steps 2–4: `task_create` each iteration
 row, then each of its children with `parent_id` set to the iteration's

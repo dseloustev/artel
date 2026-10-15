@@ -7,7 +7,7 @@ model: sonnet
 
 Worker, not an orchestrator — no agent matches this job; it runs inline (like `sync-phases` and
 `setup`). It is the conversational front door to the read side of
-`${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md`; that contract's §2 (what to call), §3
+`${ARTEL_ROOT}/docs/knowledge-consultation.md`; that contract's §2 (what to call), §3
 (budget) and §5 (the injection rule) apply here, with one deliberate difference from §2: the
 `## tasks` block of a `related` result is summarised rather than ignored, because a person
 asking about a ticket wants its queue state, which an interview or a scan does not (§3b below).
@@ -18,7 +18,7 @@ skill answers a person and **writes nothing** — no file under `<specs.dir>`, n
 ## 1. Gate
 
 Read `knowledge.adapter` and `knowledge.project` from `.artel/config.json`
-(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`). `<project>` below is the latter's value.
+(`${ARTEL_ROOT}/docs/config.md`). `<project>` below is the latter's value.
 
 | `knowledge.adapter` | kartoteka MCP tools in session | Do |
 |---|---|---|
@@ -45,14 +45,14 @@ Strip the flags first (`--source`, `--type`, `--status`, `--artifacts`); what re
 
 - **`status`** → §3a.
 - **A ticket identifier** — matches `ticket.pattern` per
-  `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2 → canonicalise to `TICKET_ID` and go to
+  `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2 → canonicalise to `TICKET_ID` and go to
   §3b. An empty argument → read `<specs.dir>/.active_ticket`; if that is missing too, ask for a
   query or a ticket and stop.
 - **Anything else** is a free-text query → §3c.
 
 **Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
-first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
-→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+first: `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${ARTEL_ROOT}/docs/spec-storage.md` §2.1, asking the
 user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
 an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
 operation — never with Read/Write/Edit or a shell file command.
@@ -84,7 +84,7 @@ returns nothing.
   the `## artifacts` block is artel's own spec trail. On the files path it comes back
   through the mirror hook and can lag the files on disk: say so in one line — "your on-disk
   trail under `<specs.dir>/<TICKET_ID>/` is authoritative" — and do not `artifact_get` any of
-  it. On the kartoteka path (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`) it *is* the trail:
+  it. On the kartoteka path (`${ARTEL_ROOT}/docs/spec-storage.md`) it *is* the trail:
   say so, and `--artifacts` lists it like any other ticket's.
 - Summarise the `## tasks` block as counts by status and point at
   `/artel:tasks list <TICKET_ID>` for the rows.

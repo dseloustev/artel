@@ -15,7 +15,7 @@ position — strip it before reading `$0`, `$1`, `$2`, and remember that it was 
 
 The artifact contract — the pinned target, the machine report's schema, the report's exact
 metadata, finding IDs and task format, the verification records and the completeness rules — is
-single-homed in `${CLAUDE_PLUGIN_ROOT}/docs/deep-review.md`. This skill names the steps; it does
+single-homed in `${ARTEL_ROOT}/docs/deep-review.md`. This skill names the steps; it does
 not restate the schema.
 
 ## Step 1: Resolve the ticket and check for an existing file
@@ -23,8 +23,8 @@ not restate the schema.
 ### 1a: Resolve the ticket key
 
 Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per
-`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and
-`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty
+`${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and
+`${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty
 line of `<specs.dir>/.active_ticket`; if no identifier is available, display the following and
 terminate:
 ```
@@ -34,7 +34,7 @@ Usage: /artel:deep-review <ticket-id> [branch] [pr-link] [--local]
 
 `deep-review` is ticket-wide only: `PHASE_NUM` is parsed for input compatibility (so a
 phase-suffixed identifier is accepted) but discarded — the same convention
-`${CLAUDE_PLUGIN_ROOT}/skills/artel-pr-description/SKILL.md` uses.
+`${ARTEL_ROOT}/skills/artel-pr-description/SKILL.md` uses.
 
 Then verify that `<specs.dir>/<TICKET_ID>/` exists on disk. On the kartoteka path the ticket
 exists when `spec_store.py list <TICKET_ID>` prints a non-empty array; the directory need not
@@ -64,8 +64,8 @@ On "Yes", continue; the file is replaced in Step 3.
 ### 2a: Spec store
 
 Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
@@ -77,7 +77,7 @@ unchanged. This skill's own reads, existence checks and writes of spec documents
 
 `$1` is the branch under review: store it as `BRANCH_NAME` and display
 `Target branch: <BRANCH_NAME>`. Empty or absent → the checked-out branch, with no `BRANCH_NAME`
-set. `$2` is the PR link: parse it per `vcs.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`)
+set. `$2` is the PR link: parse it per `vcs.adapter` (`${ARTEL_ROOT}/docs/config.md`)
 and fetch the PR details as before —
 
 **`"github-cli"`** (default) — expects `https://github.com/<owner>/<repo>/pull/<number>` (or a
@@ -115,14 +115,14 @@ otherwise the engine's default base resolution stands, and the run says which ba
 ### 2c: Pin the target
 
 Resolve `--specs-dir` from the host config: read `.artel/config.json` and pass its `specs.dir`
-verbatim (default `specs/.current`, `${CLAUDE_PLUGIN_ROOT}/docs/config.md`). It is the host's
+verbatim (default `specs/.current`, `${ARTEL_ROOT}/docs/config.md`). It is the host's
 declaration of a dedicated artifact root — not product code, and not an exemption for source
 changes. An invalid value (escaping the repo, `.`, a product directory) is a configuration
 error: report it and terminate. Do not invent a source-root heuristic or a new config key.
 
 Then run, from the checkout root:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py prepare \
+python3 ${ARTEL_ROOT}/scripts/deep_review.py prepare \
   --ticket <TICKET_ID> --specs-dir <specs.dir> [--branch <BRANCH_NAME>] [--base <BASE>] \
   --output .artel/run/<TICKET_ID>/deep-review/target.json
 ```
@@ -144,7 +144,7 @@ are exactly the reviewed target's. A tree that fails the project's own checks is
    ```
    Running quality gate...
    ```
-2. Run each command in `verify.commands` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`), in order,
+2. Run each command in `verify.commands` (`${ARTEL_ROOT}/docs/config.md`), in order,
    stopping at the first non-zero exit.
 3. Inspect the result:
    - `verify.commands` is empty → the gate is **skipped** (config.md; never reported as green) —
@@ -168,7 +168,7 @@ are exactly the reviewed target's. A tree that fails the project's own checks is
 
 ### 3a: Dispatch
 
-Use the Agent tool to spawn the `reviewer` agent (`${CLAUDE_PLUGIN_ROOT}/agents/artel-reviewer.md`) in
+Use the Agent tool to spawn the `reviewer` agent (`${ARTEL_ROOT}/agents/artel-reviewer.md`) in
 standalone mode — no ticket mode. Its report is the ticket's `deep-review.md`: the agent's
 standalone-mode Output section carries the deep-review shape, and the machine report sidecar the
 dispatch names. Ticket files are passed as additional context only.
@@ -179,7 +179,7 @@ run's only artifact retry, so the run accepts at most two reviewer attempts.
 
 - `subagent_type: "reviewer"`
 - `model`: `"fable"` — the whole-branch review before a pull request, the one review on the most
-  capable tier (`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`); a dispatch refused for its
+  capable tier (`${ARTEL_ROOT}/docs/agents.md` `## Models`); a dispatch refused for its
   model is re-dispatched once without one
 - `description`: `"Code review for <TICKET_ID>"`
 - `prompt`: always starts with `Run in **standalone mode** — no ticket context.`
@@ -199,7 +199,7 @@ Pinned target — review exactly this and nothing else:
 - Target manifest: .artel/run/<TICKET_ID>/deep-review/target.json — run <RUN_ID>, branch <BRANCH>, base <BASE>, head <HEAD>, merge-base <MERGE_BASE>.
 - Review range: `git diff <MERGE_BASE> <HEAD>`; regression guard: `git diff <BASE> <HEAD>`; anchors: the same merge-base..head range.
 - Machine report (schema 1): write it to .artel/run/<TICKET_ID>/deep-review/machine.json.
-- Report contract: `${CLAUDE_PLUGIN_ROOT}/docs/deep-review.md` — the header, the four metadata lines, the finding sections and DR-NNN IDs, the `### Tasks` blocks, the verification records and the completeness rules.
+- Report contract: `${ARTEL_ROOT}/docs/deep-review.md` — the header, the four metadata lines, the finding sections and DR-NNN IDs, the `### Tasks` blocks, the verification records and the completeness rules.
 
 Additional ticket context:
 - Active ticket: <TICKET_ID>
@@ -228,7 +228,7 @@ Pinned target — review exactly this and nothing else:
 - Target manifest: .artel/run/<TICKET_ID>/deep-review/target.json — run <RUN_ID>, branch <BRANCH>, base <BASE>, head <HEAD>, merge-base <MERGE_BASE>.
 - Review range: `git diff <MERGE_BASE> <HEAD>`; regression guard: `git diff <BASE> <HEAD>`; anchors: the same merge-base..head range.
 - Machine report (schema 1): write it to .artel/run/<TICKET_ID>/deep-review/machine.json.
-- Report contract: `${CLAUDE_PLUGIN_ROOT}/docs/deep-review.md` — the header, the four metadata lines, the finding sections and DR-NNN IDs, the `### Tasks` blocks, the verification records and the completeness rules.
+- Report contract: `${ARTEL_ROOT}/docs/deep-review.md` — the header, the four metadata lines, the finding sections and DR-NNN IDs, the `### Tasks` blocks, the verification records and the completeness rules.
 
 Additional ticket context:
 [... same five bullets as above ...]
@@ -252,7 +252,7 @@ unchanged.
 
 Files path:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check \
+python3 ${ARTEL_ROOT}/scripts/deep_review.py check \
   --target .artel/run/<TICKET_ID>/deep-review/target.json \
   --findings .artel/run/<TICKET_ID>/deep-review/machine.json \
   --report <specs.dir>/<TICKET_ID>/deep-review.md \
@@ -261,7 +261,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check \
 
 Kartoteka path — the stored document goes by pipe, never through a file:
 ```bash
-set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/deep-review.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check \
+set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/deep-review.md | python3 ${ARTEL_ROOT}/scripts/deep_review.py check \
   --target .artel/run/<TICKET_ID>/deep-review/target.json \
   --findings .artel/run/<TICKET_ID>/deep-review/machine.json \
   --report - --summary '<the agent's completion line>'
@@ -327,9 +327,9 @@ using the validated `data.tasks` counts:
    `<specs.dir>/<TICKET_ID>/tasklist.md` — on the kartoteka path one `artifact_patch(project=<project>, …)`: insert before the next `## ` heading, or `append` (spec-storage.md §4.3) — beneath one new source heading
    `### deep-review-<YYYY-MM-DD>`, the date from `date +%F`. The heading keeps this batch's
    rows apart from an earlier round's with the same text
-   (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6); when it is already in the section, use
+   (`${ARTEL_ROOT}/docs/task-queue.md` §6); when it is already in the section, use
    `-2`, then `-3`, ….
-   - The file is missing → create it (kartoteka path: `artifact_put(project=<project>, …, expected_version=0)`) with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2: `type: tasklist`, `produced_by: artel:deep-review`), `# Tasklist — <TICKET_ID>` and the section, and
+   - The file is missing → create it (kartoteka path: `artifact_put(project=<project>, …, expected_version=0)`) with the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2: `type: tasklist`, `produced_by: artel:deep-review`), `# Tasklist — <TICKET_ID>` and the section, and
      display `Created <specs.dir>/<TICKET_ID>/tasklist.md with only a ## Code Review Fixes section.`
    - The section is missing → append `## Code Review Fixes` at the end of the file.
    - The source heading goes at the end of the section, before the next `## ` heading.
@@ -337,20 +337,20 @@ using the validated `data.tasks` counts:
      a task-format tasklist, the highest under `## Code Review Fixes`: its `### Task N.M:`
      headings number iteration tasks and never count.
      Renumbering changes the number only: a `(behavior)` marker stays in place
-     (`${CLAUDE_PLUGIN_ROOT}/agents/artel-reviewer.md`).
+     (`${ARTEL_ROOT}/agents/artel-reviewer.md`).
    - A block reading `- none` copies nothing, and no heading.
 
    Display `Appended <count> tasks under ## Code Review Fixes in <specs.dir>/<TICKET_ID>/tasklist.md.`
 
 2. Record them in the task queue before any implementer is dispatched
-   (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §2, fix-writer rule). Decide the path per
+   (`${ARTEL_ROOT}/docs/task-queue.md` §2, fix-writer rule). Decide the path per
    task-queue.md §1: `--local` was passed, `knowledge.adapter` is `none` or absent,
    `knowledge.project` is unset, or the kartoteka task tools are absent → skip this step and
    display `Task queue: not used (<reason>)`. Otherwise run. Files path first, kartoteka path
    (`docs/spec-storage.md` §4.2) second:
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
-       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+       set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
    and for each entry of `data.sections`, in order,
    `task_create(project=<project>, ticket_key=<TICKET_ID>, title=…, description=…, status=…)`

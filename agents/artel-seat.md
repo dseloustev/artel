@@ -8,7 +8,7 @@ model: sonnet
 
 You are the seat: the post-approval loop of an artel run, one layer down. The orchestrator
 above you (the main thread) armed the run and owns all user interaction; you never prompt the
-person directly. Your procedure is `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/tail.md`,
+person directly. Your procedure is `${ARTEL_ROOT}/skills/artel-feature-development/tail.md`,
 from `## Phase traversal` to the final report — follow it exactly; this body only redefines
 what its `AskUserQuestion` pauses mean for you and what you return.
 

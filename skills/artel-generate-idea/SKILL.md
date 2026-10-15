@@ -9,7 +9,7 @@ model: sonnet
 
 Bootstraps the feature workflow by producing `<specs.dir>/<TICKET_ID>/idea.md`, the seed that
 `generate-vision`, `analysis`, `researcher`, and `tasklist`/`generate-tasklist` all consume.
-Behavior is driven by `tracker.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`):
+Behavior is driven by `tracker.adapter` (`${ARTEL_ROOT}/docs/config.md`):
 
 - **`"none"` (default)** — no tracker to fetch from. `<specs.dir>/<TICKET_ID>/idea.md` is a local
   file: this skill gathers its content from a description-file argument or directly from the
@@ -27,13 +27,13 @@ procedural shape (they stay config-driven instead).
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID` and `TICKET_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID` and `TICKET_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 Ideas are ticket-level only. If a phase suffix is present in the input, ignore it and note this in the final report.
 
 **Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
-first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
-→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+first: `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${ARTEL_ROOT}/docs/spec-storage.md` §2.1, asking the
 user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
 an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
 operation — never with Read/Write/Edit or a shell file command.
@@ -43,7 +43,7 @@ operation — never with Read/Write/Edit or a shell file command.
 | Artifact | Path |
 |---|---|
 | Output idea | `<specs.dir>/<TICKET_ID>/idea.md` |
-| Template | `${CLAUDE_PLUGIN_ROOT}/skills/artel-generate-idea/assets/templates/idea.template.md` |
+| Template | `${ARTEL_ROOT}/skills/artel-generate-idea/assets/templates/idea.template.md` |
 | Active ticket | `<specs.dir>/.active_ticket` |
 
 Ensure `<specs.dir>/<TICKET_ID>/` exists before writing.
@@ -55,7 +55,7 @@ Ensure `<specs.dir>/<TICKET_ID>/` exists before writing.
 Read `<specs.dir>/<TICKET_ID>/idea.md` (kartoteka path: `spec_store.py exists <specs.dir>/<TICKET_ID>/idea.md` — exit 0 exists, 3 does not).
 
 **Pipeline invocation** (from an orchestrator): if it exists, skip — report `Idea exists —
-skipped` and terminate without touching the tracker (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9).
+skipped` and terminate without touching the tracker (`${ARTEL_ROOT}/docs/autonomous-run.md` §9).
 
 **Manual invocation:** if it exists, ask via `AskUserQuestion`:
 - **Question:** `<specs.dir>/<TICKET_ID>/idea.md already exists. Overwrite it?`
@@ -65,7 +65,7 @@ On `Abort`, report `Aborted: existing <specs.dir>/<TICKET_ID>/idea.md left untou
 
 ### Step 2: Gather the ticket content
 
-Branch on `tracker.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`):
+Branch on `tracker.adapter` (`${ARTEL_ROOT}/docs/config.md`):
 
 **`"none"`:**
 1. If a description-file argument (`$1`) was passed, read it as the source content.
@@ -112,7 +112,7 @@ Branch on `tracker.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`):
 ### Step 3: Translate to `language.docs`
 
 Translate the title, description/body, and every comment body into `language.docs`
-(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`). Apply unconditionally — content already in that
+(`${ARTEL_ROOT}/docs/config.md`). Apply unconditionally — content already in that
 language passes through unchanged (do not add machine-translation tags or notes). Under
 `tracker.adapter: "none"`, this step only applies if the gathered description is not already in
 `language.docs`.
@@ -135,12 +135,12 @@ If the description/body is empty or absent, set `SUMMARY` to the translated titl
 
 ### Step 4: Render the template
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/artel-generate-idea/assets/templates/idea.template.md` and substitute placeholders:
+Read `${ARTEL_ROOT}/skills/artel-generate-idea/assets/templates/idea.template.md` and substitute placeholders:
 
 | Placeholder | Source |
 |---|---|
 | `$TITLE` | translated title |
-| `$VERSION` | `1` on the kartoteka path (a new document, put with `expected_version=0`); `0` on the files path (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2) |
+| `$VERSION` | `1` on the kartoteka path (a new document, put with `expected_version=0`); `0` on the files path (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2) |
 | `$TICKET_ID` | parsed `TICKET_ID` |
 | `$METADATA` | see below |
 | `$SUMMARY` | first paragraph of the translated description, or the translated title if none |
@@ -200,4 +200,4 @@ and, if applicable, a note that a phase suffix in the input was ignored.
 - **Phase suffix is ignored.** Ideas are ticket-level only; a suffix in the input is parsed down
   to the bare `TICKET_ID` and noted in the report.
 - **Fail fast on tracker errors.** If a tracker call fails, do not write a partial file.
-- **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
+- **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.

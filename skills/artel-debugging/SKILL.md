@@ -9,7 +9,7 @@ Worker, not an orchestrator — no agent matches this job; it runs inline (like 
 that trigger the fault, the environment it happens in, the answer to "is that really not
 happening?".
 
-**The discipline is `${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` — read it now, in full, before
+**The discipline is `${ARTEL_ROOT}/docs/debugging.md` — read it now, in full, before
 anything else.** Its §1–§6 are this skill's process; what follows adds only what this repo
 knows. With `--diagnose` the process stops before the fix: section 6.
 
@@ -26,7 +26,7 @@ knows. With `--diagnose` the process stops before the fix: section 6.
 The reproduction (`docs/debugging.md` §2.1) and the failing test (§2.4) run through the gate the
 pipeline uses, so red and green here mean what they mean in a run:
 
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify.py task --files <the test file>
+    python3 ${ARTEL_ROOT}/scripts/verify.py task --files <the test file>
 
 Run it from the repository root. With `verify.test` empty the `test` stage is `skipped`, and a
 `skipped` stage is never red evidence: run the host's own single-file test command instead. A
@@ -72,14 +72,14 @@ In chat; nothing on disk beyond the fix and its test:
 anything is planned. It finds the cause and stops: **no fix, and nothing left in the tree.**
 
 **The symptom is the ticket's.** Resolve `<ticket-id>` per
-`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2 — the canonical key; a phase suffix is
+`${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2 — the canonical key; a phase suffix is
 ignored — and read `<specs.dir>/<TICKET_ID>/idea.md`. When it does not say how to trigger the
 fault, ask once, as step 1 does.
 
 **Spec store.** Before any read or write of a spec document, read the ticket's storage
-decision: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`.
+decision: `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`.
 `fresh: true` → use its `store`. Anything else → resolve per
-`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1. Reads and writes follow its §4.1 and §4.2.
+`${ARTEL_ROOT}/docs/spec-storage.md` §2.1. Reads and writes follow its §4.1 and §4.2.
 
 **The process.** Run `docs/debugging.md` §2.1–§2.3 — investigate until the fault happens on
 demand, compare, and confirm one hypothesis — with steps 2 and 3 above as they are. Stop before
@@ -91,7 +91,7 @@ diagnosis, so the first task can start from it. `git status --porcelain` shows n
 added outside `.artel/`.
 
 **Write `<specs.dir>/<TICKET_ID>/diagnosis.md`**, the one spec document this skill ever writes.
-Its header follows `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2: `type: diagnosis`,
+Its header follows `${ARTEL_ROOT}/docs/spec-storage.md` §3.2: `type: diagnosis`,
 `produced_by: artel:debugging`, and `status`. Its sections, in this order:
 
 - `## Symptom` — what happens, and what should.

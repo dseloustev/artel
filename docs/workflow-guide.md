@@ -110,7 +110,7 @@ config nothing is injected.
 | See or operate the ticket's task queue: list, add, done, block, release | `/artel:tasks list PROJ-XXXX` · `/artel:tasks add PROJ-XXXX "<title>" --iteration N` or `--fix CRF` for a review fix (same requirement) |
 
 (`<plugin-root>` is the plugin's install directory — inside a skill it is
-`${CLAUDE_PLUGIN_ROOT}`; from your own shell, the path `/plugin` shows for the installed artel
+`${ARTEL_ROOT}`; from your own shell, the path `/plugin` shows for the installed artel
 plugin.)
 
 One entry point drives everything.
@@ -331,8 +331,8 @@ it to `architectural` until the run is armed (`autonomous-run.md §17`).
   in `.artel/run/PROJ-XXXX/open-questions.md` with a default (`autonomous-run.md §3`), not a
   question to you. You get `research.md` and `plan.md`.
 - *Gate 3.5 — `PLAN_GROUNDED`.* The orchestrator runs
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path:
-  `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan - --strict`) to catch
+  `python3 ${ARTEL_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path:
+  `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${ARTEL_ROOT}/scripts/plan_check.py --plan - --strict`) to catch
   hallucinated file/symbol references. Exit 0 proceeds; exit 1 bounces the findings back to
   `planner` to fix and regenerate (bounded — a third failure stops and asks); exit 2 is an
   environment error, a stop-and-ask pointing at setup, never a bounce.

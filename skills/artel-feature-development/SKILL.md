@@ -6,8 +6,8 @@ argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--head=fu
 
 The one orchestrator for ticket work: it imports the ticket, sizes the work, runs the head that
 fits it to one approval, then runs the tail to a pull request. Contract:
-`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` (read it first). Shared procedures:
-`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md`. Pass `$0` (including phase; on
+`${ARTEL_ROOT}/docs/autonomous-run.md` (read it first). Shared procedures:
+`${ARTEL_ROOT}/docs/orchestrator-common.md`. Pass `$0` (including phase; on
 multi-phase traversal the current `<TICKET_ID>-<N>`) to every sub-skill. Skip any gate whose
 artifact already exists (resume); re-read artifacts after every sub-skill/agent return.
 
@@ -16,10 +16,10 @@ run reaches it — never all at once:
 
 | File | Holds | Read |
 |---|---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/full.md` | gates 0.5–4.5, gate 4.2 and THE ONE PAUSE | step 4, for an `architectural` size — and when a head raises the size |
-| `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/lean.md` | the ladder and the work-list confirmation | step 4, for a `bounded` size |
-| `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/bug.md` | the diagnosis, then the work list | step 4, for a `bug` size |
-| `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/tail.md` | phase traversal, gates 5–10.7, the completion gate, the PR close-out, the final report, the checkpoint procedure | step 5, once the run is armed — inline runs only; a seated run never reads it here (it is the seat's procedure) |
+| `${ARTEL_ROOT}/skills/artel-feature-development/heads/full.md` | gates 0.5–4.5, gate 4.2 and THE ONE PAUSE | step 4, for an `architectural` size — and when a head raises the size |
+| `${ARTEL_ROOT}/skills/artel-feature-development/heads/lean.md` | the ladder and the work-list confirmation | step 4, for a `bounded` size |
+| `${ARTEL_ROOT}/skills/artel-feature-development/heads/bug.md` | the diagnosis, then the work list | step 4, for a `bug` size |
+| `${ARTEL_ROOT}/skills/artel-feature-development/tail.md` | phase traversal, gates 5–10.7, the completion gate, the PR close-out, the final report, the checkpoint procedure | step 5, once the run is armed — inline runs only; a seated run never reads it here (it is the seat's procedure) |
 
 Read exactly one head file per run, after sizing, and another only when a head hands the ticket
 on (a raise, or the bug head's **Treat it as a bounded change**). On resume of an armed run, an
@@ -39,8 +39,8 @@ that accepts it (`analysis`, `researcher`, `tasklist`, `generate-tasklist`, `deb
 `run-reviewer` and `implementer`).
 Every implementer dispatch carries it, fix rounds included (gates 7, 8 and 10.7, and the
 per-task review's round): its **Task queue:** field is the only way the opt-out reaches the
-agent (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1). Default is to consult;
-`${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §1 resolves it against
+agent (`${ARTEL_ROOT}/docs/task-queue.md` §1). Default is to consult;
+`${ARTEL_ROOT}/docs/knowledge-consultation.md` §1 resolves it against
 `knowledge.adapter` and tool availability.
 
 ## Workflow
@@ -60,7 +60,7 @@ Every other run — new, or interrupted inside a head — goes on to step 2.
 
 ### 0. Config gate
 
-Read `.artel/config.json` per `${CLAUDE_PLUGIN_ROOT}/docs/config.md`. Missing → `Skill: setup`
+Read `.artel/config.json` per `${ARTEL_ROOT}/docs/config.md`. Missing → `Skill: setup`
 (the one-time init interview), then continue with the written config. Present → run the
 start-time check config.md's "When the adapter is unusable" prescribes for entry points:
 `vcs.adapter: "bitbucket-mcp"` with an empty `vcs.mcpToolPrefix` is a configuration error —
@@ -76,14 +76,14 @@ phase checkpoint.
 
 ### 1.5 Spec store
 
-Resolve where this ticket's spec trail lives (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2)
+Resolve where this ticket's spec trail lives (`${ARTEL_ROOT}/docs/spec-storage.md` §2)
 before any spec document is read:
 
 1. **Your tool list** (§2.1 rows 5–6): with `knowledge.adapter` `kartoteka`, kartoteka's
    artifact tools — `artifact_get`, `artifact_put`, `artifact_patch`, `artifact_list`,
    `artifact_versions` — must be in this session. Missing → unavailable with that row's record:
    go to 3.
-2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decide <TICKET_ID> --decided-by feature-development` (plus `--local` when this run was invoked with it).
+2. Run `python3 ${ARTEL_ROOT}/scripts/spec_store.py decide <TICKET_ID> --decided-by feature-development` (plus `--local` when this run was invoked with it).
 3. **Exit 5** (unavailable) → §5.1: ask Retry / Work locally for this run / Abort — headless,
    `specs.onUnavailable` answers (§5.4). Work locally →
    `spec_store.py decide <TICKET_ID> --decided-by feature-development --files "kartoteka unavailable; working locally at the user's request — <record>"`.
@@ -112,7 +112,7 @@ working locally.
 
 ### 2. Import the ticket
 
-On the kartoteka path "artifact exists" in every gate of this skill — the one below and every gate of a head file — is one `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py list <TICKET_ID>`, re-run after each sub-skill returns, and a gate's status is read without the document entering this context: `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" | spec_store.py status` (files path: `spec_store.py status < <path>`). `status` prints the header's `status:` (or, for a document written before 0.21.0, its `Status:` line's value) and exits `1` when none is declared (spec-storage.md §3.2, §8).
+On the kartoteka path "artifact exists" in every gate of this skill — the one below and every gate of a head file — is one `python3 ${ARTEL_ROOT}/scripts/spec_store.py list <TICKET_ID>`, re-run after each sub-skill returns, and a gate's status is read without the document entering this context: `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" | spec_store.py status` (files path: `spec_store.py status < <path>`). `status` prints the header's `status:` (or, for a document written before 0.21.0, its `Status:` line's value) and exits `1` when none is declared (spec-storage.md §3.2, §8).
 
 | # | Gate | Action (skip if artifact exists) |
 |---|------|----------------------------------|
@@ -122,7 +122,7 @@ On the kartoteka path "artifact exists" in every gate of this skill — the one 
 
 Decide which head the ticket gets, record it, say it, and go on — never a pause. Sizing is your
 own procedure, like the mode classifier: no agent is dispatched. Its contract is
-`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §17 (`## 17. Sizing and heads`); the rules are
+`${ARTEL_ROOT}/docs/autonomous-run.md` §17 (`## 17. Sizing and heads`); the rules are
 stated here in full because this is the file you act from.
 
 **The four sizes.**
@@ -213,9 +213,9 @@ Read the one file the size names and run it to the end of its approval:
 
 | Size | Read |
 |---|---|
-| `architectural` | `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/full.md` |
-| `bounded` | `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/lean.md` |
-| `bug` | `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/bug.md` |
+| `architectural` | `${ARTEL_ROOT}/skills/artel-feature-development/heads/full.md` |
+| `bounded` | `${ARTEL_ROOT}/skills/artel-feature-development/heads/lean.md` |
+| `bug` | `${ARTEL_ROOT}/skills/artel-feature-development/heads/bug.md` |
 
 A `spike` never reaches this step. The head is the chatty part of the run: nothing is armed yet,
 so its questions are plain `AskUserQuestion` calls with no `pause_reason`. It ends in one of
@@ -259,7 +259,7 @@ it is the parser check's:
 from the lean head's own check, and
 `plan check: run by generate-tasklist` when that skill wrote and checked the work list.
 
-Then run the **planning checkpoint** — read `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/tail.md`
+Then run the **planning checkpoint** — read `${ARTEL_ROOT}/skills/artel-feature-development/tail.md`
 now, the run is armed, and follow its `## Checkpoint commits & pushes`: commit
 `<specs.dir>/<TICKET_ID>/**` + `<specs.dir>/.active_ticket` and push — subject `docs: <TICKET_ID>
 planning artifacts` when a plan exists, `docs: <TICKET_ID> work list` otherwise (phase runs:
@@ -270,8 +270,8 @@ either. No verify gate here (`verify.commands`) — docs only, no code
 yet. On the kartoteka path the procedure sweeps images first and never stages one (its steps 2
 and 4); when, images aside, only `.active_ticket` changed, skip the commit and journal `planning checkpoint: skipped — the spec trail is in kartoteka`.
 
-**Record the baseline** (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md` §1):
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify.py checkpoint --record-baseline --ticket <TICKET_ID>`.
+**Record the baseline** (`${ARTEL_ROOT}/docs/gates.md` §1):
+`python3 ${ARTEL_ROOT}/scripts/verify.py checkpoint --record-baseline --ticket <TICKET_ID>`.
 Exit 2 → environment error, stop-and-ask. Journal `baseline: recorded (<n> keys across <m>
 stages)` or `baseline: skipped (verify.commands empty)`. **Fresh arm only** — the moment
 `run-state.json` is first written: on resume an existing `.artel/run/<TICKET_ID>/verify-baseline.json`
@@ -282,7 +282,7 @@ run state.
 
 ### 6. The tail
 
-The tail — `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/tail.md`, from `## Phase
+The tail — `${ARTEL_ROOT}/skills/artel-feature-development/tail.md`, from `## Phase
 traversal` to its final report — holds phase traversal and the re-mirror, gates 5–10.7, the
 completion gate, the PR description and the PR gate, the description-file sync and the final
 report. It is the whole run after arming and holds every `pause_reason` bracket after the head.
@@ -337,10 +337,10 @@ A dispatch that fails to start, or returns none of the three shapes: journal `se
   mutations this orchestrator performs; every other external action goes through `pr-create`. The
   checkpoint branch guard and no-force rules are absolute.
 - **`STORE_UNAVAILABLE`** from a sub-skill or agent, or a failing store call of your own, is the
-  environment error of `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §5.2: set
+  environment error of `${ARTEL_ROOT}/docs/spec-storage.md` §5.2: set
   `pause_reason: "store-unavailable"` and ask Retry (resume the agent) / Save it locally and pause
   (only when a produced document is unsaved: first
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py pending add <path> --base-version <N>`,
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py pending add <path> --base-version <N>`,
   then `SendMessage` the agent to write it to its logical path with its header's `version:`
   set to `<N>`) / Pause without saving. Clear
   `pause_reason` only after a Retry succeeds. There is no "continue locally" mid-run. Headless:

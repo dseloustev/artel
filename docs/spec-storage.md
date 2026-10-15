@@ -95,7 +95,7 @@ error itself:
 tools are `artifact_get`, `artifact_put`, `artifact_patch`, `artifact_list` and
 `artifact_versions`. Everything else is one command:
 
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decide <TICKET_ID> --decided-by <your skill> [--local]
+    python3 ${ARTEL_ROOT}/scripts/spec_store.py decide <TICKET_ID> --decided-by <your skill> [--local]
 
 - **Exit 0** prints the decision (`"store": "kartoteka"` or `"files"`). On the kartoteka path it
   also prints `local_trail`, this ticket's spec documents and committed or saved images found on
@@ -309,7 +309,7 @@ model's context:
 | `spec_store.py status < <path>` | `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" \| spec_store.py status` |
 | `doc=$(spec_store.py body < <path>) && printf '%s\n' "$doc" \| gh pr … --body-file -` | `set -o pipefail; doc=$(spec_store.py get <path> \| spec_store.py body) && printf '%s\n' "$doc" \| gh pr … --body-file -` |
 
-`spec_store.py` is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py`. A status is always read with
+`spec_store.py` is `python3 ${ARTEL_ROOT}/scripts/spec_store.py`. A status is always read with
 `status`, never `grep`: the header's `status:` is lower-case, and `status` falls back to the old
 `Status:` line for documents written before 0.21.0. A document leaves for a pull request only
 through `body`, which drops the header.
@@ -573,7 +573,7 @@ moves them in: `/artel:migrate-specs <TICKET_ID>`.
   left local — each `failed` or `skipped` entry with its reason (a name outside §4.6's grammar
   must be renamed before the command can move it), or on exit `5` or `2` every image still under
   the trail — with the command that moves them in:
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:<skill>`.
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:<skill>`.
   Headless runs journal the same lines.
 - **The images still under the trail** are
   `find '<specs.dir>/<TICKET_ID>' -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.gif' -o -iname '*.webp' \)`.
@@ -689,7 +689,7 @@ skipped are never deleted.
 
 ## 8. spec_store.py
 
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py <verb> …`. Paths are logical paths (§3, §4.6).
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py <verb> …`. Paths are logical paths (§3, §4.6).
 
 | Verb | Prints | Exit |
 |---|---|---|

@@ -168,15 +168,15 @@ Requirements marked `(withdrawn — <reason>)` or `(already met — <evidence>)`
 need no task. The PRD's IDs arrive through `--requirements`, from the `requirements` read of
 the PRD:
 
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd <prd-path>
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <ids>
+    python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd <prd-path>
+    python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <ids>
 
 `<ids>` is `data.ids` joined by commas; `none` when `data.present` is true and `data.ids` is
 empty; `absent` when there is no PRD or `data.present` is false. On the kartoteka path both
 documents are piped from the store, never copied locally:
 
-    set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -
-    set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <ids>
+    set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd -
+    set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <ids>
 
 ## 7. Rows, waves, readiness and route floors
 

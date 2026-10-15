@@ -439,15 +439,15 @@ class TestProtocolWiring(unittest.TestCase):
                        'git diff <MERGE_BASE> <HEAD>',
                        'git diff <BASE> <HEAD>',
                        '.artel/run/<TICKET_ID>/deep-review/machine.json',
-                       '${CLAUDE_PLUGIN_ROOT}/docs/deep-review.md'):
+                       '${ARTEL_ROOT}/docs/deep-review.md'):
             with self.subTest(phrase):
                 self.assertIn(phrase, self.flat)
 
     def test_the_kartoteka_check_pipes_the_stored_report_with_pipefail(self):
         self.assertIn(
-            'set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get '
+            'set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get '
             '<specs.dir>/<TICKET_ID>/deep-review.md | python3 '
-            '${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check', self.flat)
+            '${ARTEL_ROOT}/scripts/deep_review.py check', self.flat)
         self.assertIn('--report -', self.flat)
 
     def test_the_counts_come_from_the_validated_envelope(self):
@@ -599,7 +599,7 @@ class TestOpenCodeBuild(unittest.TestCase):
         self.assertIn('/scripts/deep_review.py check', text)
         self.assertIn('/scripts/deep_review.py prepare', text)
         self.assertIn('/docs/deep-review.md', text)
-        self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', text)
+        self.assertNotIn('${ARTEL_ROOT}', text)
 
 
 if __name__ == '__main__':

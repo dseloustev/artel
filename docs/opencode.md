@@ -56,12 +56,12 @@ prepended `<OPENCODE-HOST-NOTES>` glossary translating it to the v2 host:
 `disable-model-invocation: true` becomes `metadata.opencode/autoinvoke: false`, so a
 manual-only skill stays registered and loadable by id but leaves the model's skill list.
 The build replaces the braced install-root token with the install root; this doc names the
-token `$CLAUDE_PLUGIN_ROOT`, without braces, so the bake cannot rewrite its own explanation.
+token `$ARTEL_ROOT`, without braces, so the bake cannot rewrite its own explanation.
 `/artel:<name>` references become `artel-<name>`. A skill's other Markdown files —
 `feature-development`'s `heads/*.md` and `tail.md`, templates, references — are generated next
 to its `SKILL.md`, baked the same way but with no frontmatter and no glossary: their reader
 already has the glossary through `SKILL.md`. A pointer into a skill's directory
-(`${CLAUDE_PLUGIN_ROOT}/skills/<name>/<file>`) resolves to the baked install copy under
+(`${ARTEL_ROOT}/skills/<name>/<file>`) resolves to the baked install copy under
 `~/.config/opencode/artel/skills/artel-<name>/`, not to anything under `opencode/dist/`.
 Every skill also gets a `/artel-<name>` command wrapper: its body loads the skill and
 passes `$ARGUMENTS`, and its `description` carries the skill's `argument-hint` (for example

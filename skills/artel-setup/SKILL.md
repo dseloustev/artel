@@ -6,7 +6,7 @@ model: sonnet
 ---
 
 Worker, not an orchestrator — no agent matches this job; the interview runs inline (like
-`sync-phases` / `generate-idea`). Config contract: `${CLAUDE_PLUGIN_ROOT}/docs/config.md` — read
+`sync-phases` / `generate-idea`). Config contract: `${ARTEL_ROOT}/docs/config.md` — read
 it first; the interview only ever writes keys that document defines, in its documented shapes.
 
 ## 1. Existing-config gate
@@ -114,7 +114,7 @@ Write `.artel/config.json` — one complete, explicit file in the shape of confi
 example": `version: 1` first, then every section in that example's order, interviewed values
 filled in and untouched keys carrying their documented defaults. Strict JSON, UTF-8, no
 comments, no trailing commas. When the sensitive-paths scaffold was selected in Round 4, also
-copy `${CLAUDE_PLUGIN_ROOT}/hooks/sensitive-paths.json` to `.artel/sensitive-paths.json`
+copy `${ARTEL_ROOT}/hooks/sensitive-paths.json` to `.artel/sensitive-paths.json`
 (skip with a note if the host file already exists — never overwrite a policy). These are the
 skill's only writes and its last mutating steps but one — an interview aborted earlier leaves
 no partial config behind.

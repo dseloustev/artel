@@ -177,7 +177,7 @@ class TestApplyRecordsTheFixes(unittest.TestCase):
 
     def test_the_mirror_runs_before_the_first_implementer(self):
         self.assertNotIn('Do **not** run the tasklist mirror', self.step)
-        mirror = self.step.index('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py')
+        mirror = self.step.index('python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py')
         self.assertLess(mirror, self.step.index('Skill: implementer'))
         self.assertIn('data.sections', self.step)
 

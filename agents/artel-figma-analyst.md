@@ -14,7 +14,7 @@ downstream agents (`analyst`, `researcher`, `planner`) consume.
 ## Scope
 
 Design analysis is **ticket-level**, like `idea.md`. Parse identifiers per
-`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`; per that contract's §4, the design-analysis
+`${ARTEL_ROOT}/docs/ticket-parsing.md`; per that contract's §4, the design-analysis
 artifact is ticket-level only — ignore any phase suffix for pathing. Output always goes to
 `<specs.dir>/<TICKET_ID>/design-analysis.md`; design screenshots to
 `<specs.dir>/<TICKET_ID>/design/` (create both lazily). Never write
@@ -28,20 +28,20 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   written as always.
 - **`kartoteka`** — every spec-trail path in this file is a document address in kartoteka, the
   project's only spec store. Read, check, create, rewrite and edit it exactly as
-  `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
+  `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
   never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
   path it prints. Save a new image to its logical path as usual; your orchestrator sweeps it
   in (spec-storage.md §4.6).
 - A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
   else. A write refused with "kartoteka is this project's spec store" means you used a file tool
   where §4.1 says to call a tool.
 - No **Spec store:** field in your dispatch → run
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
   when `fresh` is `true`; otherwise `files`.
 
 ## Figma MCP tools
@@ -62,7 +62,7 @@ list pages, then drill into the page the ticket points at.
 Read `<specs.dir>/<TICKET_ID>/idea.md` if it exists — findings must be grounded in the
 requirement, not just pixels. Then call the connected server's `whoami` equivalent. On an
 auth/permission/availability error: STOP and return `ENV_ERROR: <one-line detail>` — an
-unreachable Figma MCP is an environment error (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md`
+unreachable Figma MCP is an environment error (`${ARTEL_ROOT}/docs/autonomous-run.md`
 §5), never a finding. Do not fabricate analysis.
 
 ### 2. Extract metadata
@@ -94,7 +94,7 @@ in one section only) is a **Major** finding; an unpaired state variant is **Mino
 ### 5. Map to code
 
 Use the host's optional code-symbol index for code search, index-first per
-`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; it is silently absent otherwise, and Grep is the
+`${ARTEL_ROOT}/docs/code-navigation.md`; it is silently absent otherwise, and Grep is the
 fallback (also use Grep for regex, or for string literals / comments the index does not cover —
 §3). Before reading any file over 500 lines, prefer an outline/symbol view of it if the index
 supports one (§2), and read only the targeted slice via offset/limit.
@@ -112,8 +112,8 @@ the flow would attach to, per those same conventions.
 
 ### 7. Write the artifact + evidence
 
-Fill `${CLAUDE_PLUGIN_ROOT}/skills/artel-figma-analysis/assets/templates/design-analysis.template.md`.
-`$VERSION` follows `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2 and §4.1: `1` for a new document on the
+Fill `${ARTEL_ROOT}/skills/artel-figma-analysis/assets/templates/design-analysis.template.md`.
+`$VERSION` follows `${ARTEL_ROOT}/docs/spec-storage.md` §3.2 and §4.1: `1` for a new document on the
 kartoteka path, `N+1` over a version N you read, `0` on the files path.
 Save screenshots (section overviews + every frame cited in a Major finding) via the screenshot
 tool's curl instructions into `<specs.dir>/<TICKET_ID>/design/` with kebab-case names
@@ -145,7 +145,7 @@ resolution is Park for designer — and return `DESIGN_ANALYSIS_COMPLETE` plus s
   `get_design_context`) on demand later.
 - The artifact is written in `language.docs` (config.md); labels whose source language differs
   from `language.docs` keep the original in parentheses.
-- **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
+- **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.
 - Never overwrite an existing `design-analysis.md` unless the orchestrator instructed Overwrite.
 - FigJam/board/Slides URLs passed as "other links" are recorded in the artifact header as
   "present, not analyzed" — never analysis targets.

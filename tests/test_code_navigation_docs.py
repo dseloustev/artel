@@ -64,7 +64,7 @@ NAMING_ALLOWED = ('skills/artel-using-artel/SKILL.md',)
 # `orchestrator-common.md` §1 keeps the refresh hook and must hand off the rest.
 REFRESH_HOOK_DOC = 'docs/orchestrator-common.md'
 
-PLUGIN_ROOT = '${CLAUDE_PLUGIN_ROOT}/'
+PLUGIN_ROOT = '${ARTEL_ROOT}/'
 
 
 def read(rel):

@@ -178,7 +178,7 @@ class TestReviewFixesAreRecorded(unittest.TestCase):
         hint = [ln for ln in text.splitlines() if ln.startswith('argument-hint:')][0]
         self.assertIn('--local', hint)
         self.assertIn('## Record the fix tasks', text)
-        self.assertIn('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py', text)
+        self.assertIn('python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py', text)
         self.assertIn('data.sections', text)
 
     def test_feature_development_passes_local_to_both_review_calls(self):

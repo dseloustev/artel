@@ -22,20 +22,20 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   written as always.
 - **`kartoteka`** — every spec-trail path in this file is a document address in kartoteka, the
   project's only spec store. Read, check, create, rewrite and edit it exactly as
-  `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
+  `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
   never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
   path it prints. Save a new image to its logical path as usual; your orchestrator sweeps it
   in (spec-storage.md §4.6).
 - A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
   else. A write refused with "kartoteka is this project's spec store" means you used a file tool
   where §4.1 says to call a tool.
 - No **Spec store:** field in your dispatch → run
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
   when `fresh` is `true`; otherwise `files`.
 
 ## Input
@@ -49,7 +49,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 
 `<specs.dir>/<TICKET_ID>/vision.md` — written in one pass on finalize (Workflow Step 2).
 
-- Header: the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2) — `type: vision`, `status: DRAFT` (set to `VISION_READY` on finalize), `produced_by: artel:vision-writer` — then `# Vision: {Feature Title} (<TICKET_ID>)`, a one-line **Sources:** line citing `idea.md` and `prd.md` (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.1), a `---` separator, then the seven sections from the section contract.
+- Header: the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2) — `type: vision`, `status: DRAFT` (set to `VISION_READY` on finalize), `produced_by: artel:vision-writer` — then `# Vision: {Feature Title} (<TICKET_ID>)`, a one-line **Sources:** line citing `idea.md` and `prd.md` (`${ARTEL_ROOT}/docs/spec-storage.md` §3.1), a `---` separator, then the seven sections from the section contract.
 - After Section 7: `## Out of scope` (bulleted, sourced from the PRD's Out of Scope and the idea file) and `## References` (tracker link from the idea file, when `tracker.adapter` is not `"none"` — else omitted; related tickets). These two blocks are not numbered sections.
 
 ## Section contract
@@ -78,8 +78,8 @@ Section 7.
    `hooks/sensitive-paths.json` defaults, replaced wholesale by a host
    `.artel/sensitive-paths.json` when present).
    Name the categories matched, never the policy file's path
-   (`${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md` §1). **This section feeds HITL tagging**
-   (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §4): name every touched sensitive surface
+   (`${ARTEL_ROOT}/docs/path-conventions.md` §1). **This section feeds HITL tagging**
+   (`${ARTEL_ROOT}/docs/autonomous-run.md` §4): name every touched sensitive surface
    explicitly. If none: the mandatory line `No sensitive surface touched.` — an omission is not an
    answer.
 6. **Platform matrix** — `| Platform | Impact |` table for each platform or deployment target the
@@ -99,7 +99,7 @@ After Section 7, append `## Out of scope` (from PRD + idea) and `## References` 
 
 1. Read the idea file, the PRD, and the codebase as needed. Cite real repo paths and confirm
    every one of them — the host's optional code-symbol index first, else Grep, per
-   `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §5.
+   `${ARTEL_ROOT}/docs/code-navigation.md` §5.
 2. Draft the complete document (all seven sections) in memory. Header: the document header (`status: DRAFT`),
    `# Vision: {Feature Title} (<TICKET_ID>)`, the **Sources:** line, `---`, then the sections.
 3. Return: the full draft; a numbered question list (or `NO_QUESTIONS`) — strictly items where
@@ -127,7 +127,7 @@ These are pinned for the whole draft. Honor them even if the user's answers woul
 - **No new abstractions.** Reuse existing factories, services, repositories, scopes, DAOs. If you are about to name a `FooManager` that does not exist yet, stop and reuse what is there.
 - **No new APIs or UI** unless the idea file calls for them. A debug-screen button is only in scope when the idea file mentions it.
 - **Prefer destructive migrations** over multi-step row-level migrations when the data is recoverable (cache, computed state). Call out the trade-off.
-- **Reuse, then cite.** When any section references an existing class / service / file, include its repo path, and confirm the path exists before you write it — the host's optional code-symbol index first, else Grep (`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §5). Never cite from memory. The index is also how you find what to reuse: `class`/`symbol --fuzzy` and `implementations` surface the existing factory or repository you are about to reinvent.
+- **Reuse, then cite.** When any section references an existing class / service / file, include its repo path, and confirm the path exists before you write it — the host's optional code-symbol index first, else Grep (`${ARTEL_ROOT}/docs/code-navigation.md` §5). Never cite from memory. The index is also how you find what to reuse: `class`/`symbol --fuzzy` and `implementations` surface the existing factory or repository you are about to reinvent.
 - **Call out every "we could do X but won't".** Explicit non-goals in the relevant section prevent scope creep during implementation.
 - **No speculation.** If the idea file is silent on something, ask in your questions list. Do not invent answers.
 
@@ -137,4 +137,4 @@ These are pinned for the whole draft. Honor them even if the user's answers woul
 - Never touch `<specs.dir>/<TICKET_ID>/idea.md`.
 - Revisions happen only via checkpoint feedback — incorporate it and rewrite the whole file in one pass.
 - Stay under ~200 lines total for a typical feature — if you are over, cut narrative, keep tables and diagrams.
-- **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
+- **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.

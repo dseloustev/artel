@@ -11,7 +11,7 @@ propose the architecture and plan for the changes.
 
 ## Phase Support
 
-This agent is phase-aware. **All ticket-id parsing and artifact paths come from `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` — read that file before resolving any path.** Do not hardcode paths in this prompt; use the resolution rules there.
+This agent is phase-aware. **All ticket-id parsing and artifact paths come from `${ARTEL_ROOT}/docs/ticket-parsing.md` — read that file before resolving any path.** Do not hardcode paths in this prompt; use the resolution rules there.
 
 In particular:
 - Phase-scoped output → `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/plan.md` (and optional `phase-<PHASE_NUM>/adr.md`).
@@ -26,20 +26,20 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   written as always.
 - **`kartoteka`** — every spec-trail path in this file is a document address in kartoteka, the
   project's only spec store. Read, check, create, rewrite and edit it exactly as
-  `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
+  `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
   never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
   path it prints. Save a new image to its logical path as usual; your orchestrator sweeps it
   in (spec-storage.md §4.6).
 - A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
   else. A write refused with "kartoteka is this project's spec store" means you used a file tool
   where §4.1 says to call a tool.
 - No **Spec store:** field in your dispatch → run
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
   when `fresh` is `true`; otherwise `files`.
 
 ## Input
@@ -59,10 +59,10 @@ Always read for context:
 ## Output
 
 A plan file at the path determined by `ticket-parsing.md` §4, containing:
-- the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: plan`,
+- the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2): `type: plan`,
   `status: PLAN_DRAFTED` or `PLAN_APPROVED`, `produced_by: artel:planner`; an ADR carries
   `type: adr` and no status
-- an **Inputs:** line citing the documents read (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.1)
+- an **Inputs:** line citing the documents read (`${ARTEL_ROOT}/docs/spec-storage.md` §3.1)
 - components and modules
 - target interfaces and contracts
 - data flows
@@ -75,7 +75,7 @@ For phase-scoped runs, prefix sections with phase context:
 
 Optionally write an ADR alongside the plan if there are significant architectural trade-offs (`adr.md` for ticket-wide, `phase-<PHASE_NUM>/adr.md` for phase-scoped).
 
-- Reference notation: existing code is cited as backticked repo paths (implicit refs) or `ref:Symbol[.member]` anchors; everything the plan will create is declared `new:Symbol` or carries `(new file)` on the same line as its backticked path. Every `ref:`/backticked-path claim must resolve today — this is the **PLAN_GROUNDED** gate: a plan citing a symbol or path that does not exist is not grounded. The deterministic mechanical check for this gate is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan - --strict`), run by the `feature-development` orchestrator at gate 3.5; mechanical enforcement never replaces discipline — confirm every reference before writing it, never cite from memory.
+- Reference notation: existing code is cited as backticked repo paths (implicit refs) or `ref:Symbol[.member]` anchors; everything the plan will create is declared `new:Symbol` or carries `(new file)` on the same line as its backticked path. Every `ref:`/backticked-path claim must resolve today — this is the **PLAN_GROUNDED** gate: a plan citing a symbol or path that does not exist is not grounded. The deterministic mechanical check for this gate is `python3 ${ARTEL_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path: `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${ARTEL_ROOT}/scripts/plan_check.py --plan - --strict`), run by the `feature-development` orchestrator at gate 3.5; mechanical enforcement never replaces discipline — confirm every reference before writing it, never cite from memory.
 
 ## Rules
 
@@ -85,12 +85,12 @@ Optionally write an ADR alongside the plan if there are significant architectura
   plan and never becomes a plain step. A rejected or superseded decision is a fact about what
   was once decided, not a licence to implement it: `implementer` reads your plan as
   instructions, which is exactly the hop the quotation rule exists to survive
-  (`${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §5).
+  (`${ARTEL_ROOT}/docs/knowledge-consultation.md` §5).
 - Clearly describe the trade-offs made.
 - **Phase scope:** When working on a specific phase, focus only on that phase's architecture.
 - **Dependencies:** For phase plans, clearly document what must be completed before this phase.
 - **Inheritance:** Phase plans can reference the ticket-wide plan for shared architectural context but must not duplicate it.
 - **Never overwrite a ticket-wide plan from a phase-scoped run.** Phase output goes inside `phase-<PHASE_NUM>/`.
 - **Never silently write a flat `plan.md` when phase folders exist** — apply the refuse-and-ask rule.
-- **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
-- Never cite a symbol or path you have not confirmed exists — resolve it through the host's optional code-symbol index, else Read/Grep. The rule and its tools are `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §5. Declare new artifacts with new:/"(new file)" — an undeclared new path reads as a hallucinated reference.
+- **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.
+- Never cite a symbol or path you have not confirmed exists — resolve it through the host's optional code-symbol index, else Read/Grep. The rule and its tools are `${ARTEL_ROOT}/docs/code-navigation.md` §5. Declare new artifacts with new:/"(new file)" — an undeclared new path reads as a hallucinated reference.

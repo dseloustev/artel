@@ -7,7 +7,7 @@ model: sonnet
 
 Worker, not an orchestrator — no agent matches this job; it runs inline (like `sync-phases` and
 `setup`). It is the conversational front door to the write side of
-`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md`; read that contract first. Two things it never does:
+`${ARTEL_ROOT}/docs/task-queue.md`; read that contract first. Two things it never does:
 **it never calls `task_ready`** — claiming is `implementer`'s job, and a claim made here would
 hold a row no loop is going to work — and it never promotes an iteration, which is the
 implementer's repair (`docs/task-queue.md` §3, §5).
@@ -17,7 +17,7 @@ implementer's repair (`docs/task-queue.md` §3, §5).
 - **Verb**: the first token — `list`, `add`, `done`, `block`, `release`. Missing or unknown →
   print the argument hint and stop.
 - **Ticket**: the next token when it matches `ticket.pattern`
-  (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2), else `<specs.dir>/.active_ticket`,
+  (`${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2), else `<specs.dir>/.active_ticket`,
   else — for `list` only — no ticket (all tickets). `add` with no ticket stops with "Error: No
   ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket".
   `done`, `block` and `release` take a task id, and every kartoteka row carries its
@@ -27,7 +27,7 @@ implementer's repair (`docs/task-queue.md` §3, §5).
   The **queue key is always the canonical `TICKET_ID`**, phase suffix stripped
   (`docs/task-queue.md` §2); `PHASE_NUM`, when given, only says which phase file is also edited.
 - **Gate**: read `knowledge.adapter` and `knowledge.project` from `.artel/config.json`
-  (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`). `<project>` below is the latter's value; every
+  (`${ARTEL_ROOT}/docs/config.md`). `<project>` below is the latter's value; every
   `task_create` names it and every `task_list` is scoped to it (`docs/task-queue.md`).
 
 | `knowledge.adapter` | kartoteka MCP tools in session | Do |
@@ -48,8 +48,8 @@ may serve several projects out of one database, `<project>` is what names this o
 write, and a queue wired up for another checkout must not be written to from this one.
 
 **Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
-first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
-→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+first: `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${ARTEL_ROOT}/docs/spec-storage.md` §2.1, asking the
 user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
 an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
 operation — never with Read/Write/Edit or a shell file command.
@@ -97,17 +97,17 @@ the argument hint and stop.
    for <TICKET_ID>; create one with `/artel:tasklist` or `/artel:generate-tasklist`, or pass
    `--raw` for a bare backlog row". `--iteration` missing (and no `--fix`), or iteration `N`
    absent → stop and list the `## Iteration N:` / `## Phase N:` headings the file has.
-   **Format** (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4): any `### Task <N>.<m>:` heading
+   **Format** (`${ARTEL_ROOT}/docs/task-grammar.md` §4): any `### Task <N>.<m>:` heading
    makes it a task-format tasklist; those flags write a task block.
 2. **Write the task** in the tasklist's format (step 1).
 
-   **Task grammar** — write a task block (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §1–§2):
+   **Task grammar** — write a task block (`${ARTEL_ROOT}/docs/task-grammar.md` §1–§2):
    - **Requirements.** `<specs.dir>/<TICKET_ID>/prd.md` absent (kartoteka path:
      `spec_store.py exists` exits 3) → `<requirements>` is `absent`. Otherwise read its active
      IDs. Files path first, kartoteka path (`docs/spec-storage.md` §4.2) second:
 
-         python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd <specs.dir>/<TICKET_ID>/prd.md
-         set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/prd.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -
+         python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd <specs.dir>/<TICKET_ID>/prd.md
+         set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/prd.md | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd -
 
      Turn `data` into `<requirements>`: `present: false` → `absent`; `present: true` with an
      empty `ids` → `none`; otherwise the `ids` joined by `,`.
@@ -140,8 +140,8 @@ the argument hint and stop.
      (spec-storage.md §4.3).
    - **Check before the row.** Files path first, kartoteka path second:
 
-         python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID> --check --requirements <requirements>
-         set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
+         python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID> --check --requirements <requirements>
+         set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
 
      A Critical or Important finding whose `task` is `<N>.<m>` → take the block back out of
      every file you wrote it to, undo the Progress Report bump, report the findings, and stop:
@@ -151,8 +151,8 @@ the argument hint and stop.
 3. **Mirror** — exactly `docs/task-queue.md` §2. Files path first, kartoteka path
    (`docs/spec-storage.md` §4.2) second:
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
-       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <specs.dir>/<TICKET_ID>/tasklist.md --ticket-key <TICKET_ID>
+       set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
    Exit `0` → for each entry of `data.iterations` in order (not `data.sections` — those belong
    to the fix writers, and `--fix` below):
@@ -204,14 +204,14 @@ with any of them → print the argument hint and stop.
    Fix sections are not in the Progress Report table; leave it alone.
    A `CRF` fix about what the code does can carry the reviewer's marker at the start of its
    title — `(behavior)` — and the implementer then reproduces it before fixing it
-   (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §3). This command adds nothing on its own.
+   (`${ARTEL_ROOT}/docs/debugging.md` §3). This command adds nothing on its own.
    On the kartoteka path the append is an `artifact_patch(project=<project>, …)` call
    (spec-storage.md §4.3).
 3. **Mirror** — `docs/task-queue.md` §2's fix-writer rule. Files path first, kartoteka path
    (`docs/spec-storage.md` §4.2) second:
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <file in scope> --ticket-key <TICKET_ID>
-       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <file in scope> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <file in scope> --ticket-key <TICKET_ID>
+       set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <file in scope> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
    Exit `0` → for each entry of `data.sections` in order:
    `task_create(project=<project>, ticket_key=<TICKET_ID>, title=…, description=…, status=…)`

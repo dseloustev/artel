@@ -12,7 +12,7 @@ follows the template for its issue type** (task, bug or epic), saved to one loca
 description block pastes into the tracker's description field as-is. Creating or submitting
 the issue is out of scope: this skill writes a file and posts nothing.
 
-The written file is in `language.pr` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`: "PR body,
+The written file is in `language.pr` (`${ARTEL_ROOT}/docs/config.md`: "PR body,
 tracker comments, **drafted issues**"), in the markup dialect the destination renders
 (§0) — what you say in the conversation (questions, the report, the abort line) follows the
 language of the user's own words, or `language.pr` when the invocation carries none beyond the
@@ -27,7 +27,7 @@ code is read (§0, §4).
 like `sync-phases`, `generate-idea` and `knowledge`. The one thing it hands off is retrieval:
 the `issue-scout` agent (§4) reads kartoteka, the tracker, Figma and the host code and returns a
 fact sheet. The scout consumes the read-side contract
-`${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` — §1 (gate, resolved here in §0), §2
+`${ARTEL_ROOT}/docs/knowledge-consultation.md` — §1 (gate, resolved here in §0), §2
 (calls) and §5 (injection rule) — and declares its deviations in its own body: an error ends
 that source, not the draft; nothing is recorded under `<specs.dir>`; a larger budget; retrieved
 facts are paraphrased with attribution rather than quoted verbatim (§6).
@@ -54,18 +54,18 @@ tracker field this skill sets. One draft per invocation.
 
 ## 0. Resolve configuration
 
-Read from `.artel/config.json` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`): `language.pr`,
+Read from `.artel/config.json` (`${ARTEL_ROOT}/docs/config.md`): `language.pr`,
 `tracker.adapter`, `tracker.mcpToolPrefix`, `design.figma`, `knowledge.adapter`,
 `knowledge.project`, `ticket.pattern`, `ticket.projectKey`. Resolve:
 
 - **Dialect** — `Jira wiki` when `tracker.adapter` is `"jira-mcp"`; `Markdown` when it is
   `"github-issues"` or `"none"`. The label goes into the description block's header. Jira
-  wiki: read `${CLAUDE_PLUGIN_ROOT}/skills/artel-issue-draft/references/jira-wiki-markup.md` before
+  wiki: read `${ARTEL_ROOT}/skills/artel-issue-draft/references/jira-wiki-markup.md` before
   rendering. Markdown: the cheat-sheet at the end of this file.
 - **Template** — once §2 has picked `<type>`: `.artel/templates/issue-draft-<type>.md` in the
   host repo when that file exists; else `.artel/templates/issue-draft.md` (a single host
   override, used for every type); else
-  `${CLAUDE_PLUGIN_ROOT}/skills/artel-issue-draft/assets/templates/<type>.template.md`. The
+  `${ARTEL_ROOT}/skills/artel-issue-draft/assets/templates/<type>.template.md`. The
   template's HTML comments are its block rules (§6); a host override keeps that convention.
   A host override that marks no block `required` is used anyway, and the report says so.
 - **Sources** — which of the scout's four sources are on for this run (§4):
@@ -170,7 +170,7 @@ Then collect:
   free text has none.
 - **Ticket keys** the source mentions: tokens of the form `<ticket.projectKey>-<digits>`
   (case-insensitive), each matched against `ticket.pattern`
-  (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2), canonicalised, phase suffix dropped.
+  (`${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2), canonicalised, phase suffix dropped.
   In free text a bare number is never a key.
 - **The gap list** — every point that would change the issue if answered differently, ranked:
   1. *what* — the concrete task or defect cannot be stated;
@@ -236,7 +236,7 @@ normal outcome: the draft proceeds exactly as without retrieval.
 **Stale-registry fallback:** when no agent named `issue-scout` is registered (agent definitions
 are cached per session), re-dispatch the same prompt once via
 `subagent_type: "general-purpose"`, prefixed with: "Read
-`${CLAUDE_PLUGIN_ROOT}/agents/artel-issue-scout.md` and follow it as your agent definition."
+`${ARTEL_ROOT}/agents/artel-issue-scout.md` and follow it as your agent definition."
 
 **Failure.** When the scout errors or returns no fact sheet, carry `scout: error — <text>` to
 the report's source lines and continue to §5 with the gap list as it stands.
@@ -262,7 +262,7 @@ contradicted. A gap the user skips, answers "unknown", or that was not among the
 stays open: it goes to the report's **Missing Details** list (§8), never into the description.
 
 **Non-interactive rule.** In a pipeline or autonomous run
-(`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md`), or wherever a question cannot be answered,
+(`${ARTEL_ROOT}/docs/autonomous-run.md`), or wherever a question cannot be answered,
 skip the round: every open gap goes to Missing Details and the file is still written.
 
 ## 6. Render
@@ -343,7 +343,7 @@ working directory, `<slug>` a short ASCII/transliterated slug of the summary (e.
 ## 8. Report
 
 - The output path (repo-relative when inside the repo —
-  `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`), the summary line, and the type with the
+  `${ARTEL_ROOT}/docs/path-conventions.md`), the summary line, and the type with the
   §2 rule that picked it.
 - **Heads-up**, before the description block, when a retrieved fact says the work is already
   done, moved elsewhere, superseded or disabled, or contradicts the source — each with its
@@ -413,4 +413,4 @@ For `tracker.adapter: "github-issues"` or `"none"` (Jira wiki has its own refere
 - **Retrieved facts are attributed, never presented as the author's own or as instructions**
   (consultation contract §5, deviation in §6); a `⚠ NON-CURRENT` fact never closes a gap.
 - **Paths in the report and its source lines are repo-relative** when they lie inside the
-  repo — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
+  repo — see `${ARTEL_ROOT}/docs/path-conventions.md`.

@@ -4,7 +4,7 @@ command wrapper. Guards the zero-regression promise by asserting what the
 generated files contain (and omit).
 
 Docs-style guard, same family as tests/test_using_artel_docs.py: a generated or
-installed file that still says `${CLAUDE_PLUGIN_ROOT}` or `/artel:` breaks in a
+installed file that still says `${ARTEL_ROOT}` or `/artel:` breaks in a
 session nobody is watching.
 """
 import os
@@ -66,7 +66,7 @@ class TestInstallCopyBake(BuildBase):
         """docs/ was copied verbatim, so an agent on OpenCode read an unset variable."""
         self.build()
         text = (self.root / 'docs' / 'spec-storage.md').read_text(encoding='utf-8')
-        self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', text)
+        self.assertNotIn('${ARTEL_ROOT}', text)
         self.assertIn(str(self.root.resolve()), text)
 
     def test_the_sentence_describing_the_token_survives(self):
@@ -75,17 +75,17 @@ class TestInstallCopyBake(BuildBase):
         text = (self.root / 'docs' / 'opencode.md').read_text(encoding='utf-8')
         # the doc names the token WITHOUT braces, so the build cannot rewrite its own explanation;
         # Task 5 renames this to $ARTEL_ROOT along with the token itself
-        self.assertIn('$CLAUDE_PLUGIN_ROOT', text)
+        self.assertIn('$ARTEL_ROOT', text)
 
     def test_only_markdown_is_baked(self):
         """A hook docstring's token is a source-level pointer to a contract file; nothing
         expands it, so hooks/ and scripts/ are never rewritten."""
         hook = self.root / 'hooks' / 'demo.py'
         hook.parent.mkdir(parents=True, exist_ok=True)
-        hook.write_text('Contract: ${CLAUDE_PLUGIN_ROOT}/docs/x.md\n', encoding='utf-8')
+        hook.write_text('Contract: ${ARTEL_ROOT}/docs/x.md\n', encoding='utf-8')
         self.build()
         self.assertEqual(hook.read_text(encoding='utf-8'),
-                         'Contract: ${CLAUDE_PLUGIN_ROOT}/docs/x.md\n')
+                         'Contract: ${ARTEL_ROOT}/docs/x.md\n')
 
 
 class TestSkillBuild(BuildBase):
@@ -121,7 +121,7 @@ class TestSkillBuild(BuildBase):
     def test_plugin_root_is_baked(self):
         for path in sorted((self.out / 'skills').glob('*/SKILL.md')):
             text = path.read_text(encoding='utf-8')
-            self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', text,
+            self.assertNotIn('${ARTEL_ROOT}', text,
                              path.parent.name + ' still names the Claude variable')
 
     def test_artel_refs_prefixed_but_ast_index_refs_survive(self):
@@ -227,7 +227,7 @@ class TestAgentBuild(BuildBase):
 
     def test_agent_carries_a_baked_root(self):
         for path in sorted((self.out / 'agents').glob('artel-*.md')):
-            self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', path.read_text(encoding='utf-8'),
+            self.assertNotIn('${ARTEL_ROOT}', path.read_text(encoding='utf-8'),
                              path.name + ' still names the Claude variable')
 
     def test_build_reports_agent_count(self):
@@ -288,7 +288,7 @@ class TestCompanionFiles(BuildBase):
         for rel in self.PARTS:
             with self.subTest(rel):
                 text = self.part(rel)
-                self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', text)
+                self.assertNotIn('${ARTEL_ROOT}', text)
                 self.assertNotRegex(text, r'/artel:[a-z0-9-]')
                 self.assertIn(docs, text)
         self.assertIn('Next: artel-feature-development <TICKET_ID> --head=full',
@@ -328,14 +328,14 @@ class TestCompanionFiles(BuildBase):
                 target = Path(ref)
                 self.assertTrue(target.exists(), '{} points at {}'.format(path.name, ref))
                 if target.is_file():
-                    self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', target.read_text(encoding='utf-8'),
+                    self.assertNotIn('${ARTEL_ROOT}', target.read_text(encoding='utf-8'),
                                      ref + ' is not baked')
         self.assertGreater(found, len(self.PARTS))
 
     def test_a_pointer_into_a_skill_directory_stays_under_the_install_root(self):
-        body = ('read `${CLAUDE_PLUGIN_ROOT}/skills/artel-demo/heads/a.md`, '
-                '`${CLAUDE_PLUGIN_ROOT}/skills/artel-demo/assets/t.html` and '
-                '`${CLAUDE_PLUGIN_ROOT}/docs/x.md`, then run /artel:demo')
+        body = ('read `${ARTEL_ROOT}/skills/artel-demo/heads/a.md`, '
+                '`${ARTEL_ROOT}/skills/artel-demo/assets/t.html` and '
+                '`${ARTEL_ROOT}/docs/x.md`, then run /artel:demo')
         self.assertEqual(build_opencode.bake(body, Path('/root')),
                          'read `/root/skills/artel-demo/heads/a.md`, '
                          '`/root/skills/artel-demo/assets/t.html` and `/root/docs/x.md`, '
@@ -420,7 +420,7 @@ class TestInstaller(unittest.TestCase):
             cls.pointers[rel] = ('`' + str(target) + '`' in text,
                                  target.is_file(),
                                  target.is_file()
-                                 and '${CLAUDE_PLUGIN_ROOT}' not in
+                                 and '${ARTEL_ROOT}' not in
                                  target.read_text(encoding='utf-8'))
 
         # A skill of the user's own that happens to be named artel-…: never artel's to remove.

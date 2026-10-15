@@ -36,8 +36,8 @@ class WorktreeSkillsCase(unittest.TestCase):
 
     def test_both_go_through_the_script(self):
         for name in NEW_SKILLS:
-            self.assertIn('${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py', body(name), name)
-            self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md', body(name), name)
+            self.assertIn('${ARTEL_ROOT}/scripts/worktree.py', body(name), name)
+            self.assertIn('${ARTEL_ROOT}/docs/worktrees.md', body(name), name)
 
     def test_both_confirm_first(self):
         for name in NEW_SKILLS:
@@ -77,8 +77,8 @@ class InitBranchWorktreeCase(unittest.TestCase):
         self.assertIn('header `Worktree`', self.text)
 
     def test_follows_the_shared_procedure(self):
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md', self.text)
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py move-in', self.text)
+        self.assertIn('${ARTEL_ROOT}/docs/worktrees.md', self.text)
+        self.assertIn('${ARTEL_ROOT}/scripts/worktree.py move-in', self.text)
 
     def test_the_move_comes_before_setup(self):
         self.assertLess(self.text.index('### Step 2b'), self.text.index('### Step 3'))

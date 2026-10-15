@@ -1,7 +1,7 @@
 # The lean head
 
 The head for a `bounded` size: establish the work list and confirm it once. Read by
-`feature-development` step 4 (`${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/SKILL.md`), and
+`feature-development` step 4 (`${ARTEL_ROOT}/skills/artel-feature-development/SKILL.md`), and
 after the bug head when the person chooses to treat a fault it could not reproduce as a bounded
 change. `SKILL.md` below is that file; its steps 0–3 have run: the config is read, the ticket is
 active, the spec store is resolved, `idea.md` exists (gate 0) and the size is recorded. Its
@@ -28,19 +28,19 @@ and stop, in every mode.
 
 1. **Tasklist with incomplete `- [ ]` tasks exists** (phase-scoped `phase-<N>/tasks.md` or
    ticket-wide `tasklist.md`) → it is the work list. First run the plan check on it
-   (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §6): `<tasklist-path>` is that tasklist,
+   (`${ARTEL_ROOT}/docs/task-grammar.md` §6): `<tasklist-path>` is that tasklist,
    `<prd-path>` the phase-aware PRD with its read fallback
-   (`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5). No PRD there (kartoteka path:
+   (`${ARTEL_ROOT}/docs/ticket-parsing.md` §4–§5). No PRD there (kartoteka path:
    `spec_store.py exists <prd-path>` exits 3) → `<requirements>` is `absent`; otherwise read its
    active IDs and turn `data` into `<requirements>` — `present: false` → `absent`,
    `present: true` with an empty `ids` → `none`, otherwise the `ids` joined by `,`. Then check
    the tasklist. Files path first, kartoteka path (`docs/spec-storage.md` §4.2) second, for each
    command:
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd <prd-path>
-       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <requirements>
-       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd <prd-path>
+       set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd -
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <requirements>
+       set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <requirements>
 
    Then present a one-screen summary (tasks + any `[HITL: …]` tags + the check's findings,
    Critical and Important first, each as `<task> <severity> <rule>: <message>`) via
@@ -76,7 +76,7 @@ skill checks its own draft and its written tasklist.
 ## Routes at the confirmation
 
 Branch 1's summary lists every task's effective route with its reasons
-(`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16.1), one line each — `2.3 full —
+(`${ARTEL_ROOT}/docs/autonomous-run.md` §16.1), one line each — `2.3 full —
 declared: money-movement path; floor: sensitive path (payments): src/payments/refund.py` —
 from a parser run over the work list (the tail's re-mirror command, without `task_create`),
 every task `full` when `review.perTask` is `true`. **Adjust** may change any route, down as well
@@ -96,7 +96,7 @@ more than one iteration.
 
 Inside this run that is a raise, not a stop. Follow `SKILL.md` step 3, "The ratchet": rewrite
 `sizing.json`, print `Size raised: bounded → architectural — full head. Reason: <reason>.` with
-the writer's reasons, then read `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/full.md`
+the writer's reasons, then read `${ARTEL_ROOT}/skills/artel-feature-development/heads/full.md`
 and run it. Do not act on the `Next:` line — it is for a person who ran the skill à la carte —
 and do not invoke `generate-tasklist` again. The full head starts from what the ticket already
 has: `idea.md`, and a `spike.md` or a `diagnosis.md` when present.

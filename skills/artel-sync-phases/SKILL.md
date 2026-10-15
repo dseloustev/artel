@@ -9,15 +9,15 @@ model: sonnet
 
 This skill synchronizes phase task completion between the ticket-wide tasklist and the per-phase `tasks.md` files inside `phase-<N>/` subfolders.
 
-**Invocation points:** the `feature-development` orchestrator invokes this skill automatically on phase-scoped runs — at run start (extract `phase-<N>/tasks.md` when missing) and after the phase's gates pass (sync completion status back to `tasklist.md`) (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9). Manual invocation remains for hand-repair.
+**Invocation points:** the `feature-development` orchestrator invokes this skill automatically on phase-scoped runs — at run start (extract `phase-<N>/tasks.md` when missing) and after the phase's gates pass (sync completion status back to `tasklist.md`) (`${ARTEL_ROOT}/docs/autonomous-run.md` §9). Manual invocation remains for hand-repair.
 
 This skill is a **worker, not an orchestrator** — like `generate-idea`, it runs inline rather than delegating to a subagent: no agent matches this job, and pure-procedure utility skills keep their procedural shape (they stay config-driven instead).
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
-**Path resolution lives in `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §3–§4.** In summary:
+**Path resolution lives in `${ARTEL_ROOT}/docs/ticket-parsing.md` §3–§4.** In summary:
 
 - Tasklist (ticket-wide): `<specs.dir>/<TICKET_ID>/tasklist.md`
 - Phase tasks file: `<specs.dir>/<TICKET_ID>/phase-<N>/tasks.md`
@@ -31,8 +31,8 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT
 Use the ticket resolution above to determine paths.
 
 **Spec store.** This skill reads and writes spec-trail documents itself. Resolve the store
-first: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
-→ its `store`; otherwise resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.1, asking the
+first: `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` — `fresh: true`
+→ its `store`; otherwise resolve per `${ARTEL_ROOT}/docs/spec-storage.md` §2.1, asking the
 user only while no run is active for the ticket. On `kartoteka`, every spec-trail path below is
 an address: operate on it as §4.1 (MCP tools) and §4.2 (scripts, by pipe) map each file
 operation — never with Read/Write/Edit or a shell file command.
@@ -113,8 +113,8 @@ checked.
    with its fields, steps and ticks, and its `**Test:**` line. No `## Context`, `## Tasks` or
    `## Technical Details` sections: the task blocks carry what the implementer needs. The phase's
    fix sections are this file's own — on a phase-scoped run their writers append them here
-   (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6) — so the extraction copies none from the
-   tasklist. The header follows `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2.
+   (`${ARTEL_ROOT}/docs/task-queue.md` §6) — so the extraction copies none from the
+   tasklist. The header follows `${ARTEL_ROOT}/docs/spec-storage.md` §3.2.
 
    On the kartoteka path it is `artifact_put(project=<project>, …, name="phase-<N>.tasks.md", expected_version=0)`.
 
@@ -142,4 +142,4 @@ Output a summary:
 - A phase file is the iteration copied verbatim — never add derived context to it.
 - Create the ticket directory (`<specs.dir>/<TICKET_ID>/`) and the phase subdirectory (`phase-<N>/`) if they don't exist.
 - **If PHASE_NUM is specified:** only create/extract a phase tasks file for that specific phase (Steps 5–6). Step 4 (sync all existing phase tasks files to tasklist) and Step 7 (Current Phase update) ALWAYS run for all phases.
-- **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
+- **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.

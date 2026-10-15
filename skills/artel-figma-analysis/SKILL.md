@@ -6,20 +6,20 @@ model: sonnet
 ---
 
 Design-analysis orchestrator for the ticket's Figma workflow. Config key: `design.figma`
-(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`, "design" section). Full stage contract — pipeline
+(`${ARTEL_ROOT}/docs/config.md`, "design" section). Full stage contract — pipeline
 placement, the runtime-optional degrade when no Figma MCP is connected, headless behavior — lives
-in `${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §13; this skill implements it.
+in `${ARTEL_ROOT}/docs/autonomous-run.md` §13; this skill implements it.
 
 ## Configuration Gate
 
-Read `design.figma` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`). Absent or `false` → report `Design
+Read `design.figma` (`${ARTEL_ROOT}/docs/config.md`). Absent or `false` → report `Design
 analysis disabled (design.figma: false) — skipped` and stop before resolving a ticket. `true`
 enables the rest of this skill, but the stage stays runtime-optional — Phase 2 below degrades the
 same way when no Figma MCP is connected.
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 Design analysis is **ticket-level only** (like `generate-idea`): a `PHASE_NUM` suffix is parsed but
 ignored for pathing and noted in the final report. This skill never writes
@@ -46,7 +46,7 @@ If `<specs.dir>/<TICKET_ID>/design-analysis.md` exists (kartoteka path: `doc=$(s
 means absent; files path: `spec_store.py status < <specs.dir>/<TICKET_ID>/design-analysis.md`):
 
 - **Pipeline invocation** (from an orchestrator): skip — report `Design analysis exists — skipped`
-  (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9).
+  (`${ARTEL_ROOT}/docs/autonomous-run.md` §9).
 - **Manual invocation:** ask via `AskUserQuestion` — `design-analysis.md already exists. Overwrite
   from Figma?` Options: `Overwrite` / `Abort`. On Abort, report the file was left untouched and
   terminate.
@@ -60,8 +60,8 @@ Overwrite prompt (re-analyze only after the design is fixed).
 ### Phase 1: Analysis
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
@@ -97,7 +97,7 @@ Do NOT resolve Major findings yourself — return them per your Return format.
 **Stale-registry fallback:** if the agent returns `ENV_ERROR` naming ToolSearch / Figma tools as
 unavailable, the session's agent registry may predate the current `figma-analyst` definition
 (agent frontmatter is cached per session). Re-dispatch the same prompt once via `subagent_type:
-"general-purpose"`, prefixed with: "Read `${CLAUDE_PLUGIN_ROOT}/agents/artel-figma-analyst.md` and
+"general-purpose"`, prefixed with: "Read `${ARTEL_ROOT}/agents/artel-figma-analyst.md` and
 follow it as your agent definition." Continue the phases with that agent. If the re-dispatch still
 returns `ENV_ERROR`, treat it as "no Figma MCP connected" per Phase 2 below.
 
@@ -106,7 +106,7 @@ returns `ENV_ERROR`, treat it as "no Figma MCP connected" per Phase 2 below.
 Branch on the agent's return:
 
 - **`ENV_ERROR: <detail>`** → `design.figma`'s runtime-optional semantics apply
-  (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`, `${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §13):
+  (`${ARTEL_ROOT}/docs/config.md`, `${ARTEL_ROOT}/docs/autonomous-run.md` §13):
   skip silently — report `Design analysis skipped — no Figma MCP connected (<detail>)` — and let
   the pipeline continue. Never stop the run over this stage; never fabricate a finding in its
   place.
@@ -124,12 +124,12 @@ Branch on the agent's return:
 ```
 User resolutions: [numbered list matching the findings, or "none"].
 Record each in §5 Major as **Resolution:** <decision>, finalize the artifact (header `status: DESIGN_ANALYZED`, or `status: DESIGN_BLOCKED` if any resolution
-is Park for designer — `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2), and return DESIGN_ANALYSIS_COMPLETE with summary counts.
+is Park for designer — `${ARTEL_ROOT}/docs/spec-storage.md` §3.2), and return DESIGN_ANALYSIS_COMPLETE with summary counts.
 ```
 
 **Sweep the screenshots** (kartoteka path) once the agent has returned, whatever its outcome:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:figma-analysis`
-(`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.6). It moves the `design/` screenshots into
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:figma-analysis`
+(`${ARTEL_ROOT}/docs/spec-storage.md` §4.6). It moves the `design/` screenshots into
 kartoteka; `design-analysis.md`'s links to them stay as written. Exit `5`, or `failed` entries,
 never stop this stage: put `image-sync: <n> left local — <first error line>` (spec-storage.md
 §5.6) in the report and go on — the screenshots stay local and untracked, and the next sweep
@@ -152,9 +152,9 @@ dashboard) plus its `image-sync:` line when it left any local; artifact path
 ## Important Rules
 
 - **Orchestrator** per the skill-orchestrator contract
-  (`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md`) — all analysis and writing belongs to the
+  (`${ARTEL_ROOT}/docs/orchestrator-common.md`) — all analysis and writing belongs to the
   `figma-analyst` agent; this skill only resolves context, relays the handshake, and reports.
 - The handshake is chatty-head interaction: plain `AskUserQuestion`, no `pause_reason` bracketing —
-  the stage runs before any run is armed (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §13).
+  the stage runs before any run is armed (`${ARTEL_ROOT}/docs/autonomous-run.md` §13).
 - Minor findings never pause here — they reach the user through the analysis interview.
-- **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
+- **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.

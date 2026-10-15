@@ -6,7 +6,7 @@ model: sonnet
 ---
 
 Worker, not an orchestrator — it runs inline. The contract is
-`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §5.3 and §7. Every step is one command. Document
+`${ARTEL_ROOT}/docs/spec-storage.md` §5.3 and §7. Every step is one command. Document
 contents never pass through this conversation, except a conflict's diff. Image bytes never do.
 
 A trail holds spec **documents** and **images**. An image is any `*.png|jpg|jpeg|gif|webp` under
@@ -18,7 +18,7 @@ the ticket directory: `design/`, `runtime/`, `phase-<N>/runtime/`, anywhere.
 - Every `plan`, `apply` and `delete` entry about an image carries `kind: "image"`. A document's
   entry carries no `kind`.
 
-`SPEC_STORE` below is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py`.
+`SPEC_STORE` below is `python3 ${ARTEL_ROOT}/scripts/spec_store.py`.
 
 ## 1. Resolve
 

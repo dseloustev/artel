@@ -5,7 +5,7 @@ argument-hint: ""
 ---
 
 Drive-and-verify orchestrator for agent UI interaction. Config key: `runtime.drive`
-(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`, "runtime" section). `/artel:run-app --gate`
+(`${ARTEL_ROOT}/docs/config.md`, "runtime" section). `/artel:run-app --gate`
 (observation-only) is unaffected — the `RUNTIME_OK` pipeline gate never uses this skill.
 
 ## 1. Preflight
@@ -24,7 +24,7 @@ Drive-and-verify orchestrator for agent UI interaction. Config key: `runtime.dri
 Run `runtime.drive` via Bash with a bounded timeout generous enough for the host's full drive
 sequence (navigation, interaction, verification). Capture `{command, exit_code, output}`
 (stdout+stderr, truncated if huge) — the same evidence shape `/artel:run-app` and
-`${CLAUDE_PLUGIN_ROOT}/skills/artel-inner-loop/SKILL.md` use. Exit `0` ⇒ verified; non-zero ⇒ not
+`${ARTEL_ROOT}/skills/artel-inner-loop/SKILL.md` use. Exit `0` ⇒ verified; non-zero ⇒ not
 verified, quoting the captured output.
 
 Whatever the command drives toward (a specific screen, a specific interaction) is the caller's
@@ -34,7 +34,7 @@ no way to take a goal simply runs its own fixed scenario.
 ## 3. Evidence
 
 Resolve `TICKET_ID` / `PHASE_NUM` from `<specs.dir>/.active_ticket` per
-`${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md`. When an identifier is available, write to
+`${ARTEL_ROOT}/docs/ticket-parsing.md`. When an identifier is available, write to
 `<specs.dir>/<TICKET_ID>/[phase-<PHASE_NUM>/]runtime/drive-observation.md`:
 
     # Drive observation — <TICKET_ID>

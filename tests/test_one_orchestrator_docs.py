@@ -379,7 +379,7 @@ class TestTail(unittest.TestCase):
             self.assertNotIn(name, self.raw)
 
     def test_it_cites_the_shared_start_by_its_steps(self):
-        for phrase in ('(`${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/SKILL.md` steps 5–6)',
+        for phrase in ('(`${ARTEL_ROOT}/skills/artel-feature-development/SKILL.md` steps 5–6)',
                        'then renew the decision as `SKILL.md` step 1.5 says',
                        '| Planning (`SKILL.md` step 5) | immediately after arming |',
                        '| Phase-end (gate 10.7) |',
@@ -443,7 +443,7 @@ class TestTail(unittest.TestCase):
 
     def test_the_skill_no_longer_holds_it(self):
         skill = raw(FD + 'SKILL.md')
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/tail.md', skill)
+        self.assertIn('${ARTEL_ROOT}/skills/artel-feature-development/tail.md', skill)
         for moved in ('| 5 | `IMPLEMENT_STEP_OK`', '| 10.7 | `PHASE_CHECKPOINT` |',
                       '\n## Checkpoint commits & pushes\n', '1. **Branch guard.**',
                       'Confirm the eight facts below yourself'):
@@ -488,7 +488,7 @@ class TestFullHead(unittest.TestCase):
         opening = between(self.head, '# The full head', '## Gates')
         for phrase in ('The head for an `architectural` size',
                        '`feature-development` step 4 '
-                       '(`${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/SKILL.md`)',
+                       '(`${ARTEL_ROOT}/skills/artel-feature-development/SKILL.md`)',
                        'by a head that raises the size',
                        'every question here is a plain `AskUserQuestion` with no `pause_reason`',
                        "including planner regeneration and the pause's fold-back",
@@ -518,7 +518,7 @@ class TestFullHead(unittest.TestCase):
 
     def test_the_skill_keeps_gate_0_and_points_at_the_head(self):
         skill = raw(FD + 'SKILL.md')
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/full.md', skill)
+        self.assertIn('${ARTEL_ROOT}/skills/artel-feature-development/heads/full.md', skill)
         self.assertEqual(skill.count('\n| 0 | `IDEA_READY` — `idea.md` exists |'), 1)
         for moved in ('| 0.5 | `DESIGN_ANALYZED`', '| 3.5 | `PLAN_GROUNDED`',
                       '| 4.2 | `PLAN_REVIEWED`', 'Gate 4.2 — the plan review\n',
@@ -554,7 +554,7 @@ class TestLayout(unittest.TestCase):
 
     def test_it_names_the_four_files_and_when_each_is_read(self):
         for name in ('heads/full.md', 'heads/lean.md', 'heads/bug.md', 'tail.md'):
-            self.assertIn('| `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/' + name + '` |',
+            self.assertIn('| `${ARTEL_ROOT}/skills/artel-feature-development/' + name + '` |',
                           self.raw)
         opening = between(self.skill, 'This file is the shared start', '## Workflow')
         for phrase in ('each read when the run reaches it — never all at once',
@@ -588,7 +588,7 @@ class TestLayout(unittest.TestCase):
     def test_step_4_reads_the_one_head_the_size_names(self):
         step = between(self.skill, '### 4. The head', '### 5. Arm the run')
         for size, name in (('architectural', 'full'), ('bounded', 'lean'), ('bug', 'bug')):
-            self.assertIn('| `{}` | `${{CLAUDE_PLUGIN_ROOT}}/skills/artel-feature-development/heads/'
+            self.assertIn('| `{}` | `${{ARTEL_ROOT}}/skills/artel-feature-development/heads/'
                           '{}.md` |'.format(size, name), step)
         for phrase in ('A `spike` never reaches this step',
                        'plain `AskUserQuestion` calls with no `pause_reason`',
@@ -621,7 +621,7 @@ class TestLayout(unittest.TestCase):
 
     def test_the_tail_is_the_last_step(self):
         step = between(self.skill, '### 6. The tail', '## Important')
-        for phrase in ('The tail — `${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/tail.md`',
+        for phrase in ('The tail — `${ARTEL_ROOT}/skills/artel-feature-development/tail.md`',
                        'Agent(artel:seat', 'seat: unavailable'):
             self.assertIn(phrase, step)
 
@@ -658,7 +658,7 @@ class TestSizing(unittest.TestCase):
     def test_it_never_pauses_and_dispatches_no_agent(self):
         for phrase in ('record it, say it, and go on — never a pause',
                        'no agent is dispatched',
-                       '`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §17 '
+                       '`${ARTEL_ROOT}/docs/autonomous-run.md` §17 '
                        '(`## 17. Sizing and heads`)',
                        'stated here in full because this is the file you act from'):
             self.assertIn(phrase, self.step)
@@ -781,7 +781,7 @@ class TestLeanHead(unittest.TestCase):
         opening = between(self.head, '# The lean head', '## The ladder')
         for phrase in ('The head for a `bounded` size',
                        '`feature-development` step 4 '
-                       '(`${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/SKILL.md`)',
+                       '(`${ARTEL_ROOT}/skills/artel-feature-development/SKILL.md`)',
                        'No PRD, vision or plan is written here and none is required; one that '
                        'exists is used.',
                        'every question here is a plain `AskUserQuestion` with no `pause_reason`',
@@ -865,7 +865,7 @@ class TestLeanHead(unittest.TestCase):
 
     def test_routes_at_the_confirmation(self):
         routes = between(self.head, '## Routes at the confirmation', '## Raised by the writer')
-        for phrase in ('(`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16.1)',
+        for phrase in ('(`${ARTEL_ROOT}/docs/autonomous-run.md` §16.1)',
                        "the tail's re-mirror command, without `task_create`",
                        '`<light|full> — set at approval`',
                        'the run-start journal entry (`SKILL.md` step 5), naming any floor it '
@@ -884,7 +884,7 @@ class TestLeanHead(unittest.TestCase):
                        'Inside this run that is a raise, not a stop.',
                        '`SKILL.md` step 3, "The ratchet"',
                        '`Size raised: bounded → architectural — full head. Reason: <reason>.`',
-                       '`${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/full.md`',
+                       '`${ARTEL_ROOT}/skills/artel-feature-development/heads/full.md`',
                        'Do not act on the `Next:` line',
                        'do not invoke `generate-tasklist` again'):
             self.assertIn(phrase, raised)
@@ -923,7 +923,7 @@ class TestBugHead(unittest.TestCase):
 
     def test_diagnose_mode_finds_the_cause_and_leaves_the_tree_alone(self):
         gate = between(self.head, '**Gate B1.**', "## By the diagnosis' status")
-        for phrase in ('`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §2.1–§2.3',
+        for phrase in ('`${ARTEL_ROOT}/docs/debugging.md` §2.1–§2.3',
                        'stops before the fix',
                        'It leaves no fix, no failing test and no probe in the tree',
                        '`<specs.dir>/<TICKET_ID>/diagnosis.md`',
@@ -949,7 +949,7 @@ class TestBugHead(unittest.TestCase):
         row = self.row('DIAGNOSED_STRUCTURAL')
         for phrase in ('A raise (`SKILL.md` step 3, "The ratchet")',
                        '`Size raised: bug → architectural — full head. Reason: <reason>.`',
-                       '`${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/full.md`',
+                       '`${ARTEL_ROOT}/skills/artel-feature-development/heads/full.md`',
                        'Its PRD interview starts from the diagnosis.'):
             self.assertIn(phrase, row)
 
@@ -958,7 +958,7 @@ class TestBugHead(unittest.TestCase):
         for phrase in ('Ask (plain `AskUserQuestion`)', '**Give more detail**',
                        '**Treat it as a bounded change**', '**Stop**',
                        '(`size` `bounded`, `head` `lean`, `decided_by` `flag`)',
-                       '`${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/heads/lean.md`',
+                       '`${ARTEL_ROOT}/skills/artel-feature-development/heads/lean.md`',
                        "Headless: print the diagnosis' path and stop."):
             self.assertIn(phrase, row)
 
@@ -1033,7 +1033,7 @@ class TestTailRules(unittest.TestCase):
     def test_every_fix_section_parent_is_closed(self):
         row = self.fact('IMPLEMENT_STEP_OK')
         self.assertIn('on the queue path, every fix-section parent row is closed', row)
-        self.assertIn('`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §6', row)
+        self.assertIn('`${ARTEL_ROOT}/docs/task-queue.md` §6', row)
         self.assertIn('reports no unchecked box in any iteration or fix section', row)
 
     def test_there_are_still_eight_facts(self):
@@ -1098,7 +1098,7 @@ class TestDebugHere(unittest.TestCase):
                        'the next cycle commits the fix.',
                        'Ask the escalation question again, without this option: '
                        '`MAX_DEBUG_HERE_ATTEMPTS = 1`, one attempt per halt.',
-                       '| structural (`${CLAUDE_PLUGIN_ROOT}/docs/debugging.md` §4) |',
+                       '| structural (`${ARTEL_ROOT}/docs/debugging.md` §4) |',
                        "The skill's own ticket question runs"):
             self.assertIn(phrase, flat_section)
 
@@ -1327,7 +1327,7 @@ class TestWholeSkill(unittest.TestCase):
         self.assertEqual(found, sorted(self.FILES))
 
     def test_every_plugin_root_pointer_resolves(self):
-        pointer = re.compile(r'\$\{CLAUDE_PLUGIN_ROOT\}/([\w./-]+)')
+        pointer = re.compile(r'\$\{ARTEL_ROOT\}/([\w./-]+)')
         seen = 0
         for name, text in self.texts.items():
             for rel in pointer.findall(text):
@@ -1338,7 +1338,7 @@ class TestWholeSkill(unittest.TestCase):
 
     def test_the_shared_start_reaches_every_other_file(self):
         for name in self.FILES[1:]:
-            self.assertIn('${CLAUDE_PLUGIN_ROOT}/skills/artel-feature-development/' + name,
+            self.assertIn('${ARTEL_ROOT}/skills/artel-feature-development/' + name,
                           self.texts['SKILL.md'], name)
 
     def test_every_gate_is_held_once_across_the_skill(self):

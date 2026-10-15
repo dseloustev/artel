@@ -7,17 +7,17 @@ model: sonnet
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 `PHASE_NUM` is parsed for input compatibility (so a phase-suffixed identifier is accepted) but is **not** used here — the PR description always covers the whole branch.
 
 ### Base branch
 
-Determine the repo's default branch first (e.g. via `git symbolic-ref refs/remotes/origin/HEAD`, or ask if ambiguous — the same resolution `${CLAUDE_PLUGIN_ROOT}/agents/artel-reviewer.md`'s standalone mode uses) and use it as `BASE_BRANCH` below.
+Determine the repo's default branch first (e.g. via `git symbolic-ref refs/remotes/origin/HEAD`, or ask if ambiguous — the same resolution `${ARTEL_ROOT}/agents/artel-reviewer.md`'s standalone mode uses) and use it as `BASE_BRANCH` below.
 
 ## Pipeline invocation
 
-`feature-development` invokes this skill automatically at run completion — after `validate` reports all gates green, before `run-state.json` is marked complete (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §9). Pipeline behavior is identical to manual invocation, with one deliberate exception to skip-if-exists (§9 itself): an existing `pr-description.md` is **always regenerated**, never skipped — the branch diff is the input, so a file written earlier in the run is stale by definition. This skill never calls `AskUserQuestion`; tracker/VCS failures degrade gracefully (fallback template) and must never loop, escalate, or block the run.
+`feature-development` invokes this skill automatically at run completion — after `validate` reports all gates green, before `run-state.json` is marked complete (`${ARTEL_ROOT}/docs/autonomous-run.md` §9). Pipeline behavior is identical to manual invocation, with one deliberate exception to skip-if-exists (§9 itself): an existing `pr-description.md` is **always regenerated**, never skipped — the branch diff is the input, so a file written earlier in the run is stale by definition. This skill never calls `AskUserQuestion`; tracker/VCS failures degrade gracefully (fallback template) and must never loop, escalate, or block the run.
 
 ## Pre-flight (run in this skill, not in the agent)
 
@@ -25,7 +25,7 @@ The skill is an orchestrator — it gathers inputs, then delegates writing to th
 
 ### 1. Ticket summary
 
-Branch on `tracker.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`):
+Branch on `tracker.adapter` (`${ARTEL_ROOT}/docs/config.md`):
 
 - **`"jira-mcp"`**: call `<tracker.mcpToolPrefix>jira_get_issue` with `issueIdOrKey: TICKET_ID`. Capture `summary`, `description`, any acceptance-criteria field, plus `status`, `issuetype`, `priority`.
 - **`"github-issues"`**: call `gh issue view <TICKET_NUM> --json title,body,state,labels` in the host repo. Capture the same shape (title → summary, body → description, state, labels).
@@ -60,7 +60,7 @@ Capture each output. The three-dot `...` diff (merge-base) is deliberate: after 
 
 ### 4. Style sample (3–5 recent merged PRs)
 
-Branch on `vcs.adapter` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`):
+Branch on `vcs.adapter` (`${ARTEL_ROOT}/docs/config.md`):
 
 - **`"github-cli"`**: `gh pr list --state merged --limit 5 --json number,title,body` in the host repo.
 - **`"bitbucket-mcp"`**: derive `projectKey`/`repositorySlug` from `git remote get-url origin` (Bitbucket Server clone-URL shape: `.../<projectKey>/<repositorySlug>.git`) — do not hardcode them. If the remote is missing or its URL doesn't match the expected shape, stop and ask. Call `<vcs.mcpToolPrefix>bitbucket_list_repo_prs` with that `projectKey`/`repositorySlug`, state filter `MERGED`, ordered newest first, limit 5. (Verify the exact parameter names by reading the tool's input schema before the first call — MCP servers occasionally rename fields.) For each PR ID returned, call `<vcs.mcpToolPrefix>bitbucket_get_pr` to retrieve the title and full description body.
@@ -72,8 +72,8 @@ If the fetch fails, set `STYLE_SAMPLE` to empty and continue — the agent will 
 ## Delegate to `tech-writer` agent
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
@@ -85,7 +85,7 @@ Make a single `Agent` call:
 
 - `subagent_type`: `"tech-writer"`
 - `model`: none — the dispatch runs on the `tech-writer` agent's frontmatter tier (`opus`)
-  (`${CLAUDE_PLUGIN_ROOT}/docs/agents.md` `## Models`)
+  (`${ARTEL_ROOT}/docs/agents.md` `## Models`)
 - `description`: `"PR description for <TICKET_ID>"`
 - `prompt`: built from the captured inputs using the template below.
 
@@ -125,13 +125,13 @@ You are writing a short, plain-language PR description for ticket <TICKET_ID>. A
 
 1. **Derive the structure and length from the style sample.** Read the sampled PR descriptions and identify the recurring elements: which section headings appear in most of them, in what order, what tone (terse vs. narrative), and how long they run. Reproduce that. Do **not** impose a template that isn't reflected in the sample. The longest PR in the sample is the ceiling for your draft — if the draft comes out longer, cut detail until it fits.
 
-2. **Markup.** Use bold-text headings on their own line, matching the sample's own heading set and phrasing — **not** markdown `#` / `##` headings. Do **not** include an H1 title in the body; the PR title is a separate field. The file opens with the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2) — `type: pr-description`, `produced_by: artel:tech-writer` — which `pr-create` drops before posting; the body starts after it. Reproduce any recurring sub-bullet convention (e.g. italic major/minor-changes labels) exactly as the sample uses it.
+2. **Markup.** Use bold-text headings on their own line, matching the sample's own heading set and phrasing — **not** markdown `#` / `##` headings. Do **not** include an H1 title in the body; the PR title is a separate field. The file opens with the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2) — `type: pr-description`, `produced_by: artel:tech-writer` — which `pr-create` drops before posting; the body starts after it. Reproduce any recurring sub-bullet convention (e.g. italic major/minor-changes labels) exactly as the sample uses it.
 
 3. **Title.** The PR title is not this document's: `pr-create` composes it from the ticket summary, always in English — never `<language.pr>`. Do not put a title in the body or the header; the body starts with the style sample's own first heading.
 
 4. **Language.** Body must be `<language.pr>`. Translate any content in another language (e.g. tracker fields, local docs, code comments paraphrased in prose) into it. Keep code identifiers, file paths, class/method names, branch names, and commit hashes verbatim — do not transliterate them.
 
-5. **Cite no trail document.** A pull-request reader cannot open kartoteka: the body carries no `workspace:` reference and no spec-trail path — and no task number (`2.3`) or requirement ID (`R1`) either, which index documents the reader cannot open (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §5). Describe what changed and why in the body's own words.
+5. **Cite no trail document.** A pull-request reader cannot open kartoteka: the body carries no `workspace:` reference and no spec-trail path — and no task number (`2.3`) or requirement ID (`R1`) either, which index documents the reader cannot open (`${ARTEL_ROOT}/docs/task-grammar.md` §5). Describe what changed and why in the body's own words.
 
 6. **Reader contract.** The description is written for a QA engineer and a reviewer who have not opened the code and will not read the ticket docs. Every sentence states visible behavior, user impact, or a check the reader can perform. A bullet may name the single class/package/model that is the subject of its change — that is the only place code identifiers appear. Everything about *how* the change works — measurements, constants, internal callbacks and lifecycle events, rejected alternatives, design rationale — lives in the diff; the description states what changed and why.
 

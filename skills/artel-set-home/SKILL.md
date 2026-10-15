@@ -6,7 +6,7 @@ model: sonnet
 ---
 
 Worker, not an orchestrator — no agent matches this job; it runs inline, like `setup` /
-`sync-phases` / `generate-idea`. Config contract: `${CLAUDE_PLUGIN_ROOT}/docs/config.md`.
+`sync-phases` / `generate-idea`. Config contract: `${ARTEL_ROOT}/docs/config.md`.
 
 This skill is the only place where `.artel/config.json`'s `vcs.*` keys and the repository's git
 remotes move together. Changing one without the other is the failure it exists to prevent.
@@ -71,7 +71,7 @@ idempotent, and a re-run must not build a chain of renamed remotes.
    repository without one has no defined path on a re-run.
 3. `git fetch origin`
 4. `git remote set-head origin -a` — **required, not cosmetic**: `pr-create` and
-   `${CLAUDE_PLUGIN_ROOT}/agents/artel-reviewer.md`'s standalone mode resolve the default branch
+   `${ARTEL_ROOT}/agents/artel-reviewer.md`'s standalone mode resolve the default branch
    through `git symbolic-ref refs/remotes/origin/HEAD`, which points at the old platform's
    default until this runs.
 5. Re-point the current branch's upstream when a branch of that name exists on the new remote:

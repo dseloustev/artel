@@ -115,7 +115,7 @@ class TestInnerLoop(unittest.TestCase):
     def test_test_red_is_debugged(self):
         for phrase in ('red stage test → read its keys and tail in full', 'ONE hypothesis',
                        '**A red `test` stage is debugged, not patched**',
-                       '${CLAUDE_PLUGIN_ROOT}/docs/debugging.md'):
+                       '${ARTEL_ROOT}/docs/debugging.md'):
             self.assertIn(phrase, self.doc)
 
     def test_structural_cause_stops_at_once(self):
@@ -140,7 +140,7 @@ class TestImplementer(unittest.TestCase):
         for phrase in ('verify/repro-<code>-<source>-<N>.json',
                        'verify/repro-<code>-<source>-<N>.txt',
                        'a `skipped` stage is never red evidence', '.artel/run/repro/',
-                       '${CLAUDE_PLUGIN_ROOT}/docs/debugging.md'):
+                       '${ARTEL_ROOT}/docs/debugging.md'):
             self.assertIn(phrase, self.doc)
 
     def test_red_evidence_needs_a_red_test_stage(self):
@@ -170,7 +170,7 @@ class TestFixWriters(unittest.TestCase):
         doc = flat(read(REVIEWER))
         self.assertIn('`**Task N (Critical): …**`', doc)
         self.assertIn('the `behavior` marker applied as in ticket mode', doc)
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/debugging.md', doc)
+        self.assertIn('${ARTEL_ROOT}/docs/debugging.md', doc)
 
     def test_deep_review_keeps_the_marker_on_renumbering(self):
         self.assertIn('a `(behavior)` marker stays in place', flat(read(DEEP_REVIEW)))
@@ -218,10 +218,10 @@ class TestSkill(unittest.TestCase):
         self.assertNotRegex(frontmatter, r'(?m)^disable-model-invocation:')
 
     def test_reads_the_contract_first(self):
-        self.assertIn('**The discipline is `${CLAUDE_PLUGIN_ROOT}/docs/debugging.md`', self.doc)
+        self.assertIn('**The discipline is `${ARTEL_ROOT}/docs/debugging.md`', self.doc)
 
     def test_reproduces_through_the_gate(self):
-        for phrase in ('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify.py task --files',
+        for phrase in ('python3 ${ARTEL_ROOT}/scripts/verify.py task --files',
                        'No config →', 'a `skipped` stage is never red evidence'):
             self.assertIn(phrase, self.doc)
 

@@ -7,23 +7,23 @@ model: sonnet
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
-**Path resolution and the refuse-and-ask rule live in `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5.** The `implementer` subagent already understands them — this skill does not duplicate path tables.
+**Path resolution and the refuse-and-ask rule live in `${ARTEL_ROOT}/docs/ticket-parsing.md` §4–§5.** The `implementer` subagent already understands them — this skill does not duplicate path tables.
 
 `--local` flag: work this task from the tasklist file alone, never from the kartoteka
 task queue. The agent cannot see your arguments, so it learns this from the
 **Task queue** field of the prompt below — set it from whether `--local` appeared in
 the invocation (an orchestrator that was invoked with it passes it down), and set it
 on every spawn. Default is the queue; see
-`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 for how it resolves against
+`${ARTEL_ROOT}/docs/task-queue.md` §1 for how it resolves against
 `knowledge.adapter` and tool availability.
 
 `--model <sonnet|opus|fable>`: dispatch the agent on this model instead of its frontmatter
 `opus`. It may appear in any position; strip it before reading `$0`. Any other value is an
 invocation error — report it and stop. A dispatch refused for that model (not available, or not
 allowed on this host) is re-dispatched once without it. The orchestrator passes the flag to step
-up a fix round that follows a failed one (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §5);
+up a fix round that follows a failed one (`${ARTEL_ROOT}/docs/autonomous-run.md` §5);
 otherwise the skill chooses the model itself (below).
 
 **Choosing the model** — after the spec-store read and before the Agent call, first match wins:
@@ -35,9 +35,9 @@ otherwise the skill chooses the model itself (below).
    (`<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` on a phase-scoped run,
    `<specs.dir>/<TICKET_ID>/tasklist.md` otherwise):
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py route --tasklist <the tasklist> --ticket-key <TICKET_ID> --next
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py route --tasklist <the tasklist> --ticket-key <TICKET_ID> --next
 
-   (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <the tasklist> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py route --tasklist - --ticket-key <TICKET_ID> --next`)
+   (kartoteka path: `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <the tasklist> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py route --tasklist - --ticket-key <TICKET_ID> --next`)
    A non-null `data.model` → that model; `null` or exit `2` → no model.
 
 The chosen model is passed as the Agent call's `model`. A call refused for its model is
@@ -45,15 +45,15 @@ re-dispatched once without one.
 
 ## Execute
 
-Single-phase autonomous model (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §1): the agent implements the next task
+Single-phase autonomous model (`${ARTEL_ROOT}/docs/autonomous-run.md` §1): the agent implements the next task
 directly — no proposal/approval round-trip. The approved plan+tasklist is the deviation anchor; the
 deviation protocol is the only escalation path.
 
 ### Phase 1: Implement the next task
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
@@ -69,13 +69,13 @@ passing TICKET_ID / TICKET_NUM / PHASE_NUM plus:
 ## Context
 
 - **Task queue:** <"local-only (--local was passed)" | "enabled">
-- **Spec store:** <"kartoteka" | "files (<reason>)"> — from the decision read above (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §2.3)
+- **Spec store:** <"kartoteka" | "files (<reason>)"> — from the decision read above (`${ARTEL_ROOT}/docs/spec-storage.md` §2.3)
 
 Implement the next incomplete task now, per your agent definition's workflow:
-1. Take the next task per `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 and §3 — a
+1. Take the next task per `${ARTEL_ROOT}/docs/task-queue.md` §1 and §3 — a
    `task_ready` claim on the queue path, the first `- [ ]` in scope on the fallback
    path (the first task of the parser's `data.ready_now` —
-   `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §4). The **Task queue** field above is §1's `--local` input.
+   `${ARTEL_ROOT}/docs/task-queue.md` §4). The **Task queue** field above is §1's `--local` input.
    One task is one `### Task <N.M>:` block: work every step of it
    in this dispatch, reading the `Produces:` lines of the tasks its `Depends on:` names. A dispatch naming
    `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` or Final Verification
@@ -85,7 +85,7 @@ Implement the next incomplete task now, per your agent definition's workflow:
    `blocked` on any other exit, never `ready`; a missing row is `row not found; file only`,
    not an error. If the task carries a `[HITL: …]` tag, STOP and
    return `HITL: <reason>` instead of implementing — the orchestrator owns that pause.
-2. Implement directly (no proposal step). Apply the task gate (`${CLAUDE_PLUGIN_ROOT}/docs/gates.md`
+2. Implement directly (no proposal step). Apply the task gate (`${ARTEL_ROOT}/docs/gates.md`
    §1) through the verify loop (max MAX_VERIFY_ITERATIONS = 4) of the `/artel:inner-loop` skill:
    `verify.fast` on the changed paths, then `verify.test` on the test files you touched and on
    the task's `Test:` files, touched or not; codegen
@@ -95,7 +95,7 @@ Implement the next incomplete task now, per your agent definition's workflow:
    Report, and report per your completion contract. A red gate is never "done" — leave
    the checkbox as it is and return a `DEVIATION` report instead of a completion.
 4. On the queue path a completion is `task_update(task_id, status="done")` followed by
-   the promotion step (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §3), before returning —
+   the promotion step (`${ARTEL_ROOT}/docs/task-queue.md` §3), before returning —
    for a fix-section row, `done` alone.
    Every other exit — red gate, any `DEVIATION` halt, an aborted task — releases the
    claim first with `task_update(task_id, status="blocked")`. `task_ready` offers
@@ -103,11 +103,11 @@ Implement the next incomplete task now, per your agent definition's workflow:
    queue wedges silently.
 
 For on-demand runtime checks: when a change's effect is unclear from tests alone and `runtime.run`
-(`${CLAUDE_PLUGIN_ROOT}/docs/config.md`) is configured, you may launch via the `/artel:run-app`
+(`${ARTEL_ROOT}/docs/config.md`) is configured, you may launch via the `/artel:run-app`
 skill flow to observe it. This is not the `RUNTIME_OK` completion gate — it's a debugging aid
 mid-task; `/artel:run-app --gate` remains the only mode the gate treats as authoritative.
 
-Deviations follow `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md`: minor → conservative option, record,
+Deviations follow `${ARTEL_ROOT}/docs/deviation-protocol.md`: minor → conservative option, record,
 continue; major or unsure → halt and return a DEVIATION report instead of a completion.
 Needing something another task produces that its `Depends on:` does not list is Major. The
 completion's `Deviations:` line names the files each deviation changed (protocol §5).
@@ -145,7 +145,7 @@ re-dispatch. `HITL:` and `DEVIATION` returns carry no `Model:` line.
 
 Do not open
 the report file to expand it into your own output; the diff and evidence live there so that
-they never enter the caller's context (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §1). When
+they never enter the caller's context (`${ARTEL_ROOT}/docs/autonomous-run.md` §1). When
 the caller is an orchestrator running in autonomous mode, it — not this skill — updates
 `.artel/run/<TICKET_ID>/run-state.json` around the escalation (set/clear `pause_reason:
 "deviation-escalation"`).

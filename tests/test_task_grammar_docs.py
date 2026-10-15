@@ -84,7 +84,7 @@ class TestGrammarContract(unittest.TestCase):
         doc = flat(self.doc)
         for phrase in ('tasklist_tasks.py requirements --prd <prd-path>',
                        '--check --requirements <ids>',
-                       'spec_store.py get <prd-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -',
+                       'spec_store.py get <prd-path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd -',
                        '`absent` when there is no PRD or `data.present` is false'):
             self.assertIn(phrase, doc)
 
@@ -204,7 +204,7 @@ class TestTaskPlannerWritesTheGrammar(unittest.TestCase):
         self.rules = _w_between(self.agent, '## Rules', '## Fix rounds and fold-backs')
 
     def test_both_outputs_are_written_in_the_grammar(self):
-        for phrase in ('`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md`',
+        for phrase in ('`${ARTEL_ROOT}/docs/task-grammar.md`',
                        'a `### Task <N>.<m>: <title>` heading, its field bullets, then its steps',
                        'one `## Iteration <N>: <title>` section per phase / iteration',
                        'one `## Iteration <PHASE_NUM>: <title>` section',
@@ -646,7 +646,7 @@ class TestOneTaskPerDispatch(unittest.TestCase):
 
     def test_step_one_takes_a_task_block(self):
         step = _between(self.agent, '### Step 1', '### Step 2')
-        for phrase in ('**A task-format tasklist**', '`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4',
+        for phrase in ('**A task-format tasklist**', '`${ARTEL_ROOT}/docs/task-grammar.md` §4',
                        '`I<N> · <N.M> · <title>`', 'take the first task of `data.ready_now`',
                        'never the first unticked box', '`tasklist_malformed`',
                        'is a `DEVIATION` halt',
@@ -664,7 +664,7 @@ class TestOneTaskPerDispatch(unittest.TestCase):
         step = _between(self.agent, '### Step 3', '### Step 4')
         for phrase in ('**A task block is worked whole.**', 'the report lists it (Step 6)',
                        '**A missing or wrong dependency is a deviation.**',
-                       '**Major** under `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §2',
+                       '**Major** under `${ARTEL_ROOT}/docs/deviation-protocol.md` §2',
                        'Halt before writing a stand-in'):
             self.assertIn(phrase, step)
 
@@ -692,7 +692,7 @@ class TestOneTaskPerDispatch(unittest.TestCase):
     def test_rules(self):
         rules = _between(self.agent, '## Rules')
         for phrase in ('**IDs stay out of the product**',
-                       '`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §5',
+                       '`${ARTEL_ROOT}/docs/task-grammar.md` §5',
                        'the task is the whole `### Task <N.M>:` block',
                        '`D1 (minor: <path>, …), …`',
                        '§16 on a task whose route is `full`'):

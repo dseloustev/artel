@@ -7,7 +7,7 @@ model: sonnet
 ---
 
 Applies the **transient committed-lane artifacts** for agent UI driving, via the host's
-`runtime.scaffold.add` command (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`, "runtime" section).
+`runtime.scaffold.add` command (`${ARTEL_ROOT}/docs/config.md`, "runtime" section).
 Counterpart: `/artel:remove-automation`. The pair is idempotent and cycles freely on one branch
 (add → verify → remove → PR feedback → add again → …) as long as `runtime.scaffold.add` and
 `runtime.scaffold.remove` are themselves safe to re-run — the same expectation `verify.commands`
@@ -16,14 +16,14 @@ carries (config.md).
 ## 1. Configuration gate
 
 Read `runtime.scaffold.add` (config.md). Absent or empty → report "not configured" (the
-`AUTOMATION_REMOVED` gate — `${CLAUDE_PLUGIN_ROOT}/agents/artel-validator.md` — records `skipped`) and
+`AUTOMATION_REMOVED` gate — `${ARTEL_ROOT}/agents/artel-validator.md` — records `skipped`) and
 stop.
 
 ## 2. Preflight (stop-and-report on any failure)
 
 1. **Never on the default branch.** Determine the repo's default branch (e.g.
    `git symbolic-ref refs/remotes/origin/HEAD`, or ask if ambiguous — same convention
-   `${CLAUDE_PLUGIN_ROOT}/agents/artel-reviewer.md`'s standalone mode uses) and compare against
+   `${ARTEL_ROOT}/agents/artel-reviewer.md`'s standalone mode uses) and compare against
    `git branch --show-current`. Same branch → stop and report.
 2. **Clean working tree.** `git status --porcelain` must be empty. This skill doesn't know in
    advance which paths `runtime.scaffold.add` will touch — a generic host command, not a fixed
@@ -76,5 +76,5 @@ paths before reporting success.
 - Commit hash + the changed paths (from step 4.1).
 - Reminder: `/artel:drive-app` is now available (subject to its own `runtime.drive`
   configuration); run `/artel:remove-automation` before merge —
-  `${CLAUDE_PLUGIN_ROOT}/agents/artel-validator.md` reports the `AUTOMATION_REMOVED` gate red while the
+  `${ARTEL_ROOT}/agents/artel-validator.md` reports the `AUTOMATION_REMOVED` gate red while the
   scaffold is applied.

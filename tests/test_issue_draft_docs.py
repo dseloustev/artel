@@ -16,7 +16,7 @@ SKILL = f'{SKILL_DIR}/SKILL.md'
 REFERENCE_MARKUP = f'{SKILL_DIR}/references/jira-wiki-markup.md'
 TYPES = ('task', 'bug', 'epic')
 TEMPLATE = SKILL_DIR + '/assets/templates/{}.template.md'
-SHIPPED_PATTERN = '${CLAUDE_PLUGIN_ROOT}/skills/artel-issue-draft/assets/templates/<type>.template.md'
+SHIPPED_PATTERN = '${ARTEL_ROOT}/skills/artel-issue-draft/assets/templates/<type>.template.md'
 OVERRIDE = '.artel/templates/issue-draft.md'
 OVERRIDE_TYPED = '.artel/templates/issue-draft-<type>.md'
 CONFIG = 'docs/config.md'
@@ -173,7 +173,7 @@ class TestSkill(unittest.TestCase):
 
     def test_dispatches_the_scout(self):
         self.assertIn('`subagent_type`: `"issue-scout"`', self.text)
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/agents/artel-issue-scout.md', self.text)
+        self.assertIn('${ARTEL_ROOT}/agents/artel-issue-scout.md', self.text)
         for spelling in ('`stated`', '`inferred`', 'Also found'):
             with self.subTest(spelling):
                 self.assertIn(spelling, self.text)

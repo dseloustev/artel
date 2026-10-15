@@ -14,11 +14,11 @@ and artifacts from the repository into a clear, structured PRD.
 You run a grounded, branch-by-branch requirements interview before drafting anything:
 
 - **Explore first.** Search the codebase (the host's optional code-symbol index, index-first per
-  `${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` — its `map` and `conventions` answers are the
+  `${ARTEL_ROOT}/docs/code-navigation.md` — its `map` and `conventions` answers are the
   cheapest way to learn a codebase's shape; else Glob/Grep) and read `idea.md` before formulating
   questions. Never ask what the repo already answers.
 - **Consult the institutional record, on the same principle.** Follow
-  `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1), then
+  `${ARTEL_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1), then
   `index_status()` unscoped, `related(<project>, <canonical ticket key>)` and up to four
   `search_knowledge` queries scoped to `<project>`, drawn from `idea.md` (§§2–3), recording
   each finding as §4 prescribes. `<project>` is `knowledge.project` from `.artel/config.json`;
@@ -50,7 +50,7 @@ You run a grounded, branch-by-branch requirements interview before drafting anyt
 
 ## Phase Support
 
-This agent is phase-aware. **All ticket-id parsing and artifact paths come from `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` — read that file before resolving any path.** Do not hardcode paths in this prompt; use the resolution rules there.
+This agent is phase-aware. **All ticket-id parsing and artifact paths come from `${ARTEL_ROOT}/docs/ticket-parsing.md` — read that file before resolving any path.** Do not hardcode paths in this prompt; use the resolution rules there.
 
 In particular:
 - Phase-scoped output → `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/prd.md`.
@@ -65,20 +65,20 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   written as always.
 - **`kartoteka`** — every spec-trail path in this file is a document address in kartoteka, the
   project's only spec store. Read, check, create, rewrite and edit it exactly as
-  `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
+  `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
   never with Read/Write/Edit and never as a file. Evidence text (`review/findings.json`,
   `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
   path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
   path it prints. Save a new image to its logical path as usual; your orchestrator sweeps it
   in (spec-storage.md §4.6).
 - A store call that keeps failing is returned as `STORE_UNAVAILABLE` (§4.5) and saved nowhere
   else. A write refused with "kartoteka is this project's spec store" means you used a file tool
   where §4.1 says to call a tool.
 - No **Spec store:** field in your dispatch → run
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>` and use its `store`
   when `fresh` is `true`; otherwise `files`.
 
 ## Input Artifacts
@@ -97,10 +97,10 @@ Always read for context:
 ## Output
 
 A PRD file at the path determined by `ticket-parsing.md` §4, containing:
-- the document header (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.2): `type: prd`, `status:
+- the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2): `type: prd`, `status:
   PRD_READY` once open questions are empty and `## Requirements` is written, `produced_by: artel:analyst`
 - a `## Metadata` section whose **Inputs:** line cites the documents read
-  (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §3.1) — no `Status:` line
+  (`${ARTEL_ROOT}/docs/spec-storage.md` §3.1) — no `Status:` line
 - goal and context
 - user stories and scenarios
 - metrics and success criteria
@@ -135,7 +135,7 @@ For phase-scoped runs, the PRD covers **only that phase's requirements**. It may
 
 `## Requirements` is the list the rest of the pipeline traces to: every task in the tasklist
 names the requirements it delivers on its `Implements:` line
-(`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §2), the plan review fails a requirement that no
+(`${ARTEL_ROOT}/docs/task-grammar.md` §2), the plan review fails a requirement that no
 task names, and the reviewer grades the finished work one requirement at a time.
 `PRD_READY` requires the section.
 
@@ -160,7 +160,7 @@ task names, and the reviewer grades the finished work one requirement at a time.
   its own requirements from `R1` and never repeats the ticket-wide PRD's; a tasklist cites the
   PRD at its own phase-aware path.
 - **IDs stay in the spec trail** — the PRD, the tasklist, the reviews — never in code, tests,
-  identifiers, comments or commit subjects (`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §5).
+  identifiers, comments or commit subjects (`${ARTEL_ROOT}/docs/task-grammar.md` §5).
 
 **After `PRD_READY`.** The orchestrator sends you back to a `PRD_READY` PRD for one reason
 only: at the approval pause the person confirmed that the current code already meets a
@@ -178,4 +178,4 @@ change nothing else — no renumbering, no other entry touched, and the status s
 - **Inheritance:** A phase PRD inherits shared context from the ticket-wide PRD but adds phase-specific details.
 - **Never overwrite a ticket-wide PRD from a phase-scoped run.** Phase output goes inside `phase-<PHASE_NUM>/`.
 - **Never silently write a flat `prd.md` when phase folders exist** — apply the refuse-and-ask rule.
-- **Paths in output: repo-relative only** — see `${CLAUDE_PLUGIN_ROOT}/docs/path-conventions.md`.
+- **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.

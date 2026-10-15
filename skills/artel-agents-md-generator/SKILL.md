@@ -32,9 +32,9 @@ Use **progressive disclosure**: keep AGENTS.md concise; push details to docs or 
 
 Use templates as skeletons, not literal output:
 
-- Read `${CLAUDE_PLUGIN_ROOT}/skills/artel-agents-md-generator/references/AGENTS_TEMPLATE_ROOT.md` only
+- Read `${ARTEL_ROOT}/skills/artel-agents-md-generator/references/AGENTS_TEMPLATE_ROOT.md` only
   when creating or updating the root `AGENTS.md`.
-- Read `${CLAUDE_PLUGIN_ROOT}/skills/artel-agents-md-generator/references/AGENTS_TEMPLATE_MODULE.md`
+- Read `${ARTEL_ROOT}/skills/artel-agents-md-generator/references/AGENTS_TEMPLATE_MODULE.md`
   only after a directory is confirmed as a nested module that needs its own `AGENTS.md`.
 - Replace or remove every placeholder. Final `AGENTS.md` files must not contain
   unresolved `<...>` template markers.
@@ -66,7 +66,7 @@ Run this skill when:
 - Locate `docs/`, `README.md`, existing `AGENTS.md`.
 
 **Use the host's optional code-symbol index for the shape questions** — index-first per
-`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; it is silently absent otherwise, and the
+`${ARTEL_ROOT}/docs/code-navigation.md`; it is silently absent otherwise, and the
 marker-file scan above is the whole answer then. Three of its commands are built for exactly
 this step and each replaces a directory crawl:
 

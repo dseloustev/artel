@@ -17,8 +17,8 @@ intent, and intelligently combining changes. Utility procedure — no agent, no 
 - If `$ARGUMENTS` is provided, use it as the branch name (e.g., `origin/main`, `main`,
   `feature/some-branch`).
 - If `$ARGUMENTS` is empty, detect the repo's default branch the same way
-  `${CLAUDE_PLUGIN_ROOT}/agents/artel-reviewer.md`'s standalone mode and
-  `${CLAUDE_PLUGIN_ROOT}/skills/artel-add-automation/SKILL.md` do — `git symbolic-ref
+  `${ARTEL_ROOT}/agents/artel-reviewer.md`'s standalone mode and
+  `${ARTEL_ROOT}/skills/artel-add-automation/SKILL.md` do — `git symbolic-ref
   refs/remotes/origin/HEAD`, asking the user if ambiguous — and default to `origin/<default-branch>`.
   Never a hardcoded `master`/`main`/`develop`.
 - Store the resolved branch name as `TARGET_BRANCH`.
@@ -88,7 +88,7 @@ intent, and intelligently combining changes. Utility procedure — no agent, no 
 
 **Find where the code went, don't guess.** This is symbol work, so it is index work: use the
 host's optional code-symbol index, index-first per
-`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md`; Grep is the fallback and it is silently absent
+`${ARTEL_ROOT}/docs/code-navigation.md`; Grep is the fallback and it is silently absent
 otherwise. `symbol <name> --fuzzy` / `class <name>` locate a symbol that moved, `usages` and
 `callers` show who now depends on it, and `refs` gives definition, imports and usages in one
 view — which is the whole question when deciding whether a hunk from the source branch still
@@ -151,13 +151,13 @@ use any file types):
 - Pattern: `<<<<<<<`
 
 Grep is correct here and stays Grep even with an index available: a conflict marker is a string
-literal, not a symbol (`${CLAUDE_PLUGIN_ROOT}/docs/code-navigation.md` §3).
+literal, not a symbol (`${ARTEL_ROOT}/docs/code-navigation.md` §3).
 
 If any conflict markers remain, resolve them before proceeding.
 
 ### Run the quality gate
 
-Run `verify.commands` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`) — the host's configured
+Run `verify.commands` (`${ARTEL_ROOT}/docs/config.md`) — the host's configured
 lint/format/test gate. An unconfigured `verify.commands` degrades this check to `skipped`, never
 green (config.md).
 

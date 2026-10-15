@@ -22,7 +22,7 @@ auto-triggered.
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 The branch check compares against `TICKET_ID`, so this skill always needs one — unlike
 `save-context` / `restore-context`, it has no ticket-less mode.
@@ -37,7 +37,7 @@ failure handling for when to stop.
 1. `git branch --show-current` → `CURRENT_BRANCH` (empty output means a detached HEAD).
 2. Scan `CURRENT_BRANCH` for a ticket token: `<ticket.projectKey>-\d+`, case-insensitive, the key
    not preceded by a letter or digit — the same token `pr-create` and `address-pr-comment` scan
-   branch names for (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`). The first match wins; canonicalize
+   branch names for (`${ARTEL_ROOT}/docs/config.md`). The first match wins; canonicalize
    it to `<ticket.projectKey>-<digits>` → `BRANCH_TICKET`. A detached HEAD has no token.
 3. Route on the result — compare ticket IDs only; a phase number in the branch name is not
    compared, so a phase-2 run on the ticket's phase-1 branch stays:
@@ -50,8 +50,8 @@ failure handling for when to stop.
 
 ### Step 2: Choose a branch (current branch carries no ticket ID)
 
-1. Detect the repo's default branch the same way `${CLAUDE_PLUGIN_ROOT}/agents/artel-reviewer.md`'s
-   standalone mode and `${CLAUDE_PLUGIN_ROOT}/skills/artel-add-automation/SKILL.md` do:
+1. Detect the repo's default branch the same way `${ARTEL_ROOT}/agents/artel-reviewer.md`'s
+   standalone mode and `${ARTEL_ROOT}/skills/artel-add-automation/SKILL.md` do:
    `git symbolic-ref refs/remotes/origin/HEAD`, asking the user if ambiguous — never a hardcoded
    `main`/`develop`. Call the result `BASE_BRANCH`.
 2. `git fetch origin` — best-effort; a failure here is non-fatal, fall back to local refs and
@@ -118,7 +118,7 @@ failure handling for when to stop.
 ### Step 2b: Move to a worktree (optional)
 
 Reached from Step 1's Stay route or from Step 2's "Move to the worktree" answer; the procedure is
-`${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md` §4.
+`${ARTEL_ROOT}/docs/worktrees.md` §4.
 
 1. **Ask (Stay route only).** Inside a linked worktree, skip the rest of this step — go straight
    to Step 3. Otherwise ask the worktree question from Step 2.5 on its own; **Work here** → go to
@@ -130,7 +130,7 @@ Reached from Step 1's Stay route or from Step 2's "Move to the worktree" answer;
 3. **Run** from the repo root:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py move-in --ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <branch> [--create-from <ref> [--track]]
+   python3 ${ARTEL_ROOT}/scripts/worktree.py move-in --ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <branch> [--create-from <ref> [--track]]
    ```
 
 4. **Fatal unless `ok`**, like a failed checkout: report per `docs/worktrees.md` §6 and stop.
@@ -141,7 +141,7 @@ Reached from Step 1's Stay route or from Step 2's "Move to the worktree" answer;
 
 ### Step 3: Run the post-branch setup commands
 
-Read `setup.commands` (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`, "setup" section). Empty or absent
+Read `setup.commands` (`${ARTEL_ROOT}/docs/config.md`, "setup" section). Empty or absent
 → skip silently. Otherwise run the commands in order from the checkout root (the worktree's,
 after Step 2b), stopping at the first non-zero exit. **A failure here is fatal**, like Step 2: a
 branch whose dependencies did not install can't be worked on — report the failing command and
@@ -151,7 +151,7 @@ its output and stop. Note the outcome (ran / skipped) for the report.
 
 Invoke `Skill: restore-context` with `TICKET_ID` as its argument. This copies `AGENTS.md`,
 `CHANGELOG.md`, and that ticket's `<specs.dir>/<TICKET_ID>/` artifacts back out of the
-`.artel/context/` store (`${CLAUDE_PLUGIN_ROOT}/skills/artel-restore-context/SKILL.md`).
+`.artel/context/` store (`${ARTEL_ROOT}/skills/artel-restore-context/SKILL.md`).
 
 - `restore-context` **warns but does not abort** when the ticket has no matching artifacts in the
   store (e.g. a brand-new ticket that was never saved) — that is not a failure for us either;
@@ -178,7 +178,7 @@ If the refresh makes no changes, that's a fine outcome — note it and move on.
 ### Step 6: Refresh the code-symbol index (optional host hook)
 
 If the host project maintains a code-symbol index, refresh it now — the same optional host hook
-`${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §1 describes ("Index refresh"), not an
+`${ARTEL_ROOT}/docs/orchestrator-common.md` §1 describes ("Index refresh"), not an
 `.artel/config.json` key. Silently skip when the host has not wired one up; nothing is reported as
 missing. Non-fatal either way — a stale or absent index doesn't block the branch from being usable.
 

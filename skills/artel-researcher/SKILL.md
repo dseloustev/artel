@@ -7,16 +7,16 @@ model: sonnet
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
-**Path resolution and the refuse-and-ask rule live in `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4–§5.** The `researcher` subagent already understands them — this skill does not duplicate path tables.
+**Path resolution and the refuse-and-ask rule live in `${ARTEL_ROOT}/docs/ticket-parsing.md` §4–§5.** The `researcher` subagent already understands them — this skill does not duplicate path tables.
 
 `--local` flag: skip the institutional-knowledge consultation for this run and research
 from the codebase alone. The agent cannot see your arguments, so it learns this from the
 **Knowledge consultation** field of the Context block — set it from whether `--local`
 appeared in the invocation, in the Phase 1 prompt **and** again in the Phase 3 resume
 message, since the resume is where the consultation actually happens.
-Default is to consult; see `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §1
+Default is to consult; see `${ARTEL_ROOT}/docs/knowledge-consultation.md` §1
 for how it resolves against `knowledge.adapter` and tool availability.
 
 `--question` flag: **question mode** — the ticket asks a feasibility question instead of
@@ -37,8 +37,8 @@ This skill uses a **two-phase execution model**:
 ### Phase 1: Extract Questions
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
@@ -66,7 +66,7 @@ You are preparing to research ticket <TICKET_ID>{phase ? ", Phase <PHASE_NUM>" :
 
 DO NOT conduct research yet. Your job in this phase is to read context and return questions.
 
-1. Determine the research output path per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §4 (phase-scoped → `phase-<PHASE_NUM>/research.md`; ticket-wide → `research.md`).
+1. Determine the research output path per `${ARTEL_ROOT}/docs/ticket-parsing.md` §4 (phase-scoped → `phase-<PHASE_NUM>/research.md`; ticket-wide → `research.md`).
 2. Apply the **refuse-and-ask rule** in §5: if `PHASE_NUM` is null but `phase-*/` subfolders already exist for this ticket, do not proceed — return a refusal message naming the discovered phases.
 3. Read the PRD at the corresponding scope (phase-scoped → `phase-<PHASE_NUM>/prd.md` with ticket-wide `prd.md` as read-only fallback; ticket-wide → `prd.md`).
 4. Read context: `<specs.dir>/<TICKET_ID>/idea.md` and `vision.md` (focus on Phase/Iteration <PHASE_NUM> when phase is set). For phase runs, also `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` if it exists.
@@ -88,7 +88,7 @@ Return control after listing the questions.
 
 ### Phase 2: Collect questions (no user interaction)
 
-Outside question mode this skill never asks the user (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §3).
+Outside question mode this skill never asks the user (`${ARTEL_ROOT}/docs/autonomous-run.md` §3).
 
 - **NO_QUESTIONS** → proceed to Phase 3 with `answers = "No additional questions — proceed with research"`.
 - **Refusal** → report it to the caller and stop.
@@ -107,7 +107,7 @@ Use the SendMessage tool:
 Answers/defaults to proceed on:
 [user's answers when the caller supplied them; otherwise: "No user answers available — for every open
 question, append an entry to .artel/run/<TICKET_ID>/open-questions.md (format:
-${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md §3, from: researcher) with your proposed default, then proceed on the
+${ARTEL_ROOT}/docs/autonomous-run.md §3, from: researcher) with your proposed default, then proceed on the
 defaults."]
 
 ## Context
@@ -119,7 +119,7 @@ defaults."]
 
 1. Incorporate the user's answers into your understanding.
 2. Scan the codebase for components, endpoints, contracts, patterns, limitations, and risks. Scope to the active phase when one is set.
-3. Alongside that scan, consult the institutional record per your agent definition's Step 2 and `${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1) — the **Knowledge consultation** field above is its `--local` input — then `index_status()`, `related(<project>, <canonical ticket key>)` and up to four `search_knowledge` queries scoped to `<project>` (`knowledge.project`) (§§2–3).
+3. Alongside that scan, consult the institutional record per your agent definition's Step 2 and `${ARTEL_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1) — the **Knowledge consultation** field above is its `--local` input — then `index_status()`, `related(<project>, <canonical ticket key>)` and up to four `search_knowledge` queries scoped to `<project>` (`knowledge.project`) (§§2–3).
 4. Document at the path you determined in Phase 1:
    - existing endpoints and contracts
    - layers and dependencies

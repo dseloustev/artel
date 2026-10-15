@@ -28,14 +28,14 @@ AGENTS = sorted(p.stem for p in (ROOT / 'agents').glob('*.md')
 STOCK = ('Evidence text (`review/findings.json`, `verify/`, `runtime/*.md`) and `.active_ticket` '
          'stay files on both paths. On the kartoteka path, images under the trail (`design/`, '
          '`runtime/`, any `*.png|jpg|jpeg|gif|webp`) are stored in kartoteka. To view one, run '
-         '`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image fetch <logical path>` and '
+         '`python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and '
          'Read the path it prints. Save a new image to its logical path as usual; your '
          'orchestrator sweeps it in (spec-storage.md §4.6).')
 OLD_STOCK = 'Evidence (`review/findings.json`, `verify/`, `runtime/`, `design/`)'
 FIGMA_STEP_7 = ('On the kartoteka path `design-analysis.md` is stored (spec-storage.md §4.1). '
                 'The `figma-analysis` skill sweeps the `design/` screenshots into kartoteka after '
                 "you return, and the document's links to them are unchanged.")
-SWEEP = ('python3 ${{CLAUDE_PLUGIN_ROOT}}/scripts/spec_store.py image sync <TICKET_ID> '
+SWEEP = ('python3 ${{ARTEL_ROOT}}/scripts/spec_store.py image sync <TICKET_ID> '
          '--author artel:{}')
 JOURNAL = 'image-sync: <n> left local — <first error line>'
 NOTHING_STAGED = '`git diff --cached --quiet`'

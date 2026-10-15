@@ -83,7 +83,7 @@ A table of `<bitbucket PR> → <github PR url>`, or `→ skipped (<reason>)`. Th
 ## Rules
 
 - **Never writes to Bitbucket.** No comment, no decline, no approval. The guard
-  (`${CLAUDE_PLUGIN_ROOT}/hooks/vcs_guard.py`) enforces this; the skill must not try to route
+  (`${ARTEL_ROOT}/hooks/vcs_guard.py`) enforces this; the skill must not try to route
   around it.
 - Never any `--force` variant of `git push`.
 - Review comments, reviewer assignments and PR state are **not** migrated. Thread anchors do not

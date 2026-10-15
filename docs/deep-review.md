@@ -20,7 +20,7 @@ itself is the spec document `<specs.dir>/<TICKET_ID>/deep-review.md` on the file
 ## 1. The pinned target
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py prepare \
+python3 ${ARTEL_ROOT}/scripts/deep_review.py prepare \
   --ticket <TICKET_ID> --specs-dir <specs.dir> [--branch <BRANCH_NAME>] [--base <BASE>] \
   --output .artel/run/<TICKET_ID>/deep-review/target.json
 ```
@@ -290,7 +290,7 @@ exits `1`, and the skill displays the gaps instead of offering fixes.
 Files path:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check \
+python3 ${ARTEL_ROOT}/scripts/deep_review.py check \
   --target .artel/run/<TICKET_ID>/deep-review/target.json \
   --findings .artel/run/<TICKET_ID>/deep-review/machine.json \
   --report <specs.dir>/<TICKET_ID>/deep-review.md \
@@ -300,7 +300,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check \
 Kartoteka path — the stored document goes by pipe, never through a file:
 
 ```bash
-set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/deep-review.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check \
+set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/deep-review.md | python3 ${ARTEL_ROOT}/scripts/deep_review.py check \
   --target .artel/run/<TICKET_ID>/deep-review/target.json \
   --findings .artel/run/<TICKET_ID>/deep-review/machine.json \
   --report - --summary '<the completion line>'

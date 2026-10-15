@@ -96,8 +96,8 @@ only once the plan is approved when the tasklist is task-format (below) — by
 `feature-development` on entry to implementation, whichever head ran, and by every
 writer of a fix section right after its append (§6).
 
-1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <path> --ticket-key <TICKET_KEY>`
-   (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_KEY>`)
+1. `python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <path> --ticket-key <TICKET_KEY>`
+   (kartoteka path: `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_KEY>`)
    Exit `0` → continue. Exit `2` → report `error.kind` and `error.message`, mirror
    nothing, continue the run on the fallback path.
 2. For each entry of `data.iterations`, in order:

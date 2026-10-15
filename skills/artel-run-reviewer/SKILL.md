@@ -7,10 +7,10 @@ model: sonnet
 
 ## Ticket Resolution
 
-Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${CLAUDE_PLUGIN_ROOT}/docs/orchestrator-common.md` §2 and `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
 
 `--local` flag: record nothing in the kartoteka task queue — the fix tasks the agent writes
-stay in the tasklist file alone, as `${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §1 row 1
+stay in the tasklist file alone, as `${ARTEL_ROOT}/docs/task-queue.md` §1 row 1
 prescribes. It may appear in any position; strip it before reading `$0` and the mode
 flags, and remember that it was passed. An orchestrator invoked with `--local` passes it on.
 
@@ -20,15 +20,15 @@ other value is an invocation error — report it and stop. A dispatch refused fo
 (not available, or not allowed on this host) is re-dispatched once without it. When one was
 given, every mode's Agent call — ticket, task and plan — carries `model` set to the `--model`
 value; no flag → no `model`, on the frontmatter `opus`. The orchestrator passes it to scale
-the review to its scope (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16.4).
+the review to its scope (`${ARTEL_ROOT}/docs/autonomous-run.md` §16.4).
 
 ## Execute
 
 ### Ticket mode (default)
 
 **Spec store.** Before dispatching, read the ticket's storage decision:
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
-its `store` and `reason`. Anything else → resolve per `${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
 §2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
 `run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
 dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
@@ -40,7 +40,7 @@ Use the Agent tool with `subagent_type: "reviewer"`, `model` set to the `--model
 
 ### Task mode (`--task`)
 
-The per-task gate of `${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §16 — an orchestrator
+The per-task gate of `${ARTEL_ROOT}/docs/autonomous-run.md` §16 — an orchestrator
 invokes it after one implementer completion whose task runs on the `full` route. All three flags are
 required; a missing one is an invocation error — report it and stop, never fall back to the
 ticket review:
@@ -80,7 +80,7 @@ When the agent returns, it has appended its Blocking / Important findings under
 `## Code Review Fixes` in the phase-aware tasklist — `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md`
 when a phase is set, `<specs.dir>/<TICKET_ID>/tasklist.md` otherwise — beneath a `### <source>`
 heading of its own. Record that batch in the task queue now, before the caller dispatches any
-implementer for it (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §2, fix-writer rule):
+implementer for it (`${ARTEL_ROOT}/docs/task-queue.md` §2, fix-writer rule):
 
 1. The agent reports appending no task → skip this section. When its summary gives no count,
    run the section anyway; it is idempotent.
@@ -90,8 +90,8 @@ implementer for it (`${CLAUDE_PLUGIN_ROOT}/docs/task-queue.md` §2, fix-writer r
 3. On the queue path run. Files path first, kartoteka path (`docs/spec-storage.md` §4.2)
    second:
 
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>
-       set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <the phase-aware tasklist> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>
+       set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <the phase-aware tasklist> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
 
    Exit `0` → for each entry of `data.sections`, in order:
    `task_create(project=<project>, ticket_key=<TICKET_ID>, title=…, description=…, status=…)`

@@ -11,7 +11,7 @@ exception in direction: `save-context` mirrors it but never removes it from the 
 here it is restored only when the working tree lacks it — a live `AGENTS.md` is never overwritten
 by a store copy. Store layout, "newer wins"
 semantics, and exactly what gets saved are defined in
-`${CLAUDE_PLUGIN_ROOT}/skills/artel-save-context/SKILL.md` — this skill reads exactly what that one
+`${ARTEL_ROOT}/skills/artel-save-context/SKILL.md` — this skill reads exactly what that one
 writes, same paths, same names.
 
 Every bash block below re-derives `STORE_ROOT=".artel/context"` — shell state does not persist
@@ -27,7 +27,7 @@ Store layout reminder:
 
 ## Argument
 
-`$0` is optional. Parse it per `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` §§1–2 when
+`$0` is optional. Parse it per `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2 when
 non-empty (a phase suffix is accepted and ignored — the store is ticket-scoped, not phase-scoped):
 
 | Input | TICKET_ID | Mode |
@@ -46,8 +46,8 @@ test -d "$STORE_ROOT" || { echo "No context store found at $STORE_ROOT — nothi
 
 ### Branch A — Full restore (no ticket argument)
 
-Substitute the literal `<specs.dir>` value (`${CLAUDE_PLUGIN_ROOT}/docs/config.md`; default
-`specs/.current`); run as-is otherwise. When `knowledge.adapter` is `kartoteka`, kartoteka is the spec store (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md`) and spec documents are never restored to disk: add `--exclude={idea,vision,prd,research,spike,diagnosis,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md --exclude='*.[pP][nN][gG]' --exclude='*.[jJ][pP][gG]' --exclude='*.[jJ][pP][eE][gG]' --exclude='*.[gG][iI][fF]' --exclude='*.[wW][eE][bB][pP]'` to both `rsync` commands in this file (Branch A and Branch B step 3) — images are stored in kartoteka too (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.6), and each bracketed pattern matches its extension in any case — and report that old spec copies and images stay in the context store until `/artel:migrate-specs` moves them in.
+Substitute the literal `<specs.dir>` value (`${ARTEL_ROOT}/docs/config.md`; default
+`specs/.current`); run as-is otherwise. When `knowledge.adapter` is `kartoteka`, kartoteka is the spec store (`${ARTEL_ROOT}/docs/spec-storage.md`) and spec documents are never restored to disk: add `--exclude={idea,vision,prd,research,spike,diagnosis,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md --exclude='*.[pP][nN][gG]' --exclude='*.[jJ][pP][gG]' --exclude='*.[jJ][pP][eE][gG]' --exclude='*.[gG][iI][fF]' --exclude='*.[wW][eE][bB][pP]'` to both `rsync` commands in this file (Branch A and Branch B step 3) — images are stored in kartoteka too (`${ARTEL_ROOT}/docs/spec-storage.md` §4.6), and each bracketed pattern matches its extension in any case — and report that old spec copies and images stay in the context store until `/artel:migrate-specs` moves them in.
 
 ```bash
 STORE_ROOT=".artel/context"
@@ -177,5 +177,5 @@ Report based on `FOUND`:
   checkout time — a freshly checked-out older branch can beat a genuinely newer store copy
   (per-ticket snapshots mitigate this).
 - **Narrower than the source system this was ported from.** No `docs/` mirror, no top-level loose
-  `specs/` files mirror — see `${CLAUDE_PLUGIN_ROOT}/skills/artel-save-context/SKILL.md`'s matching note
-  and `${CLAUDE_PLUGIN_ROOT}/docs/design.md`'s decision log.
+  `specs/` files mirror — see `${ARTEL_ROOT}/skills/artel-save-context/SKILL.md`'s matching note
+  and `${ARTEL_ROOT}/docs/design.md`'s decision log.

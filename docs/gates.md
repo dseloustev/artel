@@ -24,6 +24,12 @@ agent from evidence. `## Task commits` in the orchestrator's tail commits each c
 implementer cycle, and a task commit is not a gate: nothing here changes, and a task's own gate
 stays the scoped one above.
 
+**Worker mode.** A pinned parallel worker runs the same task gate, but its evidence is
+attempt-scoped and worker-local: the envelopes go to the assignment's
+`<artifact_root>/verify/`, never to the ticket's `verify/` directory, and a worker never reads
+the checkpoint baseline (`verify-baseline.json`) — the whole-tree gate, the baseline and the
+task review belong to the coordinator. The task gate itself is unchanged (§1, §4).
+
 **A task's `Test:` files join its task gate.** The implementer adds every file the task's
 `Test:` field lists ([task-grammar.md](task-grammar.md) §2) to `--files`, whether or not the
 task touched it, so a task that breaks behaviour a
@@ -86,7 +92,8 @@ passed at arm time, and `keys` its uncapped finding keys.
    suite on every task, which is what the key exists to avoid; the envelope says
    `scoped: false` so a router or a reviewer can tell.
 6. **Evidence.** The task gate's envelopes go to the ticket's `verify/` directory
-   (`iteration-<i>.json`, both stages in one file); a checkpoint gate's result goes into the
+   (`iteration-<i>.json`, both stages in one file); a pinned worker's go to its assignment's
+   `<artifact_root>/verify/` instead (§1, worker mode); a checkpoint gate's result goes into the
    checkpoint's journal entry (stage names, `baseline_red` stages, `new_keys` when red).
 
 ## 5. What the baseline cannot see

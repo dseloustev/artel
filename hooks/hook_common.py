@@ -18,6 +18,7 @@ from pathlib import Path
 CONFIG_PATH = Path('.artel/config.json')
 RUN_DIR = Path('.artel/run')
 STATE_DIR = RUN_DIR / '.hooks'  # dot-prefixed: can never collide with a ticket dir
+WORKER_MARKER_PATH = Path('.artel/parallel-worker.json')
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 VERIFY_SCRIPT = PLUGIN_ROOT / 'scripts' / 'verify.py'
 DEFAULT_TICKET_PATTERN = r'^(?:{projectKey}-)?(\d+)(?:-p?(\d+))?$'
@@ -191,3 +192,74 @@ def resolve_active_ticket(config):
 
 def ticket_run_dir(ticket):
     return RUN_DIR / ticket
+
+
+def _absolute_path(value):
+    return isinstance(value, str) and bool(value) and os.path.isabs(value)
+
+
+def worker_context(root=None):
+    """The validated worker-role context of `root` (cwd by default), or None.
+
+    The reviewed lifecycle writes `.artel/parallel-worker.json` into every launch-ready
+    worker root (scripts/task_worktree.py; docs/opencode-parallel.md §13.7). A root is a
+    worker root only when the marker carries schema 1, role `worker`, a complete setup and
+    a schema-1 assignment whose `worker_root` resolves to this root, inside the repository
+    the marker names. Anything else -- missing, unreadable, malformed, foreign, wrong-root
+    or not launch-ready -- is not a worker, so the caller keeps its normal behavior. The
+    reader touches no run state: a worker's stop must never consult the coordinator's.
+    """
+    base = Path(root) if root is not None else Path.cwd()
+    try:
+        marker = json.loads((base / WORKER_MARKER_PATH).read_text(encoding='utf-8'))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None
+    if not isinstance(marker, dict):
+        return None
+    if isinstance(marker.get('schema'), bool) or marker.get('schema') != 1:
+        return None
+    if marker.get('role') != 'worker':
+        return None
+    setup = marker.get('setup')
+    if not isinstance(setup, dict) or setup.get('status') != 'complete':
+        return None
+    repository = marker.get('repository')
+    if not isinstance(repository, dict):
+        return None
+    common_dir = repository.get('common_dir')
+    main = repository.get('main')
+    if not _absolute_path(common_dir) or not _absolute_path(main):
+        return None
+    try:
+        assignment = _validate_worker_assignment(marker.get('assignment'))
+    except Exception:
+        return None
+    if os.path.realpath(assignment['worker_root']) != os.path.realpath(str(base)):
+        return None
+    # The lifecycle places every worker root strictly inside the main checkout's worktree
+    # area (docs/worktrees.md §1); a marker anywhere else is not a worker root.
+    area = os.path.join(os.path.realpath(main), '.claude', 'worktrees')
+    if not os.path.realpath(str(base)).startswith(area + os.sep):
+        return None
+    actual_common = _git_path(base, '--git-common-dir')
+    if not actual_common or os.path.realpath(actual_common) != os.path.realpath(common_dir):
+        return None
+    return {
+        'role': 'worker',
+        'assignment': assignment,
+        'repository': {'common_dir': common_dir, 'main': main},
+        'base_ref': marker.get('base_ref'),
+        'result_ref': marker.get('result_ref'),
+        'config': marker.get('config'),
+        'setup': setup,
+    }
+
+
+def _validate_worker_assignment(value):
+    """The shared schema validator from scripts/, imported on first use: the serial hooks
+    never need it, and a host without scripts/ simply has no worker roots (None)."""
+    scripts = str(PLUGIN_ROOT / 'scripts')
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import parallel_contract
+    return parallel_contract.validate_assignment(value)

@@ -218,6 +218,22 @@ class TestAgentBuild(BuildBase):
         self.assertIn('`read`, `edit`, `write`, `grep`, `shell`', text)
 
 
+class TestWorkerModeBuild(BuildBase):
+    """Task 6's worker-mode procedure is shared source: the OpenCode build must carry it
+    into the generated implementer agent and skill, with the install root baked."""
+
+    def test_the_worker_mode_section_survives_the_build(self):
+        agent = (self.out / 'agents' / 'artel-implementer.md').read_text(encoding='utf-8')
+        self.assertIn('## Worker mode', agent)
+        self.assertIn('artifact_root', agent)
+        skill = (self.out / 'skills' / 'artel-implementer' / 'SKILL.md').read_text(
+            encoding='utf-8')
+        self.assertIn('## Worker mode', skill)
+        self.assertIn('artifact_root', skill)
+        for text in (agent, skill):
+            self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', text)
+
+
 class TestDeterminism(BuildBase):
     def test_rebuild_is_byte_identical(self):
         with tempfile.TemporaryDirectory() as second:

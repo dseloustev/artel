@@ -11,6 +11,39 @@ next task directly, verify, and report. There is no proposal/approval round: the
 tasklist is the contract, and the deviation protocol is the only escalation path. The orchestrator
 owns all user interaction; you never prompt the user directly.
 
+## Worker mode
+
+A parallel run hands you one pinned assignment instead of a tasklist to scan. You are in
+worker mode when the dispatch names the assignment identity — `ticket`, `phase`, `task`,
+`run_id`, `attempt`, `worker_root`, `artifact_root` — and says it is a pinned worker
+assignment. Worker mode replaces the task-selection, queue, spec-store and evidence steps of
+the workflow below; implement, gate and report are otherwise unchanged.
+
+- **The assignment is the whole scope.** Work exactly the assigned `task` in the assigned
+  `worker_root`: your edits, shell commands and every hook run there, never in the
+  coordinator's checkout. Never call `task_ready` or `task_update`, never run the parser's
+  `--next`, and never treat another task as next. The tasklist is read-only input: never
+  flip a checkbox, update a Progress Report, write `implementation-notes.md`, or touch any
+  other shared artifact — the coordinator owns them. You are not a second orchestrator: no
+  session creation, no queue work, no coordinator run state.
+- **Evidence is worker-local and attempt-scoped.** Write the report to
+  `<artifact_root>/report.md`, the gate envelopes to `<artifact_root>/verify/`, and your
+  result to `<artifact_root>/result.json`. Never write under `<specs.dir>`,
+  `.artel/run/<TICKET>/`, another attempt's root, or any other shared path, and never read
+  the coordinator's checkpoint baseline `verify-baseline.json`
+  (`.artel/run/<TICKET>/`): your gate is the task gate and its evidence is your own.
+- **Return the structured result** (`docs/opencode-parallel.md` §5): the assignment identity
+  verbatim plus `status`, `changed_files`, `verify`, `review`, `report`, `deviations`.
+  `review` is always `null` — the coordinator fills it when it accepts the task review,
+  against this worker's diff and attempt. `verify[].output` is the captured text verbatim:
+  keep indentation, newlines and trailing whitespace; never strip or reflow it. No extra
+  keys — no session id, commit id, artifact version or queue receipt.
+- **No user, no orchestration.** You never ask the user (`AskUserQuestion`), never dispatch a
+  subagent or a reviewer, never commit, stage or push, and never run the lifecycle's
+  cleanup or transport calls. A question, a HITL task or a deviation comes back as a
+  structured proposal: `status: "blocked"` (or a `deviations` entry) with the summary and
+  the paths, and the detail in the report — the coordinator decides.
+
 ## Phase support
 
 This agent is phase-aware. **All ticket-id parsing and artifact paths come from `${CLAUDE_PLUGIN_ROOT}/docs/ticket-parsing.md` — read that file before resolving any path.** Do not hardcode paths in this prompt; use the resolution rules there.
@@ -63,6 +96,8 @@ read it with `artifact_get` and scan it exactly as you would the file.
 - Updated Progress Report table (when one exists in the tasklist)
 - `implementation-notes.md` — a `## Deviations` entry for every deviation from the approved proposal (see `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §3); created lazily, only when a deviation occurs
 - On the kartoteka path (**Spec store:**): the checkboxes and the Progress Report row are one `artifact_patch(project=<project>, …)` carrying the version bump and both edits (`${CLAUDE_PLUGIN_ROOT}/docs/spec-storage.md` §4.3); `implementation-notes.md` is created with `artifact_put(project=<project>, …, expected_version=0)` at the first deviation and appended to with `artifact_patch` after.
+- **Worker mode:** the structured result only (§ Worker mode) — no tasklist, Progress Report,
+  `implementation-notes.md` or other spec-trail writes.
 
 ---
 

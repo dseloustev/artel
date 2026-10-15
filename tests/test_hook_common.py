@@ -1,5 +1,6 @@
 import ast
 import io
+import json
 import os
 import subprocess
 import sys
@@ -92,6 +93,39 @@ class TestResolveActiveTicket(unittest.TestCase):
         d.mkdir(parents=True, exist_ok=True)
         (d / '.active_ticket').write_bytes(b'\xff\xfe garbage')
         self.assertIsNone(h.resolve_active_ticket({}))
+
+
+class TestWorkerContextUnit(unittest.TestCase):
+    """The shared worker-role reader: absent or bare-role markers are not workers, so the
+    serial behavior is untouched without the reviewed lifecycle's full marker."""
+
+    def setUp(self):
+        self._old_cwd = os.getcwd()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        os.chdir(self.root)
+
+    def tearDown(self):
+        os.chdir(self._old_cwd)
+        self._tmp.cleanup()
+
+    def write_marker(self, value):
+        (self.root / '.artel').mkdir(exist_ok=True)
+        path = self.root / '.artel' / 'parallel-worker.json'
+        path.write_text(value if isinstance(value, str) else json.dumps(value),
+                        encoding='utf-8')
+
+    def test_an_absent_marker_is_not_a_worker(self):
+        self.assertIsNone(h.worker_context())
+
+    def test_a_bare_role_marker_is_not_a_worker(self):
+        for value in ({'role': 'worker'},
+                      {'schema': 1, 'role': 'worker'},
+                      {'schema': 1, 'role': 'worker', 'setup': {'status': 'complete'}},
+                      'not json'):
+            with self.subTest(value):
+                self.write_marker(value)
+                self.assertIsNone(h.worker_context())
 
 
 class TestCanonicalTicket(unittest.TestCase):

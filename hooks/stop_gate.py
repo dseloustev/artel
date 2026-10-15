@@ -6,6 +6,7 @@ Contract: ${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md (sections 2 and 8).
 
 Allow when any of:
   - no active ticket / no run-state.json / run_active false  (interactive session)
+  - the session root is a validated pinned worker root       (docs/opencode-parallel.md §12)
   - pause_reason set                                          (waiting for a human)
   - completed true                                            (run finished)
   - started_at older than WALL_CLOCK_HOURS                    (stale run)
@@ -36,6 +37,12 @@ def allow(counter_file):
 
 def main():
     h.read_hook_input()  # payload unused; consume defensively
+    # A pinned worker root never runs the coordinator's armed gate: the worker stops on its
+    # own structured result, and the coordinator's run state is not its input. A malformed,
+    # foreign, wrong-root or not-launch-ready marker is not a worker (hook_common
+    # worker_context validates), so those keep the serial behavior below.
+    if h.worker_context() is not None:
+        allow(None)
     config = h.load_config()
     ticket = h.resolve_active_ticket(config)
     if ticket is None:

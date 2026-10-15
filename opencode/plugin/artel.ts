@@ -51,6 +51,9 @@ const ARTEL_ROOT = process.env.ARTEL_ROOT || path.join(CONFIG_HOME, "opencode", 
 
 /** v2's file-mutating tools. `patch` is exposed only to GPT-family models. */
 const MUTATION_TOOLS = new Set(["edit", "write", "patch"])
+/** Tools a pinned worker session never calls: `subagent` is orchestration, `question` asks
+ * the user. A worker returns the pinned assignment's structured result instead. */
+const WORKER_DENIED_TOOLS = new Set(["subagent", "question"])
 /** Platform tokens hooks/vcs_guard.py classifies a tool name by. The guard deliberately does
  * NOT test for Claude Code's `mcp__` prefix — OpenCode names MCP tools without it. */
 const PLATFORM_TOKENS = ["bitbucket", "github", "jira"]
@@ -71,6 +74,37 @@ type HookResult = { code: number; stdout: string; stderr: string }
 function hasArtelConfig(directory: string): boolean {
   try {
     return fs.existsSync(path.join(directory, ".artel", "config.json"))
+  } catch {
+    return false
+  }
+}
+
+/** This location's worker role, from the reviewed lifecycle marker
+ * (`.artel/parallel-worker.json`, scripts/task_worktree.py). The marker's role string alone
+ * is not a worker: a malformed, foreign, wrong-root or not-launch-ready marker must not
+ * skip the router or restrict tools, so schema, a complete setup, the root equality and the
+ * lifecycle's worktree area are all checked. This is the bridge's cheap subset — the Python
+ * hooks (hooks/hook_common.py `worker_context`) re-validate authoritatively. */
+function isWorkerLocation(directory: string): boolean {
+  try {
+    const marker = JSON.parse(
+      fs.readFileSync(path.join(directory, ".artel", "parallel-worker.json"), "utf-8"),
+    )
+    if (!marker || typeof marker !== "object") return false
+    if (marker.schema !== 1 || marker.role !== "worker") return false
+    const setup = marker.setup
+    if (!setup || typeof setup !== "object" || setup.status !== "complete") return false
+    const assignment = marker.assignment
+    if (!assignment || typeof assignment !== "object") return false
+    const workerRoot = assignment.worker_root
+    if (typeof workerRoot !== "string") return false
+    if (path.resolve(workerRoot) !== path.resolve(directory)) return false
+    const repository = marker.repository
+    if (!repository || typeof repository !== "object") return false
+    const main = repository.main
+    if (typeof main !== "string" || !main) return false
+    const area = path.join(path.resolve(main), ".claude", "worktrees") + path.sep
+    return path.resolve(directory).startsWith(area)
   } catch {
     return false
   }
@@ -188,6 +222,14 @@ const setup: Plugin["setup"] = async (ctx) => {
   const directory = ctx.location.directory
   const controller = new AbortController()
 
+  /** This location's worker role, resolved once: the lifecycle writes the marker before the
+   * worker session exists and nothing rewrites it while the session runs. */
+  let workerLocation: boolean | undefined
+  const isWorker = (): boolean => {
+    if (workerLocation === undefined) workerLocation = isWorkerLocation(directory)
+    return workerLocation
+  }
+
   /** The session's own location directory, or '' when it cannot be resolved. Cached:
    * `session.created` carries the location, execution events do not. A failed lookup is
    * not cached, so a transient error never pins a session as foreign. */
@@ -206,6 +248,15 @@ const setup: Plugin["setup"] = async (ctx) => {
 
   await ctx.tool.hook("execute.before", async (event) => {
     if (!hasArtelConfig(directory)) return
+
+    // A pinned worker never orchestrates and never asks the user: it returns the pinned
+    // assignment's structured result, with questions and deviations as proposals.
+    if (isWorker() && WORKER_DENIED_TOOLS.has(event.tool)) {
+      throw new Error(
+        `artel worker role: a pinned worker session never calls \`${event.tool}\` — return ` +
+          "the result with a structured proposal instead of orchestrating or asking.",
+      )
+    }
 
     if (event.tool === "shell" || isPlatformTool(event.tool)) {
       const payload = {
@@ -277,6 +328,8 @@ const setup: Plugin["setup"] = async (ctx) => {
 
   await ctx.session.hook("context", async (event) => {
     if (!hasArtelConfig(directory)) return
+    // A pinned worker gets its assignment from the coordinator's prompt, never the router.
+    if (isWorker()) return
     const firstUser: any = (event.messages ?? []).find((message: any) => message.role === "user")
     const sessionID = event.sessionID
     if (!firstUser || !Array.isArray(firstUser.content) || !sessionID) return

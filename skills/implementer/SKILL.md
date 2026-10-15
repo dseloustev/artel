@@ -43,6 +43,19 @@ otherwise the skill chooses the model itself (below).
 The chosen model is passed as the Agent call's `model`. A call refused for its model is
 re-dispatched once without one.
 
+## Worker mode
+
+Parallel runs do not go through this skill's serial flow: the coordinator hands each worker
+session one pinned assignment, and the worker follows `agents/implementer.md` § Worker mode —
+the pinned `task` in the pinned `worker_root`, evidence under the assignment's
+`artifact_root`, and a structured result (`review: null`) back to the coordinator.
+
+Nothing below runs in a worker session: the route helper and the model choice, the spec-store
+decision, `--next`/`task_ready` task selection, the queue updates, the `<specs.dir>` report
+and `verify/` paths. A worker session never loads this skill, and this skill never dispatches
+a pinned assignment — the coordinator owns session creation. The serial procedure below is
+unchanged.
+
 ## Execute
 
 Single-phase autonomous model (`${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md` §1): the agent implements the next task

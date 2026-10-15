@@ -150,5 +150,54 @@ class TestLocationScoping(unittest.TestCase):
         self.assertIn('sessionLocations.delete(sessionID)', deleted)
 
 
+class TestWorkerRole(unittest.TestCase):
+    """A pinned worker location is recognized from the reviewed lifecycle marker: the
+    router is skipped, orchestration and user questions are denied, and the marker's role
+    string alone is never enough — schema, complete setup, root equality and the worktree
+    area are all checked. The Python hooks re-validate authoritatively, and the bridge never
+    skips the stop-gate hook itself."""
+
+    def setUp(self):
+        self.source = BRIDGE.read_text(encoding='utf-8')
+
+    def test_the_role_check_reads_the_lifecycle_marker(self):
+        self.assertIn('isWorkerLocation', self.source)
+        self.assertIn('parallel-worker.json', self.source)
+
+    def test_the_role_string_alone_is_not_enough(self):
+        check = self.source[self.source.index('function isWorkerLocation'):]
+        check = check[:check.index('\n}')]
+        self.assertIn('marker.schema !== 1', check)
+        self.assertIn('marker.role !== "worker"', check)
+        self.assertIn('setup.status !== "complete"', check)
+        self.assertIn('path.resolve(workerRoot) !== path.resolve(directory)', check)
+        self.assertIn('.claude', check)
+        self.assertIn('worktrees', check)
+
+    def test_the_router_is_skipped_for_worker_locations(self):
+        context = self.source[self.source.index('ctx.session.hook("context"'):]
+        self.assertIn('isWorker()', context)
+        self.assertLess(context.index('isWorker()'),
+                        context.index('runHook("using_artel.py"'))
+
+    def test_orchestration_and_user_questions_are_denied_for_workers(self):
+        for token in ('WORKER_DENIED_TOOLS', '"subagent"', '"question"'):
+            self.assertIn(token, self.source, token)
+        before = self.source[self.source.index('ctx.tool.hook("execute.before"'):]
+        self.assertIn('WORKER_DENIED_TOOLS.has(event.tool)', before)
+        self.assertIn('artel worker role', before)
+        self.assertLess(before.index('WORKER_DENIED_TOOLS.has(event.tool)'),
+                        before.index('runHook("vcs_guard.py"'))
+        self.assertLess(before.index('WORKER_DENIED_TOOLS.has(event.tool)'),
+                        before.index('MUTATION_TOOLS.has(event.tool)'))
+
+    def test_the_stop_gate_still_runs_for_worker_locations(self):
+        # The armed stop gate is skipped inside hooks/stop_gate.py on a validated worker
+        # root — the authoritative Python validation always runs; the bridge itself never
+        # skips the hook.
+        gate = self.source[self.source.index('const runStopGate'):]
+        self.assertNotIn('isWorker()', gate)
+
+
 if __name__ == '__main__':
     unittest.main()

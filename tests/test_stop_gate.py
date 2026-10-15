@@ -160,6 +160,40 @@ class TestBlocks(StopGateCase):
         self.assertIn('Block 1/', self.assertBlocked())
 
 
+class TestWorkerMarkersAreNotABypass(StopGateCase):
+    """A marker's role string alone never turns a root into a worker: without the reviewed
+    lifecycle's full marker (schema, complete setup, assignment, repository identity) the
+    armed gate keeps blocking."""
+
+    def setUp(self):
+        super().setUp()
+        self.set_ticket()
+        self.write_state()
+
+    def write_marker(self, value):
+        (self.root / '.artel').mkdir(exist_ok=True)
+        (self.root / '.artel' / 'parallel-worker.json').write_text(
+            json.dumps(value), encoding='utf-8')
+
+    def test_a_bare_role_marker_does_not_allow(self):
+        self.write_marker({'role': 'worker'})
+        self.assertBlocked()
+
+    def test_a_role_schema_and_complete_setup_marker_does_not_allow(self):
+        self.write_marker({'schema': 1, 'role': 'worker',
+                           'setup': {'status': 'complete', 'ran': False, 'commands': 0,
+                                     'failed': None}})
+        self.assertBlocked()
+
+    def test_a_wrong_root_assignment_marker_does_not_allow(self):
+        self.write_marker({'schema': 1, 'role': 'worker',
+                           'setup': {'status': 'complete', 'ran': False, 'commands': 0,
+                                     'failed': None},
+                           'repository': {'common_dir': str(self.root), 'main': str(self.root)},
+                           'assignment': {'schema': 1, 'worker_root': '/elsewhere'}})
+        self.assertBlocked()
+
+
 class TestCounterHygiene(StopGateCase):
     def test_allow_clears_a_stale_counter(self):
         """Otherwise a run that pauses and resumes starts partway to its cap."""

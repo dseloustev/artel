@@ -31,6 +31,10 @@ loop (gates.md §1, rule 3).
   `<specs.dir>/<TICKET_ID>/[phase-<PHASE_NUM>/]verify/` (read `<specs.dir>/.active_ticket` when the
   caller didn't pass a ticket id explicitly). No active ticket → skip evidence writes, report
   findings inline instead.
+- **Worker mode** — the caller passes `EVIDENCE_DIR` explicitly as `<artifact_root>/verify/`,
+  the pinned assignment's evidence root; it is never resolved from `<specs.dir>` in a worker
+  session (that tree is the coordinator's), and a worker never reads the coordinator's
+  checkpoint baseline (`verify-baseline.json`). The loop below is otherwise unchanged.
 
 ## Exit-code contract
 

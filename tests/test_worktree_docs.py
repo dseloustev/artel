@@ -114,6 +114,25 @@ class WorktreeContractCase(unittest.TestCase):
         self.assertLess(self.text.index('**Ask.** Confirm once'),
                         self.text.index('**Leave** the worktree'))
 
+    def test_the_upgrade_path_is_documented(self):
+        """A pre-OpenCode worktree is refused, never hand-back-with-git: the contract carries
+        the two upgrade routes, the manifest that validates the move, and the include note."""
+        section = self.text[self.text.index('## 8. Upgrading'):]
+        for phrase in ('Finish the hand-back before upgrading',
+                       'git worktree move',
+                       '.artel/worktree.json',
+                       'OLD_HOST_DIR',
+                       '/.opencode/worktrees/',
+                       'plain Git',
+                       '.worktreeinclude'):
+            self.assertIn(phrase, section)
+
+    def test_the_return_skill_points_at_the_upgrade_path(self):
+        text = ' '.join(body('return-from-worktree').split())
+        self.assertIn('`${ARTEL_ROOT}/docs/worktrees.md` §8', text)
+        self.assertIn('never hand it back with plain Git', text)
+        self.assertNotIn('git worktree remove', text)
+
     def test_the_reference_has_an_entry_per_skill(self):
         reference = read('docs/skills-reference.md')
         for name in NEW_SKILLS:

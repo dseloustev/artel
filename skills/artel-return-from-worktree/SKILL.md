@@ -26,8 +26,14 @@ session and changes the main checkout's branch.
 2. **Inside a linked worktree** (`git rev-parse --path-format=absolute --git-dir` differs from
    `--git-common-dir`): `<name>` is the worktree directory's name. `TICKET_ID` comes from `$0`
    (parsed per `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2), else from the `ticket` field of
-   `.artel/worktree.json`. A worktree outside `MAIN/.opencode/worktrees/`, or one with neither
-   source → stop: "This worktree was not created by artel; hand it back with git."
+   `.artel/worktree.json`. A worktree outside `MAIN/.opencode/worktrees/` that still carries
+   `.artel/worktree.json` was made by a previous version of artel: **never hand it back with
+   plain Git** — that moves the branch but not the ignored `.artel/run/` state and the context
+   store. Report the upgrade path in `${ARTEL_ROOT}/docs/worktrees.md` §8 — finish the
+   hand-back with the previous version, or relocate the worktree under
+   `MAIN/.opencode/worktrees/` with its manifest and run this skill again — and stop. A
+   directory with neither source → stop: "This worktree was not created by artel; hand it back
+   with git."
 3. **In the main checkout:** `TICKET_ID` comes from `$0`, else from `<specs.dir>/.active_ticket`
    (as in `move-to-worktree`). Among the `git worktree list` paths, take those named
    `MAIN/.opencode/worktrees/<TICKET_ID>` or `MAIN/.opencode/worktrees/<TICKET_ID>-<digits>`. One →

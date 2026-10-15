@@ -130,3 +130,38 @@ into a worktree. `hook_common.read_hook_input()` moves each hook into the linked
 by the payload's `cwd` when it belongs to the same repository, so the gates check the worktree
 the session actually edits ([hooks/README.md](../hooks/README.md)). A worktree without
 `.artel/config.json` leaves the hooks inert.
+
+## 8. Upgrading from the pre-OpenCode layout
+
+Worktrees made by the Claude Code build of artel live under the previous host's config
+directory — `.claude`, in its `worktrees/` subdirectory — and the current `worktree.py` does
+not recognise them: it resolves only `.opencode/worktrees/<name>` and **refuses rather than
+deleting a directory it does not know** (§6). Two ways forward, in order of preference:
+
+1. **Finish the hand-back before upgrading.** With the previous version still installed, run
+   its hand-back skill from the main checkout. It moves the branch, the uncommitted work and
+   `.artel/run/<TICKET_ID>/` back, and removes the worktree — the upgrade then starts clean.
+2. **Relocate the worktree, manifest and all.** The worktree's `.artel/worktree.json` — written
+   by move-in and read by hand-back — is what makes the move safe: it names the ticket, the
+   branch and the main checkout's branch.
+
+   ```bash
+   OLD_HOST_DIR=.claude   # the previous host's config directory
+   git worktree move "$OLD_HOST_DIR"/worktrees/<name> .opencode/worktrees/<name>
+   python3 ${ARTEL_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name>
+   ```
+
+   Before the move, make sure `.opencode/worktrees/` is ignored — add
+   `/.opencode/worktrees/` to `.git/info/exclude` or the host's `.gitignore` — or hand-back's
+   clean-main-checkout check reads the relocated tree as uncommitted work and refuses. A stale
+   exclude line naming the old worktrees directory is inert and may stay.
+
+Never hand a legacy worktree back with plain Git (`git worktree remove`, a manual directory
+delete): it moves tracked commits but not the ignored `.artel/run/` state, the context store
+or the `.worktreeinclude` files the hand-back exists to carry.
+
+**`.worktreeinclude` implications.** The default patterns moved with the host: the old
+defaults (`/.claude`, `/.mcp.json`) select nothing on OpenCode, whose host files are
+`/.opencode/`, `/opencode.json` and `/opencode.jsonc` (§3). A host that wrote a
+`.worktreeinclude` for the old defaults keeps the old selection until it updates the file;
+`.artel/` handling is unchanged either way.

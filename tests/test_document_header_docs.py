@@ -212,6 +212,23 @@ class TestReleaseDocs(unittest.TestCase):
             self.assertIn(phrase, text)
 
 
+class TestTheOpenCodeMigrationIsInTheChangelog(unittest.TestCase):
+    """The release skill stops on an empty [Unreleased], and the migration must not ride an
+    empty section: it is written down with its upgrade instructions before the bump is cut."""
+
+    def test_unreleased_announces_the_migration(self):
+        body = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+        flat_body = ' '.join(body.split())
+        for phrase in ('OpenCode-only plugin',
+                       'scripts/install-opencode.sh',
+                       '### Removed',
+                       '### Upgrade',
+                       'docs/worktrees.md',
+                       'models.opencode',
+                       'docs/opencode.md'):
+            self.assertIn(phrase, flat_body)
+
+
 HEADER_TEMPLATES = ('skills/artel-generate-idea/assets/templates/idea.template.md',
                     'skills/artel-figma-analysis/assets/templates/design-analysis.template.md',
                     'skills/artel-sync-phases/SKILL.md', 'agents/artel-tasklist-writer.md',

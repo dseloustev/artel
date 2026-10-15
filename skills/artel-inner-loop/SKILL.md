@@ -10,7 +10,7 @@ disable-model-invocation: true
 Composed by `read`, not the `skill` tool: `disable-model-invocation: true` hides this skill from
 model-side `skill`-tool invocation, and subagents do not inherit skills — the `artel-implementer` agent
 (`${ARTEL_ROOT}/agents/artel-implementer.md`) consumes it by reading this file by path in its
-prompt. User slash-command invocation (`/artel:inner-loop`) still works.
+prompt. User slash-command invocation (`/artel-inner-loop`) still works.
 
 Bounded discipline over the **task gate** (`${ARTEL_ROOT}/docs/gates.md` §1: `verify.fast`
 on the changed paths, then `verify.test` on the test files among them — `docs/config.md`).

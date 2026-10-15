@@ -6,7 +6,7 @@ the [workflow guide](workflow-guide.md). This document is the lookup table: one 
 six fixed fields.
 
 - **Invocation** is copied verbatim from each skill's SKILL.md frontmatter hint, in slash form
-  (`/artel:<skill-name> ...`). The equivalent `skill` tool call (`skill: "artel-<skill-name>"`,
+  (`/artel-<skill-name> ...`). The equivalent `skill` tool call (`skill: "artel-<skill-name>"`,
   `args: "..."`) works identically for agents driving these skills programmatically — this is
   noted once, here, not per entry. On OpenCode the same skills are named `artel-<name>`
   (commands `/artel-<name>`); see [opencode.md](opencode.md).
@@ -24,7 +24,7 @@ Entry template:
 ### <skill-name>
 
 - **Purpose:** <one sentence — what it produces, not how>
-- **Invocation:** `/artel:<skill-name> <args per its frontmatter hint, verbatim>`
+- **Invocation:** `/artel-<skill-name> <args per its frontmatter hint, verbatim>`
 - **Reads:** <input artifacts / preconditions, with paths>
 - **Writes:** <output artifacts + status markers, with paths>
 - **Pauses:** <when it asks the user; "never" for silent pipeline skills>
@@ -39,9 +39,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 ### using-artel
 
-- **Purpose:** Route ticket, feature, queue and knowledge requests to the matching `/artel:`
+- **Purpose:** Route ticket, feature, queue and knowledge requests to the matching `artel-<name>`
   skill before any other response — the plugin's analogue of `superpowers:using-superpowers`.
-- **Invocation:** `/artel:using-artel` — normally never typed: the `using_artel` `SessionStart`
+- **Invocation:** `/artel-using-artel` — normally never typed: the `using_artel` `SessionStart`
   hook ([hooks/README.md](../hooks/README.md)) injects its body (frontmatter stripped) plus a
   host status on `startup|clear|compact` whenever `.artel/config.json` exists.
 - **Reads:** nothing itself; the hook reads `.artel/config.json` (`knowledge.adapter`,
@@ -71,7 +71,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   calls for (full: PRD, vision, plan, tasklist; lean: a work list; bug: a diagnosis, then the
   work list), and then one tail on every run: implementation, review, runtime check, docs (once
   per ticket, when a PRD exists) and the PR — with exactly one approval pause.
-- **Invocation:** `/artel:feature-development [ticket-id] or [ticket-id]-[phase] [description-file] [--head=full|lean|bug] [--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]`
+- **Invocation:** `/artel-feature-development [ticket-id] or [ticket-id]-[phase] [description-file] [--head=full|lean|bug] [--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]`
 - **Reads:** `.artel/config.json` (missing → invokes `setup` first); whichever ticket artifacts
   already exist (`idea.md`, `prd.md`, `vision.md`, `plan.md`, `tasklist.md`, `spike.md`,
   `diagnosis.md`) — they size the run, and skip-if-exists governs each gate;
@@ -125,7 +125,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** One-time configuration interview that creates or revises `.artel/config.json` —
   ticket grammar, tracker/VCS adapters, verify commands, languages, optional extras.
-- **Invocation:** `/artel:setup`
+- **Invocation:** `/artel-setup`
 - **Reads:** `.artel/config.json` (existing values pre-selected on Revise); the config contract
   ([config.md](config.md)); `hooks/sensitive-paths.json` when the policy scaffold is selected.
 - **Writes:** `.artel/config.json` — one complete, explicit file in config.md's filled-example
@@ -148,7 +148,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Turn a tracker ticket (or a directly gathered description) into the seed
   artifact of the workflow — a structured idea file in `language.docs`.
-- **Invocation:** `/artel:generate-idea [ticket-id] [description-file]`
+- **Invocation:** `/artel-generate-idea [ticket-id] [description-file]`
 - **Reads:** `tracker.adapter` / `tracker.mcpToolPrefix` / `language.docs`; the ticket via
   `<tracker.mcpToolPrefix>jira_get_issue(_comments)` (`jira-mcp`) or `gh issue view`
   (`github-issues`); `$1` or the user's description under `"none"`; a pre-flight check for an
@@ -168,7 +168,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Analyze the ticket's Figma design workflow — flow graph, screen-to-code mapping,
   form-factor differences — and surface mockup errors before requirements are written.
-- **Invocation:** `/artel:figma-analysis [ticket-id] [figma-url]`
+- **Invocation:** `/artel-figma-analysis [ticket-id] [figma-url]`
 - **Reads:** `design.figma` (must be `true`); `idea.md` (design URLs auto-extracted; an explicit
   URL argument wins); the Figma file via the connected Figma MCP; the codebase.
 - **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/design-analysis.md`
@@ -187,7 +187,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### analysis
 
 - **Purpose:** Run the upfront requirements interview and draft the ticket's PRD.
-- **Invocation:** `/artel:analysis [ticket-id] or [ticket-id]-[phase] [description-file] [--local]`
+- **Invocation:** `/artel-analysis [ticket-id] or [ticket-id]-[phase] [description-file] [--local]`
 - **Reads:** `idea.md` (or the `$1` description file) as the interview seed;
   `design-analysis.md`, `diagnosis.md` and `spike.md` when present; the `artel-analyst` agent
   explores the codebase before asking
@@ -209,7 +209,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### generate-vision
 
 - **Purpose:** Draft the host project's technical vision document from the idea and PRD.
-- **Invocation:** `/artel:generate-vision [ticket-id] [idea-file]`
+- **Invocation:** `/artel-generate-vision [ticket-id] [idea-file]`
 - **Reads:** `idea.md` (`$1` override; must exist), `prd.md` (warns and continues, drafting from
   the idea alone, if missing) — never re-asking anything the PRD's Resolved Questions already
   answer.
@@ -227,7 +227,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Gather codebase/technical context and produce the ticket's research document —
   or, with `--question`, answer the question a spike ticket asks.
-- **Invocation:** `/artel:researcher [ticket-id] or [ticket-id]-[phase] [--question] [--local]`
+- **Invocation:** `/artel-researcher [ticket-id] or [ticket-id]-[phase] [--question] [--local]`
 - **Reads:** PRD (phase-scoped with ticket-wide fallback), `idea.md`, `vision.md`, and the phase
   tasks file when one exists; the codebase (scan only); and the institutional-knowledge index
   when `knowledge.adapter` is `kartoteka` and its MCP tools are in the session (config.md;
@@ -253,7 +253,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### planner
 
 - **Purpose:** Draft the architecture and implementation plan for the ticket.
-- **Invocation:** `/artel:planner [ticket-id] or [ticket-id]-[phase]`
+- **Invocation:** `/artel-planner [ticket-id] or [ticket-id]-[phase]`
 - **Reads:** PRD, `research.md`, the host project's conventions docs (its AGENTS.md and whatever
   it points to), `idea.md`, `vision.md`, and the phase tasks file when one exists.
 - **Writes:** (via the agent) `plan.md` (or `phase-<N>/plan.md`) with
@@ -270,7 +270,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### tasklist
 
 - **Purpose:** Break the approved plan down into small, trackable checkbox tasks.
-- **Invocation:** `/artel:tasklist [ticket-id] or [ticket-id]-[phase] [--local]`
+- **Invocation:** `/artel-tasklist [ticket-id] or [ticket-id]-[phase] [--local]`
 - **Reads:** the plan and its upstream inputs, resolved internally by the `artel-task-planner` agent.
 - **Writes:** (via the agent) `tasklist.md` (or the phase tasks file) with
   status `TASKLIST_READY` and HITL tags (autonomous-run.md §4); unresolved questions to
@@ -285,7 +285,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Write the ticket's work list in the task grammar from the idea — with the vision,
   a spike or a diagnosis when they exist — without the PRD/plan chain. It is the lean head's and
   the bug head's writer, and it runs à la carte.
-- **Invocation:** `/artel:generate-tasklist [ticket-id] [idea-file] [vision-file] [--local]`
+- **Invocation:** `/artel-generate-tasklist [ticket-id] [idea-file] [vision-file] [--local]`
 - **Reads:** `idea.md` (required; `$1` overrides it); `vision.md` when it exists (`$2`
   overrides it) — without one the writer grounds the work list in the idea and the codebase;
   `spike.md` and `diagnosis.md` when they exist; the PRD, for its requirement IDs only.
@@ -304,7 +304,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   never writes the file itself, only the agent does. In place of a draft the writer may return
   `RAISE: <reason>; <reason>` — an open product question it cannot ground in the ticket or the
   code, or, with no vision, work that needs more than one iteration. The skill prints that line
-  and `Next: /artel:feature-development <TICKET_ID> --head=full`, and stops; inside a run the
+  and `Next: /artel-feature-development <TICKET_ID> --head=full`, and stops; inside a run the
   orchestrator raises the size instead. With a `DIAGNOSED` diagnosis, task `1.1` writes the
   failing test for the reproduction and no task reaches beyond the fix origin.
 
@@ -312,7 +312,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Implement the next incomplete tasklist task, verify it, and flip its checkbox —
   on a task-format tasklist one whole `### Task N.M:` block per dispatch, every step ticked.
-- **Invocation:** `/artel:implementer [ticket-id] or [ticket-id]-[phase] [--local] [--model sonnet|opus|fable]`
+- **Invocation:** `/artel-implementer [ticket-id] or [ticket-id]-[phase] [--local] [--model sonnet|opus|fable]`
 - **Model:** an iteration task follows its route — `sonnet` on `light`, `opus` on `full`, chosen
   by `tasklist-tasks route`; `--model` overrides it for one dispatch (the orchestrator passes
   `fable` on a fix round that follows a failed one, `autonomous-run.md` §5).
@@ -349,7 +349,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Run the bounded verify→fix→re-verify loop until the configured quality gate is
   green, leaving JSON evidence per iteration.
-- **Invocation:** `/artel:inner-loop [paths to scope the gate, comma-separated]`
+- **Invocation:** `/artel-inner-loop [paths to scope the gate, comma-separated]`
 - **Reads:** `verify.fast` / `verify.test` (the task gate, [gates.md](gates.md) §1); the
   changed-path set (argument, or derived from `git status`/`git diff`);
   `<specs.dir>/.active_ticket` for evidence pathing.
@@ -374,7 +374,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Review the ticket's changes and classify findings as Blocking / Important /
   Nice-to-have; with `--task`, review one task's diff right after its implementer returned.
-- **Invocation:** `/artel:run-reviewer [ticket-id] or [ticket-id]-[phase]
+- **Invocation:** `/artel-run-reviewer [ticket-id] or [ticket-id]-[phase]
   [--task "<task title>" --report <path> --package <path>] [--local] [--model sonnet|opus|fable]`
 - **Model:** by scope — `sonnet` for a task review (the `full` route's wrapper) and for a
   re-review after a fix round; `opus` (frontmatter) for the ticket/phase review's round 1 and
@@ -410,7 +410,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Build and launch the app via the configured `runtime.run` command and record the
   `RUNTIME_OK` verdict.
-- **Invocation:** `/artel:run-app [--gate]`
+- **Invocation:** `/artel-run-app [--gate]`
 - **Reads:** `runtime.run`; `<specs.dir>/.active_ticket` for evidence pathing.
 - **Writes:** `<specs.dir>/<TICKET_ID>/[phase-<N>/]runtime/observation.md` — date, mode,
   command, exit code, output summary, `Verdict: GREEN | RED (<reason>)`, and the
@@ -430,7 +430,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Drive the running app's UI via the configured `runtime.drive` command and record
   a verified / not-verified drive observation.
-- **Invocation:** `/artel:drive-app`
+- **Invocation:** `/artel-drive-app`
 - **Reads:** `runtime.drive`; `<specs.dir>/.active_ticket` for evidence pathing.
 - **Writes:** `<specs.dir>/<TICKET_ID>/[phase-<N>/]runtime/drive-observation.md` — date,
   command, goal, exit code, `Verdict: verified | not verified (<reason>)`.
@@ -443,7 +443,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### qa
 
 - **Purpose:** Generate a QA plan and verdict for a ticket, phase, or release.
-- **Invocation:** `/artel:qa [ticket-id] or [ticket-id]-[phase] or R-[release-id]`
+- **Invocation:** `/artel-qa [ticket-id] or [ticket-id]-[phase] or R-[release-id]`
 - **Reads:** scope and paths resolved internally by the `artel-qa` agent (release / ticket / phase).
 - **Writes:** (via the agent) `qa.md` (or its phase-scoped variant; release scope:
   `<specs.releases>/<RELEASE_ID>/qa.md`) with a verdict.
@@ -456,7 +456,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### validate
 
 - **Purpose:** Report which quality gates have passed for a ticket, phase, or release.
-- **Invocation:** `/artel:validate [ticket-id] or [ticket-id]-[phase] or R-[release-id]`
+- **Invocation:** `/artel-validate [ticket-id] or [ticket-id]-[phase] or R-[release-id]`
 - **Reads:** the gate artifacts the `artel-validator` agent already knows about (`PRD_READY`,
   `PLAN_APPROVED`, `TASKLIST_READY`, `IMPLEMENT_STEP_OK`, `REVIEW_OK`, `RUNTIME_OK`,
   `CHECKPOINT_OK`, `DOCS_UPDATED`, `AUTOMATION_REMOVED`).
@@ -472,7 +472,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Update project documentation and the CHANGELOG based on the ticket's shipped
   work.
-- **Invocation:** `/artel:docs-update [ticket-id] or [ticket-id]-[phase]`
+- **Invocation:** `/artel-docs-update [ticket-id] or [ticket-id]-[phase]`
 - **Reads:** artifact inputs resolved internally by the `artel-tech-writer` agent.
 - **Writes:** (via the agent) `<specs.dir>/<TICKET_ID>/summary.md` (or its phase-scoped
   variant) plus a `CHANGELOG.md` entry.
@@ -486,7 +486,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Draft a comprehensive PR description for the ticket, styled to match recently
   merged PRs.
-- **Invocation:** `/artel:pr-description [ticket-id]`
+- **Invocation:** `/artel-pr-description [ticket-id]`
 - **Reads:** the tracker summary via `tracker.adapter` (Jira MCP or `gh issue view`; `"none"` →
   `TICKET_SUMMARY_UNAVAILABLE`, continue); `idea.md` / `vision.md` / `tasklist.md`; the git log
   and merge-base diff against the base branch; 3–5 recent merged PRs via `vcs.adapter` for
@@ -505,7 +505,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Commit, push, open the pull request via the configured `vcs.adapter`, and
   comment the URL on the tracker — the run's loop-closing step.
-- **Invocation:** `/artel:pr-create [ticket-id]`
+- **Invocation:** `/artel-pr-create [ticket-id]`
 - **Reads:** `pr-description.md` (invokes `pr-description` first if missing); adapter identity
   pre-flight (`gh auth status` / Bitbucket+Jira whoami); `git status` / `branch` / `log`; the
   existing-PR check via `gh pr list` or `<vcs.mcpToolPrefix>bitbucket_list_my_prs`.
@@ -527,7 +527,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   restricted to `origin/<default>..HEAD`, never the full base range. Bitbucket
   `projectKey`/`repositorySlug` are derived from `git remote get-url origin` at call time —
   no config key. With `runtime.scaffold` configured, the report reminds to run
-  `/artel:remove-automation` before merge when scaffold artifacts appear present.
+  `/artel-remove-automation` before merge when scaffold artifacts appear present.
 
 ---
 
@@ -539,7 +539,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   a test that fails first, and make one fix at the origin — or, when the right fix is
   structural, hand the cause to a ticket instead of patching it. With `<ticket-id> --diagnose`
   it stops at the cause and writes the ticket's diagnosis.
-- **Invocation:** `/artel:debugging [symptom | failing test | error text] or <ticket-id> --diagnose [--local]`
+- **Invocation:** `/artel-debugging [symptom | failing test | error text] or <ticket-id> --diagnose [--local]`
 - **Reads:** [debugging.md](debugging.md) (the discipline); `.artel/config.json` when present
   (`verify.fast`, `verify.test`, `knowledge.adapter`); the host's conventions docs for its test
   command.
@@ -549,11 +549,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `<specs.dir>/<TICKET_ID>/diagnosis.md` (status `DIAGNOSED`, `DIAGNOSED_STRUCTURAL` or
   `NOT_REPRODUCED`) and leaves no fix, no failing test and no probe in the tree.
 - **Pauses:** asks once for the symptom when none was given; on a structural cause, offers
-  `/artel:issue-draft --type bug|task` or leaving the report in chat (the `question` tool).
+  `/artel-issue-draft --type bug|task` or leaving the report in chat (the `question` tool).
 - **Notes:** worker, not orchestrator — runs inline (like `knowledge`), because debugging needs
   the person and the session. Reproduces through `verify.py task --files <test>` so red and
   green mean what they mean in a run; with `verify.test` empty, or no config, it uses the host's
-  own test command. With kartoteka it adds one `/artel:knowledge` search on the error or
+  own test command. With kartoteka it adds one `/artel-knowledge` search on the error or
   component. Inside a run the same discipline is applied by the implementer and checked by the
   reviewer ([debugging.md](debugging.md) §7). The router sends bugs here ahead of generic
   debugging skills. `feature-development` invokes it in two places: in diagnose mode as the bug
@@ -565,7 +565,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Keep `tasklist.md` and per-phase `phase-<N>/tasks.md` files in sync in both
   directions.
-- **Invocation:** `/artel:sync-phases [ticket-id] or [ticket-id]-[phase]`
+- **Invocation:** `/artel-sync-phases [ticket-id] or [ticket-id]-[phase]`
 - **Reads:** `tasklist.md`, every existing `phase-*/tasks.md`, `idea.md`, `vision.md`.
 - **Writes:** completion status synced back into `tasklist.md`'s Progress Report and iteration
   checkboxes; a missing `phase-<N>/tasks.md` extracted for the target phase;
@@ -581,7 +581,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Resolve git merge conflicts by analyzing both sides and applying an intelligent,
   approved merge.
-- **Invocation:** `/artel:merge-conflicts [branch-name]`
+- **Invocation:** `/artel-merge-conflicts [branch-name]`
 - **Reads:** the conflicted files, both branch versions (`git show <branch>:<file>` /
   `git show HEAD:<file>`), `git diff --stat`; the host's optional code-symbol index to locate
   symbols that moved between the two sides ([code-navigation.md](code-navigation.md)),
@@ -599,7 +599,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Review a branch once with the `artel-reviewer` agent — the whole-branch review before a
   pull request — write `deep-review.md`, and offer to work its fixes.
-- **Invocation:** `/artel:deep-review [ticket-id] [branch] [pr-link] [--local]`
+- **Invocation:** `/artel-deep-review [ticket-id] [branch] [pr-link] [--local]`
 - **Reads:** the host's declared `specs.dir` (`.artel/config.json`) and the ticket directory;
   the PR title/body and, where the adapter returns them, its base/head branch names; the
   `scripts/deep_review.py prepare` manifest (the pinned run id, branch, base, head and merge
@@ -635,7 +635,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Walk a person through a GitHub pull request one changed file at a time, with the
   person alone deciding when to advance — every presentation ends the turn and waits.
-- **Invocation:** `/artel:collaborative-review <pr-url-or-number>`
+- **Invocation:** `/artel-collaborative-review <pr-url-or-number>`
 - **Reads:** the target PR through the host's GitHub CLI — `gh pr view` metadata, the changed
   files with `--method GET --paginate --slurp`, the compare API for the merge base, `gh pr diff`,
   and full contents at the base/head revisions (the head repository for forks); any bounded
@@ -665,7 +665,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Generate a self-contained HTML change-comprehension report for a ticket's branch
   work — context, decisions, deviations, module-by-module breakdown — ending with an
   interactive quiz (6–10 questions) the reader must complete.
-- **Invocation:** `/artel:change-digest [ticket-id or ticket-id-phase] (optional; defaults to <specs.dir>/.active_ticket)`
+- **Invocation:** `/artel-change-digest [ticket-id or ticket-id-phase] (optional; defaults to <specs.dir>/.active_ticket)`
 - **Reads:** every existing ticket doc (`idea.md`, `prd.md`, `vision.md`, `plan.md`, `adr.md`,
   `research.md`, tasklist / phase tasks, `implementation-notes.md`, `review.md`, `qa.md`,
   `summary.md` — silently skipping what doesn't exist);
@@ -683,7 +683,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Read a single pull-request comment, cross-reference the active ticket's docs,
   and enter plan mode with a proposed fix.
-- **Invocation:** `/artel:address-pr-comment <pr-comment-url>`
+- **Invocation:** `/artel-address-pr-comment <pr-comment-url>`
 - **Reads:** the comment (+ direct thread replies), PR metadata, and diff via `vcs.adapter`
   (GitHub and Bitbucket comment-URL shapes both parsed); whichever ticket docs exist
   (ticket-wide and `phase-<N>/` variants); optionally the tracker issue (degrades silently).
@@ -703,7 +703,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   task, bug report or epic — summary (≤255 chars) + a description following that type's
   template — gathering context from kartoteka, the tracker, Figma and the host code through `issue-scout`
   and asking about remaining gaps before writing; never posts anywhere.
-- **Invocation:** `/artel:issue-draft <text | file-path> [--type task|bug|epic] [--local]`
+- **Invocation:** `/artel-issue-draft <text | file-path> [--type task|bug|epic] [--local]`
 - **Reads:** the argument (text, or the file it names); `language.pr`, `tracker.adapter`,
   `tracker.mcpToolPrefix`, `design.figma`, `knowledge.adapter`, `knowledge.project`,
   `ticket.pattern`, `ticket.projectKey` (config.md); the type's template — `.artel/templates/issue-draft-<type>.md`, else
@@ -733,7 +733,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Bootstrap work on a ticket in one shot: branch check, optional move into a
   worktree, post-branch setup, context restore, AGENTS.md refresh.
-- **Invocation:** `/artel:init-branch [ticket-id]`
+- **Invocation:** `/artel-init-branch [ticket-id]`
 - **Reads:** the current branch name; `setup.commands`; the ticket grammar (`ticket.projectKey`
   for the branch-name token scan); the tracker summary or `idea.md` title (branch slug); the
   detected `origin` default branch; the `.artel/context/` store (via `restore-context`).
@@ -760,7 +760,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Move a ticket already on its branch out of the main checkout into its own git
   worktree and continue the session there, so other sessions can work on other tickets.
-- **Invocation:** `/artel:move-to-worktree [ticket-id]`
+- **Invocation:** `/artel-move-to-worktree [ticket-id]`
 - **Reads:** the current branch; `git worktree list`; the detected `origin` default branch;
   `setup.commands`; the main checkout's `.worktreeinclude`, `.artel/` and ignored files.
 - **Writes:** `.opencode/worktrees/<name>` on the ticket's branch, with the main checkout's
@@ -780,7 +780,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Hand a finished worktree's branch back to the main checkout and remove the
   worktree.
-- **Invocation:** `/artel:return-from-worktree [ticket-id]`
+- **Invocation:** `/artel-return-from-worktree [ticket-id]`
 - **Reads:** `git worktree list`; the worktree's `.artel/worktree.json`; both checkouts' status;
   `setup.commands`.
 - **Writes:** the main checkout switched to the ticket's branch with the worktree's uncommitted
@@ -800,7 +800,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Move the project to a different VCS platform — rewrite `vcs.*` in
   `.artel/config.json` and re-point the git remotes so config and `origin` agree.
-- **Invocation:** `/artel:set-home <repo-url>`
+- **Invocation:** `/artel-set-home <repo-url>`
 - **Reads:** `.artel/config.json` (`vcs.adapter`, `vcs.mcpToolPrefix`, `tracker.adapter`);
   `git remote -v`.
 - **Writes:** `.artel/config.json` (`vcs.*` only, read-modify-write preserving key order);
@@ -813,20 +813,20 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Notes:** worker, not orchestrator — runs inline (like `setup`). No argument → reports the
   current `vcs.adapter` vs. `origin` and stops, read-only. Idempotent: skips the git surgery
   entirely when `origin` already matches the target. Preserves `vcs.mcpToolPrefix` on a switch
-  to `github-cli` — that adapter ignores it, but `/artel:migrate-prs` needs it to address the
+  to `github-cli` — that adapter ignores it, but `/artel-migrate-prs` needs it to address the
   old platform's MCP tools for reading. Renames rather than replaces `origin` (`bitbucket` /
   `github` / `old-origin`, suffixed on a name collision) so the old remote survives for
-  `/artel:migrate-prs`; the operator removes it by hand once done. Runs
+  `/artel-migrate-prs`; the operator removes it by hand once done. Runs
   `git remote set-head origin -a` after the swap — required, not cosmetic: `pr-create` and
   `agents/artel-reviewer.md`'s standalone mode resolve the default branch through
-  `refs/remotes/origin/HEAD`. Offers `/artel:migrate-prs` in its report when the old platform
+  `refs/remotes/origin/HEAD`. Offers `/artel-migrate-prs` in its report when the old platform
   was Bitbucket and open PRs exist.
 
 ### migrate-prs
 
 - **Purpose:** Recreate a Bitbucket project's still-open pull requests on GitHub after
-  `/artel:set-home`, carrying title, description and branches.
-- **Invocation:** `/artel:migrate-prs [pr-id ...]`
+  `/artel-set-home`, carrying title, description and branches.
+- **Invocation:** `/artel-migrate-prs [pr-id ...]`
 - **Reads:** `.artel/config.json` (`vcs.adapter`, `vcs.mcpToolPrefix`); the old (renamed)
   remote's URL via `git remote -v`; `<vcs.mcpToolPrefix>bitbucket_list_repo_prs` /
   `bitbucket_get_pr`; `gh pr list --head` for the idempotency check; `gh auth status`.
@@ -847,7 +847,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Apply the transient agent UI-automation scaffold to the current branch and
   commit exactly what it changed.
-- **Invocation:** `/artel:add-automation`
+- **Invocation:** `/artel-add-automation`
 - **Reads:** `runtime.scaffold.add`, `verify.fast`; a clean-tree and not-on-default-branch
   pre-flight.
 - **Writes:** whatever paths `runtime.scaffold.add` changes (discovered via
@@ -864,7 +864,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Remove the transient UI-automation scaffold again (reverse of `add-automation`)
   and push the removal when an upstream exists.
-- **Invocation:** `/artel:remove-automation`
+- **Invocation:** `/artel-remove-automation`
 - **Reads:** `runtime.scaffold.remove`, `verify.fast`; a clean-tree pre-flight.
 - **Writes:** the removal changes, committed as `chore: remove agent UI automation`; `git push`
   when an upstream exists (never any `--force` variant).
@@ -885,7 +885,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   spec trail — into the host-local `.artel/context/` store, then clear the working-tree spec
   trail and `CHANGELOG.md`. `AGENTS.md` is mirrored but stays in the working tree — it is the
   conventions doc OpenCode and Claude Code read, not a declutter target.
-- **Invocation:** `/artel:save-context`
+- **Invocation:** `/artel-save-context`
 - **Reads:** `AGENTS.md`, `CHANGELOG.md`, `<specs.dir>/.active_ticket`, and every ticket
   directory under `<specs.dir>/`.
 - **Writes:** `.artel/context/root/` (shared latest), `.artel/context/.active_ticket`,
@@ -904,7 +904,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Restore workflow docs and/or one ticket's spec artifacts from `.artel/context/`
   back into the project.
-- **Invocation:** `/artel:restore-context [ticket-id]`
+- **Invocation:** `/artel-restore-context [ticket-id]`
 - **Reads:** the `.artel/context/` store (`root/`, `.active_ticket`,
   `tickets/<TICKET_ID>/{root,spec-trail}/`).
 - **Writes:** `AGENTS.md` (only when the working tree lacks it — a live copy is never
@@ -917,13 +917,13 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   missing store entirely. Ticket-scoped, not phase-scoped — a phase suffix is accepted and
   ignored. Chained by `init-branch`. On the kartoteka path, spec documents and images under the
   trail are never restored to disk — old spec copies and images stay in the context store until
-  `/artel:migrate-specs` moves them in (spec-storage.md §4.6, §7).
+  `/artel-migrate-specs` moves them in (spec-storage.md §4.6, §7).
 
 ### agents-md-generator
 
 - **Purpose:** Create or update minimal, high-signal `AGENTS.md` files for the host repo's root
   and confirmed nested modules, using progressive disclosure.
-- **Invocation:** `/artel:agents-md-generator`
+- **Invocation:** `/artel-agents-md-generator`
 - **Reads:** the host repo's manifests (`package.json`, `go.mod`, `pyproject.toml`,
   `pubspec.yaml`, …), docs, existing `AGENTS.md` files, package scripts/Makefile/CI; the
   skill's two bundled templates (root and module); the host's optional code-symbol index
@@ -944,7 +944,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Answer a person's question against the project's institutional-knowledge index —
   prior decisions and discussions, everything filed under a ticket, index freshness.
-- **Invocation:** `/artel:knowledge <query> | <ticket-id> | status [--source files|jira|bitbucket] [--type <type>] [--status <status>] [--artifacts]`
+- **Invocation:** `/artel-knowledge <query> | <ticket-id> | status [--source files|jira|bitbucket] [--type <type>] [--status <status>] [--artifacts]`
 - **Reads:** `.artel/config.json` (`knowledge.adapter`), `<specs.dir>/.active_ticket`; over MCP:
   `index_status`, `related`, `search_knowledge`, and `artifact_list` / `artifact_get` for a
   non-active ticket's trail history.
@@ -954,7 +954,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   applied to the conversation: one `index_status` probe, `related` on the canonical key (phase
   suffix stripped), unfiltered `search_knowledge` first, at most four searches, citations with
   the `⚠ NON-CURRENT` marker verbatim, retrieved text quoted never restated. Refuses with a
-  pointer to `/artel:setup` when `knowledge.adapter` is not `kartoteka`, and with the contract's
+  pointer to `/artel-setup` when `knowledge.adapter` is not `kartoteka`, and with the contract's
   "configured but not available" message when the MCP tools are absent — no override flag. The
   active ticket's own `## artifacts` block is named as a lagging mirror and never fetched.
 
@@ -962,7 +962,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Operate a ticket's kartoteka task queue from the conversation: list and diagnose,
   add, mark done or blocked, release a held task.
-- **Invocation:** `/artel:tasks list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]`
+- **Invocation:** `/artel-tasks list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]`
 - **Reads:** `.artel/config.json` (`knowledge.adapter`), `<specs.dir>/.active_ticket`,
   `<specs.dir>/<TICKET_ID>/tasklist.md` (and `phase-<N>/tasks.md` when present); over MCP:
   `task_list`, `task_create`, `task_update`.
@@ -985,7 +985,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 - **Purpose:** Move local spec trails into kartoteka, the spec store, and delete the local copies
   it verifiably holds.
-- **Invocation:** `/artel:migrate-specs [<ticket-id>… | --all] [--pending-only] [--no-prompt]`
+- **Invocation:** `/artel-migrate-specs [<ticket-id>… | --all] [--pending-only] [--no-prompt]`
 - **Reads:** `.artel/config.json`, `<specs.dir>/<TICKET_ID>/` (and `phase-<N>/`),
   `.artel/context/tickets/<TICKET_ID>/spec-trail/`, `.artel/run/<TICKET_ID>/spec-store.json`;
   over HTTP (`scripts/spec_store.py`): every stored version's hash.

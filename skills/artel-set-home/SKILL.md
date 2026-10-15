@@ -43,7 +43,7 @@ Target adapter: GitHub → `github-cli`; either Bitbucket → `bitbucket-mcp`.
 create a config:
 
 ```
-Error: No .artel/config.json. Run /artel:setup first.
+Error: No .artel/config.json. Run /artel-setup first.
 ```
 
 Target adapter `bitbucket-mcp` with an empty `vcs.mcpToolPrefix` → ask for the prefix (full,
@@ -77,7 +77,7 @@ idempotent, and a re-run must not build a chain of renamed remotes.
 5. Re-point the current branch's upstream when a branch of that name exists on the new remote:
    `git branch --set-upstream-to=origin/<branch> <branch>`. Leave it alone otherwise.
 
-Never any `--force` variant. Never delete a remote — the old one stays so `/artel:migrate-prs`
+Never any `--force` variant. Never delete a remote — the old one stays so `/artel-migrate-prs`
 can fetch the open PRs' source branches, and the operator removes it by hand when done.
 
 ## 6. Write the config
@@ -87,7 +87,7 @@ changes:
 
 - `vcs.adapter` → the target adapter.
 - `vcs.mcpToolPrefix` → **left exactly as it was** when the target is `github-cli`. That adapter
-  ignores the key, and `/artel:migrate-prs` needs it to address the old platform's MCP tools for
+  ignores the key, and `/artel-migrate-prs` needs it to address the old platform's MCP tools for
   reading. Clearing it would break the migration.
 - `tracker.adapter` is asked about **only** when it names the platform being left — i.e.
   `github-issues` while moving off GitHub. Moving Bitbucket → GitHub leaves `jira-mcp` untouched
@@ -99,7 +99,7 @@ changes:
 - A reminder that `.artel/config.json` is committed team configuration — commit it by hand.
 - When the old platform is Bitbucket, check for open pull requests
   (`<vcs.mcpToolPrefix>bitbucket_list_repo_prs`, state `OPEN`) and, if any exist, offer
-  `/artel:migrate-prs`.
+  `/artel-migrate-prs`.
 
 ## Rules
 

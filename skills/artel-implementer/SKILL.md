@@ -86,7 +86,7 @@ Implement the next incomplete task now, per your agent definition's workflow:
    not an error. If the task carries a `[HITL: …]` tag, STOP and
    return `HITL: <reason>` instead of implementing — the orchestrator owns that pause.
 2. Implement directly (no proposal step). Apply the task gate (`${ARTEL_ROOT}/docs/gates.md`
-   §1) through the verify loop (max MAX_VERIFY_ITERATIONS = 4) of the `/artel:inner-loop` skill:
+   §1) through the verify loop (max MAX_VERIFY_ITERATIONS = 4) of the `/artel-inner-loop` skill:
    `verify.fast` on the changed paths, then `verify.test` on the test files you touched and on
    the task's `Test:` files, touched or not; codegen
    when needed, then one more pass. The whole-tree gate is the orchestrator's checkpoint, not yours.
@@ -103,9 +103,9 @@ Implement the next incomplete task now, per your agent definition's workflow:
    queue wedges silently.
 
 For on-demand runtime checks: when a change's effect is unclear from tests alone and `runtime.run`
-(`${ARTEL_ROOT}/docs/config.md`) is configured, you may launch via the `/artel:run-app`
+(`${ARTEL_ROOT}/docs/config.md`) is configured, you may launch via the `/artel-run-app`
 skill flow to observe it. This is not the `RUNTIME_OK` completion gate — it's a debugging aid
-mid-task; `/artel:run-app --gate` remains the only mode the gate treats as authoritative.
+mid-task; `/artel-run-app --gate` remains the only mode the gate treats as authoritative.
 
 Deviations follow `${ARTEL_ROOT}/docs/deviation-protocol.md`: minor → conservative option, record,
 continue; major or unsure → halt and return a DEVIATION report instead of a completion.

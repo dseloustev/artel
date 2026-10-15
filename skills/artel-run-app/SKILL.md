@@ -7,7 +7,7 @@ model: sonnet
 
 Launch-and-observe orchestrator for the `RUNTIME_OK` gate. Config key: `runtime.run`
 (`${ARTEL_ROOT}/docs/config.md`, "runtime" section). Counterpart for UI driving:
-`/artel:drive-app` (requires `/artel:add-automation` applied first).
+`/artel-drive-app` (requires `/artel-add-automation` applied first).
 
 ## Arguments
 
@@ -70,5 +70,5 @@ requires gate-mode evidence, not merely an interactive run, or a recorded skip")
 
 ## Deep dives
 
-For UI driving (taps, text entry, screenshots — requires `/artel:add-automation` applied on the
-branch): `/artel:drive-app`.
+For UI driving (taps, text entry, screenshots — requires `/artel-add-automation` applied on the
+branch): `/artel-drive-app`.

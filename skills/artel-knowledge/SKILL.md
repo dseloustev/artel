@@ -22,8 +22,8 @@ Read `knowledge.adapter` and `knowledge.project` from `.artel/config.json`
 
 | `knowledge.adapter` | kartoteka MCP tools in session | Do |
 |---|---|---|
-| `none` / absent | either | Stop: "`knowledge.adapter` is not `kartoteka` for this project — declare it with `/artel:setup`." |
-| `kartoteka`, `knowledge.project` empty or malformed | either | Stop: "kartoteka is configured for this project but knowledge.project is not set — declare it with `/artel:setup`." |
+| `none` / absent | either | Stop: "`knowledge.adapter` is not `kartoteka` for this project — declare it with `/artel-setup`." |
+| `kartoteka`, `knowledge.project` empty or malformed | either | Stop: "kartoteka is configured for this project but knowledge.project is not set — declare it with `/artel-setup`." |
 | `kartoteka` | absent | Stop: "kartoteka is configured for this project but its MCP tools are not available in this session" |
 | `kartoteka` | present | Continue |
 | anything else | either | Stop: configuration error (config.md reading rule 3); name the value. |
@@ -87,7 +87,7 @@ returns nothing.
   it. On the kartoteka path (`${ARTEL_ROOT}/docs/spec-storage.md`) it *is* the trail:
   say so, and `--artifacts` lists it like any other ticket's.
 - Summarise the `## tasks` block as counts by status and point at
-  `/artel:tasks list <TICKET_ID>` for the rows.
+  `/artel-tasks list <TICKET_ID>` for the rows.
 - `--artifacts` on a **non-active** ticket adds
   `artifact_list(project=<project>, ticket_key=<TICKET_ID>)`; a follow-up that names a stage
   may `artifact_get(<project>, <TICKET_ID>, <stage>, <name>)`. On the active ticket the

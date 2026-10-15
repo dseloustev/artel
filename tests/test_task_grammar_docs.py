@@ -109,7 +109,7 @@ class TestGrammarContract(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Plan 2 of sub-project 2a: the analyst's requirements, the writers, the
 # reviewer's plan mode, gate 4.2, the dev-path check, sync-phases and
-# /artel:tasks add. Prompts have no code path, so a phrase dropped here fails a
+# /artel-tasks add. Prompts have no code path, so a phrase dropped here fails a
 # test instead of a run nobody is watching. Helpers carry a `_w_` prefix so they
 # never shadow a helper of plan 1's class above.
 # ---------------------------------------------------------------------------
@@ -567,7 +567,7 @@ class TestSyncPhasesCopiesTheIteration(unittest.TestCase):
 
 
 class TestTasksAddWritesATaskBlock(unittest.TestCase):
-    """Spec §7 and §8: `/artel:tasks add` writes in the tasklist's own format; the check runs
+    """Spec §7 and §8: `/artel-tasks add` writes in the tasklist's own format; the check runs
     before the row; `done` ticks a whole task block; `add --fix` is unchanged."""
 
     FLAGS = ('--iteration N [--files <paths>] [--depends <tasks>] [--route <route>]'

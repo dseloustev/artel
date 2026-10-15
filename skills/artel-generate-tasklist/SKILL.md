@@ -117,7 +117,7 @@ the document entering this context —
 `doc=$(python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/diagnosis.md) && printf '%s\n' "$doc" | python3 ${ARTEL_ROOT}/scripts/spec_store.py status`
 (files path: `python3 ${ARTEL_ROOT}/scripts/spec_store.py status < <specs.dir>/<TICKET_ID>/diagnosis.md`)
 — and put it on the line in brackets. A `DIAGNOSED_STRUCTURAL` diagnosis is never passed: print
-`This diagnosis is structural. Next: /artel:feature-development <TICKET_ID> --head=full` and
+`This diagnosis is structural. Next: /artel-feature-development <TICKET_ID> --head=full` and
 terminate.
 
 Use the `subagent` tool with:
@@ -164,7 +164,7 @@ and stop.
 `artel-tasklist-writer` agent; it re-reads its context files.
 
 **A raise ends the skill.** When the agent's return is a `RAISE:` line, print that line
-unchanged, then `Next: /artel:feature-development <TICKET_ID> --head=full`, and stop before
+unchanged, then `Next: /artel-feature-development <TICKET_ID> --head=full`, and stop before
 Phase 1b: nothing is checked, asked or written. `feature-development` reads the line and moves
 the ticket to its full head; run by hand, the second line says what to do.
 
@@ -284,7 +284,7 @@ When the agent returns its confirmation line, print it verbatim plus:
 - `Plan check: clean`, or each Critical and Important finding Phase 3's check reported, or
   `Plan check: not run (<error.kind>)`.
 - `Next: review the iterations and adjust order/scope before starting implementation. Use
-  /artel:sync-phases <TICKET_ID> to extract phase files when ready.`
+  /artel-sync-phases <TICKET_ID> to extract phase files when ready.`
 
 ## Important Rules
 

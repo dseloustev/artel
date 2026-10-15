@@ -57,7 +57,7 @@ prepended `<OPENCODE-HOST-NOTES>` glossary translating it to the v2 host:
 manual-only skill stays registered and loadable by id but leaves the model's skill list.
 The build replaces the braced install-root token with the install root; this doc names the
 token `$ARTEL_ROOT`, without braces, so the bake cannot rewrite its own explanation.
-`/artel:<name>` references become `artel-<name>`. A skill's other Markdown files —
+A skill's other Markdown files —
 `feature-development`'s `heads/*.md` and `tail.md`, templates, references — are generated next
 to its `SKILL.md`, baked the same way but with no frontmatter and no glossary: their reader
 already has the glossary through `SKILL.md`. A pointer into a skill's directory
@@ -111,7 +111,7 @@ names.)
 | `inner-loop` model-invocation guard | `disable-model-invocation: true` | `metadata.opencode/autoinvoke: false`: hidden from the model's skill list, still loadable by id |
 | A sketch on a question's option (`analysis`, `generate-vision`) | the option's `preview` field | the `question` tool has no such field: the sketch goes into the question text as a fenced block; a flow, structure or chart sketch is a `mermaid` block, which the OpenChamber client renders inline |
 | Knowledge-mirror context | injected after edits | side effect only (the mirror still runs) |
-| Invocation | `/artel:<name>` | `/artel-<name>` (command) or the `artel-<name>` skill |
+| Invocation | namespaced commands | `/artel-<name>` (command) or the `artel-<name>` skill |
 | MCP tool names | `mcp__<server>__<tool>` | `<server>_<tool>`, both halves sanitized, no `mcp__` prefix |
 
 ## kartoteka behind a token

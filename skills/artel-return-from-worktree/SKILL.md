@@ -8,7 +8,7 @@ model: sonnet
 
 ## Overview
 
-`return-from-worktree` is the way back from `/artel:move-to-worktree` (or `init-branch`'s
+`return-from-worktree` is the way back from `/artel-move-to-worktree` (or `init-branch`'s
 worktree option). The contract is `${ARTEL_ROOT}/docs/worktrees.md` §5–§6; the mechanics
 are `${ARTEL_ROOT}/scripts/worktree.py hand-back`, which always works on the **main
 checkout** and refuses to start inside the worktree — that directory is about to be deleted —
@@ -57,7 +57,7 @@ Ask once via the `question` tool (header `Hand back`):
 
 Only when the session is inside the worktree: call `ExitWorktree` with `action: "keep"`. If it
 reports that no worktree session is active — the session was started inside the worktree — stop
-without changes: "Run `/artel:return-from-worktree <TICKET_ID>` from a session in the main
+without changes: "Run `/artel-return-from-worktree <TICKET_ID>` from a session in the main
 checkout; this session's directory is about to be removed."
 
 **OpenCode:** there is no `ExitWorktree`. Inside a worktree, stop with the same message.

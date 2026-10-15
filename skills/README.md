@@ -1,7 +1,7 @@
 # skills/
 
 Workflow skills — one folder per skill, `SKILL.md` inside. Installed, they surface as
-`/artel:<name>`.
+`/artel-<name>`.
 
 All [porting-plan Phase 3](../docs/porting-plan.md#phase-3--stage-skills) stage, runtime-adapter
 and utility skills are in place, plus the

@@ -1,5 +1,5 @@
 """The debugging discipline: one contract (docs/debugging.md) and the places that follow it --
-the inner loop, the implementer, the fix-row writers, the reviewer and the /artel:debugging
+the inner loop, the implementer, the fix-row writers, the reviewer and the /artel-debugging
 skill -- plus the third-party notice for the text the contract adapts.
 
 Not a behaviour test: these are prompts, and there is no code path to exercise. Same guard as
@@ -74,7 +74,7 @@ class TestContract(unittest.TestCase):
         for phrase in ('an interface change', 'a design reversal', 'scope growth',
                        'Three failed fixes are structural too', '§2 **Major**',
                        '[deviation-protocol.md](deviation-protocol.md) §4',
-                       '/artel:issue-draft'):
+                       '/artel-issue-draft'):
             self.assertIn(phrase, structural)
 
     def test_secrets_rule_names_kartoteka_documents(self):
@@ -85,7 +85,7 @@ class TestContract(unittest.TestCase):
     def test_where_it_applies(self):
         table = self.section('## 7. Where this applies in artel')
         for reader in ('skills/artel-inner-loop', 'agents/artel-implementer.md', 'agents/artel-reviewer.md',
-                       '/artel:debugging'):
+                       '/artel-debugging'):
             self.assertIn(reader, table)
 
     def test_no_placeholders(self):
@@ -231,8 +231,8 @@ class TestSkill(unittest.TestCase):
             self.assertIn(phrase, self.doc)
 
     def test_structural_hands_off_to_issue_draft(self):
-        for phrase in ('/artel:issue-draft <the report> --type bug',
-                       '/artel:issue-draft <the report> --type task', 'the `question` tool'):
+        for phrase in ('/artel-issue-draft <the report> --type bug',
+                       '/artel-issue-draft <the report> --type task', 'the `question` tool'):
             self.assertIn(phrase, self.doc)
 
     def test_footprint(self):
@@ -258,7 +258,7 @@ class TestReleaseDocs(unittest.TestCase):
         self.assertIn('### debugging', doc)
         entry = doc.split('### debugging', 1)[1].split('### ', 1)[0]
         for field in ('**Purpose:**',
-                      '**Invocation:** `/artel:debugging [symptom | failing test | error text]'
+                      '**Invocation:** `/artel-debugging [symptom | failing test | error text]'
                       ' or <ticket-id> --diagnose [--local]`',
                       '**Reads:**', '**Writes:**', '**Pauses:**', '**Notes:**'):
             self.assertIn(field, entry)

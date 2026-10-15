@@ -262,7 +262,7 @@ class TestMigrateSpecsSkill(unittest.TestCase):
             self.assertIn(kept, self.text)
 
     def test_routed_and_referenced(self):
-        self.assertIn('/artel:migrate-specs', (ROOT / 'skills/artel-using-artel/SKILL.md').read_text())
+        self.assertIn('/artel-migrate-specs', (ROOT / 'skills/artel-using-artel/SKILL.md').read_text())
         self.assertIn('\n### migrate-specs\n', (ROOT / 'docs/skills-reference.md').read_text())
 
     def test_no_prompt_runs_apply_headless_and_only_deletes_pending(self):

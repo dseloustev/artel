@@ -1,6 +1,6 @@
 ---
 name: artel-save-context
-description: "Save the working context — root AGENTS.md/CHANGELOG.md plus every ticket's <specs.dir>/<TICKET_ID>/ spec trail — into the host-writable .artel/context/ store (newer wins), then clear the working-tree spec trail and CHANGELOG.md; AGENTS.md is mirrored but stays in the working tree. Use to declutter or archive the working tree before a branch switch or cleanup; bring everything back with /artel:restore-context."
+description: "Save the working context — root AGENTS.md/CHANGELOG.md plus every ticket's <specs.dir>/<TICKET_ID>/ spec trail — into the host-writable .artel/context/ store (newer wins), then clear the working-tree spec trail and CHANGELOG.md; AGENTS.md is mirrored but stays in the working tree. Use to declutter or archive the working tree before a branch switch or cleanup; bring everything back with /artel-restore-context."
 disable-model-invocation: true
 model: sonnet
 ---
@@ -19,7 +19,7 @@ home of these workflow files once saved.
 committed. Skills run with the host repo as their working directory, so every path below is a
 plain repo-relative path — no toplevel lookup needed.
 
-**With kartoteka as the spec store** (`${ARTEL_ROOT}/docs/spec-storage.md`), `<specs.dir>/<TICKET_ID>/` holds gate evidence text, plus any images a failed sweep left behind, and `.active_ticket` is the only pointer: those are saved exactly as below, and the spec documents — which live in kartoteka — are neither saved nor needed here. Old spec copies already in the store are moved into kartoteka by `/artel:migrate-specs`.
+**With kartoteka as the spec store** (`${ARTEL_ROOT}/docs/spec-storage.md`), `<specs.dir>/<TICKET_ID>/` holds gate evidence text, plus any images a failed sweep left behind, and `.active_ticket` is the only pointer: those are saved exactly as below, and the spec documents — which live in kartoteka — are neither saved nor needed here. Old spec copies already in the store are moved into kartoteka by `/artel-migrate-specs`.
 
 ```
 .artel/context/

@@ -5,7 +5,7 @@ argument-hint: "[pr-id ...]"
 model: sonnet
 ---
 
-Worker, not an orchestrator — it runs inline. Run it **after** `/artel:set-home` has pointed the
+Worker, not an orchestrator — it runs inline. Run it **after** `/artel-set-home` has pointed the
 project at GitHub. Re-runnable by construction: every step checks for its own result first, so a
 partial run is resumed by running it again.
 
@@ -17,11 +17,11 @@ platforms' PR models differ enough that a symmetric skill would be speculative.
 All three, each with its own message, none recoverable by guessing:
 
 - `vcs.adapter` is `github-cli` — otherwise:
-  `Error: This project's home is not GitHub yet. Run /artel:set-home <github-url> first.`
+  `Error: This project's home is not GitHub yet. Run /artel-set-home <github-url> first.`
 - `vcs.mcpToolPrefix` is non-empty and its tools are reachable — otherwise:
   `Error: The Bitbucket MCP tools are not reachable (vcs.mcpToolPrefix: "<prefix>"). The open PRs cannot be read without them.`
 - A remote pointing at Bitbucket exists (`git remote -v`) — otherwise:
-  `Error: No remote points at Bitbucket. /artel:set-home keeps the old remote for exactly this step; re-add it by hand to continue.`
+  `Error: No remote points at Bitbucket. /artel-set-home keeps the old remote for exactly this step; re-add it by hand to continue.`
 
 `gh auth status` must also pass — otherwise:
 `Error: gh is not authenticated. Run gh auth login and re-run; nothing has been pushed or created.`

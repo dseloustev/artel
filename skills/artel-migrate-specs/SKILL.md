@@ -30,7 +30,7 @@ the ticket directory: `design/`, `runtime/`, `phase-<N>/runtime/`, anywhere.
     pass --all."
 - **Gate**: `knowledge.adapter` must be `kartoteka` (`.artel/config.json`). Otherwise stop:
   "This project keeps its spec trail as files (knowledge.adapter is <value>); there is nothing to
-  migrate to." — and point at `/artel:setup`.
+  migrate to." — and point at `/artel-setup`.
 - `--pending-only` limits the run to documents saved locally during an outage (the decision
   file's `pending`). Orchestrators pass it on resume. Images are never pending, so such a run
   touches none.

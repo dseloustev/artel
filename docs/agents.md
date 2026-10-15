@@ -3,7 +3,7 @@
 The crew — one `.md` per agent (frontmatter + system prompt): analyst, figma-analyst, researcher,
 planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, qa, validator,
 tech-writer, issue-scout (context for `issue-draft`, outside the pipeline), collaborative-reviewer
-(the read-only analysis worker behind `/artel:collaborative-review`, outside the pipeline), seat
+(the read-only analysis worker behind `/artel-collaborative-review`, outside the pipeline), seat
 (the orchestrator's tail one layer down, dispatched by `feature-development` when `seat.enabled` —
 autonomous-run.md §18; never routed to directly).
 

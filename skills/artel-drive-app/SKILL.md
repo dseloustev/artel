@@ -1,11 +1,11 @@
 ---
 name: artel-drive-app
-description: "Drive the running app's UI via the host's configured runtime.drive command (navigate, tap, enter text, screenshot, verify — however the host implements it) and record evidence to the ticket dir. Requires the automation scaffold applied via /artel:add-automation. Interactive counterpart to /artel:run-app; the RUNTIME_OK gate never uses this skill. Absent/empty runtime.drive reports not configured."
+description: "Drive the running app's UI via the host's configured runtime.drive command (navigate, tap, enter text, screenshot, verify — however the host implements it) and record evidence to the ticket dir. Requires the automation scaffold applied via /artel-add-automation. Interactive counterpart to /artel-run-app; the RUNTIME_OK gate never uses this skill. Absent/empty runtime.drive reports not configured."
 argument-hint: ""
 ---
 
 Drive-and-verify orchestrator for agent UI interaction. Config key: `runtime.drive`
-(`${ARTEL_ROOT}/docs/config.md`, "runtime" section). `/artel:run-app --gate`
+(`${ARTEL_ROOT}/docs/config.md`, "runtime" section). `/artel-run-app --gate`
 (observation-only) is unaffected — the `RUNTIME_OK` pipeline gate never uses this skill.
 
 ## 1. Preflight
@@ -17,13 +17,13 @@ Drive-and-verify orchestrator for agent UI interaction. Config key: `runtime.dri
    only the `runtime.scaffold.add`/`remove` commands, never their artifacts). Running
    `runtime.drive` is the check: a host script should fail cleanly, with a message pointing at the
    missing scaffold, when it isn't applied. If that happens, relay the failure and tell the caller
-   to run `/artel:add-automation` first — this skill never applies the scaffold itself.
+   to run `/artel-add-automation` first — this skill never applies the scaffold itself.
 
 ## 2. Drive
 
 Run `runtime.drive` via `shell` with a bounded timeout generous enough for the host's full drive
 sequence (navigation, interaction, verification). Capture `{command, exit_code, output}`
-(stdout+stderr, truncated if huge) — the same evidence shape `/artel:run-app` and
+(stdout+stderr, truncated if huge) — the same evidence shape `/artel-run-app` and
 `${ARTEL_ROOT}/skills/artel-inner-loop/SKILL.md` use. Exit `0` ⇒ verified; non-zero ⇒ not
 verified, quoting the captured output.
 
@@ -50,9 +50,9 @@ No active ticket → report inline instead.
 
 Report the verdict to the caller. Whether the app stays running and how to stop it is whatever the
 host's `runtime.drive` command leaves behind — this skill has no generic status/stop primitive to
-offer (same limitation as `/artel:run-app`).
+offer (same limitation as `/artel-run-app`).
 
 ## Deep dives
 
-Observation-only gate checks: `/artel:run-app`. Applying/removing the automation scaffold:
-`/artel:add-automation` / `/artel:remove-automation`.
+Observation-only gate checks: `/artel-run-app`. Applying/removing the automation scaffold:
+`/artel-add-automation` / `/artel-remove-automation`.

@@ -1,6 +1,6 @@
 ---
 name: artel-add-automation
-description: "Apply the transient agent UI-automation scaffold to the current branch by running the host's configured runtime.scaffold.add command, verify with verify.fast, and commit exactly the files it changed. Opt-in per task; undone by /artel:remove-automation before merge. Use when the user decides a task needs the agent to run and drive the app itself."
+description: "Apply the transient agent UI-automation scaffold to the current branch by running the host's configured runtime.scaffold.add command, verify with verify.fast, and commit exactly the files it changed. Opt-in per task; undone by /artel-remove-automation before merge. Use when the user decides a task needs the agent to run and drive the app itself."
 argument-hint: ""
 disable-model-invocation: true
 model: sonnet
@@ -8,7 +8,7 @@ model: sonnet
 
 Applies the **transient committed-lane artifacts** for agent UI driving, via the host's
 `runtime.scaffold.add` command (`${ARTEL_ROOT}/docs/config.md`, "runtime" section).
-Counterpart: `/artel:remove-automation`. The pair is idempotent and cycles freely on one branch
+Counterpart: `/artel-remove-automation`. The pair is idempotent and cycles freely on one branch
 (add → verify → remove → PR feedback → add again → …) as long as `runtime.scaffold.add` and
 `runtime.scaffold.remove` are themselves safe to re-run — the same expectation `verify.commands`
 carries (config.md).
@@ -74,7 +74,7 @@ paths before reporting success.
 ## 6. Report
 
 - Commit hash + the changed paths (from step 4.1).
-- Reminder: `/artel:drive-app` is now available (subject to its own `runtime.drive`
-  configuration); run `/artel:remove-automation` before merge —
+- Reminder: `/artel-drive-app` is now available (subject to its own `runtime.drive`
+  configuration); run `/artel-remove-automation` before merge —
   `${ARTEL_ROOT}/agents/artel-validator.md` reports the `AUTOMATION_REMOVED` gate red while the
   scaffold is applied.

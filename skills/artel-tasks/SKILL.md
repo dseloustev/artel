@@ -32,8 +32,8 @@ implementer's repair (`docs/task-queue.md` §3, §5).
 
 | `knowledge.adapter` | kartoteka MCP tools in session | Do |
 |---|---|---|
-| `none` / absent | either | Stop: "`knowledge.adapter` is not `kartoteka` for this project — declare it with `/artel:setup`." |
-| `kartoteka`, `knowledge.project` empty or malformed | either | Stop: "kartoteka is configured for this project but knowledge.project is not set — declare it with `/artel:setup`." |
+| `none` / absent | either | Stop: "`knowledge.adapter` is not `kartoteka` for this project — declare it with `/artel-setup`." |
+| `kartoteka`, `knowledge.project` empty or malformed | either | Stop: "kartoteka is configured for this project but knowledge.project is not set — declare it with `/artel-setup`." |
 | `kartoteka` | absent | Stop: "kartoteka is configured for this project but its MCP tools are not available in this session" |
 | `kartoteka` | present | Continue |
 | anything else | either | Stop: configuration error (config.md reading rule 3); name the value. |
@@ -94,7 +94,7 @@ operation — never with `read`/`write`/`edit` or a shell file command.
 the argument hint and stop.
 
 1. **Tasklist in scope**: `<specs.dir>/<TICKET_ID>/tasklist.md`. Missing → stop (kartoteka path: `spec_store.py exists`): "no tasklist
-   for <TICKET_ID>; create one with `/artel:tasklist` or `/artel:generate-tasklist`, or pass
+   for <TICKET_ID>; create one with `/artel-tasklist` or `/artel-generate-tasklist`, or pass
    `--raw` for a bare backlog row". `--iteration` missing (and no `--fix`), or iteration `N`
    absent → stop and list the `## Iteration N:` / `## Phase N:` headings the file has.
    **Format** (`${ARTEL_ROOT}/docs/task-grammar.md` §4): any `### Task <N>.<m>:` heading
@@ -189,9 +189,9 @@ with any of them → print the argument hint and stop.
    carries a phase suffix — the file the implementer scans for that section on a phase-scoped
    run — else `<specs.dir>/<TICKET_ID>/tasklist.md`.
    Missing → stop (kartoteka path: `spec_store.py exists`). For `tasklist.md`: "no tasklist for <TICKET_ID>; create one with
-   `/artel:tasklist` or `/artel:generate-tasklist`". For a phase file: "no
+   `/artel-tasklist` or `/artel-generate-tasklist`". For a phase file: "no
    `phase-<PHASE_NUM>/tasks.md` for <TICKET_ID>-<PHASE_NUM>; extract it with
-   `/artel:sync-phases <TICKET_ID>-<PHASE_NUM>`, or drop the phase suffix to add the fix to
+   `/artel-sync-phases <TICKET_ID>-<PHASE_NUM>`, or drop the phase suffix to add the fix to
    `tasklist.md`".
 2. **Append the checkbox** — `- [ ] <title>`, with ` [HITL: <reason>]` appended when `--hitl`
    was given — under the source heading `### manual-<YYYY-MM-DD>` (`### manual-p<N>-<YYYY-MM-DD>`

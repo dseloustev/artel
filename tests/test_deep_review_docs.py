@@ -158,7 +158,7 @@ class TestRetiredNames(unittest.TestCase):
 
     def test_crew_doc_and_router_know_the_skill(self):
         self.assertNotIn('review-forecaster', read('docs/agents.md'))
-        self.assertIn('/artel:deep-review <ticket> [branch] [pr-link] [--local]',
+        self.assertIn('/artel-deep-review <ticket> [branch] [pr-link] [--local]',
                       read('skills/artel-using-artel/SKILL.md'))
 
     def test_reviewer_no_longer_calls_it_a_dual_pass(self):

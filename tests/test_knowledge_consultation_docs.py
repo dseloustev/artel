@@ -86,7 +86,7 @@ class LocalFlagSpelling(unittest.TestCase):
             with self.subTest(name):
                 hint = argument_hint(rel)
                 self.assertIsNotNone(hint, 'skill has an argument-hint')
-                self.assertEqual(f'- **Invocation:** `/artel:{route} {hint}`',
+                self.assertEqual(f'- **Invocation:** `/artel-{route} {hint}`',
                                  invocation_line(route))
 
     def test_no_near_miss_spellings_anywhere(self):

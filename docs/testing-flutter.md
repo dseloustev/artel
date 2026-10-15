@@ -42,13 +42,13 @@ In the Flutter project's Claude Code session:
 /plugin install artel@artel
 ```
 
-**Expected:** install succeeds; typing `/artel:` offers the namespaced skills
-(`/artel:feature-development`, `/artel:setup`, `/artel:analysis`, …). If the
+**Expected:** install succeeds; typing `/artel-` offers the skills
+(`/artel-feature-development`, `/artel-setup`, `/artel-analysis`, …). If the
 skills don't appear, restart the session once — hooks and skills register at session start.
 
 ## 3. Configure for Flutter
 
-Run `/artel:setup` and answer the interview, or write `.artel/config.json` yourself. A known-good
+Run `/artel-setup` and answer the interview, or write `.artel/config.json` yourself. A known-good
 Flutter configuration for a local-only test (no tracker, GitHub for PRs):
 
 ```json
@@ -133,8 +133,8 @@ Write a small description file, e.g. `ticket.md`:
 Then seed the ticket and run the PRD interview:
 
 ```
-/artel:generate-idea FLT-1 ticket.md
-/artel:analysis FLT-1
+/artel-generate-idea FLT-1 ticket.md
+/artel-analysis FLT-1
 ```
 
 **Expected:** `generate-idea` (under `tracker.adapter: "none"`) builds
@@ -148,7 +148,7 @@ changes.
 ### 4.2 Dry run of the full pipeline
 
 ```
-/artel:feature-development FLT-1 --dry-run
+/artel-feature-development FLT-1 --dry-run
 ```
 
 **Expected:** the chatty head runs (PRD already exists → skipped; vision checkpoint; silent
@@ -172,8 +172,8 @@ documented escape hatch.
 ### 4.4 The lean head end to end
 
 ```
-/artel:init-branch FLT-1
-/artel:feature-development FLT-1 --head=lean
+/artel-init-branch FLT-1
+/artel-feature-development FLT-1 --head=lean
 ```
 
 **Expected:** `init-branch` (an optional convenience — the pipeline runs on any feature branch)
@@ -201,7 +201,7 @@ session-end attempt is blocked by the run stop gate.
 Reset the scratch repo (or make a second ticket `FLT-2` with a new description) and:
 
 ```
-/artel:feature-development FLT-2 ticket2.md
+/artel-feature-development FLT-2 ticket2.md
 ```
 
 (No manual `generate-idea` this time — passing the description file lets gate 0 seed `idea.md`
@@ -235,7 +235,7 @@ substitutes the paths into `verify.fast`'s `{files}` token.
 
 | Check | Where |
 |---|---|
-| Skills appear under the `artel:` namespace | `/artel:` completion |
+| Skills appear under the `artel-` prefix | `/artel-` completion |
 | Config + `.gitignore` entries written once, by `setup` | `.artel/config.json`, `.gitignore` |
 | Spec trail only under `specs/.current/<TICKET>/` | 4.1–4.5 |
 | Run state only under `.artel/run/` (gitignored) | 4.2, 4.4, 4.5 |
@@ -259,7 +259,7 @@ Then delete the scratch project, or keep it — `.artel/config.json` is inert wi
 
 | Symptom | Likely cause / fix |
 |---|---|
-| `/artel:*` skills missing after install | Restart the Claude Code session; confirm `/plugin` lists artel as installed. |
+| `/artel-*` skills missing after install | Restart the Claude Code session; confirm `/plugin` lists artel as installed. |
 | Hooks silent in 4.3 | Hooks are inert until `.artel/config.json` exists and `verify.fast` is non-empty; also check `python3` is on the PATH Claude Code runs with. |
 | `verify.py` exits `2` with `command_not_found`/`spawn_failed` | `flutter`/`dart` not on the hook shell's PATH — launch Claude Code from a shell where they resolve. |
 | Checkpoint stops on "push rejected / no origin" | Expected without a remote — add a scratch `origin` or accept the stop-and-ask. |

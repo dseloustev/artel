@@ -4,7 +4,8 @@ command wrapper. Guards the zero-regression promise by asserting what the
 generated files contain (and omit).
 
 Docs-style guard, same family as tests/test_using_artel_docs.py: a generated or
-installed file that still says `${ARTEL_ROOT}` or `/artel:` breaks in a
+installed file that still says `${ARTEL_ROOT}`, or uses the old
+`/artel:` namespace, breaks in a
 session nobody is watching.
 """
 import os
@@ -291,7 +292,7 @@ class TestCompanionFiles(BuildBase):
                 self.assertNotIn('${ARTEL_ROOT}', text)
                 self.assertNotRegex(text, r'/artel:[a-z0-9-]')
                 self.assertIn(docs, text)
-        self.assertIn('Next: artel-feature-development <TICKET_ID> --head=full',
+        self.assertIn('Next: /artel-feature-development <TICKET_ID> --head=full',
                       self.part('heads/lean.md'))
 
     def test_they_get_no_frontmatter(self):

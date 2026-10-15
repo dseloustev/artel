@@ -27,8 +27,8 @@ spike.md         diagnosis.md
 ```
 
 `spike.md` is the researcher's answer to a ticket that asks a question
-(`/artel:researcher --question`); `diagnosis.md` is a bug ticket's cause, written by
-`/artel:debugging --diagnose`. Both are ticket-wide only: neither is ever written under
+(`/artel-researcher --question`); `diagnosis.md` is a bug ticket's cause, written by
+`/artel-debugging --diagnose`. Both are ticket-wide only: neither is ever written under
 `phase-<N>/`.
 
 **And every image file under the trail**, at any depth: `design/`, `runtime/`,
@@ -130,7 +130,7 @@ row 9 does.
   `base_version`;
 - `files_base` — optional: the `versions` a files decision froze, carried on by later
   `decide`s while that run's documents are still on disk. It is the version each local copy
-  was edited from, and `/artel:migrate-specs` reads it (after `pending`, before a standing
+  was edited from, and `/artel-migrate-specs` reads it (after `pending`, before a standing
   files decision's own `versions`) to tell a `successor` from a `conflict`. A plain `decide`
   at resume replaces the files decision, so without it every locally edited document would be
   judged against a listing taken long after those copies were made. `migrate apply` drops it
@@ -267,7 +267,7 @@ kartoteka, which then stores the block unread and checks nothing.
 - **Documents written before the header** have none. Nothing migrates them. A document gains its
   header the next time it is rewritten (a put), not when it is patched.
 - **On the files path** a new document says `version: 0`, and an edit never changes the line.
-  `/artel:migrate-specs` reads it to tell a successor from a copy the store has moved past (§7).
+  `/artel-migrate-specs` reads it to tell a successor from a copy the store has moved past (§7).
 
 ## 4. Operations
 
@@ -489,7 +489,7 @@ Before any spec document is read, when §2.1 answers unavailable, ask (the `ques
 - **Work locally for this run** — record it with
   `decide <TICKET_ID> --decided-by <you> --files "kartoteka unavailable; working locally at the user's request — <record>"`,
   and use the files path for the rest of the run, renewing the decision with the same `--files`
-  (§2.2). `/artel:migrate-specs` moves the documents in later.
+  (§2.2). `/artel-migrate-specs` moves the documents in later.
 - **Abort** — stop; nothing written.
 
 **Documents known to be stored are protected.** When the decision's `versions` names a document
@@ -518,11 +518,11 @@ Re-run `decide` — the one place a files decision is re-probed. Read the standi
 first (`spec_store.py decision <TICKET_ID>`): a successful re-probe replaces it, reason and all.
 When the store is back:
 
-- `pending` files are moved in by `/artel:migrate-specs <TICKET_ID> --pending-only`: uploaded,
+- `pending` files are moved in by `/artel-migrate-specs <TICKET_ID> --pending-only`: uploaded,
   verified and deleted without asking. Permission to keep them was for the outage only.
 - A run that worked locally (§5.1) is asked once, before any document is read or written:
   **Move this run's documents into kartoteka and continue there** (recommended; runs
-  `/artel:migrate-specs <TICKET_ID>`) or **Keep working locally**, which renews the files
+  `/artel-migrate-specs <TICKET_ID>`) or **Keep working locally**, which renews the files
   decision with `decide <TICKET_ID> --decided-by <you> --files "<its reason>"`.
 
 When the store is still down, §5.2 applies again, without the save option.
@@ -536,13 +536,13 @@ the `question` tool does not exist under `-p`. `specs.onUnavailable` (`docs/conf
 | Unavailable at start | stop; journal it | work locally (§5.1) |
 | Unavailable mid-run, document unsaved | pause without saving; journal the loss | save it locally and pause |
 | Resume with `pending` | move them in (§5.3) | same |
-| Resume of a local run, store back | keep working locally; the final report names `/artel:migrate-specs` | same |
-| Local trail found at start (§7) | stop and name `/artel:migrate-specs` | same |
+| Resume of a local run, store back | keep working locally; the final report names `/artel-migrate-specs` | same |
+| Local trail found at start (§7) | stop and name `/artel-migrate-specs` | same |
 
 ### 5.5 Completion
 
 A run that finished on the files path lists the documents left on disk and the command that
-moves them in: `/artel:migrate-specs <TICKET_ID>`.
+moves them in: `/artel-migrate-specs <TICKET_ID>`.
 
 ### 5.6 Images
 
@@ -614,14 +614,14 @@ and its images that git tracks under the trail or that sit in that context copy.
 under the trail are the sweep's (§4.6), not a local trail, so a resume after a failed sweep asks
 nothing; `restore-context` leaves the context copy's images where they are. Finding any, ask:
 
-- **Move them into kartoteka** (recommended) — runs `/artel:migrate-specs <TICKET_ID>`, then
+- **Move them into kartoteka** (recommended) — runs `/artel-migrate-specs <TICKET_ID>`, then
   continue.
 - **Work locally for this run.**
 - **Abort.**
 
 Headless: stop (§5.4).
 
-`/artel:migrate-specs [<TICKET_ID>… | --all]` compares each local copy's hash with every stored
+`/artel-migrate-specs [<TICKET_ID>… | --all]` compares each local copy's hash with every stored
 version. **Each distinct local copy is one item**: where a document's working-tree copy and its
 `.artel/context` copy differ, each is classified, reported and settled on its own.
 

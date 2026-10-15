@@ -271,7 +271,7 @@ creates one that way; §6, "Why never offer them", says why.
 
 **No holder.** Only a `task_ready` claim sets a row's holder, so an
 `in_progress` fix row names none: `actor` stays empty and `updated_at` says when
-the work started. `/artel:tasks list` shows it that way rather than inventing one.
+the work started. `/artel-tasks list` shows it that way rather than inventing one.
 
 **A HITL fix task is never claimable,** so the reason above for keeping a HITL
 iteration task claimable — a child never completed deadlocks promotion — does not
@@ -350,7 +350,7 @@ per checkbox, and `task_ready` never hands one out.
 **Why record them.** They are where the longest-running part of a review cycle
 happens. On a host run on 2026-09-18 a deep review appended 21 tasks under
 `## Code Review Fixes`, and the implementer completed nine of them over several
-hours while `/artel:tasks list` reported the queue drained. The queue is where
+hours while `/artel-tasks list` reported the queue drained. The queue is where
 people look to see what an agent is doing, and that work never became searchable
 history either.
 
@@ -368,9 +368,9 @@ file stays their source of truth on every path.
 `VF:`, `FV:`) is `backlog` while any child is open, `done` when its last child is
 `done`, and `backlog` again the moment a writer appends to its section. The
 implementer that marks the last child `done` marks the parent `done` in the same
-exit (§3, `close`); `/artel:tasks done` does the same; every writer in the table
+exit (§3, `close`); `/artel-tasks done` does the same; every writer in the table
 below (`run-reviewer`, `deep-review`, the runtime gate, the checkpoint,
-`/artel:tasks add --fix`) sets an existing parent back to `backlog` when its
+`/artel-tasks add --fix`) sets an existing parent back to `backlog` when its
 re-mirror creates a new child under it — `task_create` is idempotent and returns
 the stored parent row with its status, so `task_update(parent, status="backlog")`
 follows whenever that status is `done`. Before 0.18.0 parents were permanent
@@ -394,11 +394,11 @@ middle segment, the way an iteration's `### ` section is:
 | `deep-review` Step 6 | `### deep-review-<YYYY-MM-DD>` |
 | runtime gate — gate 8 (`tail.md`) | `### runtime-r<n>`, n the retry this round is — `### runtime-p<N>-r<n>` on a phase-scoped run |
 | phase checkpoint — `tail.md` `## Checkpoint commits & pushes` | `### checkpoint-r<k>`, k the verify round — `### checkpoint-p<N>-r<k>` on a phase-scoped run |
-| `/artel:tasks add --fix` | `### manual-<YYYY-MM-DD>` — `### manual-p<N>-<YYYY-MM-DD>` in a phase file |
+| `/artel-tasks add --fix` | `### manual-<YYYY-MM-DD>` — `### manual-p<N>-<YYYY-MM-DD>` in a phase file |
 
 Dates come from `date +%F`, never from memory. A writer starting a batch never
 reuses a heading already in the section: it appends `-2`, then `-3`, …
-(`review-r1-2`). The one exception is `/artel:tasks add --fix`, whose additions
+(`review-r1-2`). The one exception is `/artel-tasks add --fix`, whose additions
 on one day are one batch. A box's source is the nearest `###` heading above it
 in its section, whatever that heading says — a fix task written before 0.15.0
 under a `### Blocking` or `### Tasks` takes that heading as its source. A box with
@@ -413,7 +413,7 @@ prefix again. Priority goes in the task text (`**Task N (Blocking): …**`) or u
 `####` heading, which the parser ignores as a source.
 
 The checkbox text is the title's third segment **verbatim**, bold markers
-included, because `/artel:tasks done` flips the box whose text is everything after
+included, because `/artel-tasks done` flips the box whose text is everything after
 the title's second ` · `. Lines nested under a checkbox — its body, its
 acceptance criteria, an indented sub-step — go to the row's description, never
 its title. A title runs to 500 characters at most: the script cuts a longer one

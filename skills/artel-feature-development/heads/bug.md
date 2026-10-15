@@ -50,6 +50,6 @@ file: go to `SKILL.md` step 5, whose run-start entry records
 finished work list, and it stops this head as it stops the lean one. There is nothing to
 diagnose again and nothing to confirm: do not go on to `SKILL.md` step 5. Print
 
-    This ticket's work list is complete: nothing was planned and the run is not armed. For follow-up work, add tasks to the work list (/artel:tasks add <TICKET_ID> "<title>" --iteration <N>, or by hand) and run this again, or open a new ticket.
+    This ticket's work list is complete: nothing was planned and the run is not armed. For follow-up work, add tasks to the work list (/artel-tasks add <TICKET_ID> "<title>" --iteration <N>, or by hand) and run this again, or open a new ticket.
 
 and stop, in every mode.

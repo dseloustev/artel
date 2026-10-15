@@ -115,7 +115,7 @@ class WorktreeContractCase(unittest.TestCase):
         reference = read('docs/skills-reference.md')
         for name in NEW_SKILLS:
             self.assertIn('\n### {}\n'.format(name), reference, name)
-            self.assertIn('/artel:{} [ticket-id]'.format(name), reference, name)
+            self.assertIn('/artel-{} [ticket-id]'.format(name), reference, name)
 
 
 if __name__ == '__main__':

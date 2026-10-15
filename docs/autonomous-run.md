@@ -233,7 +233,7 @@ loop findings — immediate stop-and-ask pointing at setup.
 
 ## 6. `--step` compatibility flag
 
-`/artel:feature-development --step` enables per-gate confirmations instead of
+`/artel-feature-development --step` enables per-gate confirmations instead of
 the autonomous default — confirm between major phases, per-task implementer approval. No
 `run-state.json` is written in step mode and the Stop hook stays disarmed.
 
@@ -257,7 +257,7 @@ docs stage runs only with one) and `AUTOMATION_REMOVED`; the table is in the
 `artel-feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Completion gate`). A
 fact that reads `skipped` is green. Those readings are keyed on what exists for the ticket,
 never on the head that ran. No
-agent is dispatched: `/artel:validate` is à la carte. The final report always includes the
+agent is dispatched: `/artel-validate` is à la carte. The final report always includes the
 aggregated `Deviations:` line (per the deviation protocol) and the loop counters.
 
 ## 8. Stop hook interplay
@@ -357,7 +357,7 @@ A budget breach or guardrail trip is journaled before the run stops.
 ## 12. Headless invocation
 
 ```bash
-claude -p "/artel:feature-development <TICKET_ID> --mode=yolo" --output-format stream-json --verbose
+claude -p "/artel-feature-development <TICKET_ID> --mode=yolo" --output-format stream-json --verbose
 ```
 
 - Requires a curated tool/command permissions allowlist (Claude Code settings) — never a
@@ -371,7 +371,7 @@ claude -p "/artel:feature-development <TICKET_ID> --mode=yolo" --output-format s
   `paused (deviation-escalation) → auto-resolved`; **HITL tags** and **cap escalations** are never
   auto-resolved — journal the entry, set the `pause_reason`, and stop. A stalled headless run on a
   HITL/cap pause is the guardrail working; resume it interactively.
-- Spec store unavailability follows `specs.onUnavailable` (spec-storage.md §5.4): `"abort"` stops (journaled), `"local"` works locally; a local trail found at start always stops and names `/artel:migrate-specs`.
+- Spec store unavailability follows `specs.onUnavailable` (spec-storage.md §5.4): `"abort"` stops (journaled), `"local"` works locally; a local trail found at start always stops and names `/artel-migrate-specs`.
 - Sizing (§17) never pauses, so it needs no answer: the size line goes to the output and into
   `sizing.json`, and the run-start journal entry repeats it. Two outcomes end a headless run
   unarmed: a spike prints its answer and stops, and a `NOT_REPRODUCED` diagnosis prints the

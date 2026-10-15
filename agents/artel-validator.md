@@ -89,7 +89,7 @@ report for a ticket someone else ran.
 | RUNTIME_OK | The host's runtime-gate evidence (produced by the `artel-run-app` skill), phase-scoped when validating a phase with the ticket-wide file as read-only fallback. Green requires gate-mode evidence, not merely an interactive run, or a recorded skip. `runtime.run` (config.md) absent or empty ⇒ recorded `skipped`; missing runtime configuration never blocks a run. |
 | CHECKPOINT_OK | The final gate (`${ARTEL_ROOT}/docs/gates.md` §1): the last checkpoint entry in `.artel/run/<TICKET_ID>/run-journal.md` is green and no file matching `verify.surface` changed since its commit. |
 | DOCS_UPDATED | Summary document exists |
-| AUTOMATION_REMOVED | The transient scaffold artifacts introduced by the host's `runtime.scaffold.add` command (config.md) are gone — i.e. `runtime.scaffold.remove` was run (`/artel:remove-automation`) before merge. Red = the scaffold is still present. Ticket-wide, phase-independent; skip (green with note) for release scope. When `runtime.scaffold` is unconfigured there is nothing to check: recorded `skipped`. |
+| AUTOMATION_REMOVED | The transient scaffold artifacts introduced by the host's `runtime.scaffold.add` command (config.md) are gone — i.e. `runtime.scaffold.remove` was run (`/artel-remove-automation`) before merge. Red = the scaffold is still present. Ticket-wide, phase-independent; skip (green with note) for release scope. When `runtime.scaffold` is unconfigured there is nothing to check: recorded `skipped`. |
 
 ## Rules
 

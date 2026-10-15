@@ -20,7 +20,7 @@ On phase-scoped runs (`PHASE_NUM` set), first invoke the `artel-sync-phases` ski
 not invoke `generate-tasklist`, which skips a tasklist that exists, and do not go on to
 `SKILL.md` step 5. Print
 
-    This ticket's work list is complete: nothing was planned and the run is not armed. For follow-up work, add tasks to the work list (/artel:tasks add <TICKET_ID> "<title>" --iteration <N>, or by hand) and run this again, or open a new ticket.
+    This ticket's work list is complete: nothing was planned and the run is not armed. For follow-up work, add tasks to the work list (/artel-tasks add <TICKET_ID> "<title>" --iteration <N>, or by hand) and run this again, or open a new ticket.
 
 and stop, in every mode.
 
@@ -89,7 +89,7 @@ announces the routes either way.
 ## Raised by the writer
 
 On branch 2 `generate-tasklist` may end without a work list. Its whole output is then the line
-`RAISE: <reason>; <reason>` followed by `Next: /artel:feature-development <TICKET_ID> --head=full`,
+`RAISE: <reason>; <reason>` followed by `Next: /artel-feature-development <TICKET_ID> --head=full`,
 and it stops before its Phase 1b. The `tasklist-writer` raises in two cases only: an open
 product question it cannot ground in the ticket or the code; or, with no vision, work that needs
 more than one iteration.
@@ -104,5 +104,5 @@ has: `idea.md`, and a `spike.md` or a `diagnosis.md` when present.
 The skill ends the same way, with no `RAISE:` line, when the ticket carries a `diagnosis.md`
 whose status is `DIAGNOSED_STRUCTURAL` — one written à la carte, on a ticket then run with
 `--head=lean`. Its output is
-`This diagnosis is structural. Next: /artel:feature-development <TICKET_ID> --head=full`.
+`This diagnosis is structural. Next: /artel-feature-development <TICKET_ID> --head=full`.
 Treat that line as a raise too, with the diagnosis' structural condition as the reason.

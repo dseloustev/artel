@@ -77,7 +77,7 @@ Decide the path per `${ARTEL_ROOT}/docs/task-queue.md` §1.
 where `<project>` is `knowledge.project` from `.artel/config.json`, the key is the canonical
 one without the phase suffix, and `<hostname>` is what `hostname -s` prints — run it in this
 dispatch, never recalled or composed: a guessed name records a machine that does not exist,
-and `/artel:tasks list` then reports it as holding the row. A `Rejected:` line naming
+and `/artel-tasks list` then reports it as holding the row. A `Rejected:` line naming
 `kartoteka project add` is §1's sixth case: fall back to the file and record it as §1
 spells it. Nothing returned → consult `${ARTEL_ROOT}/docs/task-queue.md` §5, which
 reads iteration children (`I<N> · `) only. Every iteration child `done` is the normal end

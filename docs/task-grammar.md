@@ -2,7 +2,7 @@
 
 How a tasklist states its work: one block per task, each with the fields the queue, the
 orchestrator and the plan review read. Every writer of a tasklist (`task-planner`,
-`tasklist-writer`, `/artel:tasks add`, the approval fold-back) writes this grammar, and every
+`tasklist-writer`, `/artel-tasks add`, the approval fold-back) writes this grammar, and every
 reader cites this file rather than restating it. `scripts/tasklist_tasks.py` is the only
 program that parses it (`scripts/task_grammar.py` holds the rules).
 

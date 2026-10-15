@@ -31,7 +31,7 @@ pipeline uses, so red and green here mean what they mean in a run:
 Run it from the repository root. With `verify.test` empty the `test` stage is `skipped`, and a
 `skipped` stage is never red evidence: run the host's own single-file test command instead. A
 fault no test can reach gets a reproduction script under `.artel/run/repro/`, which
-`/artel:setup` already keeps out of git.
+`/artel-setup` already keeps out of git.
 
 ## 3. Ask the institutional record
 
@@ -48,13 +48,13 @@ When `docs/debugging.md` §4 says the fix is structural — an interface change,
 reversal, scope growth, or three failed fixes — stop without fixing. Report the cause and what
 makes the proper fix structural, then ask via the `question` tool:
 
-- **Draft a bug ticket** — `/artel:issue-draft <the report> --type bug`, when the fault is a
+- **Draft a bug ticket** — `/artel-issue-draft <the report> --type bug`, when the fault is a
   defect whose right fix is larger than this session;
-- **Draft a task ticket** — `/artel:issue-draft <the report> --type task`, when the right fix
+- **Draft a task ticket** — `/artel-issue-draft <the report> --type task`, when the right fix
   is a design change;
 - **Leave it here** — the report stays in chat.
 
-A drafted ticket goes through `/artel:feature-development` like any other.
+A drafted ticket goes through `/artel-feature-development` like any other.
 
 ## 5. Report
 
@@ -67,7 +67,7 @@ In chat; nothing on disk beyond the fix and its test:
 
 ## 6. Diagnose mode (`--diagnose`)
 
-`/artel:debugging <ticket-id> --diagnose [--local]` is the head of a bug ticket in
+`/artel-debugging <ticket-id> --diagnose [--local]` is the head of a bug ticket in
 `feature-development`, and it runs à la carte for a person who wants the cause on record before
 anything is planned. It finds the cause and stops: **no fix, and nothing left in the tree.**
 

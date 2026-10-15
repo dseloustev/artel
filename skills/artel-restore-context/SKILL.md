@@ -1,6 +1,6 @@
 ---
 name: artel-restore-context
-description: "Restore the working context — root AGENTS.md/CHANGELOG.md and the spec trail — from the host-writable .artel/context/ store back into the project. With a ticket arg, restores ONLY that ticket's <specs.dir>/<TICKET_ID>/ artifacts plus common root files; omit the argument for a full restore of every saved ticket. Counterpart to /artel:save-context."
+description: "Restore the working context — root AGENTS.md/CHANGELOG.md and the spec trail — from the host-writable .artel/context/ store back into the project. With a ticket arg, restores ONLY that ticket's <specs.dir>/<TICKET_ID>/ artifacts plus common root files; omit the argument for a full restore of every saved ticket. Counterpart to /artel-save-context."
 argument-hint: "[ticket-id]"
 model: sonnet
 ---
@@ -41,13 +41,13 @@ non-empty (a phase suffix is accepted and ignored — the store is ticket-scoped
 
 ```bash
 STORE_ROOT=".artel/context"
-test -d "$STORE_ROOT" || { echo "No context store found at $STORE_ROOT — nothing has been saved yet (run /artel:save-context first)." >&2; exit 1; }
+test -d "$STORE_ROOT" || { echo "No context store found at $STORE_ROOT — nothing has been saved yet (run /artel-save-context first)." >&2; exit 1; }
 ```
 
 ### Branch A — Full restore (no ticket argument)
 
 Substitute the literal `<specs.dir>` value (`${ARTEL_ROOT}/docs/config.md`; default
-`specs/.current`); run as-is otherwise. When `knowledge.adapter` is `kartoteka`, kartoteka is the spec store (`${ARTEL_ROOT}/docs/spec-storage.md`) and spec documents are never restored to disk: add `--exclude={idea,vision,prd,research,spike,diagnosis,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md --exclude='*.[pP][nN][gG]' --exclude='*.[jJ][pP][gG]' --exclude='*.[jJ][pP][eE][gG]' --exclude='*.[gG][iI][fF]' --exclude='*.[wW][eE][bB][pP]'` to both `rsync` commands in this file (Branch A and Branch B step 3) — images are stored in kartoteka too (`${ARTEL_ROOT}/docs/spec-storage.md` §4.6), and each bracketed pattern matches its extension in any case — and report that old spec copies and images stay in the context store until `/artel:migrate-specs` moves them in.
+`specs/.current`); run as-is otherwise. When `knowledge.adapter` is `kartoteka`, kartoteka is the spec store (`${ARTEL_ROOT}/docs/spec-storage.md`) and spec documents are never restored to disk: add `--exclude={idea,vision,prd,research,spike,diagnosis,plan,tasklist,tasks,implementation-notes,review,deep-review,qa,adr,summary,design-analysis,pr-description,post_feedback}.md --exclude='*.[pP][nN][gG]' --exclude='*.[jJ][pP][gG]' --exclude='*.[jJ][pP][eE][gG]' --exclude='*.[gG][iI][fF]' --exclude='*.[wW][eE][bB][pP]'` to both `rsync` commands in this file (Branch A and Branch B step 3) — images are stored in kartoteka too (`${ARTEL_ROOT}/docs/spec-storage.md` §4.6), and each bracketed pattern matches its extension in any case — and report that old spec copies and images stay in the context store until `/artel-migrate-specs` moves them in.
 
 ```bash
 STORE_ROOT=".artel/context"

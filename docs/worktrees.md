@@ -10,8 +10,8 @@ the contract the two skills and `init-branch` follow; the mechanics live in
 
 | Operation | Entry points |
 |---|---|
-| Move a ticket's work into a worktree | `/artel:init-branch` (asks), `/artel:move-to-worktree` (asks) |
-| Hand the branch back to the main checkout | `/artel:return-from-worktree` (asks) |
+| Move a ticket's work into a worktree | `/artel-init-branch` (asks), `/artel-move-to-worktree` (asks) |
+| Hand the branch back to the main checkout | `/artel-return-from-worktree` (asks) |
 
 ## 1. The model
 
@@ -99,7 +99,7 @@ Skills follow these steps; `init-branch` supplies the branch arguments from its 
 4. **Leave** the worktree when the session is inside it: `ExitWorktree` with
    `action: "keep"`. If it reports that no worktree session is active (the session was started
    inside the worktree), stop without changes and tell the user to run
-   `/artel:return-from-worktree <TICKET_ID>` from a session in the main checkout. **OpenCode:**
+   `/artel-return-from-worktree <TICKET_ID>` from a session in the main checkout. **OpenCode:**
    the same message.
 5. **Run** the same command without `--check` — the session is back in the main checkout.
 6. **Act on `status`** (§6).

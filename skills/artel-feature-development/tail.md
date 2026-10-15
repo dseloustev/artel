@@ -93,7 +93,7 @@ reports:
 
 Runs once, after the last phase on multi-phase runs. Confirm the eight facts below yourself — they
 are artifacts you already read — and journal one line per fact (autonomous-run.md §7). No agent is
-dispatched here: `/artel:validate` stays à la carte.
+dispatched here: `/artel-validate` stays à la carte.
 
 | Fact | How it is read |
 |---|---|
@@ -104,7 +104,7 @@ dispatched here: `/artel:validate` stays à la carte.
 | `RUNTIME_OK` | the phase-aware `runtime/observation.md` is green or `skipped`, and no file matching `runtime.surface` changed after it |
 | `CHECKPOINT_OK` — the final gate | the last checkpoint journal entry is green, and `git diff --name-only <its commit>..HEAD` plus the working tree, filtered by `verify.surface` (absent → every changed file counts), is empty; otherwise run one more checkpoint gate and commit it as a checkpoint (`## Checkpoint commits & pushes`) |
 | `DOCS_UPDATED` | `summary.md` exists (`spec_store.py list <TICKET_ID>` on the kartoteka path); no PRD exists for the ticket → `skipped (no PRD)` |
-| `AUTOMATION_REMOVED` | `runtime.scaffold` unconfigured → `skipped`; else the scaffold paths `runtime.scaffold.add` introduces are gone (`/artel:remove-automation` was run) |
+| `AUTOMATION_REMOVED` | `runtime.scaffold` unconfigured → `skipped`; else the scaffold paths `runtime.scaffold.add` introduces are gone (`/artel-remove-automation` was run) |
 
 A red fact routes back to its owning step once — the implementer for boxes, `run-reviewer` for
 the review, `run-app --gate` for runtime, the checkpoint procedure for the gate, `docs-update` for
@@ -148,7 +148,7 @@ checkpoint commits (hash + subject each, incl. push results); task commits (coun
 status (`PR_OPENED`/`PR_EXISTS` URL, `skipped-manual`, or `pending`); description-sync status;
 reminder that opening the PR remains manual (only when the PR gate was skipped — the work itself
 is already committed and pushed by the checkpoints); effective mode + why (`mode_reasons`);
-external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel:migrate-specs <TICKET_ID>` — spec-storage.md §5.5); images left local on the kartoteka path — each `failed` or `skipped` entry of that sweep with its reason, or on exit `5` or `2` every image still under the trail; an `unrecoverable` sweep's whole message — with the `image sync` command above to move them in (headless runs journal the same lines); path to `run-journal.md`.
+external actions taken unattended; spec store (`kartoteka`, or `files (<reason>)` with the documents left on disk and `/artel-migrate-specs <TICKET_ID>` — spec-storage.md §5.5); images left local on the kartoteka path — each `failed` or `skipped` entry of that sweep with its reason, or on exit `5` or `2` every image still under the trail; an `unrecoverable` sweep's whole message — with the `image sync` command above to move them in (headless runs journal the same lines); path to `run-journal.md`.
 
 ## Checkpoint commits & pushes
 

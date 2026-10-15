@@ -297,7 +297,7 @@ class TestFixRowsAreRecordedNeverOffered(unittest.TestCase):
     """The four fix sections become rows that task_ready never hands out.
 
     On a host run on 2026-09-18 a deep review appended 21 fix tasks and the
-    implementer worked nine of them over several hours while `/artel:tasks list`
+    implementer worked nine of them over several hours while `/artel-tasks list`
     read "queue drained". The rows make that work visible; keeping them out of
     `ready` keeps task_ready -- which claims with no notion of section -- from
     handing one to an iteration dispatch or across a phase boundary.
@@ -563,7 +563,7 @@ class TestLocalOnlyReachesTheImplementer(unittest.TestCase):
         self.assertIn('`--local` was passed', mirror)
         reference = (ROOT / 'docs/skills-reference.md').read_text(encoding='utf-8')
         hint = hints[0].split(':', 1)[1].strip().strip('"')
-        self.assertIn('- **Invocation:** `/artel:tasklist {}`'.format(hint), reference)
+        self.assertIn('- **Invocation:** `/artel-tasklist {}`'.format(hint), reference)
 
 
 class TestAbortedClaimIsReleased(unittest.TestCase):

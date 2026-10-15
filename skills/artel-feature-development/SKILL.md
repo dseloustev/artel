@@ -98,7 +98,7 @@ before any spec document is read:
 5. **`local_trail` non-empty** → §7: ask Move them into kartoteka (recommended —
    invoke the `artel-migrate-specs` skill with `<TICKET_ID>`, then run step 2 again) / Work locally for this run
    (`decide … --files "the user kept the local trail for this run"`) / Abort. Headless: stop and
-   name `/artel:migrate-specs <TICKET_ID>`.
+   name `/artel-migrate-specs <TICKET_ID>`.
 6. Journal the decision in the run-start entry. Pass nothing on: every sub-skill reads the
    decision file itself (§2.2), and every agent dispatch carries **Spec store:** (§2.3).
 

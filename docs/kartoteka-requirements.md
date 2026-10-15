@@ -117,7 +117,7 @@ it** — it still recovers plan order by sorting on `task_id` client-side. Same 
 
 These are the "kartoteka is shared/hosted" prerequisites. artel's store mode can be built and
 tested against a local daemon without them; the `specs.allowLocalDeletion` key once planned
-as that gate was dropped — `/artel:migrate-specs` verifies and confirms every deletion instead
+as that gate was dropped — `/artel-migrate-specs` verifies and confirms every deletion instead
 (design.md decision log, 2026-09-22).
 
 ### 2.1 No authentication, loopback-only bind

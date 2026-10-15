@@ -29,7 +29,7 @@ line of `<specs.dir>/.active_ticket`; if no identifier is available, display the
 terminate:
 ```
 Error: No ticket key provided and <specs.dir>/.active_ticket is missing.
-Usage: /artel:deep-review <ticket-id> [branch] [pr-link] [--local]
+Usage: /artel-deep-review <ticket-id> [branch] [pr-link] [--local]
 ```
 
 `deep-review` is ticket-wide only: `PHASE_NUM` is parsed for input compatibility (so a
@@ -158,7 +158,7 @@ are exactly the reviewed target's. A tree that fails the project's own checks is
    Summary of issues:
    <copy the relevant failure output from the failing command(s)>
 
-   Fix these and re-run /artel:deep-review <TICKET_ID> [branch] [pr-link] [--local].
+   Fix these and re-run /artel-deep-review <TICKET_ID> [branch] [pr-link] [--local].
    ```
    Then terminate the skill. Do not run any further steps.
 5. On success (or skip), display `Quality gate passed.` (or the skipped notice from step 3) and
@@ -318,7 +318,7 @@ using the validated `data.tasks` counts:
   `data.tasks.Critical > 0`).
 - **Critical and warnings** — that block plus the `### Tasks (Warning)` block (when
   `data.tasks.Warning > 0`; with `c = 0` label it **Warnings only**).
-- **Not now** — display `Fixes are in <specs.dir>/<TICKET_ID>/deep-review.md; re-run /artel:deep-review <TICKET_ID> to apply them later.` and terminate.
+- **Not now** — display `Fixes are in <specs.dir>/<TICKET_ID>/deep-review.md; re-run /artel-deep-review <TICKET_ID> to apply them later.` and terminate.
 
 ## Step 5: Apply
 
@@ -378,7 +378,7 @@ using the validated `data.tasks` counts:
    - Tasks appended: <count>
    - Tasks completed: <checked count> of <count>
    - Quality gate: <passed | failed | skipped>
-   Re-run /artel:deep-review <TICKET_ID> to re-review the branch.
+   Re-run /artel-deep-review <TICKET_ID> to re-review the branch.
    ```
 
 ## Rules

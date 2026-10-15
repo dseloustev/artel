@@ -373,7 +373,7 @@ connected the stage skips silently and the pipeline continues.
 |---|---|---|---|---|
 | `specs.dir` | string | `"specs/.current"` | Repo-relative path, no leading `/`, no `..` segments | Every artifact read and write |
 | `specs.releases` | string | `"specs/releases"` | Repo-relative path, no leading `/`, no `..` segments. Sits alongside `specs.dir`, not inside it — release scope spans multiple tickets. | Release-scope QA/validation runs (`R-<RELEASE_ID>` identifiers) — `qa` and `artel-validator` agents |
-| `specs.onUnavailable` | string | `"abort"` | `"abort"` \| `"local"`. The headless answer when kartoteka is this project's spec store and cannot be reached: stop, or work locally and let `/artel:migrate-specs` move the documents in later. Interactive runs always ask instead. | Headless runs of every skill that resolves the spec store ([spec-storage.md](spec-storage.md) §5.4) |
+| `specs.onUnavailable` | string | `"abort"` | `"abort"` \| `"local"`. The headless answer when kartoteka is this project's spec store and cannot be reached: stop, or work locally and let `/artel-migrate-specs` move the documents in later. Interactive runs always ask instead. | Headless runs of every skill that resolves the spec store ([spec-storage.md](spec-storage.md) §5.4) |
 
 The trail is `<specs.dir>/<TICKET_ID>/` for ticket-wide artifacts, `<specs.dir>/<TICKET_ID>/phase-<N>/`
 for phase-scoped ones, and `<specs.dir>/.active_ticket` for the in-flight identifier.
@@ -397,7 +397,7 @@ evidence text ([spec-storage.md](spec-storage.md)).
   ([spec-storage.md](spec-storage.md)): spec documents are written there and nowhere else,
   and `<specs.dir>` keeps only `.active_ticket` and gate evidence text. When kartoteka cannot be
   reached, a run asks before saving anything locally (headless: `specs.onUnavailable`), and
-  `/artel:migrate-specs` moves local trails in. The `PostToolUse` mirror hook still posts
+  `/artel-migrate-specs` moves local trails in. The `PostToolUse` mirror hook still posts
   files written on the files path — `--local`, or a run the user allowed to work locally —
   best-effort as before: it never blocks and never retries.
 
@@ -528,7 +528,7 @@ The same key admits two skills a person invokes from the conversation rather tha
 [`tasks`](skills-reference.md#tasks) (write: `task_list`, `task_create`, `task_update`). Both
 resolve the table above without its `--local` row — a person invoking them has asked for
 kartoteka — and both **refuse** rather than degrade: adapter `none` stops with a pointer to
-`/artel:setup`, absent tools stop with the "configured but not available" message. There is no
+`/artel-setup`, absent tools stop with the "configured but not available" message. There is no
 override flag, for the third row's reason. `issue-draft` is a third skill a person invokes from
 the conversation and consults the same key, but it is the exception to both of those rules: it
 takes `--local` and resolves the table above in full, and where these two refuse, it degrades — kartoteka is reported off and the scout's other sources
@@ -556,7 +556,7 @@ An absent or empty command means the corresponding skill reports `not configured
 `RUNTIME_OK` gate only when the run's diff (changed files vs the default branch plus the working
 tree) matches at least one glob, recording `RUNTIME_OK: skipped (no runtime surface)` otherwise.
 When absent with `runtime.run` configured, the gate always runs. It has no effect on manual
-`/artel:run-app` invocations.
+`/artel-run-app` invocations.
 
 ## A filled example
 
@@ -656,10 +656,10 @@ any `provider/model` the OpenCode host serves works.
 There is no bundled fallback file — absence is a defined state, not an error.
 
 - **The entry point** (`feature-development`) finds no `.artel/config.json` and invokes
-  the `artel-setup` skill (`/artel:setup`), which interviews for ticket grammar, tracker, VCS, verify
+  the `artel-setup` skill (`/artel-setup`), which interviews for ticket grammar, tracker, VCS, verify
   commands and languages (plus optional extras), writes `.artel/config.json`, and returns
   control so the requested run continues. The interview happens once per repo; afterwards the
-  file is edited by hand, or revised via `/artel:setup`.
+  file is edited by hand, or revised via `/artel-setup`.
 - **À-la-carte stage skills** never interview. They run against the defaults above and note in
   their report that no config was found, so a single stage invocation is never blocked by a
   missing file.

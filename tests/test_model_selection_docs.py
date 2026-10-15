@@ -55,7 +55,7 @@ class TestImplementerSkill(unittest.TestCase):
 
     def test_skills_reference(self):
         ref = flat(read('docs/skills-reference.md'))
-        self.assertIn('`/artel:implementer [ticket-id] or [ticket-id]-[phase] [--local] '
+        self.assertIn('`/artel-implementer [ticket-id] or [ticket-id]-[phase] [--local] '
                       '[--model sonnet|opus|fable]`', ref)
         self.assertIn('**Model:** an iteration task follows its route — `sonnet` on `light`, '
                       '`opus` on `full`', ref)

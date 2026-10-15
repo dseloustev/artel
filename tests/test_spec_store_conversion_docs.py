@@ -100,7 +100,7 @@ class TestInlineSkills(unittest.TestCase):
         self.assertIn('--exclude={idea,vision,prd,research,spike,diagnosis,plan,tasklist,tasks,'
                       'implementation-notes,review,deep-review,qa,adr,summary,design-analysis,'
                       'pr-description,post_feedback}.md', text)
-        self.assertIn('/artel:migrate-specs', text)
+        self.assertIn('/artel-migrate-specs', text)
 
     def test_save_context_names_the_store(self):
         self.assertIn(CONTRACT, skill('save-context'))

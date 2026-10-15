@@ -1,6 +1,6 @@
 ---
 name: artel-move-to-worktree
-description: "Move the current ticket's work — its branch, uncommitted changes, artel config and run state — out of the main checkout into its own git worktree under .opencode/worktrees/, and continue this session there, so other sessions can work on other tickets in parallel. Use when the user asks to move work to a worktree, isolate a ticket, or run several tickets side by side. For a ticket with no branch yet, /artel:init-branch sets it up and offers the same move."
+description: "Move the current ticket's work — its branch, uncommitted changes, artel config and run state — out of the main checkout into its own git worktree under .opencode/worktrees/, and continue this session there, so other sessions can work on other tickets in parallel. Use when the user asks to move work to a worktree, isolate a ticket, or run several tickets side by side. For a ticket with no branch yet, /artel-init-branch sets it up and offers the same move."
 argument-hint: "[ticket-id]"
 disable-model-invocation: true
 model: sonnet
@@ -15,7 +15,7 @@ the statuses — is `${ARTEL_ROOT}/docs/worktrees.md`; the mechanics are
 
 It is a **worker that runs inline**: it runs `git` and the script directly, no agent. It moves the
 session and changes two checkouts, so it is user-invoked only (`disable-model-invocation: true`).
-The way back is `/artel:return-from-worktree`.
+The way back is `/artel-return-from-worktree`.
 
 ## Ticket Resolution
 
@@ -29,13 +29,13 @@ Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/o
 
 1. **Not already in a worktree.** If `git rev-parse --path-format=absolute --git-dir` differs from
    `git rev-parse --path-format=absolute --git-common-dir`, stop: "This session is already in a
-   worktree — run `/artel:move-to-worktree` from the main checkout."
+   worktree — run `/artel-move-to-worktree` from the main checkout."
 2. **An existing worktree is entered, not recreated.** If `git worktree list --porcelain` lists
    `<repo root>/.opencode/worktrees/<name>`, skip to Step 3 with that path.
 3. **The branch carries the ticket.** `git branch --show-current` → `CURRENT_BRANCH`. Scan it for
    `TICKET_ID` exactly as `${ARTEL_ROOT}/skills/artel-init-branch/SKILL.md` Step 1 does. No
    match (another ticket, no ticket, detached HEAD) → stop: "`<CURRENT_BRANCH>` is not a branch
-   for `<TICKET_ID>`. Run `/artel:init-branch <TICKET_ID>` — it sets up the branch and offers the
+   for `<TICKET_ID>`. Run `/artel-init-branch <TICKET_ID>` — it sets up the branch and offers the
    move to a worktree."
 4. **Base branch.** Detect it as `init-branch` Step 2.1 does (`git symbolic-ref
    refs/remotes/origin/HEAD`, asking if ambiguous) → `BASE_BRANCH`.
@@ -77,7 +77,7 @@ per checkout and were not copied.
 - Whether uncommitted work moved (`stashApplied`), whether run state moved (`runMoved`), whether
   the context store is linked (`contextLinked`), and how many environment files were copied.
 - Whether the setup commands ran, were skipped (none configured), or failed.
-- The way back: `/artel:return-from-worktree <TICKET_ID>`.
+- The way back: `/artel-return-from-worktree <TICKET_ID>`.
 
 ## Rules
 

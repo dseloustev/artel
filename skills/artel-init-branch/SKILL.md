@@ -1,6 +1,6 @@
 ---
 name: artel-init-branch
-description: "Bootstrap work on a ticket in one shot: make sure the ticket has a working branch (the current one when its name already carries a ticket ID; otherwise only what the user picks — never a branch created without asking), optionally move that work into its own git worktree so other sessions can work in parallel, run the project's configured post-branch setup commands (setup.commands), restore that ticket's context via /artel:restore-context, and refresh AGENTS.md via agents-md-generator. Use when starting work on a ticket, or whenever someone says 'set up a branch for this ticket', 'init the branch', 'prepare a branch for work', or 'start work on <ticket>'."
+description: "Bootstrap work on a ticket in one shot: make sure the ticket has a working branch (the current one when its name already carries a ticket ID; otherwise only what the user picks — never a branch created without asking), optionally move that work into its own git worktree so other sessions can work in parallel, run the project's configured post-branch setup commands (setup.commands), restore that ticket's context via /artel-restore-context, and refresh AGENTS.md via agents-md-generator. Use when starting work on a ticket, or whenever someone says 'set up a branch for this ticket', 'init the branch', 'prepare a branch for work', or 'start work on <ticket>'."
 argument-hint: "[ticket-id]"
 disable-model-invocation: true
 model: sonnet
@@ -136,7 +136,7 @@ Reached from Step 1's Stay route or from Step 2's "Move to the worktree" answer;
 4. **Fatal unless `ok`**, like a failed checkout: report per `docs/worktrees.md` §6 and stop.
 5. **Enter:** `EnterWorktree` with `path` set to the report's `path`. `BRANCH_NAME` = the branch.
    From here on every step runs inside the worktree. **OpenCode:** print
-   `cd <path> && opencode`, skip Steps 3–6 and report — re-running `/artel:init-branch` in that
+   `cd <path> && opencode`, skip Steps 3–6 and report — re-running `/artel-init-branch` in that
    session takes Step 1's Stay route and finishes the setup there.
 
 ### Step 3: Run the post-branch setup commands
@@ -162,7 +162,7 @@ Invoke the `artel-restore-context` skill with `TICKET_ID` as its argument. This 
   saved).
 
 > If the harness declines to invoke `restore-context` from inside this skill, say so plainly and
-> ask the user to run `/artel:restore-context <TICKET_ID>` themselves, then continue from Step 5.
+> ask the user to run `/artel-restore-context <TICKET_ID>` themselves, then continue from Step 5.
 > Do **not** reimplement the restore by hand — the context store is the source of truth and the
 > copy logic lives in that one skill on purpose.
 
@@ -190,7 +190,7 @@ Print a concise summary:
   ticket), checked out existing `BRANCH_NAME`, created `BRANCH_NAME` from `BASE_BRANCH`, or stayed
   on a non-ticket branch at the user's choice.
 - Where the work continues: the main checkout, or the worktree path (moved now, or entered) — with
-  `/artel:return-from-worktree <TICKET_ID>` as the way back, and which branch the main checkout is
+  `/artel-return-from-worktree <TICKET_ID>` as the way back, and which branch the main checkout is
   on now.
 - Whether the setup commands ran or were skipped (none configured).
 - What Step 4 restored (ticket artifacts vs. common root files only, or "nothing found — new
@@ -198,7 +198,7 @@ Print a concise summary:
 - Whether the refresh changed `AGENTS.md`.
 - Whether the index was refreshed, skipped (no hook wired up), or not applicable.
 - Any follow-up the user should know about — e.g. if the refresh modified `AGENTS.md`, mention that
-  `/artel:save-context` will save that change back into the context store (this skill intentionally
+  `/artel-save-context` will save that change back into the context store (this skill intentionally
   does not, to keep its scope to setup only).
 
 ## Rules
@@ -210,7 +210,7 @@ Print a concise summary:
 - **Scope is setup, nothing else.** This skill settles the branch (and, when asked, its
   worktree), restores context, refreshes `AGENTS.md`, and refreshes the index. It does not commit,
   push, run the quality gate, or save changes back to the context store — those are separate,
-  deliberate operations (`/artel:save-context` for the last one).
+  deliberate operations (`/artel-save-context` for the last one).
 - **Order matters and is fixed:** branch → worktree → setup commands → restore → refresh →
   reindex. The worktree move comes before setup so dependencies and generated code land in the
   checkout that will use them. The refresh runs after the restore so it refines the restored

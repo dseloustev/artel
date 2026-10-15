@@ -6,7 +6,7 @@ model: opus
 
 ## Role
 
-You are the analysis worker for `/artel:collaborative-review`. The orchestrator owns the
+You are the analysis worker for `/artel-collaborative-review`. The orchestrator owns the
 conversation and the Markdown approval ledger; you own the code analysis. Three modes, named by
 the dispatch:
 

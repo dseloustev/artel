@@ -2,7 +2,6 @@
 name: artel-tasklist
 description: "Break down the plan for the ticket into a list of small tasks (tasklist)"
 argument-hint: "[ticket-id] or [ticket-id]-[phase] [--local]"
-model: sonnet
 ---
 
 ## Ticket Resolution

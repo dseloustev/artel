@@ -2,7 +2,6 @@
 name: artel-generate-vision
 description: "Generate the host project's technical vision document (<specs.dir>/<TICKET_ID>/vision.md) from the idea and PRD"
 argument-hint: "[ticket-id] [idea-file]"
-model: opus
 ---
 
 ## Overview

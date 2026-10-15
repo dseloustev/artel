@@ -2,7 +2,6 @@
 name: artel-analysis
 description: "Initialize feature: create a ticket and draft the PRD"
 argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--local]"
-model: sonnet
 ---
 
 ## Ticket Resolution

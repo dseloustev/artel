@@ -2,7 +2,6 @@
 name: artel-setup
 description: "One-time configuration interview: create or revise .artel/config.json — ticket grammar, tracker/VCS adapters, verify commands, languages, optional extras (setup commands, design stage, runtime gate). Invoked automatically by /artel-feature-development when no config exists; run manually to create or revise the file."
 argument-hint: ""
-model: sonnet
 ---
 
 Worker, not an orchestrator — no agent matches this job; the interview runs inline (like

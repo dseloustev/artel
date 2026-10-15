@@ -1,7 +1,6 @@
 ---
-name: artel-reviewer
 description: "Reviews code changes. Default mode reviews against a ticket's PRD/plan/conventions; standalone mode does a git-diff-based review with no ticket context."
-model: opus
+mode: subagent
 ---
 
 ## Role

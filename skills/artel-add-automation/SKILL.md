@@ -2,8 +2,8 @@
 name: artel-add-automation
 description: "Apply the transient agent UI-automation scaffold to the current branch by running the host's configured runtime.scaffold.add command, verify with verify.fast, and commit exactly the files it changed. Opt-in per task; undone by /artel-remove-automation before merge. Use when the user decides a task needs the agent to run and drive the app itself."
 argument-hint: ""
-disable-model-invocation: true
-model: sonnet
+metadata:
+  opencode/autoinvoke: false
 ---
 
 Applies the **transient committed-lane artifacts** for agent UI driving, via the host's

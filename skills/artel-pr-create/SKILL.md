@@ -2,7 +2,6 @@
 name: artel-pr-create
 description: "Commit, push, open the pull request with the generated description, and link the tracker — idempotent loop-close"
 argument-hint: "[ticket-id]"
-model: sonnet
 ---
 
 Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.

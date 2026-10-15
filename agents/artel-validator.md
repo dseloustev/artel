@@ -1,7 +1,6 @@
 ---
-name: artel-validator
 description: "Verifies that the conditions for moving to the next stage of a ticket or release are met."
-model: sonnet
+mode: subagent
 ---
 
 ## Role

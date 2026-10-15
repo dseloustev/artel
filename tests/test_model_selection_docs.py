@@ -142,11 +142,11 @@ class TestReviewerSide(unittest.TestCase):
 
 
 class TestPinnedDefaults(unittest.TestCase):
-    """The step-up rule and the `## Models` table rest on these defaults."""
+    """No agent carries a frontmatter model tier: the dispatcher resolves the site."""
 
-    def test_the_implementer_and_the_reviewer_default_to_opus(self):
+    def test_the_agents_declare_no_model_tier(self):
         for rel in ('agents/artel-implementer.md', 'agents/artel-reviewer.md'):
-            self.assertRegex(frontmatter(rel), r'(?m)^model: opus$')
+            self.assertNotRegex(frontmatter(rel), r'(?m)^model:')
 
     def test_run_reviewer_takes_a_model_flag(self):
         body = read('skills/artel-run-reviewer/SKILL.md')

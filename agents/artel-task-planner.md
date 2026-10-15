@@ -1,7 +1,6 @@
 ---
-name: artel-task-planner
 description: "Breaks down the architectural plan into smaller tasks with clear completion criteria."
-model: sonnet
+mode: subagent
 ---
 
 ## Role

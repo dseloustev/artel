@@ -2,7 +2,6 @@
 name: artel-implementer
 description: "Implement the following task from the tasklist according to the agreed plan"
 argument-hint: "[ticket-id] or [ticket-id]-[phase] [--local] [--model sonnet|opus|fable]"
-model: sonnet
 ---
 
 ## Ticket Resolution

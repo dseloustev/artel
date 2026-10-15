@@ -2,7 +2,6 @@
 name: artel-migrate-prs
 description: "Recreate a Bitbucket project's still-open pull requests on GitHub after the project has been re-homed, carrying title, description and branches"
 argument-hint: "[pr-id ...]"
-model: sonnet
 ---
 
 Worker, not an orchestrator — it runs inline. Run it **after** `/artel-set-home` has pointed the

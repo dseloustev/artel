@@ -1,7 +1,6 @@
 ---
-name: artel-qa
 description: "Generates a QA plan and report for a ticket or release."
-model: sonnet
+mode: subagent
 ---
 
 ## Role

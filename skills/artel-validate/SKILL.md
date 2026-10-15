@@ -2,7 +2,6 @@
 name: artel-validate
 description: "Check which quality gates have been passed for a ticket or release"
 argument-hint: "[ticket-id] or [ticket-id]-[phase] or R-[release-id]"
-model: sonnet
 ---
 
 ## Ticket Resolution

@@ -2,8 +2,8 @@
 name: artel-move-to-worktree
 description: "Move the current ticket's work — its branch, uncommitted changes, artel config and run state — out of the main checkout into its own git worktree under .opencode/worktrees/, and continue this session there, so other sessions can work on other tickets in parallel. Use when the user asks to move work to a worktree, isolate a ticket, or run several tickets side by side. For a ticket with no branch yet, /artel-init-branch sets it up and offers the same move."
 argument-hint: "[ticket-id]"
-disable-model-invocation: true
-model: sonnet
+metadata:
+  opencode/autoinvoke: false
 ---
 
 ## Overview
@@ -14,7 +14,7 @@ the statuses — is `${ARTEL_ROOT}/docs/worktrees.md`; the mechanics are
 `${ARTEL_ROOT}/scripts/worktree.py`.
 
 It is a **worker that runs inline**: it runs `git` and the script directly, no agent. It moves the
-session and changes two checkouts, so it is user-invoked only (`disable-model-invocation: true`).
+session and changes two checkouts, so it is user-invoked only (`metadata.opencode/autoinvoke: false`).
 The way back is `/artel-return-from-worktree`.
 
 ## Ticket Resolution

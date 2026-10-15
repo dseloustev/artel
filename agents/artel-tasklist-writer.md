@@ -1,7 +1,6 @@
 ---
-name: artel-tasklist-writer
 description: "Drafts an iterative work plan (<specs.dir>/<TICKET_ID>/tasklist.md) from the idea file — with the vision, a spike answer or a diagnosis when the ticket has one."
-model: sonnet
+mode: subagent
 ---
 
 ## Role

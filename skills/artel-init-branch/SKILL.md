@@ -2,8 +2,8 @@
 name: artel-init-branch
 description: "Bootstrap work on a ticket in one shot: make sure the ticket has a working branch (the current one when its name already carries a ticket ID; otherwise only what the user picks — never a branch created without asking), optionally move that work into its own git worktree so other sessions can work in parallel, run the project's configured post-branch setup commands (setup.commands), restore that ticket's context via /artel-restore-context, and refresh AGENTS.md via agents-md-generator. Use when starting work on a ticket, or whenever someone says 'set up a branch for this ticket', 'init the branch', 'prepare a branch for work', or 'start work on <ticket>'."
 argument-hint: "[ticket-id]"
-disable-model-invocation: true
-model: sonnet
+metadata:
+  opencode/autoinvoke: false
 ---
 
 ## Overview
@@ -17,7 +17,7 @@ from the context store, and reconcile `AGENTS.md` against the current tree.
 It is a **worker that runs inline** (like `sync-phases` / `generate-idea`) — it runs `git` and
 chains a couple of sub-skills directly rather than delegating to an agent. Because it mutates the
 working tree (may switch or create a branch, may move the session into a worktree, restores
-files, rewrites `AGENTS.md`), it is user-invoked only (`disable-model-invocation: true`) — never
+files, rewrites `AGENTS.md`), it is user-invoked only (`metadata.opencode/autoinvoke: false`) — never
 auto-triggered.
 
 ## Ticket Resolution

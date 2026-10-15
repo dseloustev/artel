@@ -37,7 +37,7 @@ class TestSeatDocs(unittest.TestCase):
 
     def test_the_seat_body(self):
         body = flat('agents/artel-seat.md')
-        for phrase in ('model: sonnet', 'never prompt the person directly',
+        for phrase in ('never prompt the person directly',
                        'pause-request.json', 'PAUSED: <reason>', 'STOPPED: <reason>',
                        'auto-resolved', 'dispatches a fresh `subagent` to you'):
             self.assertIn(phrase, body)

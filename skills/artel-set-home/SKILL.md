@@ -2,7 +2,6 @@
 name: artel-set-home
 description: "Move this project to a different VCS platform: parse a repository URL, rewrite vcs.* in .artel/config.json, and re-point the git remotes so config and origin agree"
 argument-hint: "<repo-url>"
-model: sonnet
 ---
 
 Worker, not an orchestrator — no agent matches this job; it runs inline, like `setup` /

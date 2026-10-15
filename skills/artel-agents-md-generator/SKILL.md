@@ -1,6 +1,6 @@
 ---
 name: artel-agents-md-generator
-description: Create, generate, update, repair, trim, or split minimal AGENTS.md files for the host repo's root and confirmed nested modules using progressive disclosure. Use for missing, bloated, contradictory, or outdated agent instructions, monorepos, services, packages, module context, and portable agent guidance without assuming any fixed agent folder structure or toolchain.
+description: "Create, generate, update, repair, trim, or split minimal AGENTS.md files for the host repo's root and confirmed nested modules using progressive disclosure. Use for missing, bloated, contradictory, or outdated agent instructions, monorepos, services, packages, module context, and portable agent guidance without assuming any fixed agent folder structure or toolchain."
 ---
 
 # AGENTS.md Generator (Root + Nested, Portable)

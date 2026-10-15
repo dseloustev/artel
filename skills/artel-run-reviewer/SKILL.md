@@ -2,7 +2,6 @@
 name: artel-run-reviewer
 description: "Review changes for a ticket — the phase/ticket review, or one task's diff right after its implementer returned"
 argument-hint: "[ticket-id] or [ticket-id]-[phase] [--task \"<task title>\" --report <path> --package <path> | --plan] [--local] [--model sonnet|opus|fable]"
-model: sonnet
 ---
 
 ## Ticket Resolution

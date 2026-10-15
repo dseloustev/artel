@@ -8,11 +8,10 @@ OpenCode reads a real path, never an unset variable. Python files are never
 rewritten: a hook docstring's token is a source-level pointer to a contract file,
 and nothing expands it.
 
-Each skill is also emitted under <out> (default <root>/opencode/dist) with
-OpenCode-legal frontmatter, its other Markdown files beside it, and a command
-wrapper under <out>/commands that loads the skill and passes its arguments.
-Canonical sources under skills/ and agents/ are never modified. Contract:
-docs/opencode.md.
+Each skill is also emitted under <out> (default <root>/opencode/dist) with its frontmatter
+and baked body, its other Markdown files beside it, and a command wrapper under <out>/commands
+that loads the skill and passes its arguments.
+Canonical sources under skills/ and agents/ are never modified. Contract: docs/opencode.md.
 """
 import argparse
 import re
@@ -95,34 +94,31 @@ def assemble(body, frontmatter):
     return '\n'.join(parts) + '\n'
 
 
+def frontmatter_lines(text):
+    """The raw lines of a leading `---` block, without the markers ([] when there is none)."""
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != '---':
+        return []
+    for index in range(1, len(lines)):
+        if lines[index].strip() == '---':
+            return lines[1:index]
+    return []
+
+
 def build_skill(src_text, root):
+    """The source already carries OpenCode frontmatter (`name`, `description`,
+    `argument-hint`, and `metadata.opencode/autoinvoke: false` where it is manual-only):
+    assemble it with the baked body, changing nothing."""
     fields, body = parse_frontmatter(src_text)
-    name = fields['name']
-    description = ARTEL_REF.sub(r'artel-\1', fields.get('description', ''))
-    frontmatter = [
-        'name: ' + name,
-        'description: ' + yaml_quote(clip(description, MAX_DESCRIPTION)),
-        'license: MIT',
-    ]
-    if fields.get('disable-model-invocation') == 'true':
-        # v2's manual-only switch: registered, loadable by id, absent from the model's list.
-        frontmatter.extend(['metadata:', '  opencode/autoinvoke: false'])
-    return name, assemble(bake(body, root), frontmatter)
+    return fields['name'], assemble(bake(body, root), frontmatter_lines(src_text))
 
 
-def build_agent(src_text, root):
-    """agents/<name>.md (Claude frontmatter: name/description/model) ->
-    artel-<name>.md (OpenCode frontmatter: description/mode). The markdown file
-    name is the agent name on OpenCode; model tiers are dropped (subagents
-    inherit the caller's model — see docs/opencode.md)."""
-    fields, body = parse_frontmatter(src_text)
-    name = fields['name']
-    description = ARTEL_REF.sub(r'artel-\1', fields.get('description', ''))
-    frontmatter = [
-        'description: ' + yaml_quote(clip(description, MAX_DESCRIPTION)),
-        'mode: subagent',
-    ]
-    return name, assemble(bake(body, root), frontmatter)
+def build_agent(src_text, root, name):
+    """agents/artel-<name>.md (OpenCode frontmatter: description/mode) -> the built agent:
+    the frontmatter as written, the body baked. The markdown file name is the agent name
+    on OpenCode."""
+    _, body = parse_frontmatter(src_text)
+    return name, assemble(bake(body, root), frontmatter_lines(src_text))
 
 
 def build_command(name, description, hint):
@@ -213,7 +209,7 @@ def main(argv=None):
                          if p.name != 'README.md' and p.stem not in AGENTS_EXCLUDE)
 
     for agent_path in agent_files:
-        name, text = build_agent(agent_path.read_text(encoding='utf-8'), root)
+        name, text = build_agent(agent_path.read_text(encoding='utf-8'), root, agent_path.stem)
         if not VALID_NAME.match(name):
             print('build_opencode: {} is not a legal OpenCode name'.format(name),
                   file=sys.stderr)

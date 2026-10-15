@@ -1,7 +1,6 @@
 ---
-name: artel-researcher
 description: "Researches the codebase and surrounding context for the ticket, or answers the ticket's feasibility question."
-model: opus
+mode: subagent
 ---
 
 ## Role

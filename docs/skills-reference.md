@@ -360,7 +360,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   code), on no-progress between iterations, and on exceeding `MAX_VERIFY_ITERATIONS`
   (autonomous-run.md §5).
 - **Notes:** worker, not orchestrator — a fixed procedure, manual/composed only
-  (`disable-model-invocation`); the `artel-implementer` agent consumes it by reading this file, since
+  (`metadata.opencode/autoinvoke: false`); the `artel-implementer` agent consumes it by reading this file, since
   subagents do not inherit skills. Empty `verify.fast` or `verify.test` makes that half
   `skipped`, never `green`; the full gate (`verify.commands`) is the checkpoint's, never this
   loop's. Findings outside the
@@ -750,7 +750,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   is ambiguous or the context store is missing (the user decides whether to continue).
 - **Stops:** when the current branch carries a *different* ticket's ID — it never switches away
   from another ticket's branch on its own.
-- **Notes:** worker, not orchestrator; user-invoked only (`disable-model-invocation`). Never
+- **Notes:** worker, not orchestrator; user-invoked only (`metadata.opencode/autoinvoke: false`). Never
   creates a branch without asking. Fixed order: branch → `setup.commands` (fatal on failure,
   silently skipped when empty) → restore → `agents-md-generator` → optional host index refresh, with the
   optional worktree move right after the branch step. Scope is setup, nothing else — it never
@@ -771,7 +771,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Pauses:** once, to confirm the move.
 - **Stops:** inside a worktree; when the current branch is not the ticket's (points at
   `init-branch`); on any script status but `ok` ([worktrees.md](worktrees.md) §6).
-- **Notes:** worker; user-invoked only (`disable-model-invocation`). An existing worktree for the
+- **Notes:** worker; user-invoked only (`metadata.opencode/autoinvoke: false`). An existing worktree for the
   ticket is entered, not recreated. A stash is dropped only after it applied; never `--force`,
   never a branch deletion. The move ends by printing `cd <path> && opencode`; the session
   continues there. Counterpart: `return-from-worktree`.
@@ -791,7 +791,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Stops:** when the main checkout has uncommitted changes; on a detached worktree; when the
   session was started inside the worktree (run it from the main checkout); on any script status
   but `ok`.
-- **Notes:** worker; user-invoked only (`disable-model-invocation`). A leave never removes the
+- **Notes:** worker; user-invoked only (`metadata.opencode/autoinvoke: false`). A leave never removes the
   worktree; the branch is never deleted, never `--force`. Changed environment
   files (`.opencode/`, `opencode.json`, config) are reported as `envChanged`, never copied back. An
   interrupted hand-back is finished by a re-run.
@@ -854,7 +854,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `git status --porcelain`), committed as `chore: enable agent UI automation` after a
   `verify.fast` check.
 - **Pauses:** stops and asks only on a dirty tree (commit or stash first).
-- **Notes:** worker; user-invoked only (`disable-model-invocation`). Opt-in per task; undone by
+- **Notes:** worker; user-invoked only (`metadata.opencode/autoinvoke: false`). Opt-in per task; undone by
   `remove-automation` before merge; the reviewer's transient-automation carve-out and the
   validator's `AUTOMATION_REMOVED` gate account for it. Absent/empty command → `not
   configured`, gate records `skipped`. Rolls the scaffold back if `verify.fast` goes red; never
@@ -869,7 +869,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Writes:** the removal changes, committed as `chore: remove agent UI automation`; `git push`
   when an upstream exists (never any `--force` variant).
 - **Pauses:** stops and asks only on a dirty tree.
-- **Notes:** worker; user-invoked only (`disable-model-invocation`). Run after the PR is
+- **Notes:** worker; user-invoked only (`metadata.opencode/autoinvoke: false`). Run after the PR is
   created, before merge — this is what turns the `AUTOMATION_REMOVED` gate green. Re-derives
   the removal by running the configured command, never `git revert`, then verifies it from
   git alone: every path the `chore: enable agent UI automation` commit added must be gone
@@ -893,7 +893,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   working-tree `CHANGELOG.md` and `<specs.dir>/` (only after every store copy succeeded).
   `AGENTS.md` is never removed.
 - **Pauses:** never.
-- **Notes:** worker; user-invoked only (`disable-model-invocation`). The store is
+- **Notes:** worker; user-invoked only (`metadata.opencode/autoinvoke: false`). The store is
   host-repo-local and gitignored (config.md, "Purpose and location") — unlike the source
   system's user-level store, it does not survive a reclone; the trade-off is logged in
   [design.md](design.md)'s decision log. Idempotent; cleanup never deletes anything that failed

@@ -2,7 +2,6 @@
 name: artel-deep-review
 description: "Review a branch once with the whole-branch reviewer, write deep-review.md, and offer to work its fixes"
 argument-hint: "[ticket-id] [branch] [pr-link] [--local]"
-model: sonnet
 ---
 
 This skill is a multi-step orchestrator — run the steps in order. It dispatches the `reviewer`

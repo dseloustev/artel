@@ -2,8 +2,8 @@
 name: artel-remove-automation
 description: "Remove the transient agent UI-automation scaffold from the current branch (reverse of /artel-add-automation) by running the host's configured runtime.scaffold.remove command, verify with verify.fast, commit exactly the files it changed, and push if an upstream exists. Run after the PR is created, before merge."
 argument-hint: ""
-disable-model-invocation: true
-model: sonnet
+metadata:
+  opencode/autoinvoke: false
 ---
 
 Removes the **transient committed-lane artifacts** applied by `/artel-add-automation`, via the

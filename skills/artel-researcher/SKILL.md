@@ -2,7 +2,6 @@
 name: artel-researcher
 description: "Gather technical context and create a research document for the ticket — or, with --question, answer the ticket's feasibility question"
 argument-hint: "[ticket-id] or [ticket-id]-[phase] [--question] [--local]"
-model: sonnet
 ---
 
 ## Ticket Resolution

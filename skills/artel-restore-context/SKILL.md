@@ -2,7 +2,6 @@
 name: artel-restore-context
 description: "Restore the working context — root AGENTS.md/CHANGELOG.md and the spec trail — from the host-writable .artel/context/ store back into the project. With a ticket arg, restores ONLY that ticket's <specs.dir>/<TICKET_ID>/ artifacts plus common root files; omit the argument for a full restore of every saved ticket. Counterpart to /artel-save-context."
 argument-hint: "[ticket-id]"
-model: sonnet
 ---
 
 Restore the working context from the `.artel/context/` store back to its working-tree locations.

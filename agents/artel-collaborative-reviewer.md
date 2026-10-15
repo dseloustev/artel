@@ -1,7 +1,6 @@
 ---
-name: artel-collaborative-reviewer
 description: "Read-only PR review worker for the collaborative-review skill: prepares a changed-file classification and reading order, assesses one file against the recorded PR snapshot, or investigates a follow-up question — returning evidence-backed reports. Never updates approvals, prompts the person, or edits code."
-model: opus
+mode: subagent
 ---
 
 ## Role

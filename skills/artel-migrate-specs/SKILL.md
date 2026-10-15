@@ -2,7 +2,6 @@
 name: artel-migrate-specs
 description: "Move a ticket's local spec trail — or every ticket's — into kartoteka, the project's spec store: upload what is missing or newer, never let a stale copy overwrite a newer stored one, show real conflicts, then delete the local copies kartoteka verifiably holds. Use when the user wants local specs uploaded, synced or cleaned up, when a run reports spec documents on disk, or after working locally while kartoteka was down."
 argument-hint: "[<ticket-id>… | --all] [--pending-only] [--no-prompt]"
-model: sonnet
 ---
 
 Worker, not an orchestrator — it runs inline. The contract is

@@ -1,7 +1,6 @@
 ---
-name: artel-planner
 description: "Designs the solution architecture and implementation plan based on the ticket."
-model: opus
+mode: subagent
 ---
 
 ## Role

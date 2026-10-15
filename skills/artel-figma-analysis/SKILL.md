@@ -2,7 +2,6 @@
 name: artel-figma-analysis
 description: "Analyze the ticket's Figma design workflow: flow graph, screen-to-code mapping, desktop/mobile differences, discrepancy handshake"
 argument-hint: "[ticket-id] [figma-url]"
-model: sonnet
 ---
 
 Design-analysis orchestrator for the ticket's Figma workflow. Config key: `design.figma`

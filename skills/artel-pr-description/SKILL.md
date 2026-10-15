@@ -2,7 +2,6 @@
 name: artel-pr-description
 description: "Generate a short, plain-language PR description for a ticket, styled to match recent merged PRs"
 argument-hint: "[ticket-id]"
-model: sonnet
 ---
 
 ## Ticket Resolution

@@ -2,7 +2,6 @@
 name: artel-tasks
 description: "Operate the ticket's kartoteka task queue from the conversation: list the queue and diagnose it (drained, promotion pending, blocked, held), add a task through tasklist.md so file and queue stay in step — an iteration task, or a review, runtime or verify fix (`add --fix`) — mark a task done or blocked, or release a task a dead agent left in_progress. Use when the user asks what is in the queue, who holds a task, wants a task or a fix added to a ticket, or wants a stuck task released."
 argument-hint: 'list|add|done|block|release [ticket-id] [<task-id> | "<title>" (--iteration N [--files <paths>] [--depends <tasks>] [--route <route>] [--test <paths>] | --fix CRF|RTF|VF|FV) [--hitl <reason>] [--raw]] [--status <status>] [--note <text>]'
-model: sonnet
 ---
 
 Worker, not an orchestrator — no agent matches this job; it runs inline (like `sync-phases` and

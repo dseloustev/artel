@@ -1,8 +1,8 @@
 ---
 name: artel-save-context
 description: "Save the working context — root AGENTS.md/CHANGELOG.md plus every ticket's <specs.dir>/<TICKET_ID>/ spec trail — into the host-writable .artel/context/ store (newer wins), then clear the working-tree spec trail and CHANGELOG.md; AGENTS.md is mirrored but stays in the working tree. Use to declutter or archive the working tree before a branch switch or cleanup; bring everything back with /artel-restore-context."
-disable-model-invocation: true
-model: sonnet
+metadata:
+  opencode/autoinvoke: false
 ---
 
 Save the working context into the host-writable `.artel/context/` store, then clear the

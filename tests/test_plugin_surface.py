@@ -1,10 +1,10 @@
-"""What Claude Code loads out of the plugin directory, and what it must not.
+"""What OpenCode loads out of the plugin directory, and what it must not.
 
-Claude Code registers EVERY `.md` directly under `agents/` as an agent. A stray
-`README.md` there became an agent called `README` — no frontmatter, so it reached
-the picker with an empty description and "All tools", offered to the model as a
-real dispatch target. Prose about the crew lives in docs/agents.md; this guards
-the directory against the next one.
+OpenCode registers EVERY `.md` directly under `agents/` as an agent, named by its
+file stem. A stray `README.md` there becomes an agent called `README` — no
+frontmatter, so it reaches the picker with an empty description and "All tools",
+offered to the model as a real dispatch target. Prose about the crew lives in
+docs/agents.md; this guards the directory against the next one.
 
 Same family as tests/test_build_opencode.py: a surface defect nobody sees until a
 session picks the wrong thing.
@@ -52,15 +52,14 @@ class TestAgentsDirectory(unittest.TestCase):
     def test_every_file_has_agent_frontmatter(self):
         for path in self.agent_files():
             fields = frontmatter(path)
-            self.assertIn('name', fields, path.name + ' has no frontmatter name — it is not an agent')
             self.assertIn('description', fields, path.name + ' has no frontmatter description')
             self.assertTrue(fields['description'], path.name + ' has an empty description')
+            self.assertEqual(fields.get('mode'), 'subagent',
+                             path.name + ' is not declared `mode: subagent`')
 
-    def test_frontmatter_name_matches_the_filename(self):
+    def test_the_filename_is_the_agent_name(self):
         for path in self.agent_files():
-            name = frontmatter(path).get('name', '')
-            self.assertEqual(name, path.stem, path.name + ' declares name: ' + name)
-            self.assertRegex(name, NAME)
+            self.assertRegex(path.stem, NAME)
 
 
 class TestSkillsDirectory(unittest.TestCase):

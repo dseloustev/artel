@@ -1,7 +1,6 @@
 ---
-name: artel-vision-writer
 description: "Drafts the host project's technical vision document (<specs.dir>/<TICKET_ID>/vision.md) in one pass from the idea file and PRD."
-model: opus
+mode: subagent
 ---
 
 ## Role

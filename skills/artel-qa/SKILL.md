@@ -2,7 +2,6 @@
 name: artel-qa
 description: "Prepare a QA plan and report for a ticket or release"
 argument-hint: "[ticket-id] or [ticket-id]-[phase] or R-[release-id]"
-model: sonnet
 ---
 
 ## Ticket Resolution

@@ -2,7 +2,6 @@
 name: artel-issue-draft
 description: "Use when the user wants a text description, a pasted ticket or a local .txt/.md file turned into a Jira-ready task, bug report or epic, in any language — e.g. draft an issue from this, write these notes up as a ticket, format this bug, describe this epic. Writes a summary plus a type-specific templated description to a local file; gathers context from kartoteka, the tracker, Figma and the host code, and asks about remaining gaps first. Draft only — never posts to a tracker."
 argument-hint: "<text | file-path> [--type task|bug|epic] [--local]"
-model: opus
 ---
 
 # Drafting a Jira issue

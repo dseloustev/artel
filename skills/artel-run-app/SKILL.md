@@ -2,7 +2,6 @@
 name: artel-run-app
 description: "Build and launch the app via the host's configured runtime.run command, capture the launch outcome as evidence, and record the RUNTIME_OK gate. --gate mode for pipelines: fresh run, GREEN/RED verdict. Interactive mode: launch for inspection, leave it running. Absent/empty runtime.run reports skipped (not configured) and never blocks a run."
 argument-hint: "[--gate]"
-model: sonnet
 ---
 
 Launch-and-observe orchestrator for the `RUNTIME_OK` gate. Config key: `runtime.run`

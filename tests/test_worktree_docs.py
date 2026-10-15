@@ -28,7 +28,7 @@ class WorktreeSkillsCase(unittest.TestCase):
     def test_both_are_user_invoked_only(self):
         # They move the session and change two checkouts: never auto-triggered.
         for name in NEW_SKILLS:
-            self.assertIn('disable-model-invocation: true', body(name), name)
+            self.assertIn('metadata.opencode/autoinvoke: false', body(name), name)
 
     def test_both_take_an_optional_ticket(self):
         for name in NEW_SKILLS:

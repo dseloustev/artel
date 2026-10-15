@@ -1,7 +1,6 @@
 ---
-name: artel-implementer
 description: "Implements tasks from the tasklist in small, consistent steps."
-model: opus
+mode: subagent
 ---
 
 ## Role

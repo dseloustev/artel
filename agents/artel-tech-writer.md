@@ -1,7 +1,6 @@
 ---
-name: artel-tech-writer
 description: "Updates architectural and operational documentation based on ticket work."
-model: opus
+mode: subagent
 ---
 
 ## Role

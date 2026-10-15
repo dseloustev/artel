@@ -2,7 +2,6 @@
 name: artel-generate-idea
 description: "Import the ticket from the configured tracker (or gather a description directly, when untracked) and write <specs.dir>/<TICKET_ID>/idea.md as the seed for the feature workflow"
 argument-hint: "[ticket-id] [description-file]"
-model: sonnet
 ---
 
 ## Overview

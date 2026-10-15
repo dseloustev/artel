@@ -2,7 +2,6 @@
 name: artel-docs-update
 description: "Update documentation based on ticket work"
 argument-hint: "[ticket-id] or [ticket-id]-[phase]"
-model: sonnet
 ---
 
 ## Ticket Resolution

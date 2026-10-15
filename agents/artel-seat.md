@@ -1,7 +1,6 @@
 ---
-name: artel-seat
 description: "Runs an armed run's tail — the post-approval loop — one layer down, relaying every pause to the orchestrator above."
-model: sonnet
+mode: subagent
 ---
 
 ## Role

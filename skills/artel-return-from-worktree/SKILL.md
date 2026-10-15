@@ -2,8 +2,8 @@
 name: artel-return-from-worktree
 description: "Hand a ticket's worktree back to the main checkout once the task is done: its uncommitted changes and run state move back, the main checkout switches to the ticket's branch, and the worktree under .opencode/worktrees/ is removed — the branch is kept. Use when the user says the work in a worktree is finished, wants to go back to the main checkout, or asks to remove or close a ticket's worktree."
 argument-hint: "[ticket-id]"
-disable-model-invocation: true
-model: sonnet
+metadata:
+  opencode/autoinvoke: false
 ---
 
 ## Overview
@@ -14,7 +14,7 @@ are `${ARTEL_ROOT}/scripts/worktree.py hand-back`, which always works on the **m
 checkout** and refuses to start inside the worktree — that directory is about to be deleted —
 except with `--check`, which changes nothing.
 
-A **worker that runs inline**, user-invoked only (`disable-model-invocation: true`): it moves the
+A **worker that runs inline**, user-invoked only (`metadata.opencode/autoinvoke: false`): it moves the
 session and changes the main checkout's branch.
 
 ## Steps

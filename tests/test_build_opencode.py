@@ -106,8 +106,9 @@ class TestSkillBuild(BuildBase):
     def test_frontmatter_keeps_description_and_drops_claude_fields(self):
         for path in sorted((self.out / 'skills').glob('*/SKILL.md')):
             head = path.read_text(encoding='utf-8').split('---')[1]
+            self.assertIn('name: ' + path.parent.name, head)
             self.assertIn('description: "', head, path.parent.name + ' lost its description')
-            for field in ('argument-hint:', 'model:', 'disable-model-invocation:'):
+            for field in ('model:', 'disable-model-invocation:'):
                 self.assertNotIn(field, head,
                                  path.parent.name + ' keeps Claude-only ' + field)
 
@@ -225,6 +226,7 @@ class TestAgentBuild(BuildBase):
             self.assertIn('description: "', head)
             self.assertIn('mode: subagent', head)
             self.assertNotIn('model:', head, path.name + ' keeps a Claude model tier')
+            self.assertNotRegex(head, r'(?m)^name:', path.name + ' keeps a frontmatter name')
 
     def test_agent_carries_a_baked_root(self):
         for path in sorted((self.out / 'agents').glob('artel-*.md')):
@@ -367,8 +369,8 @@ class TestCollaborativeReviewBuild(BuildBase):
                          self.AGENT + ' keeps a Claude model tier')
 
 class TestAutoinvoke(BuildBase):
-    """`disable-model-invocation: true` becomes v2's `metadata.opencode/autoinvoke: false`,
-    so a manual-only skill stays loadable by id but leaves the model's skill list."""
+    """A manual-only skill's `metadata.opencode/autoinvoke: false` rides through the build,
+    so it stays loadable by id but leaves the model's skill list."""
 
     def head(self, name):
         text = (self.out / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8')
@@ -376,7 +378,7 @@ class TestAutoinvoke(BuildBase):
 
     def test_manual_only_skills_hide_from_the_model(self):
         manual = [p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md')
-                  if 'disable-model-invocation: true' in p.read_text(encoding='utf-8')]
+                  if 'opencode/autoinvoke: false' in p.read_text(encoding='utf-8')]
         self.assertIn('artel-inner-loop', manual)
         for name in manual:
             with self.subTest(name):

@@ -2,7 +2,6 @@
 name: artel-merge-conflicts
 description: "Resolve merge conflicts by analyzing both sides of each conflict and intelligently merging changes, verifying with the host's configured quality gate afterward. Use when merging branches with conflicts."
 argument-hint: "[branch-name]"
-model: opus
 ---
 
 # Merge Conflict Resolution

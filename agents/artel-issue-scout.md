@@ -1,7 +1,6 @@
 ---
-name: artel-issue-scout
 description: "Read-only. Gathers context for an issue draft from kartoteka, the live tracker, Figma and the host code, and returns a fact sheet. Dispatched by the issue-draft skill."
-model: opus
+mode: subagent
 ---
 
 ## Role

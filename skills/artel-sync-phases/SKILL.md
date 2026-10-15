@@ -2,7 +2,6 @@
 name: artel-sync-phases
 description: "Sync phase completion status between tasklist.md and phase-N/tasks.md files"
 argument-hint: "[ticket-id] or [ticket-id]-[phase]"
-model: sonnet
 ---
 
 ## Overview

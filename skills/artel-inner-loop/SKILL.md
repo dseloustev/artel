@@ -1,13 +1,12 @@
 ---
 name: artel-inner-loop
-description: >-
-  Run the bounded verify→fix→re-verify loop until the configured quality gate is green.
-  MANUAL/COMPOSED ONLY — invoked explicitly or by the implementer agent; not auto-fired.
+description: "Run the bounded verify→fix→re-verify loop until the configured quality gate is green. MANUAL/COMPOSED ONLY — invoked explicitly or by the implementer agent; not auto-fired."
 argument-hint: "[paths to scope the gate, comma-separated]"
-disable-model-invocation: true
+metadata:
+  opencode/autoinvoke: false
 ---
 
-Composed by `read`, not the `skill` tool: `disable-model-invocation: true` hides this skill from
+Composed by `read`, not the `skill` tool: `metadata.opencode/autoinvoke: false` hides this skill from
 model-side `skill`-tool invocation, and subagents do not inherit skills — the `artel-implementer` agent
 (`${ARTEL_ROOT}/agents/artel-implementer.md`) consumes it by reading this file by path in its
 prompt. User slash-command invocation (`/artel-inner-loop`) still works.

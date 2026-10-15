@@ -215,7 +215,7 @@ class TestSkill(unittest.TestCase):
         self.assertIn('artel-configured repo', description)
         self.assertLessEqual(len(description), 1024)
         self.assertNotRegex(frontmatter, r'(?m)^model:')
-        self.assertNotRegex(frontmatter, r'(?m)^disable-model-invocation:')
+        self.assertNotIn('opencode/autoinvoke: false', frontmatter)
 
     def test_reads_the_contract_first(self):
         self.assertIn('**The discipline is `${ARTEL_ROOT}/docs/debugging.md`', self.doc)

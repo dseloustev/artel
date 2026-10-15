@@ -35,8 +35,7 @@ class TestAgent(unittest.TestCase):
 
     def test_frontmatter(self):
         fields = {k.strip(): v.strip().strip('"') for k, v in frontmatter(AGENT).items()}
-        self.assertEqual('artel-issue-scout', fields['name'])
-        self.assertEqual('opus', fields['model'])
+        self.assertEqual('subagent', fields['mode'])
         self.assertIn('Read-only', fields['description'])
 
     def test_calls_kartoteka_in_the_contract_shapes(self):

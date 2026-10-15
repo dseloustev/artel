@@ -1,7 +1,6 @@
 ---
-name: artel-analyst
 description: "Gathers the initial idea, refines requirements, and creates a PRD based on the ticket."
-model: opus
+mode: subagent
 ---
 
 ## Role

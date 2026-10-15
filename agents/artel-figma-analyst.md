@@ -1,7 +1,6 @@
 ---
-name: artel-figma-analyst
 description: "Analyzes the ticket's Figma design workflow: flow graph, screen-to-code mapping, desktop/mobile differences, discrepancy findings."
-model: opus
+mode: subagent
 ---
 
 ## Role

@@ -2,7 +2,6 @@
 name: artel-generate-tasklist
 description: "Generate an iterative, testable work plan (<specs.dir>/<TICKET_ID>/tasklist.md) directly from the idea file — with the vision, a spike answer or a diagnosis when the ticket has one"
 argument-hint: "[ticket-id] [idea-file] [vision-file] [--local]"
-model: sonnet
 ---
 
 ## Overview

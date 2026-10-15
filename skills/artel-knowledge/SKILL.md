@@ -2,7 +2,6 @@
 name: artel-knowledge
 description: "Ask the project's institutional-knowledge index (kartoteka) from the conversation: search prior decisions and discussions, list everything filed under a ticket, or report index freshness. Read-only — writes nothing. Use when the user asks what was decided or discussed about something, whether there is prior work on a topic, what is filed under a ticket, or whether the index is fresh."
 argument-hint: "<query> | <ticket-id> | status [--source files|jira|bitbucket] [--type <type>] [--status <status>] [--artifacts]"
-model: sonnet
 ---
 
 Worker, not an orchestrator — no agent matches this job; it runs inline (like `sync-phases` and

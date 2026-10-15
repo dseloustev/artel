@@ -2,7 +2,6 @@
 name: artel-address-pr-comment
 description: "Read a single pull-request comment, cross-reference the active ticket's docs, and present a plan for the fix"
 argument-hint: "<pr-comment-url>"
-model: sonnet
 ---
 
 This skill takes a link to **one specific pull-request comment**, fetches just that comment (plus its direct thread replies), grounds the response in the active ticket's docs, and presents the plan — a concrete proposed

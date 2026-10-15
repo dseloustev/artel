@@ -691,6 +691,129 @@ the Git and evidence proofs available to it and refuses anything it cannot prove
 inspection report, state `published` only means "a result ref exists" — it is not §6's
 `published` task state, which remains the coordinator's record.
 
+### 13.8 Serialized integration and recovery
+
+`scripts/parallel_integration.py` owns the one integration transaction that mutates the ticket
+branch, extending the `## Task commits` contract of the `feature-development` skill to the
+parallel path: one commit per completed worker cycle, the same staging discipline, the same
+conventional subject-only message, no push. Its public interface is
+
+    prepare_transport(repo, assignment, result) -> transaction
+    apply_transport(repo, assignment, prepared) -> transaction
+    commit_cycle(repo, transaction, subject) -> transaction
+    recover_cycle(repo, transaction) -> transaction
+
+`repo` is the **coordinator checkout**: the one whose branch carries the final commit and whose
+`.artel/run/<TICKET_ID>/parallel/<run-id>/` holds the run manifest and the transaction record.
+The module never schedules, launches, claims or publishes; the coordinator performs every
+scheduler and queue call itself, and `resume` stays the only launch signal for reservations. It
+never resets, stashes, switches or cleans either checkout.
+
+**The transaction record.** One JSON-safe `schema: 1` record per task/attempt, persisted
+atomically at
+`<repo>/.artel/run/<TICKET_ID>/parallel/<run-id>/integration/<task>-a<attempt>.json` **before**
+every Git side effect, with exactly these keys:
+
+```json
+{"schema": 1, "transaction_id": "artel-integrate-<run_id>-<task>-a<attempt>",
+ "ticket": "PROJ-123", "phase": 2, "task": "3.1", "run_id": "…", "attempt": 1,
+ "base_commit": "<40hex>", "worker_root": "/abs/worker", "repo_root": "/abs/coordinator",
+ "branch": "feature/PROJ-123", "pre_head": "<40hex>", "transport_commit": "<40hex>|null",
+ "result_ref": "refs/artel/parallel/<run_id>/<task>/<attempt>/result",
+ "route": "light|full", "review": {"required": true, "route": "full", "verdict": "passed",
+ "rounds": 1} | null, "changed_files": ["…"], "excluded": ["…"],
+ "diff": {"base_commit": "<40hex>", "commit": "<40hex>", "sha256": "<64hex>", "files": ["…"]},
+ "documents": ["…"], "drain": {"in_flight": [], "waiting": ["2.4"], "checked_at": "…"},
+ "publication": null, "stage": "…", "subject": null, "cycle_commit": null,
+ "verify": null, "recovery": null, "created_at": "…", "updated_at": "…", "record": "/abs/…"}
+```
+
+`stage` moves `preparing → prepared → applying → applied → committing → committed`; the side
+stages `conflicted`, `apply_failed`, `failed`, `commit_refused` and `recovered` keep a refusal
+inspectable. `documents` is the files path's pending tick/ordered notes (empty on the
+artifact-store path); `publication` is reserved for Task 9 and is never written here; `verify` is
+the integrated-tree gate envelope; `recovery` is `{"state": "landed"|"none", "checked_at": "…"}`.
+Every function returns exactly the record it persisted, so the coordinator persists the returned
+value (or reads the file back) and passes it to the next step.
+
+**Ownership and drain.** Every operation matches the repository-common ticket lock (§13.4)
+read-only — `not_owned`, `ambiguous_owner`, `foreign_owner` refuse, and nothing here acquires,
+releases or reclaims it. The worker root must be the assignment's own marker-validated root in
+the same repository, and the run manifest at its conventional path must name this run and hold
+the task at `integrating`: the durable write-ahead state the coordinator persists **before** any
+integration effect, and the scheduler's pending drain. Because the transport and the final commit
+run the host's normal commit hooks — shared external effects the coordinator cannot prove
+worker-local — every integration requires a **drained** run: no other task may be `preparing`,
+`running`, `verifying/reviewing`, `prepared` or `integrating`, and `active` workers reaching zero
+alone is not quiescence. A non-drained run refuses (`drain_required`) and names the tasks; waiting
+`reserved` reservations are held (never launched here) and recorded in `drain.waiting`. Admission
+is not re-opened by an integration step, and a pending drain is never starved by fresh starts.
+
+**Transport — `prepare_transport`.** The result must be `succeeded`, every worker check green and
+the accepted review must cover the effective route of this exact diff/root/attempt; a submission
+`review: null` is not an accepted review. The payload's `succeeded` is the result's own claim, not
+native evidence: the worker session's disposition (Task 7's `workerStatus`, outside the result)
+is the coordinator's precondition, and an interrupted session is never rescued by a contradictory
+succeeded file. The coordinator creates a **normal hooked, code-only transport commit in the
+worker tree**: the staged set is exactly the result's actual code diff computed from a
+working-tree snapshot of the worker root against the recorded base, with both sides of a rename
+included. Paths under `.artel/` and the ticket's spec trail are excluded (a
+worker's shared-state edit stays dirty and inspectable, and the root is retained); every other
+actual path must equal `changed_files`. A path outside the assignment's declared `files` must be
+recorded in a deviation — a major deviation refuses (`major_deviation`), an unrecorded one
+refuses (`undeclared_change`) — and it floors the effective route to `full`, so a light review
+refuses (`route_floor`) instead of silently broadening the commit. A refusing commit hook leaves
+the index, HEAD and the record as they were (`commit_refused`). On success the namespaced
+`result` ref retains the transport commit, the worker is left clean at it, and `diff` records the
+worker-scoped review package digest. A crash between the commit and the receipt is reconciled
+from the transaction-marked worker reflog; an unexplained moved worker HEAD refuses
+(`worker_not_at_base`) rather than adopting someone's commit.
+
+**Apply — `apply_transport`.** The coordinator must be on the transaction's branch at its
+recorded `pre_head` with a usable branch reflog and a clean index; every transported path must be
+clean there, while unrelated work is preserved byte for byte (never reset, never stashed). The
+transport is applied with **`cherry-pick --no-commit`**: it stages the change and adds no commit
+to branch history. A conflict leaves git's own conflict state and a `conflicted` record — nothing
+is auto-resolved, reset or force-cleaned — and stops admission until the coordinator's bounded
+fix/review procedure resolves it. The pre-HEAD and the transaction id are recorded before the
+mutation, and an interrupted apply is adopted only while the index still matches the transported
+paths exactly (`ambiguous_apply` otherwise).
+
+**Final commit — `commit_cycle`.** Before anything is committed, the integrated tree is checked
+with the existing task gate (`scripts/verify.py task`, run in the coordinator root): two
+individually green task roots do not establish combined correctness, and a red gate
+(`task_gate_failed`) or an environment error (`task_gate_error`) commits nothing and leaves the
+staged tree inspectable for the coordinator's bounded fix. The commit stages exactly the
+transported paths plus the transaction's `documents`, and the index must carry no other path
+(`foreign_staged`): a person's staged or dirty work is never swept in, never unstaged and never
+reset. On the **files path** the tick and ordered notes are the pending `documents` and land in
+this one commit with the code; on the **artifact-store path** `documents` is empty, the code
+commit lands first, and Task 9 publishes the versioned artifacts afterwards — never the reverse.
+The subject must be a conventional, subject-only message (`feat`, `fix`, `refactor`, `test`,
+`docs` or `chore`) with no task id and no trailer, and the commit carries the transaction id as
+its `GIT_REFLOG_ACTION`, so it is attributable from the reflog, the retained refs and the run
+state rather than from its message. There is exactly one completed-cycle commit on the ticket
+branch per task/attempt; the transport commit stays a retained ref, not branch history. A
+refusing final hook leaves the record and the staged tree as they were (`commit_refused`).
+
+**Recovery — `recover_cycle`.** A final commit may have landed before its receipt was persisted.
+Recovery matches the recorded `pre_head` plus the branch reflog entry whose message is the
+transaction id exactly (also when the coordinator itself is a linked checkout) and returns that
+commit exactly once; `commit_cycle` and `prepare_transport` run the same recognition first, so a
+repeated call never creates a second transport or cycle commit. Missing or unusable reflogs
+(`reflogs_unusable`), an expired window (`expired_evidence`), evidence that carries the marker but
+does not match the pre-HEAD (`ambiguous_evidence`) and a matching commit no longer reachable from
+the branch (`unreachable_evidence`) each **refuses rather than re-committing** — the diagnosis is
+the coordinator's, and nothing is reset or guessed.
+
+**Caller obligations for Tasks 9-10.** Integration produces the Git facts Task 9 consumes — the
+final `cycle_commit`, its branch (`cycle_ref`), the retained `result_ref`/`result_commit` and the
+record — and never asserts an external publication or cleanup receipt. The coordinator persists
+`prepared → integrating` (revision-checked) before calling `prepare_transport`, stops admission
+while the transaction is open, runs the bounded fix/review procedure after a red gate or a
+conflict, calls `recover_cycle` after a restart before retrying anything, and only after the
+record reaches `committed` (or `recovered`) does Task 9 publish and the queue mark the task done.
+
 ## 14. Proof record
 
 The capability proof ran 2026-10-15 against OpenCode 2.0.29: two workers in two detached

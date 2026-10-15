@@ -715,10 +715,25 @@ carries no worker terminal event while the status envelopes recovered the succee
 validated result and the interrupted worker's contradictory `succeeded` result as
 `interrupted_over_result`; a worker session calling `startWorker` was refused
 (`caller_is_worker`) and wrote no journal, so the adapter namespace is not a worker
-orchestrator. One native check is **not** met on the installed host: the worker
-`subagent`/`question` guard lives in the bridge, and the installed bridge
-(`sha256 28857a7f…fada`) predates it — a live `subagent` attempt slipped through and was
-contained and interrupted, and a live `question` was not attempted because it would surface
-a user-visible prompt. The guard is covered by the bridge source tests and takes effect when
-the new bridge is installed; the native check stays open (see the Task 7 report). Raw
-evidence: `.artel/run/repro/opencode-parallel-proof/task7/native-evidence/`.
+orchestrator. Raw evidence: `.artel/run/repro/opencode-parallel-proof/task7/native-evidence/`.
+
+**Fix round 1 (review findings, 2026-10-15).** The worker `subagent`/`question` denial and the
+bridge-registration path are now proven natively on the same service, still with no global
+install and no restart: a scratch-local `.opencode/opencode.json` (`plugins: ["-artel"]`)
+disabled the obsolete globally installed bridge for the disposable scratch locations only,
+and one distinct-id test wrapper (`artel-fix1`) imported the EXACT repo
+`opencode/plugin/artel.ts` — and, through its own `./parallel` import, the repo adapter — so
+`registerParallel` and the worker guard executed as shipped. Recorded: per-location plugin
+lists with exactly one active current bridge and no old `artel` or failed entry (host and both
+lifecycle worker roots); `workerCapabilities` `ok` for 2.0.29; `startWorker` created and
+prompted two workers in their lifecycle worktrees (fresh creation, `adopted: false`, both
+running); `interruptWorker` interrupted one mid-turn (`already_interrupted: false`);
+`workerStatus` reported the completed worker's validated result and the interrupted worker's
+contradictory result as `interrupted_over_result`; and in a worker session the `subagent`,
+`question` and `artel_parallel_startWorker` calls were each denied pre-execution by the same
+current `tool.execute.before` hook with the exact `artel worker role` error — no child
+session, no pending form, no journal. Deviations disclosed: the test plugin id differs from
+the shipped `artel`, and the scratch wrapper pointed `ARTEL_ROOT` at the checkout for its
+module evaluation only (the globally installed copy predates this task; the process value is
+restored immediately). Raw evidence: `.artel/run/repro/opencode-parallel-proof/task7/fix1-native-preflight/`
+and `.../fix1-native-run/`.

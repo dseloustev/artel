@@ -84,12 +84,16 @@ arrive via the "Other" option.
 - **Round 6 — OpenCode models** (optional): which model should each `models.opencode` dispatch
   site use? Offer the sites of
   config.md's `models` section — `implementer.light` / `full` / `fix` / `stepUp`,
-  `reviewer.task` / `phase` / `reReview` / `plan` / `deepReview`, `pr-description`, and
+  `reviewer.task` / `phase` / `reReview` / `plan` / `deepReview`, the `planner` family
+  (`planner.default` as the shared fallback for all the planning work, and the kinds
+  `planner.plan` / `tasklist` / `research` / `analysis` on top of it), `pr-description`, and
   `agents.<name>` for any other agent — and ask for a value only for the sites the person wants
   to set; every site left unset keeps its inert default and the dispatch inherits the caller's
-  model. Values are `provider/model` with an optional `#variant` — exactly one `/`, no
-  whitespace, at most one `#` with a non-empty variant (e.g. `tokenguard/opus-5.5`,
-  `tokenguard/deepseek-flash#xhigh`). Every artel dispatch resolves its model from this block.
+  model. An unset `planner.<kind>` resolves `planner.default`; leave both unset and the
+  planning dispatch inherits the caller's model like any other. Values are `provider/model`
+  with an optional `#variant` — exactly one `/`, no whitespace, at most one `#` with a
+  non-empty variant (e.g. `tokenguard/opus-5.5`, `tokenguard/deepseek-flash#xhigh`). Every
+  artel dispatch resolves its model from this block.
 
 ## 3. Validate
 
@@ -103,7 +107,8 @@ token (`ktk_…`) is re-asked, never written;
 strings; `review.perTask` and `design.figma` are booleans;
 `models.opencode` is an object whose site values are `provider/model` strings in the value form
 of config.md's `models` section (exactly one `/`, no whitespace, at most one `#` with a
-non-empty variant);
+non-empty variant) — the `planner` family's nested object holds the same value form, so an
+unset `planner.<kind>` resolves `planner.default`;
 MCP-adapter prefixes non-empty; language codes plausible BCP 47. A violation re-asks that round — never write a config that config.md's reading rules
 would reject at run start.
 

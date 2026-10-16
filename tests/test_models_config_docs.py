@@ -38,6 +38,9 @@ class TestConfigKey(unittest.TestCase):
                     '`models.opencode.implementer.stepUp`', '`models.opencode.reviewer.task`',
                     '`models.opencode.reviewer.reReview`',
                     '`models.opencode.reviewer.deepReview`',
+                    '`models.opencode.planner.default`', '`models.opencode.planner.plan`',
+                    '`models.opencode.planner.tasklist`', '`models.opencode.planner.research`',
+                    '`models.opencode.planner.analysis`',
                     '`models.opencode.pr-description`',
                     '`models.opencode.agents.<name>`'):
             self.assertIn(key, body)
@@ -52,15 +55,23 @@ class TestConfigKey(unittest.TestCase):
         self.assertIn('leaves the first-round rule (`implementer.fix`) in effect', body)
         self.assertIn("leaves ticket mode's `reviewer.phase` in effect", body)
 
+    def test_models_section_pins_the_planner_family_fallback(self):
+        body = re.sub(r'\s+', ' ', section(read(CONFIG), SECTION, r'^### '))
+        self.assertIn('an unset kind resolves `planner.default`', body)
+        self.assertIn('The resolver applies the fallback', body)
+
     def test_filled_example_shows_the_block_on(self):
         example = section(read(CONFIG), '## A filled example')
         self.assertIn('"models": {\n    "opencode": {\n      "implementer": {', example)
+        self.assertIn('"planner": {\n        "default": "tokenguard/deepseek-flash",', example)
+        self.assertIn('"plan": "tokenguard/gpt-6.1-sol"', example)
         self.assertIn('"pr-description": "tokenguard/sonnet-5"', example)
 
     def test_setup_interview_offers_and_validates_the_key(self):
         text = read(SETUP)
         self.assertIn('`models.opencode`', section(text, '## 2. Interview'))
         self.assertIn('`pr-description`', section(text, '## 2. Interview'))
+        self.assertIn('`planner.default`', section(text, '## 2. Interview'))
         self.assertIn('`models.opencode`', section(text, '## 3. Validate'))
 
     def test_the_resolver_exists(self):

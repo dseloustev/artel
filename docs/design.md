@@ -1464,3 +1464,20 @@ move to the decision log.
   `.artel/worktree.json` manifest, and hands the branch back. Adopting the API means
   reimplementing that on a moving interface for no user-visible gain; revisit if the API grows
   the missing pieces.
+- **2026-10-16 — A `planner` family gives the analytical work one model with per-kind
+  exceptions.** `models.opencode` gains `planner.default` plus four kinds — `plan`, `tasklist`,
+  `research`, `analysis` — and the eight analytical agents resolve by their kind instead of the
+  generic `agents.<name>` site, whose reserved set grows to match. The kind → agent grouping
+  follows the pipeline's own hand-offs rather than the agent roster: `task-planner` and
+  `tasklist-writer` share `tasklist` because one dispatches the other, and `analyst` and
+  `vision-writer` share `analysis` because the vision is written from the PRD. Rejected: a bare
+  `"planner": "provider/model"` as the family-wide value — a key cannot be both a string and an
+  object, so the shared fallback needs a name of its own. Rejected: applying the kind fallback
+  in the calling skill, as `implementer.stepUp` and `reviewer.reReview` do — that restates the
+  rule at eight dispatch sites and costs two resolves per dispatch, where the resolver answers
+  in one call. Rejected: keeping `agents.<name>` as a more specific layer above the kind — two
+  keys for one dispatch invites the silent "I set it and nothing happened" failure, and every
+  other dispatch has exactly one site. The family is the only in-block fallback; the older two
+  stay caller-side, since moving them is a separate decision. Locked in by
+  `tests/test_models.py` (`TestPlannerFamily`, `TestPlanningAgentNames`),
+  `tests/test_models_config_docs.py` and `tests/test_model_selection_docs.py`.

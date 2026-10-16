@@ -95,7 +95,8 @@ dispatch, never a resume-by-id, so a re-dispatched agent re-reads its context fi
 dispatch carries the model its site resolves from `models.opencode` in the host's
 `.artel/config.json` through `scripts/models.py`: per-dispatch models are resolved from
 `models.opencode` and passed on the `subagent` call, and unset → the child inherits the
-caller's model. The site table is [agents.md](agents.md) `## Models`.
+caller's model — except in the `planner` family, where an unset `planner.<kind>` resolves
+`planner.default` first. The site table is [agents.md](agents.md) `## Models`.
 
 **Questions.** A sketch attached to a question's option goes into the question text as a
 fenced block — a flow, structure or chart sketch is a `mermaid` block, which the OpenChamber

@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A `planner` family names the model for the analytical work.** `models.opencode.planner`
+  carries `default` — the shared fallback for every planning dispatch — and four kinds on top of
+  it: `plan` (the architecture / implementation plan), `tasklist` (the task breakdown and the
+  tasklist), `research` (research, issue scouting, Figma analysis) and `analysis` (the PRD and
+  the vision). An unset `planner.<kind>` resolves `planner.default`, so one line sets the model
+  for all of the planning work and naming a kind carves out the exceptions; the resolver applies
+  that fallback, so a dispatch still makes a single `models.py` call. The eight analytical
+  agents — `planner`, `task-planner`, `tasklist-writer`, `researcher`, `analyst`,
+  `vision-writer`, `figma-analyst`, `issue-scout` — resolve by their kind rather than the
+  generic `agents.<name>` site. Contract: [docs/config.md](docs/config.md) `models`,
+  [docs/agents.md](docs/agents.md) `## Models`.
+
+### Upgrade
+
+- **Move an analytical agent's model to its `planner.<kind>` site.** A `models.opencode.agents`
+  entry for one of the eight analytical agents is now ignored — every dispatch has exactly one
+  site. `agents.planner` → `planner.plan`; `agents.task-planner` and `agents.tasklist-writer` →
+  `planner.tasklist`; `agents.researcher`, `agents.issue-scout` and `agents.figma-analyst` →
+  `planner.research`; `agents.analyst` and `agents.vision-writer` → `planner.analysis`. Setting
+  `planner.default` alone puts all of them on one model instead.
+
 ## [0.36.0] - 2026-10-15
 
 ### Changed

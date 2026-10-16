@@ -292,8 +292,22 @@ the resolver reads this block at call time: a mid-run edit is picked up by the n
 | `models.opencode.reviewer.reReview` | string | `null` | A re-review after a fix round. An unset `reReview` leaves ticket mode's `reviewer.phase` in effect. | `scripts/models.py`, site `reviewer.reReview` |
 | `models.opencode.reviewer.plan` | string | `null` | Plan review (gate 4.2). | `scripts/models.py`, site `reviewer.plan` |
 | `models.opencode.reviewer.deepReview` | string | `null` | `deep-review`'s standalone whole-branch review. | `scripts/models.py`, site `reviewer.deepReview` |
+| `models.opencode.planner.default` | string | `null` | The shared fallback for every planning dispatch: a `planner.<kind>` site that is unset resolves this one. An unset `default` leaves the dispatch inheriting the caller's model. | `scripts/models.py`, site `planner.default` |
+| `models.opencode.planner.plan` | string | `null` | Drafting the architecture / implementation plan (`planner`; the `full` head of `feature-development`). | `scripts/models.py`, site `planner.plan` |
+| `models.opencode.planner.tasklist` | string | `null` | Breaking the plan into tasks and drafting the tasklist (`task-planner`, `tasklist-writer`). | `scripts/models.py`, site `planner.tasklist` |
+| `models.opencode.planner.research` | string | `null` | Research and context gathering for a ticket (`researcher`, `issue-scout`, `figma-analyst`). | `scripts/models.py`, site `planner.research` |
+| `models.opencode.planner.analysis` | string | `null` | Requirements and framing documents (`analyst`'s PRD, `vision-writer`'s vision). | `scripts/models.py`, site `planner.analysis` |
 | `models.opencode.pr-description` | string | `null` | The PR-description dispatch — `tech-writer` writing `<specs.dir>/<TICKET_ID>/pr-description.md` (`pr-description`, and `pr-create` through it). | `scripts/models.py`, site `pr-description` |
-| `models.opencode.agents.<name>` | string | `null` | Every other agent dispatch, by agent name (`[a-z0-9-]+`). An entry for `implementer` or `reviewer` is ignored — those resolve by their own sites. | `scripts/models.py`, site `agents.<name>` |
+| `models.opencode.agents.<name>` | string | `null` | Every other agent dispatch, by agent name (`[a-z0-9-]+`). An entry for a name that has a site of its own — `implementer`, `reviewer`, or any analytical agent (`planner`, `task-planner`, `tasklist-writer`, `researcher`, `analyst`, `vision-writer`, `figma-analyst`, `issue-scout`) — is ignored; those resolve by that site. | `scripts/models.py`, site `agents.<name>` |
+
+The `planner` family is the one place a site falls back inside the block rather than to the
+caller's model: `planner.<kind>` resolves the kind's own value, and an unset kind resolves
+`planner.default`. So `"planner": {"default": "tokenguard/gpt-6.1-sol"}` puts all of the
+planning work on one model, and naming a kind on top of it carves out the exceptions. The
+other sites take only their own value. The resolver applies the fallback, so a dispatch makes
+one call whatever the kind — unlike `implementer.stepUp` and `reviewer.reReview`, whose
+first-round rules the calling skill applies by passing no `--model`
+([agents.md](agents.md) `## Models`).
 
 Every value is a concrete `provider/model` with an optional `#variant`: exactly one `/`, no
 whitespace, non-empty halves, at most one `#` after the model half with a non-empty variant —
@@ -602,9 +616,16 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
         "plan": "tokenguard/opus-5.5",
         "deepReview": "tokenguard/fable-5"
       },
+      "planner": {
+        "default": "tokenguard/deepseek-flash",
+        "plan": "tokenguard/gpt-6.1-sol",
+        "tasklist": "tokenguard/gpt-6.1-sol",
+        "analysis": "tokenguard/gpt-6.1-sol",
+        "research": "tokenguard/gemini-3-pro"
+      },
       "pr-description": "tokenguard/sonnet-5",
       "agents": {
-        "analyst": "tokenguard/opus-5.5"
+        "qa": "tokenguard/sonnet-5"
       }
     }
   },

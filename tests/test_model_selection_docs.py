@@ -121,6 +121,15 @@ class TestReviewerSide(unittest.TestCase):
                        '| `reviewer` — a task review (route `full` tasks) | `reviewer.task` |',
                        '| `reviewer` — a re-review after a fix round | `reviewer.reReview` |',
                        "| `reviewer` — `deep-review`'s whole-branch review | `reviewer.deepReview` |",
+                       '| `planner` — the architecture / implementation plan | `planner.plan` |',
+                       '| `task-planner`, `tasklist-writer` — the task breakdown and the tasklist '
+                       '| `planner.tasklist` |',
+                       '| `researcher`, `issue-scout`, `figma-analyst` — research and context '
+                       'gathering | `planner.research` |',
+                       '| `analyst`, `vision-writer` — the PRD and the vision | '
+                       '`planner.analysis` |',
+                       'an unset `planner.<kind>` resolves `planner.default`',
+                       'every dispatch has exactly one site',
                        're-dispatched once without one',
                        "superpowers 6.4.1's Model Selection",
                        '**A skill declares no `model:`.**',
@@ -149,17 +158,17 @@ class TestTheDispatchProcedure(unittest.TestCase):
 
     # skill -> (site, least citations of the procedure expected in that file)
     SITES = {
-        'skills/artel-analysis/SKILL.md': ('agents.analyst', 3),
-        'skills/artel-generate-vision/SKILL.md': ('agents.vision-writer', 3),
+        'skills/artel-analysis/SKILL.md': ('planner.analysis', 3),
+        'skills/artel-generate-vision/SKILL.md': ('planner.analysis', 3),
         'skills/artel-docs-update/SKILL.md': ('agents.tech-writer', 1),
         'skills/artel-qa/SKILL.md': ('agents.qa', 1),
         'skills/artel-validate/SKILL.md': ('agents.validator', 1),
-        'skills/artel-tasklist/SKILL.md': ('agents.task-planner', 1),
-        'skills/artel-generate-tasklist/SKILL.md': ('agents.tasklist-writer', 4),
-        'skills/artel-planner/SKILL.md': ('agents.planner', 2),
-        'skills/artel-researcher/SKILL.md': ('agents.researcher', 2),
-        'skills/artel-figma-analysis/SKILL.md': ('agents.figma-analyst', 2),
-        'skills/artel-issue-draft/SKILL.md': ('agents.issue-scout', 1),
+        'skills/artel-tasklist/SKILL.md': ('planner.tasklist', 1),
+        'skills/artel-generate-tasklist/SKILL.md': ('planner.tasklist', 4),
+        'skills/artel-planner/SKILL.md': ('planner.plan', 2),
+        'skills/artel-researcher/SKILL.md': ('planner.research', 2),
+        'skills/artel-figma-analysis/SKILL.md': ('planner.research', 2),
+        'skills/artel-issue-draft/SKILL.md': ('planner.research', 1),
     }
 
     def citation_forms(self, site):

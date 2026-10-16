@@ -31,8 +31,19 @@ passes no model, so the child inherits the caller's:
 | `reviewer` — plan review (gate 4.2) | `reviewer.plan` |
 | `reviewer` — `deep-review`'s whole-branch review | `reviewer.deepReview` |
 | `tech-writer` — the `pr-description` dispatch | `pr-description` |
+| `planner` — the architecture / implementation plan | `planner.plan` |
+| `task-planner`, `tasklist-writer` — the task breakdown and the tasklist | `planner.tasklist` |
+| `researcher`, `issue-scout`, `figma-analyst` — research and context gathering | `planner.research` |
+| `analyst`, `vision-writer` — the PRD and the vision | `planner.analysis` |
 | `collaborative-reviewer` | `agents.collaborative-reviewer` |
 | every other agent | `agents.<name>` |
+
+The four kind sites share a fallback inside the block: an unset `planner.<kind>` resolves
+`planner.default`, so `"planner": {"default": "…"}` sets the model for all of the planning work
+at once and naming a kind carves out the exceptions. The resolver applies that fallback, so a
+planning dispatch still makes one resolve call; `planner.default` on its own resolves like any
+other site. An `agents.<name>` entry for an agent this table already names is ignored — every
+dispatch has exactly one site.
 
 ### The dispatch procedure
 

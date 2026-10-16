@@ -38,6 +38,7 @@ const ARTEL_ROOT = process.env.ARTEL_ROOT || path.join(CONFIG_HOME, "opencode", 
 export const TOOL_NAMESPACE = "artel.parallel"
 export const PARALLEL_TOOL_IDS = [
   "artel_parallel_workerCapabilities",
+  "artel_parallel_coordinatorIdentity",
   "artel_parallel_startWorker",
   "artel_parallel_workerStatus",
   "artel_parallel_interruptWorker",
@@ -46,8 +47,12 @@ export const PARALLEL_TOOL_IDS = [
 const HELPER = "parallel_launch.py"
 const HELPER_TIMEOUT_MS = 60_000
 const OUTPUT_TAIL = 2_000
+const GUARD_READY_TIMEOUT_MS = 30_000
+const GUARD_RELEASE_TIMEOUT_MS = 60_000
 
 type ParallelOptions = { root?: string }
+
+type CoordinatorGuard = { release: () => Promise<void> }
 
 function helperPath(options: ParallelOptions): string {
   return path.join(options.root || ARTEL_ROOT, "scripts", HELPER)
@@ -97,6 +102,89 @@ function runHelper(helper: string, command: string, payload: unknown, cwd: strin
     child.stdin.write(JSON.stringify(payload))
     child.stdin.end()
   })
+}
+
+/** One ephemeral Python child holding the repository-common coordinator guard.
+
+ * The native adapter's awaited RPC sequence (session create/prompt/interrupt plus the
+ * journal writes around them) spans several subprocess calls; a read-only policy check
+ * would not exclude a concurrent `owner recover` while the RPC is in flight. The child
+ * takes the same guard the CLI takes, validates the owner and the calling coordinator
+ * inside it, and keeps the kernel lock until its stdin closes -- released on EOF, on error
+ * or by the kernel when the child dies. It is lifetime plumbing only: every decision stays
+ * in the policy half. */
+async function acquireGuard(
+  helper: string,
+  cwd: string,
+  identity: any,
+  coordinatorId: string,
+): Promise<CoordinatorGuard> {
+  const child = spawn("python3", [helper, "guard-hold"], { cwd })
+  let stdout = ""
+  let stderr = ""
+  const ready = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL")
+      reject(new Error(
+        `artel parallel adapter: guard_timeout: the coordinator guard did not become ready`))
+    }, GUARD_READY_TIMEOUT_MS)
+    const settle = (error: Error | null) => {
+      clearTimeout(timer)
+      if (error) reject(error)
+      else resolve()
+    }
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk
+      const line = stdout.split("\n").map((entry) => entry.trim()).find((entry) => entry)
+      if (!line) return
+      let envelope: any = null
+      try {
+        envelope = JSON.parse(line)
+      } catch {
+        return
+      }
+      if (envelope.ok === true) {
+        settle(null)
+        return
+      }
+      settle(new Error(
+        `artel parallel adapter: ${envelope.error?.kind ?? "guard_error"}: ` +
+        `${envelope.error?.message ?? "the coordinator guard refused"}`))
+    })
+    child.stderr.on("data", (chunk) => (stderr += chunk))
+    child.on("error", (error) => settle(new Error(
+      `artel parallel adapter: cannot run the policy helper ${helper}: ${error}`)))
+    child.on("close", (code) => settle(new Error(
+      `artel parallel adapter: guard_error: the coordinator guard exited before ready ` +
+      `(exit ${code}): ${(stderr.trim() || stdout.trim()).slice(-OUTPUT_TAIL)}`)))
+  })
+  child.stdin.on("error", () => {})
+  child.stdin.write(JSON.stringify({
+    repo: cwd,
+    ticket: identity?.ticket,
+    run_id: identity?.run_id,
+    phase: identity?.phase ?? null,
+    coordinator_id: coordinatorId,
+  }) + "\n")
+  await ready
+  let released = false
+  return {
+    release: async () => {
+      if (released) return
+      released = true
+      child.stdin.end()
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          child.kill("SIGKILL")
+          resolve()
+        }, GUARD_RELEASE_TIMEOUT_MS)
+        child.on("close", () => {
+          clearTimeout(timer)
+          resolve()
+        })
+      })
+    },
+  }
 }
 
 /** The installed plugin host facts the policy half checks before any effect. */
@@ -234,36 +322,48 @@ async function workerCapabilities(ctx: any, helper: string, cwd: string, toolCon
   return toolResult(data.report)
 }
 
+/** The read-only coordinator identity: the calling session and its root. */
+async function coordinatorIdentity(ctx: any, toolContext: any) {
+  const caller = await resolveCaller(ctx, toolContext)
+  return toolResult({ schema: 1, session_id: caller.session_id, root: caller.location })
+}
+
 async function startWorker(ctx: any, helper: string, cwd: string, input: any, toolContext: any) {
   const request = normalizeRequest(input)
   const caller = await resolveCaller(ctx, toolContext)
-  const capabilities = capabilityFacts(ctx)
-  const model_facts = await modelFacts(ctx, (input?.assignment ?? {}).model)
-  const plan = await runHelper(helper, "plan-start",
-    { request, capabilities, caller, model_facts }, cwd)
-  if (plan.action === "adopted") return toolResult(plan.envelope)
+  const guard = await acquireGuard(helper, cwd, input?.assignment ?? {}, caller.session_id)
+  try {
+    const capabilities = capabilityFacts(ctx)
+    const model_facts = await modelFacts(ctx, (input?.assignment ?? {}).model)
+    const plan = await runHelper(helper, "plan-start",
+      { request, capabilities, caller, model_facts }, cwd)
+    if (plan.action === "adopted") return toolResult(plan.envelope)
 
-  const created = async (create: any) => {
-    const session = unwrap(await ctx.session.create(create))
-    const recorded = await runHelper(helper, "record-session", { request, session }, cwd)
-    const inbox = await promptSession(ctx, plan.session_id, recorded.prompt)
-    const done = await runHelper(helper, "record-prompt", { request, inbox }, cwd)
-    return toolResult(done.envelope)
+    const created = async (create: any) => {
+      const session = unwrap(await ctx.session.create(create))
+      const recorded = await runHelper(helper, "record-session", { request, session, caller }, cwd)
+      const inbox = await promptSession(ctx, plan.session_id, recorded.prompt)
+      const done = await runHelper(helper, "record-prompt", { request, inbox, caller }, cwd)
+      return toolResult(done.envelope)
+    }
+
+    if (plan.action === "create") return await created(plan.create)
+
+    // Reconcile a crash window from durable session and message state -- never from events.
+    const session = await getSession(ctx, plan.session_id)
+    const messages = session ? await readMessages(ctx, plan.session_id) : []
+    const reconciled = await runHelper(helper, "reconcile",
+      { request, session, messages, caller }, cwd)
+    if (reconciled.action === "create") return await created(reconciled.create)
+    if (reconciled.action === "prompt") {
+      const inbox = await promptSession(ctx, plan.session_id, reconciled.prompt)
+      const done = await runHelper(helper, "record-prompt", { request, inbox, caller }, cwd)
+      return toolResult(done.envelope)
+    }
+    return toolResult(reconciled.envelope)
+  } finally {
+    await guard.release()
   }
-
-  if (plan.action === "create") return created(plan.create)
-
-  // Reconcile a crash window from durable session and message state -- never from events.
-  const session = await getSession(ctx, plan.session_id)
-  const messages = session ? await readMessages(ctx, plan.session_id) : []
-  const reconciled = await runHelper(helper, "reconcile", { request, session, messages }, cwd)
-  if (reconciled.action === "create") return created(reconciled.create)
-  if (reconciled.action === "prompt") {
-    const inbox = await promptSession(ctx, plan.session_id, reconciled.prompt)
-    const done = await runHelper(helper, "record-prompt", { request, inbox }, cwd)
-    return toolResult(done.envelope)
-  }
-  return toolResult(reconciled.envelope)
 }
 
 async function workerStatus(ctx: any, helper: string, cwd: string, input: any, toolContext: any) {
@@ -271,22 +371,35 @@ async function workerStatus(ctx: any, helper: string, cwd: string, input: any, t
   const caller = await resolveCaller(ctx, toolContext)
   const plan = await runHelper(helper, "plan-status", { request, caller }, cwd)
   if (plan.action === "unknown") return toolResult(plan.envelope)
-  const session = await getSession(ctx, plan.session_id)
-  const messages = session ? await readMessages(ctx, plan.session_id) : []
-  const status = await runHelper(helper, "interpret-status", { request, session, messages }, cwd)
-  return toolResult(status.envelope)
+  const guard = await acquireGuard(helper, cwd, input?.assignment ?? {}, caller.session_id)
+  try {
+    const session = await getSession(ctx, plan.session_id)
+    const messages = session ? await readMessages(ctx, plan.session_id) : []
+    const status = await runHelper(helper, "interpret-status",
+      { request, session, messages, caller }, cwd)
+    return toolResult(status.envelope)
+  } finally {
+    await guard.release()
+  }
 }
 
 async function interruptWorker(ctx: any, helper: string, cwd: string, input: any, toolContext: any) {
   const request = normalizeAssignmentInput(input)
   const caller = await resolveCaller(ctx, toolContext)
   const plan = await runHelper(helper, "plan-interrupt", { request, caller }, cwd)
-  if (plan.action === "none") return toolResult(plan.envelope)
-  const interrupt = unwrap(await ctx.session.interrupt({ sessionID: plan.session_id, resume: false }))
-  const session = await getSession(ctx, plan.session_id)
-  const envelope = await runHelper(helper, "interpret-interrupt",
-    { request, interrupt, session }, cwd)
-  return toolResult(envelope.envelope)
+  // An unknown or already-interrupted assignment answers its envelope before any native
+  // access: only a journaled, admitted session may be interrupted.
+  if (plan.action !== "interrupt") return toolResult(plan.envelope)
+  const guard = await acquireGuard(helper, cwd, input?.assignment ?? {}, caller.session_id)
+  try {
+    const interrupt = unwrap(await ctx.session.interrupt({ sessionID: plan.session_id, resume: false }))
+    const session = await getSession(ctx, plan.session_id)
+    const envelope = await runHelper(helper, "interpret-interrupt",
+      { request, interrupt, session, caller }, cwd)
+    return toolResult(envelope.envelope)
+  } finally {
+    await guard.release()
+  }
 }
 
 const ASSIGNMENT_SCHEMA = {
@@ -361,6 +474,18 @@ export function registerParallel(ctx: any, options: ParallelOptions = {}): void 
       output: OUTPUT_SCHEMA,
       execute: async (input: any, toolContext: any) =>
         workerCapabilities(ctx, helper, cwd, toolContext),
+    })
+    editor.add({
+      name: "coordinatorIdentity",
+      description:
+        "Read-only coordinator identity: the calling session id and its root. Call this " +
+        "before owner acquire and pass `session_id` as `coordinator_id` on every mutating " +
+        "CLI request. Coordinator sessions only; creates nothing and takes no lock.",
+      options: { namespace: TOOL_NAMESPACE, codemode: false },
+      input: { type: "object", properties: {}, additionalProperties: false },
+      output: OUTPUT_SCHEMA,
+      execute: async (_input: any, toolContext: any) =>
+        coordinatorIdentity(ctx, toolContext),
     })
     editor.add({
       name: "startWorker",

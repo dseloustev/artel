@@ -38,6 +38,16 @@ CLI = ROOT / 'scripts' / 'parallel.py'
 WORKER = Path(__file__).resolve().parent / 'parallel_worker.py'
 SUBJECT = 'feat: parallel execution fixture'
 TICKET = 'PROJ-123'
+COORDINATOR = 'ses_execution-coordinator'
+MUTATING_VERBS = frozenset({
+    ('owner', 'acquire'), ('owner', 'recover'), ('owner', 'release'),
+    ('run', 'create'), ('run', 'transition'),
+    ('claim', 'prepare'), ('claim', 'record'), ('claim', 'reconcile'),
+    ('worktree', 'create'), ('worktree', 'cleanup'),
+    ('integration', 'prepare'), ('integration', 'apply'), ('integration', 'commit'),
+    ('integration', 'recover'),
+    ('publication', 'record'), ('budget', 'reserve'),
+})
 RUN_ID = '0f6f0f2e-6b1a-4f2e-9c5d-2b7a1c8e4d10'
 OTHER_RUN = '1a2b3c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d'
 PHASE = 2
@@ -259,11 +269,20 @@ class Coordinator:
         self.queue = FakeQueue(self.space, phase=phase)
         self.store = FakeStore(self.space)
         self.workers = {}
+        self.coordinator_id = COORDINATOR
         self._request_seq = 0
 
     # --- CLI plumbing ------------------------------------------------------------------
 
     def cli(self, *argv, request=None, cwd=None):
+        key = tuple(argv)
+        if key in MUTATING_VERBS and self.coordinator_id and isinstance(request, dict):
+            request = json.loads(json.dumps(request))
+            if key in (('owner', 'acquire'), ('owner', 'release')):
+                request.setdefault('owner', {}).setdefault('coordinator_id',
+                                                           self.coordinator_id)
+            else:
+                request.setdefault('coordinator_id', self.coordinator_id)
         command = [self.python, str(CLI)] + [str(a) for a in argv]
         if request is not None:
             self._request_seq += 1

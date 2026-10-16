@@ -35,8 +35,15 @@ The lifecycle, in order:
    post-interrupt state.
 
 Every journal is host-owned under `<main>/.artel/run/<ticket>/parallel/<run_id>/launches/`.
-The module never schedules, claims, releases, publishes, commits, edits tasklists or answers
-permissions; it has no queue, Git or manifest code at all.
+Every command but `capabilities` is fenced to the exact run's current coordinator: the
+caller's session id must be the lock's `coordinator_id` (§13.4), or the command refuses
+before any journal write, session create or interrupt. `guard-hold` is the transport's
+lifetime plumbing: it takes the same repository-common guard the CLI takes, validates the
+owner and caller inside it, prints one ready envelope and holds the kernel lock until its
+stdin closes (EOF, error or process death), so a native RPC sequence spanning several
+subprocess calls is excluded from a concurrent `owner recover`. The module never schedules,
+claims, releases, publishes, commits, edits tasklists or answers permissions; it has no
+queue, Git or manifest code at all.
 """
 import hashlib
 import json
@@ -48,6 +55,7 @@ from pathlib import Path
 
 import models
 import parallel_contract
+import parallel_state
 
 HOOKS = Path(__file__).resolve().parent.parent / 'hooks'
 if str(HOOKS) not in sys.path:
@@ -71,6 +79,7 @@ JOURNAL_KEYS = ('schema', 'ticket', 'phase', 'task', 'run_id', 'attempt', 'worke
                 'artifact_root', 'session_id', 'agent', 'model', 'prompt_sha256', 'state',
                 'created_at', 'updated_at')
 JOURNAL_STATES = ('intent', 'created', 'prompted', 'interrupted')
+GUARD_HOLD_KEYS = ('repo', 'ticket', 'run_id', 'phase', 'coordinator_id')
 SESSION_ID_RE = 'ses'
 
 
@@ -257,6 +266,24 @@ def _check_caller(caller):
               'the calling session is in a pinned worker root ({}); the adapter is '
               'coordinator-only and a worker must not orchestrate'.format(caller['location']))
     return caller
+
+
+def _fence(context, assignment, caller):
+    """The native path is fenced to the exact run's current coordinator (§13.4).
+
+    The caller session id must be the lock's `coordinator_id` for this ticket/run/phase: a
+    replaced coordinator's session is refused (`coordinator_conflict`), a foreign run
+    (`foreign_owner`), a missing lock (`not_owned`) and a legacy record (`legacy_owner`) all
+    stop before any journal write, session create or interrupt. The transport holds the
+    repository-common guard across the whole effect; this read is the policy half's own
+    deterministic check of the same fact.
+    """
+    try:
+        parallel_state.validate_owner(context['repository']['main'], assignment['ticket'],
+                                      assignment['run_id'], assignment['phase'],
+                                      caller['session_id'])
+    except parallel_state.StateError as exc:
+        raise LaunchError(exc.kind, exc.message)
 
 
 def _model_ref(assignment):
@@ -566,10 +593,11 @@ def plan_start(request, capabilities, caller, model_facts):
     report = capability_report(capabilities)
     if not report['ok']:
         _fail(report['kind'], '; '.join(report['reasons']))
-    _check_caller(_caller(caller))
+    caller = _check_caller(_caller(caller))
     req = _request(request)
     facts = _model_facts(model_facts)
-    assignment, path, journal, _context, ref = _journal_for(req)
+    assignment, path, journal, context, ref = _journal_for(req)
+    _fence(context, assignment, caller)
     _check_variant(ref, facts)
     session_id = derive_session_id(assignment)
     if journal is None:
@@ -591,10 +619,11 @@ def plan_start(request, capabilities, caller, model_facts):
     return {'action': 'reconcile', 'session_id': session_id, 'journal': str(path)}
 
 
-def record_session(request, session):
+def record_session(request, session, caller):
     """Verify the created session and persist its id before the prompt is admitted."""
     req = _request(request)
-    assignment, path, journal, _context, ref = _journal_for(req)
+    assignment, path, journal, context, ref = _journal_for(req)
+    _fence(context, assignment, _check_caller(_caller(caller)))
     if journal is None or journal['state'] not in ('intent', 'created'):
         _fail('invalid_journal', 'no launch intent to record at {}'.format(path))
     _verify_session(session, journal, req['assignment'], ref, agent=req['agent'],
@@ -605,10 +634,11 @@ def record_session(request, session):
             'prompt': _prompt_payload(req)}
 
 
-def record_prompt(request, inbox=None):
+def record_prompt(request, inbox=None, caller=None):
     """Mark the pinned prompt admitted on the recorded session."""
     req = _request(request)
-    assignment, path, journal, _context, ref = _journal_for(req)
+    assignment, path, journal, context, ref = _journal_for(req)
+    _fence(context, assignment, _check_caller(_caller(caller)))
     if journal is None or journal['state'] not in ('intent', 'created'):
         _fail('invalid_journal', 'no launch intent to prompt at {}'.format(path))
     if inbox is not None:
@@ -623,10 +653,11 @@ def record_prompt(request, inbox=None):
                                                                adopted=False)}
 
 
-def reconcile(request, session, messages):
+def reconcile(request, session, messages, caller):
     """The crash path: decide from the durable session and messages, never from events."""
     req = _request(request)
-    assignment, path, journal, _context, ref = _journal_for(req)
+    assignment, path, journal, context, ref = _journal_for(req)
+    _fence(context, assignment, _check_caller(_caller(caller)))
     if journal is None:
         _fail('invalid_journal', 'no launch journal to reconcile at {}'.format(path))
     if journal['state'] == 'prompted':
@@ -664,15 +695,16 @@ def _unknown_envelope():
 
 def plan_status(request, caller):
     """Which session to read, or the unknown envelope; never an effect."""
-    _check_caller(_caller(caller))
+    caller = _check_caller(_caller(caller))
     req = _assignment_request(request)
-    assignment, path, journal, _context, _ref = _journal_for(req)
+    assignment, path, journal, context, _ref = _journal_for(req)
+    _fence(context, assignment, caller)
     if journal is None:
         return {'action': 'unknown', 'envelope': _unknown_envelope()}
     return {'action': 'read', 'session_id': journal['session_id'], 'journal': str(path)}
 
 
-def interpret_status(request, session, messages):
+def interpret_status(request, session, messages, caller):
     """The durable status envelope: native state plus the validated result file.
 
     Idle and native success are not completion; an interruption wins over a contradictory
@@ -680,7 +712,8 @@ def interpret_status(request, session, messages):
     non-successful.
     """
     req = _assignment_request(request)
-    assignment, path, journal, _context, ref = _journal_for(req)
+    assignment, path, journal, context, ref = _journal_for(req)
+    _fence(context, assignment, _check_caller(_caller(caller)))
     if journal is None:
         return {'envelope': _unknown_envelope()}
     if session is None:
@@ -721,9 +754,10 @@ def interpret_status(request, session, messages):
 
 
 def plan_interrupt(request, caller):
-    _check_caller(_caller(caller))
+    caller = _check_caller(_caller(caller))
     req = _assignment_request(request)
-    assignment, path, journal, _context, _ref = _journal_for(req)
+    assignment, path, journal, context, _ref = _journal_for(req)
+    _fence(context, assignment, caller)
     if journal is None:
         return {'action': 'unknown', 'envelope': _unknown_envelope()}
     if journal['state'] == 'interrupted':
@@ -739,9 +773,10 @@ def plan_interrupt(request, caller):
             'journal': str(path)}
 
 
-def interpret_interrupt(request, interrupt, session):
+def interpret_interrupt(request, interrupt, session, caller):
     req = _assignment_request(request)
-    assignment, path, journal, _context, ref = _journal_for(req)
+    assignment, path, journal, context, ref = _journal_for(req)
+    _fence(context, assignment, _check_caller(_caller(caller)))
     _object(interrupt, 'the interrupt reply', 'invalid_request')
     if not isinstance(interrupt.get('interrupted'), bool):
         _fail('invalid_request', 'the interrupt reply carries no boolean `interrupted`: '
@@ -771,32 +806,92 @@ def capabilities_command(capabilities, caller):
     return {'report': capability_report(capabilities)}
 
 
+def guard_hold(payload, stdin):
+    """Hold the repository-common coordinator guard until the transport closes stdin.
+
+    The native adapter's awaited RPC sequence (session create/prompt/interrupt plus the
+    journal writes around them) spans several subprocess calls; an earlier read-only check
+    would not exclude a concurrent `owner recover` while the RPC is in flight. This command
+    is the transport's lifetime plumbing: it takes the same guard the CLI takes, validates
+    the owner and the calling coordinator inside it, prints one ready envelope, and then
+    blocks until the transport closes stdin -- releasing the kernel lock on EOF, on error or
+    on process death. It is not a daemon and never mutates run state.
+    """
+    _object(payload, 'the guard request', 'invalid_request')
+    _keys(payload, GUARD_HOLD_KEYS, 'the guard request', 'invalid_request')
+    repo = _text(payload['repo'], 'the guard repo', 'invalid_request')
+    ticket = _text(payload['ticket'], 'the guard ticket', 'invalid_request')
+    run_id = _text(payload['run_id'], 'the guard run_id', 'invalid_request')
+    phase = payload['phase']
+    if phase is not None and (isinstance(phase, bool) or not isinstance(phase, int)
+                              or phase < 1):
+        _fail('invalid_request', 'the guard phase is not an integer >= 1 or null: {!r}'.format(
+            phase))
+    coordinator = _text(payload['coordinator_id'], 'the guard coordinator_id',
+                        'invalid_request')
+    try:
+        with parallel_state.ticket_guard(repo, ticket):
+            parallel_state.validate_owner(repo, ticket, run_id, phase, coordinator)
+            print(json.dumps({'ok': True, 'data': {
+                'schema': SCHEMA, 'held': True, 'ticket': ticket, 'run_id': run_id,
+                'phase': phase}}), flush=True)
+            stdin.read()  # EOF from the transport releases the guard
+    except parallel_state.StateError as exc:
+        print(json.dumps({'ok': False, 'error': {'kind': exc.kind,
+                                                 'message': exc.message}}), flush=True)
+        return 1
+    return 0
+
+
 COMMANDS = {
     'capabilities': lambda payload: capabilities_command(payload['capabilities'],
                                                          payload['caller']),
     'plan-start': lambda payload: plan_start(payload['request'], payload['capabilities'],
                                              payload['caller'], payload['model_facts']),
-    'record-session': lambda payload: record_session(payload['request'], payload['session']),
-    'record-prompt': lambda payload: record_prompt(payload['request'], payload.get('inbox')),
+    'record-session': lambda payload: record_session(payload['request'], payload['session'],
+                                                     payload['caller']),
+    'record-prompt': lambda payload: record_prompt(payload['request'], payload.get('inbox'),
+                                                   payload['caller']),
     'reconcile': lambda payload: reconcile(payload['request'], payload.get('session'),
-                                           payload.get('messages')),
+                                           payload.get('messages'), payload['caller']),
     'plan-status': lambda payload: plan_status(payload['request'], payload['caller']),
     'interpret-status': lambda payload: interpret_status(payload['request'],
                                                          payload.get('session'),
-                                                         payload.get('messages')),
+                                                         payload.get('messages'),
+                                                         payload['caller']),
     'plan-interrupt': lambda payload: plan_interrupt(payload['request'], payload['caller']),
     'interpret-interrupt': lambda payload: interpret_interrupt(
-        payload['request'], payload['interrupt'], payload.get('session')),
+        payload['request'], payload['interrupt'], payload.get('session'), payload['caller']),
 }
 
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    if len(argv) != 1 or argv[0] not in COMMANDS:
+    if len(argv) != 1 or (argv[0] not in COMMANDS and argv[0] != 'guard-hold'):
         print(json.dumps({'ok': False, 'error': {
             'kind': 'invalid_argument',
-            'message': 'usage: parallel_launch.py <{}>'.format('|'.join(sorted(COMMANDS)))}}))
+            'message': 'usage: parallel_launch.py <{}|guard-hold>'.format(
+                '|'.join(sorted(COMMANDS)))}}))
         return 2
+    if argv[0] == 'guard-hold':
+        # The transport keeps stdin open while it holds the guard, so the payload is one
+        # line and the rest of stdin is the hold: read it until EOF.
+        try:
+            payload = json.loads(sys.stdin.readline())
+        except ValueError as exc:
+            print(json.dumps({'ok': False, 'error': {
+                'kind': 'invalid_argument', 'message': 'stdin is not JSON: {}'.format(exc)}}))
+            return 2
+        try:
+            return guard_hold(payload, sys.stdin)
+        except LaunchError as exc:
+            print(json.dumps({'ok': False, 'error': {'kind': exc.kind,
+                                                     'message': exc.message}}))
+            return 1
+        except Exception as exc:
+            print(json.dumps({'ok': False, 'error': {
+                'kind': 'internal_error', 'message': str(exc)}}))
+            return 2
     try:
         payload = json.load(sys.stdin)
     except ValueError as exc:

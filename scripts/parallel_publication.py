@@ -111,7 +111,9 @@ write was lost -- the fresh observation must still carry every receipted effect:
 tick that a forward rewrite dropped, or a receipted note key that is gone or renumbered,
 refuses (`conflicting_receipt`, or `note_conflict` for the exact renumber conflict) and the
 reducer never silently re-applies the deletion, overwrites the concurrent edit, removes the
-store's history or allocates a new note number. A benign forward edit that still carries the
+store's history or allocates a new note number. A receipted queue completion is rechecked the
+same way: a row reopened, reacquired, replaced or deleted refuses (`queue_conflict`) instead
+of releasing dependencies on a historical receipt. A benign forward edit that still carries the
 tick and every note key at its recorded number continues. "After completion" means the
 manifest is already `published` (the reducer then owes nothing), never merely this record's
 `complete` flag.
@@ -1143,6 +1145,28 @@ def _require_recorded_receipts(prior, actions, observed):
                                        'recorded {}'.format(receipt['evidence']['key'],
                                                             landed['number'],
                                                             receipt['evidence']['number']))
+        elif kind == 'queue-done':
+            # A receipt proves the queue completion landed; it is not proof the row is still
+            # done. The exact receipted row/actor/status is rechecked against the fresh
+            # observation before any promotion: a reopened, reacquired, replaced or deleted
+            # row keeps the integrating latch and refuses for reconciliation, and the old
+            # receipt is never silently re-done.
+            row = observed['queue']['row']
+            if row is None:
+                _fail('queue_conflict', 'the receipted queue completion {} is no longer '
+                                        'observed; the integration latch is retained'.format(
+                                            receipt['action_id']))
+            if row['task_id'] != action['payload']['task_id'] \
+                    or row['actor'] != action['payload']['actor']:
+                _fail('queue_conflict', 'the receipted queue row {} is now observed as '
+                                        '{} held by {!r}, not the recorded {!r}'.format(
+                                            action['payload']['task_id'], row['task_id'],
+                                            row['actor'], action['payload']['actor']))
+            if row['status'] != 'done':
+                _fail('queue_conflict', 'the receipted queue row {} is observed {!r} again; '
+                                        'the integration latch is retained and the current '
+                                        'queue fact is never overwritten'.format(
+                                            row['task_id'], row['status']))
 
 
 def record_publication(manifest, task, action_id, receipt):

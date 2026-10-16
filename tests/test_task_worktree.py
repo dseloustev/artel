@@ -36,6 +36,7 @@ TASK = '3.1'
 ATTEMPT = 1
 PHASE = 2
 COORD_BRANCH = 'feature/PROJ-123'
+COORDINATOR = 'ses_worktree-coordinator'
 SETUP_COMMAND = 'mkdir -p build && pwd > build/cwd.txt'
 REF_ROOT = 'refs/artel/parallel'
 
@@ -100,7 +101,8 @@ class RepoCase(unittest.TestCase):
         self.write_config()
         parallel_state.acquire_ticket(
             str(self.coord), TICKET,
-            {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE})
+            {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+             'coordinator_id': COORDINATOR})
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -425,6 +427,19 @@ class TestCreate(RepoCase):
         rejects(self, 'interrupted_create', self.create)
         self.assertTrue(self.worker_root().is_dir())
 
+    def test_an_interrupted_registration_is_repaired_without_pruning_others(self):
+        other = self.main / '.claude' / 'worktrees' / 'expired-registration'
+        git(self.main, 'worktree', 'add', '-q', '--detach', str(other), self.base)
+        shutil.rmtree(str(other))
+        root = self.worker_root()
+        git(self.main, 'worktree', 'add', '-q', '--detach', str(root), self.base)
+        shutil.rmtree(str(root))
+        report = self.create()
+        self.assertTrue(report['created'])
+        listing = git(self.main, 'worktree', 'list', '--porcelain')
+        self.assertIn(str(other), listing)
+        self.assertIn(str(root), listing)
+
     def test_a_foreign_base_ref_is_refused(self):
         git(self.main, 'commit', '-q', '--allow-empty', '-m', 'another commit')
         other = git(self.main, 'rev-parse', 'HEAD')
@@ -443,7 +458,8 @@ class TestOwnership(RepoCase):
         self.lock_path().unlink()
         parallel_state.acquire_ticket(
             str(self.coord), TICKET,
-            {'schema': 1, 'ticket': TICKET, 'run_id': OTHER_RUN, 'phase': PHASE})
+            {'schema': 1, 'ticket': TICKET, 'run_id': OTHER_RUN, 'phase': PHASE,
+             'coordinator_id': COORDINATOR})
         rejects(self, 'foreign_owner', self.create)
         self.assertFalse(self.worker_root().exists())
 
@@ -703,6 +719,80 @@ class TestCleanupAccounting(RepoCase):
         rejects(self, 'dirty_worktree', lambda: self.cleanup(publication))
         self.assertEqual(digest_tree(self.worker_root()), before)
         self.assertEqual(self.read('later.txt', self.worker_root()), 'not transported\n')
+
+
+class TestCleanupScanFailures(RepoCase):
+    """An incomplete traversal is never permission to delete unaccounted content."""
+
+    def scan_guard(self, failing):
+        """Patch `os.scandir` (the walk's own syscall) inside task_worktree's module."""
+        return mock.patch.object(task_worktree.os, 'scandir', failing)
+
+    def test_a_transient_scan_failure_refuses_and_preserves_every_byte(self):
+        self.create()
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        self.write('.gitignore', self.IGNORE + 'build/\n', base=self.worker_root())
+        hidden = self.write('build/unknown-data', 'worker data\n', base=self.worker_root())
+        publication = self.publish(self.worker_root())
+        before = digest_tree(self.worker_root())
+        real_scandir = os.scandir
+        target = os.path.realpath(str(self.worker_root() / 'build'))
+        state = {'fired': False}
+
+        def one_shot(path):
+            if not state['fired'] and os.path.realpath(str(path)) == target:
+                state['fired'] = True
+                raise PermissionError('injected transient scandir failure')
+            return real_scandir(path)
+
+        calls = []
+        real_run = subprocess.run
+
+        def recording(argv, **kwargs):
+            calls.append([str(part) for part in argv])
+            return real_run(argv, **kwargs)
+
+        with self.scan_guard(one_shot), \
+                mock.patch.object(task_worktree.subprocess, 'run', recording):
+            rejects(self, 'scan_failed', lambda: self.cleanup(publication))
+        self.assertTrue(state['fired'])
+        self.assertEqual(digest_tree(self.worker_root()), before)
+        self.assertTrue(hidden.exists())
+        for argv in calls:
+            self.assertNotIn('remove', argv)
+
+    def test_a_persistent_scan_failure_refuses_and_preserves_every_byte(self):
+        self.create()
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        self.write('.gitignore', self.IGNORE + 'build/\n', base=self.worker_root())
+        self.write('build/unknown-data', 'worker data\n', base=self.worker_root())
+        publication = self.publish(self.worker_root())
+        before = digest_tree(self.worker_root())
+        real_scandir = os.scandir
+        target = os.path.realpath(str(self.worker_root() / 'build'))
+
+        def failing(path):
+            if os.path.realpath(str(path)) == target:
+                raise PermissionError('injected persistent scandir failure')
+            return real_scandir(path)
+
+        with self.scan_guard(failing):
+            rejects(self, 'scan_failed', lambda: self.cleanup(publication))
+        self.assertEqual(digest_tree(self.worker_root()), before)
+
+    def test_an_unreadable_evidence_file_is_a_typed_refusal_that_preserves_the_root(self):
+        self.create()
+        self.write('app.txt', 'v2\n', base=self.worker_root())
+        publication = self.publish(self.worker_root())
+        evidence = self.artifact_root() / 'result.json'
+        self.assertTrue(evidence.is_file())
+        before = digest_tree(self.worker_root())
+        os.chmod(str(evidence), 0)
+        try:
+            rejects(self, 'scan_failed', lambda: self.cleanup(publication))
+        finally:
+            os.chmod(str(evidence), 0o644)
+        self.assertEqual(digest_tree(self.worker_root()), before)
 
 
 class TestCleanupCycle(RepoCase):

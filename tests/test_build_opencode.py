@@ -752,6 +752,26 @@ class TestParallelProcedureBuild(BuildBase):
                        'artel_parallel_interruptWorker', '`models.py resolve`'):
             self.assertIn(phrase, flat, phrase)
 
+    def test_the_generated_consumer_carries_the_queue_free_local_branch(self):
+        flat = self.flat('parallel.md')
+        self.assertIn('Queue-free (`--local`) runs', flat)
+        local = flat[flat.index('Queue-free (`--local`) runs'):]
+        local = local[:local.index('A queue-enabled run keeps the authoritative-row flow')]
+        # The prescribed local sequence, in order: a null-claim local reservation, a fresh
+        # admission, and the launch gate through `resume` -- with the queue half explicitly
+        # excluded rather than left to the model to infer.
+        self.assertLess(local.index('`expected: null`'), local.index('Recompute `admit`'))
+        self.assertLess(local.index('Recompute `admit`'), local.index('Zero queue effects'))
+        for phrase in ('local reservation', '`target: reserved`', 'stays `null`',
+                       'fresh `resume`', 'persisting `preparing`',
+                       'Zero queue effects', '`claim prepare`', '`task_ready`',
+                       '`claim record`', '`claim reconcile`', 'queue-done'):
+            self.assertIn(phrase, local, phrase)
+        # The helper-only local lifecycle and the generated branch agree on the absence of
+        # queue effects: the branch forbids every queue command it names.
+        self.assertIn('never call', local)
+        self.assertIn('never publish a queue-done action', local)
+
     def test_the_procedure_reserves_every_fix_round_from_the_durable_budget(self):
         flat = self.flat('parallel.md')
         for phrase in ('`budget inspect`', '`budget reserve`',

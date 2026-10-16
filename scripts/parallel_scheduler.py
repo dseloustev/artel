@@ -12,11 +12,14 @@ the coordinator may start now. It never touches the filesystem, Git, the queue o
 and it never marks a task done -- publication is the coordinator's transition.
 
 Readiness. `task_grammar.ready_now` and `task_grammar.waves` keep their meaning: dependency
-facts over the checkboxes. Admission overlays durable publication on top of them. A task is
-complete when its checkboxes are all ticked or the manifest records it `published`; the
-current iteration is the first one with an incomplete task; a candidate is a task of that
-iteration with no manifest record whose dependencies are all complete. A worker return, a
-passed review or a prepared result never unlocks a dependent -- only `published` does.
+facts over the checkboxes. Admission overlays durable publication on top of them. A task the
+manifest represents is complete only when the manifest records it `published` -- its tick is
+deliberately earlier than publication on the files path and never overrides an owned
+side-state or integration record; a task with no manifest record (earlier completed work this
+run did not own) may complete by its checkbox. The current iteration is the first one with an
+incomplete task; a candidate is a task of that iteration with no manifest record whose
+dependencies are all complete. A worker return, a passed review or a prepared result never
+unlocks a dependent -- only `published` does.
 
 Resources. Every unresolved task (reserved, preparing, running, verifying/reviewing,
 prepared, integrating) holds its declared `Files:` paths as normalized exact paths, so two
@@ -77,6 +80,7 @@ error envelope (`invalid_iterations`, `invalid_manifest`, `invalid_seats`,
 `invalid_case_sensitive`). Nothing is coerced and nothing is dropped.
 """
 import re
+import unicodedata
 
 import parallel_contract
 import task_grammar
@@ -230,7 +234,11 @@ def _normalize(path, case_sensitive):
         return None, 'parent-relative path'
     key = '/'.join(segments)
     if not case_sensitive:
-        key = key.casefold()
+        # A case-insensitive volume also aliases Unicode canonical equivalents (macOS
+        # normalizes to NFD internally), so both held and proposed keys are normalized the
+        # same way before the exact intersection; an explicitly case-sensitive caller keeps
+        # the truly distinct spellings apart.
+        key = unicodedata.normalize('NFC', key).casefold()
     return key, None
 
 
@@ -296,12 +304,19 @@ def _exclusive(task, case_sensitive, prefix):
 
 
 def _complete(number, by_number, records):
-    """A task is complete when its checkboxes are ticked or it is durably published."""
-    task = by_number.get(number)
-    if task is not None and task_grammar.is_done(task):
-        return True
+    """A task is complete when the run durably published it -- or, for work this run does
+    not represent at all, when its checkboxes are ticked.
+
+    A task the manifest represents (any record, including a side state or `integrating`)
+    is owned by this run: its tick is deliberately earlier than publication on the files
+    path and can never be the overriding completion proof. Only a task with no manifest
+    record -- earlier completed work this run did not own -- may complete by its checkbox.
+    """
     record = records.get(number)
-    return record is not None and record['state'] == 'published'
+    if record is not None:
+        return record['state'] == 'published'
+    task = by_number.get(number)
+    return task is not None and task_grammar.is_done(task)
 
 
 def _current_iteration(iterations, by_number, records):

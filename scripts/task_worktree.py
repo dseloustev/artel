@@ -77,7 +77,10 @@ Shapes:
              collected_root, evidence: {verified, artifact_root, collected_root}}
 
 Every failure raises `WorktreeError`, a `ValueError` carrying the `kind` a CLI maps into its
-error envelope; nothing is coerced and nothing is dropped.
+error envelope; nothing is coerced and nothing is dropped. The cleanup accounting and evidence
+walks treat any traversal or read error as fatal (`scan_failed`): an incomplete scan is never
+proof of absence and never authorizes a removal. An interrupted create repairs only this
+assignment's own stale worktree registration by name -- never a repository-wide prune.
 """
 import hashlib
 import json
@@ -672,7 +675,15 @@ def create_worker(repo, assignment):
     config = _plan_config(repo, value)
     _ensure_excluded(main, root)
     if _entry_for(entries, root) is not None:
-        _git(repo, 'worktree', 'prune')  # a registration whose directory is gone
+        # A registration whose directory is gone: repair only this assignment's own
+        # registration. A repository-wide `git worktree prune` would also drop every other
+        # expired registration, which is outside this lifecycle's ownership -- so the
+        # missing path is removed by name and any refusal stops the create.
+        if os.path.lexists(str(root)):
+            _fail('interrupted_create', 'the path {} appeared while repairing its stale '
+                                        'worktree registration; nothing was removed'.format(
+                                            root))
+        _git(repo, 'worktree', 'remove', str(root))
     _git(repo, 'worktree', 'add', '--detach', str(root), value['base_commit'])
     try:
         _check_artifact_ignored(root, artifact)
@@ -814,7 +825,7 @@ def _publication(value, assignment):
 def _evidence_tree(artifact):
     """Every file under `artifact_root` with its digest; a symlink is never evidence."""
     found = {}
-    for dirpath, dirnames, filenames in os.walk(str(artifact)):
+    for dirpath, dirnames, filenames in _scan_walk(artifact, 'evidence root'):
         for name in list(dirnames):
             if os.path.islink(os.path.join(dirpath, name)):
                 _fail('evidence_mismatch', 'the artifact root carries the symlink {}'.format(
@@ -824,7 +835,8 @@ def _evidence_tree(artifact):
             if path.is_symlink():
                 _fail('evidence_mismatch', 'the artifact root carries the symlink {}'.format(
                     path))
-            found[path.relative_to(artifact).as_posix()] = _sha256(path.read_bytes())
+            found[path.relative_to(artifact).as_posix()] = _sha256(
+                _read_bytes(path, 'evidence file'))
     return found
 
 
@@ -874,7 +886,7 @@ def _verify_evidence(artifact, collected, evidence):
         if _aliases(source, destination):
             _fail('evidence_mismatch', 'the collected evidence {} aliases the worker file; '
                                        'it is not a separate copy'.format(destination))
-        if _sha256(destination.read_bytes()) != listed[path]:
+        if _sha256(_read_bytes(destination, 'collected evidence')) != listed[path]:
             _fail('evidence_mismatch', 'the collected evidence {} does not match the '
                                        'recorded digest'.format(destination))
     return len(listed)
@@ -930,10 +942,34 @@ def _accounted_paths(root, artifact, evidence):
     return allowed
 
 
+def _scan_walk(path, what):
+    """`os.walk`, but an incomplete traversal is fatal.
+
+    The default `os.walk` swallows a directory it cannot open: the missing entries would be
+    indistinguishable from entries that do not exist, and accounting would then authorize
+    deleting content the scan never saw. Every scan error is therefore a typed refusal
+    before any removal.
+    """
+    def onerror(error):
+        _fail('scan_failed', 'the {} scan of {} is incomplete: {}; the root is retained and '
+                             'no removal is attempted'.format(
+                                 what, getattr(error, 'filename', None) or path, error))
+    return os.walk(str(path), onerror=onerror)
+
+
+def _read_bytes(path, what):
+    """The file's bytes, or a typed refusal -- never a raw I/O error on a retention path."""
+    try:
+        return Path(path).read_bytes()
+    except OSError as exc:
+        _fail('scan_failed', 'cannot read the {} {}: {}; the root is retained and no removal '
+                             'is attempted'.format(what, path, exc))
+
+
 def _walk_offenders(root, allowed):
     """Filesystem entries under `root` the accounted set does not cover."""
     offenders = set()
-    for dirpath, dirnames, filenames in os.walk(str(root)):
+    for dirpath, dirnames, filenames in _scan_walk(root, 'worker root'):
         for name in list(dirnames):
             path = Path(dirpath) / name
             relative = path.relative_to(root).as_posix()

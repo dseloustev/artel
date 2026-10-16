@@ -17,27 +17,29 @@ Commands and requests (docs/opencode-parallel.md §13.10):
     config               {repo}
     preflight            {repo, capabilities}
     owner acquire        {repo, ticket, owner}
+    owner recover        {repo, ticket, run_id, phase, coordinator_id, reason}
     owner release        {repo, ticket, owner}
-    run create           {repo, ticket, phase, run_id, seats, graph_digest}
+    run create           {repo, ticket, phase, run_id, seats, graph_digest, coordinator_id}
     run inspect          {repo, ticket, run_id}
     run transition       {repo, ticket, run_id, expected_revision, task, expected, target,
-                          fields?}
-    claim prepare        {repo, ticket, run_id, expected_revision}
-    claim record         {repo, ticket, run_id, expected_revision, intent_id, row}
-    claim reconcile      {repo, ticket, run_id, expected_revision, rows}
+                          fields?, coordinator_id}
+    claim prepare        {repo, ticket, run_id, expected_revision, coordinator_id}
+    claim record         {repo, ticket, run_id, expected_revision, intent_id, row,
+                          coordinator_id}
+    claim reconcile      {repo, ticket, run_id, expected_revision, rows, coordinator_id}
     admit                {repo, ticket, run_id, tasklist, case_sensitive?}
-    worktree create      {repo, assignment}
+    worktree create      {repo, assignment, coordinator_id}
     worktree inspect     {repo, assignment}
-    worktree cleanup     {repo, assignment, publication}
-    integration prepare  {repo, assignment, result}
-    integration apply    {repo, assignment, prepared}
-    integration commit   {repo, transaction, subject}
-    integration recover  {repo, transaction}
+    worktree cleanup     {repo, assignment, publication, coordinator_id}
+    integration prepare  {repo, assignment, result, coordinator_id}
+    integration apply    {repo, assignment, prepared, coordinator_id}
+    integration commit   {repo, transaction, subject, coordinator_id}
+    integration recover  {repo, transaction, coordinator_id}
     publication next     {repo, ticket, run_id, task, observed}
-    publication record   {repo, transaction, task, action_id, receipt}
+    publication record   {repo, transaction, task, action_id, receipt, coordinator_id}
     budget inspect       {repo, ticket, phase}
     budget reserve       {repo, ticket, run_id, phase, kind, scope, attempt, ordinal,
-                          expected_revision}
+                          expected_revision, coordinator_id}
 
 Reads are side-effect-free: `config` and `admit` read the host config and the tasklist,
 `preflight` consumes the adapter's read-only capability report plus the coordinator's branch,
@@ -45,13 +47,25 @@ cleanliness and reflog state, `run inspect`, `worktree inspect`, `publication ne
 `budget inspect` read durable state and never write. Every mutation is authoritative and
 guarded:
 
+* Every mutating command names its `coordinator_id` -- the native session id of the calling
+  coordinator, obtained from the read-only `artel_parallel_coordinatorIdentity` tool -- and
+  runs inside `parallel_state.ticket_guard(repo, ticket)`: one kernel lock in the
+  repository-common Git directory, shared by the CLI and the native adapter. Inside the guard
+  the stored lock is matched to the exact run/phase *and* coordinator
+  (`not_owned`/`legacy_owner`/`foreign_owner`/`coordinator_conflict`), and the guard stays
+  held through the whole effect -- the manifest write, the Git effect, the owner release --
+  so the validation can never race what it authorized. `owner acquire` re-acquires its own
+  record idempotently; `owner recover` is the one explicit, audited handoff that rotates the
+  token and the coordinator identity (and adopts a legacy record), after which the previous
+  coordinator's commands fail fenced.
 * Manifest writes resolve the run's canonical path from the explicit coordinator checkout and
   read the manifest fresh -- a caller-supplied copy is never trusted for an effect. The
   request names the exact run (`ticket`, `run_id`) and the repository-common ticket lock must
   match it (`not_owned`, `ambiguous_owner`, `foreign_owner`), then `expected_revision` must
   equal the revision on disk (`stale_revision`); only then does the reducer run and
-  `parallel_state.write_manifest` persist the next revision. A refusal leaves the bytes
-  exactly as they were.
+  `parallel_state.write_manifest` persist the next revision, itself serializing the
+  compare-and-replace under the manifest lock. A refusal leaves the bytes exactly as they
+  were.
 * `publication record` reads the durable integration record and requires the caller's copy to
   be exactly it -- a stale caller is `stale_publication`, never a silent clobber -- then
   persists the returned publication record into the transaction's reserved `publication` field
@@ -61,11 +75,12 @@ guarded:
   lost manifest write is recovered by the next fresh `promote` instead of repeating an external
   effect.
 * `worktree`, `integration` and `owner` mutations call their helpers directly; those helpers
-  own their own read-only ownership checks and perform nothing before they pass. `owner
-  release` is additionally gated by the CLI itself: the exact run's manifest must prove
-  quiescence (every task published, no latched stop, no unfinished owned claim) and the
-  matching run state must say `completed: true` before the token proof removes the lock --
-  the caller's own `completed`/`quiescent` bytes are an assertion, never the proof.
+  own their own read-only ownership checks and perform nothing before they pass, and the CLI
+  holds the common guard around them. `owner release` is additionally gated by the CLI
+  itself: the exact run's manifest must prove quiescence (every task published, no latched
+  stop, no unfinished owned claim) and the matching run state must say `completed: true`
+  before the token proof removes the lock -- the caller's own `completed`/`quiescent` bytes
+  are an assertion, never the proof -- and all of it runs inside the one guard.
 * `budget reserve` charges the run-wide correction budget (`counters.correction_rounds` in the
   coordinator's `run-state.json`, `MAX_TOTAL_CORRECTION_ROUNDS = 8`) for one stable round
   identity before a fix dispatch, atomically and idempotently; `budget inspect` reads it. The
@@ -78,6 +93,7 @@ never modifies the reviewed component modules. No store, queue, session or track
 happens here -- those remain the configured coordinator's, through its own tools.
 """
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -170,7 +186,7 @@ def _parser():
 
     leaf(('config',), 'resolve the host parallel configuration')
     leaf(('preflight',), 'coordinator readiness plus the capability report')
-    leaf(('owner', 'acquire', 'release'), 'the repository-wide ticket lock')
+    leaf(('owner', 'acquire', 'recover', 'release'), 'the repository-wide ticket lock')
     leaf(('run', 'create', 'inspect', 'transition'), 'the run manifest')
     leaf(('claim', 'prepare', 'record', 'reconcile'), 'claim intents and reconciliation')
     leaf(('admit',), 'the admission selector over the current tasklist')
@@ -280,21 +296,51 @@ def _check_identity(manifest, ticket, run_id):
             {name: manifest[name] for name in ('ticket', 'run_id')}))
 
 
-def _require_owner(repo, ticket, run_id, phase):
-    """The repository-common ticket lock must be exactly this run's (read-only).
+def _require_owner(repo, ticket, run_id, phase, coordinator_id):
+    """The repository-common ticket lock must be exactly this run's and coordinator's.
 
-    The lock reader is the reviewed one (`parallel_state` owns the lock); this CLI only
-    matches the run identity against it before any manifest effect.
+    Read-only: the caller must already hold `parallel_state.ticket_guard(repo, ticket)`, and
+    must keep it held until the effect it authorizes has finished. The lock reader is the
+    reviewed one (`parallel_state` owns the lock); this CLI only matches the identity.
     """
-    stored = parallel_state._read_lock(parallel_state._lock_path(repo, ticket), ticket)
-    if stored is None:
-        _fail('not_owned', 'the ticket {} is not owned: acquire the lock before writing its '
-                           'run state'.format(ticket))
-    if stored['run_id'] != run_id or stored['phase'] != phase:
-        _fail('foreign_owner', 'the ticket {} is owned by run {} (phase {}), not by run {} '
-                               '(phase {})'.format(ticket, stored['run_id'], stored['phase'],
-                                                   run_id, phase))
-    return stored
+    return parallel_state.validate_owner(repo, ticket, run_id, phase, coordinator_id)
+
+
+@contextlib.contextmanager
+def _owner_guard(repo, ticket, run_id, phase, coordinator_id):
+    """The common guard held through the effect, with the exact run/coordinator fenced."""
+    with parallel_state.ticket_guard(repo, ticket):
+        _require_owner(repo, ticket, run_id, phase, coordinator_id)
+        yield
+
+
+def _coordinator(request):
+    return _text(request, 'coordinator_id')
+
+
+def _identity_of(value, what):
+    """(ticket, run_id, phase) from an assignment/transaction, or `invalid_request`.
+
+    The guard's lock path needs the ticket before the helper's own validation runs; a
+    malformed identity is an invalid request here, and the helper still validates the whole
+    payload inside the guard.
+    """
+    if not isinstance(value, dict):
+        _fail('invalid_request', '`{}` is not an object: {!r}'.format(what, value))
+    ticket = value.get('ticket')
+    run_id = value.get('run_id')
+    phase = value.get('phase')
+    if not isinstance(ticket, str) or not ticket:
+        _fail('invalid_request', '`{}.ticket` is not a non-empty string: {!r}'.format(
+            what, ticket))
+    if not isinstance(run_id, str) or not run_id:
+        _fail('invalid_request', '`{}.run_id` is not a non-empty string: {!r}'.format(
+            what, run_id))
+    if phase is not None and (isinstance(phase, bool) or not isinstance(phase, int)
+                              or phase < 1):
+        _fail('invalid_request', '`{}.phase` is not an integer >= 1 or null: {!r}'.format(
+            what, phase))
+    return ticket, run_id, phase
 
 
 def _require_revision(manifest, expected_revision):
@@ -317,10 +363,34 @@ def _config_seats(repo):
     return parallel_contract.resolve_config(config)['seats']
 
 
-def _case_sensitive(request):
+def _case_sensitive(request, repo):
+    """Path case sensitivity for admission, from the request or the actual volume.
+
+    An explicit `case_sensitive` boolean is the caller's override. Otherwise the decision is
+    read-only evidence from the volume that holds the coordinator checkout: a case variant
+    of the checkout's own name either resolves to the same directory (the volume is
+    case-insensitive) or does not (case-sensitive). A name with no cased character leaves
+    the volume unknown, and unknown is handled conservatively as insensitive -- never as
+    "every OS is case-sensitive".
+    """
     if 'case_sensitive' in request:
         return _boolean(request, 'case_sensitive')
-    return os.path.normcase('A') == 'A'
+    return not _volume_case_insensitive(Path(repo))
+
+
+def _volume_case_insensitive(root):
+    """Read-only: does the volume holding `root` resolve case variants? Unknown -> False."""
+    try:
+        probe = Path(os.path.realpath(str(root)))
+    except OSError:
+        return False
+    variant = probe.name.swapcase()
+    if not probe.name or variant == probe.name:
+        return False  # no cased character to probe with: unknown, handled conservatively
+    try:
+        return os.path.samefile(str(probe), str(probe.parent / variant))
+    except OSError:
+        return False
 
 
 # --- commands -----------------------------------------------------------------------------
@@ -349,8 +419,21 @@ def cmd_owner_acquire(request, _stdin_used):
                                          request['owner'])
 
 
+def cmd_owner_recover(request, _stdin_used):
+    _keys(request, ('repo', 'ticket', 'run_id', 'phase', 'coordinator_id', 'reason'))
+    repo = _text(request, 'repo')
+    ticket = _text(request, 'ticket')
+    run_id = _text(request, 'run_id')
+    phase = _phase(request, 'phase')
+    coordinator = _coordinator(request)
+    reason = _text(request, 'reason')
+    return parallel_state.recover_ticket(repo, ticket, {
+        'schema': SCHEMA, 'ticket': ticket, 'run_id': run_id, 'phase': phase,
+        'coordinator_id': coordinator, 'reason': reason})
+
+
 def _release_identity(owner):
-    """The release request's run identity and token proof, or `invalid_request`."""
+    """The release request's run identity, coordinator and token proof, or `invalid_request`."""
     if not isinstance(owner, dict):
         _fail('invalid_request', '`owner` is not an object: {!r}'.format(owner))
     run_id = owner.get('run_id')
@@ -362,10 +445,14 @@ def _release_identity(owner):
                               or phase < 1):
         _fail('invalid_request', '`owner.phase` is not an integer >= 1 or null: {!r}'.format(
             phase))
+    coordinator = owner.get('coordinator_id')
+    if not isinstance(coordinator, str) or not coordinator:
+        _fail('invalid_request', '`owner.coordinator_id` is not a non-empty string: '
+                                 '{!r}'.format(coordinator))
     token = owner.get('token')
     if not isinstance(token, str) or not token:
         _fail('invalid_request', '`owner.token` is not a non-empty string: {!r}'.format(token))
-    return run_id, phase, token
+    return run_id, phase, coordinator, token
 
 
 def _require_quiescent(manifest):
@@ -388,6 +475,11 @@ def _require_quiescent(manifest):
     for intent in manifest['claims']['intents']:
         if intent['state'] == 'pending':
             claims.append(intent['intent_id'])
+        elif intent['state'] == 'orphaned':
+            # The external release of this run's reconciled orphan is not confirmed yet: the
+            # decision is durable, the effect is not. Ownership is never abandoned over a
+            # decision; a fresh `claim reconcile` with a complete observation confirms it.
+            claims.append(intent['intent_id'])
         elif intent['state'] == 'mapped':
             task = intent['row'].get('task') if isinstance(intent['row'], dict) else None
             record = manifest['tasks'].get(task)
@@ -403,42 +495,46 @@ def cmd_owner_release(request, _stdin_used):
     repo = _text(request, 'repo')
     ticket = _text(request, 'ticket')
     owner = request['owner']
-    run_id, phase, token = _release_identity(owner)
-    stored = _require_owner(repo, ticket, run_id, phase)
-    if stored['token'] != token:
-        _fail('foreign_owner', 'the ticket {} is held under another token; only the acquiring '
-                               'run releases it'.format(ticket))
-    manifest = _read_manifest(repo, ticket, run_id)
-    if manifest['ticket'] != ticket or manifest['run_id'] != run_id \
-            or manifest['phase'] != phase:
-        _fail('manifest_mismatch', 'the run manifest is not this run\'s: {!r}'.format(
-            {name: manifest[name] for name in ('ticket', 'run_id', 'phase')}))
-    _require_quiescent(manifest)
-    _path, state = parallel_budget.read_run_state(repo, ticket, phase)
-    if state.get('completed') is not True:
-        _fail('premature_release', 'the run state says completed={!r}; the final gates and the '
-                                   'completion update come before release; the lock is '
-                                   'retained'.format(state.get('completed')))
-    if state.get('pause_reason') is not None:
-        _fail('premature_release', 'the run is paused ({!r}); a pause retains ownership and '
-                                   'recovery state'.format(state.get('pause_reason')))
-    return parallel_state.release_ticket(repo, ticket, owner)
+    run_id, phase, coordinator, token = _release_identity(owner)
+    with parallel_state.ticket_guard(repo, ticket):
+        stored = _require_owner(repo, ticket, run_id, phase, coordinator)
+        if stored['token'] != token:
+            _fail('foreign_owner', 'the ticket {} is held under another token; only the '
+                                   'acquiring run releases it'.format(ticket))
+        manifest = _read_manifest(repo, ticket, run_id)
+        if manifest['ticket'] != ticket or manifest['run_id'] != run_id \
+                or manifest['phase'] != phase:
+            _fail('manifest_mismatch', 'the run manifest is not this run\'s: {!r}'.format(
+                {name: manifest[name] for name in ('ticket', 'run_id', 'phase')}))
+        _require_quiescent(manifest)
+        _path, state = parallel_budget.read_run_state(repo, ticket, phase)
+        if state.get('completed') is not True:
+            _fail('premature_release', 'the run state says completed={!r}; the final gates and '
+                                       'the completion update come before release; the lock is '
+                                       'retained'.format(state.get('completed')))
+        if state.get('pause_reason') is not None:
+            _fail('premature_release', 'the run is paused ({!r}); a pause retains ownership and '
+                                       'recovery state'.format(state.get('pause_reason')))
+        return parallel_state.release_ticket_locked(repo, ticket, owner)
 
 
 def cmd_run_create(request, _stdin_used):
-    _keys(request, ('repo', 'ticket', 'phase', 'run_id', 'seats', 'graph_digest'))
+    _keys(request, ('repo', 'ticket', 'phase', 'run_id', 'seats', 'graph_digest',
+                    'coordinator_id'))
     repo = _text(request, 'repo')
     ticket = _text(request, 'ticket')
     phase = _phase(request, 'phase')
     run_id = _text(request, 'run_id')
     seats = _integer(request, 'seats', 1)
     graph_digest = _text(request, 'graph_digest')
-    _require_owner(repo, ticket, run_id, phase)
-    if seats != _config_seats(repo):
-        _fail('invalid_seats', 'the requested seats {} does not match the host\'s '
-                               '`parallel.seats`'.format(seats))
-    manifest = parallel_state.new_run(ticket, phase, run_id, seats, graph_digest)
-    return parallel_state.write_manifest(str(_manifest_path(repo, ticket, run_id)), manifest, 0)
+    coordinator = _coordinator(request)
+    with _owner_guard(repo, ticket, run_id, phase, coordinator):
+        if seats != _config_seats(repo):
+            _fail('invalid_seats', 'the requested seats {} does not match the host\'s '
+                                   '`parallel.seats`'.format(seats))
+        manifest = parallel_state.new_run(ticket, phase, run_id, seats, graph_digest)
+        return parallel_state.write_manifest(str(_manifest_path(repo, ticket, run_id)),
+                                             manifest, 0)
 
 
 def cmd_run_inspect(request, _stdin_used):
@@ -448,14 +544,20 @@ def cmd_run_inspect(request, _stdin_used):
 
 
 def _authoritative_manifest(request):
-    """The fresh manifest for a run mutation, with its exact owner and revision context."""
+    """The fresh manifest for a run mutation, with its exact owner and revision context.
+
+    The caller must hold the common ticket guard; the owner (run, phase and coordinator) is
+    matched inside it and the revision checked before the reducer runs, so the read, the
+    reducer and the write cannot interleave with another coordinator's effect.
+    """
     repo = _text(request, 'repo')
     ticket = _text(request, 'ticket')
     run_id = _text(request, 'run_id')
     expected_revision = _integer(request, 'expected_revision', 0)
+    coordinator = _coordinator(request)
     manifest = _read_manifest(repo, ticket, run_id)
     _check_identity(manifest, ticket, run_id)
-    _require_owner(repo, ticket, run_id, manifest['phase'])
+    _require_owner(repo, ticket, run_id, manifest['phase'], coordinator)
     _require_revision(manifest, expected_revision)
     return repo, ticket, run_id, expected_revision, manifest
 
@@ -467,7 +569,7 @@ def _persist_manifest(repo, ticket, run_id, value, expected_revision):
 
 def cmd_run_transition(request, _stdin_used):
     _keys(request, ('repo', 'ticket', 'run_id', 'expected_revision', 'task', 'expected',
-                    'target'), optional=('fields',))
+                    'target', 'coordinator_id'), optional=('fields',))
     task = _text(request, 'task')
     expected = request['expected']
     if expected is not None and not isinstance(expected, str):
@@ -476,37 +578,43 @@ def cmd_run_transition(request, _stdin_used):
     fields = request.get('fields', {})
     if not isinstance(fields, dict):
         _fail('invalid_request', '`fields` is not an object: {!r}'.format(fields))
-    repo, ticket, run_id, revision, manifest = _authoritative_manifest(request)
-    updated = parallel_state.transition_task(manifest, task, expected, target, fields)
-    return _persist_manifest(repo, ticket, run_id, updated, revision)
+    with parallel_state.ticket_guard(_text(request, 'repo'), _text(request, 'ticket')):
+        repo, ticket, run_id, revision, manifest = _authoritative_manifest(request)
+        updated = parallel_state.transition_task(manifest, task, expected, target, fields)
+        return _persist_manifest(repo, ticket, run_id, updated, revision)
 
 
 def cmd_claim_prepare(request, _stdin_used):
-    _keys(request, ('repo', 'ticket', 'run_id', 'expected_revision'))
-    repo, ticket, run_id, revision, manifest = _authoritative_manifest(request)
-    result = parallel_queue.begin_claim(manifest)
-    written = _persist_manifest(repo, ticket, run_id, result['manifest'], revision)
-    return {'schema': SCHEMA, 'manifest': written, 'intent': result['intent']}
+    _keys(request, ('repo', 'ticket', 'run_id', 'expected_revision', 'coordinator_id'))
+    with parallel_state.ticket_guard(_text(request, 'repo'), _text(request, 'ticket')):
+        repo, ticket, run_id, revision, manifest = _authoritative_manifest(request)
+        result = parallel_queue.begin_claim(manifest)
+        written = _persist_manifest(repo, ticket, run_id, result['manifest'], revision)
+        return {'schema': SCHEMA, 'manifest': written, 'intent': result['intent']}
 
 
 def cmd_claim_record(request, _stdin_used):
-    _keys(request, ('repo', 'ticket', 'run_id', 'expected_revision', 'intent_id', 'row'))
+    _keys(request, ('repo', 'ticket', 'run_id', 'expected_revision', 'intent_id', 'row',
+                    'coordinator_id'))
     intent_id = _text(request, 'intent_id')
-    repo, ticket, run_id, revision, manifest = _authoritative_manifest(request)
-    result = parallel_queue.record_claim(manifest, intent_id, request['row'])
-    written = _persist_manifest(repo, ticket, run_id, result['manifest'], revision)
-    return {'schema': SCHEMA, 'manifest': written, 'action': result['action']}
+    with parallel_state.ticket_guard(_text(request, 'repo'), _text(request, 'ticket')):
+        repo, ticket, run_id, revision, manifest = _authoritative_manifest(request)
+        result = parallel_queue.record_claim(manifest, intent_id, request['row'])
+        written = _persist_manifest(repo, ticket, run_id, result['manifest'], revision)
+        return {'schema': SCHEMA, 'manifest': written, 'action': result['action']}
 
 
 def cmd_claim_reconcile(request, _stdin_used):
-    _keys(request, ('repo', 'ticket', 'run_id', 'expected_revision', 'rows'))
+    _keys(request, ('repo', 'ticket', 'run_id', 'expected_revision', 'rows',
+                    'coordinator_id'))
     rows = request['rows']
     if not isinstance(rows, list):
         _fail('invalid_request', '`rows` is not an array: {!r}'.format(rows))
-    repo, ticket, run_id, revision, manifest = _authoritative_manifest(request)
-    result = parallel_queue.reconcile_claims(manifest, rows)
-    written = _persist_manifest(repo, ticket, run_id, result['manifest'], revision)
-    return {'schema': SCHEMA, 'manifest': written, 'actions': result['actions']}
+    with parallel_state.ticket_guard(_text(request, 'repo'), _text(request, 'ticket')):
+        repo, ticket, run_id, revision, manifest = _authoritative_manifest(request)
+        result = parallel_queue.reconcile_claims(manifest, rows)
+        written = _persist_manifest(repo, ticket, run_id, result['manifest'], revision)
+        return {'schema': SCHEMA, 'manifest': written, 'actions': result['actions']}
 
 
 def cmd_admit(request, stdin_used):
@@ -514,7 +622,7 @@ def cmd_admit(request, stdin_used):
     repo = _text(request, 'repo')
     ticket = _text(request, 'ticket')
     run_id = _text(request, 'run_id')
-    case_sensitive = _case_sensitive(request)
+    case_sensitive = _case_sensitive(request, repo)
     manifest = _read_manifest(repo, ticket, run_id)
     _check_identity(manifest, ticket, run_id)
     text = _read_document(_text(request, 'tasklist'), 'tasklist', stdin_used)
@@ -534,8 +642,12 @@ def cmd_admit(request, stdin_used):
 
 
 def cmd_worktree_create(request, _stdin_used):
-    _keys(request, ('repo', 'assignment'))
-    return task_worktree.create_worker(_text(request, 'repo'), request['assignment'])
+    _keys(request, ('repo', 'assignment', 'coordinator_id'))
+    repo = _text(request, 'repo')
+    coordinator = _coordinator(request)
+    ticket, run_id, phase = _identity_of(request['assignment'], 'assignment')
+    with _owner_guard(repo, ticket, run_id, phase, coordinator):
+        return task_worktree.create_worker(repo, request['assignment'])
 
 
 def cmd_worktree_inspect(request, _stdin_used):
@@ -544,32 +656,52 @@ def cmd_worktree_inspect(request, _stdin_used):
 
 
 def cmd_worktree_cleanup(request, _stdin_used):
-    _keys(request, ('repo', 'assignment', 'publication'))
-    return task_worktree.cleanup_worker(_text(request, 'repo'), request['assignment'],
-                                        request['publication'])
+    _keys(request, ('repo', 'assignment', 'publication', 'coordinator_id'))
+    repo = _text(request, 'repo')
+    coordinator = _coordinator(request)
+    ticket, run_id, phase = _identity_of(request['assignment'], 'assignment')
+    with _owner_guard(repo, ticket, run_id, phase, coordinator):
+        return task_worktree.cleanup_worker(repo, request['assignment'],
+                                            request['publication'])
 
 
 def cmd_integration_prepare(request, _stdin_used):
-    _keys(request, ('repo', 'assignment', 'result'))
-    return parallel_integration.prepare_transport(_text(request, 'repo'),
-                                                  request['assignment'], request['result'])
+    _keys(request, ('repo', 'assignment', 'result', 'coordinator_id'))
+    repo = _text(request, 'repo')
+    coordinator = _coordinator(request)
+    ticket, run_id, phase = _identity_of(request['assignment'], 'assignment')
+    with _owner_guard(repo, ticket, run_id, phase, coordinator):
+        return parallel_integration.prepare_transport(repo, request['assignment'],
+                                                      request['result'])
 
 
 def cmd_integration_apply(request, _stdin_used):
-    _keys(request, ('repo', 'assignment', 'prepared'))
-    return parallel_integration.apply_transport(_text(request, 'repo'), request['assignment'],
-                                                request['prepared'])
+    _keys(request, ('repo', 'assignment', 'prepared', 'coordinator_id'))
+    repo = _text(request, 'repo')
+    coordinator = _coordinator(request)
+    ticket, run_id, phase = _identity_of(request['prepared'], 'prepared')
+    with _owner_guard(repo, ticket, run_id, phase, coordinator):
+        return parallel_integration.apply_transport(repo, request['assignment'],
+                                                    request['prepared'])
 
 
 def cmd_integration_commit(request, _stdin_used):
-    _keys(request, ('repo', 'transaction', 'subject'))
-    return parallel_integration.commit_cycle(_text(request, 'repo'), request['transaction'],
-                                             _text(request, 'subject'))
+    _keys(request, ('repo', 'transaction', 'subject', 'coordinator_id'))
+    repo = _text(request, 'repo')
+    coordinator = _coordinator(request)
+    ticket, run_id, phase = _identity_of(request['transaction'], 'transaction')
+    with _owner_guard(repo, ticket, run_id, phase, coordinator):
+        return parallel_integration.commit_cycle(repo, request['transaction'],
+                                                 _text(request, 'subject'))
 
 
 def cmd_integration_recover(request, _stdin_used):
-    _keys(request, ('repo', 'transaction'))
-    return parallel_integration.recover_cycle(_text(request, 'repo'), request['transaction'])
+    _keys(request, ('repo', 'transaction', 'coordinator_id'))
+    repo = _text(request, 'repo')
+    coordinator = _coordinator(request)
+    ticket, run_id, phase = _identity_of(request['transaction'], 'transaction')
+    with _owner_guard(repo, ticket, run_id, phase, coordinator):
+        return parallel_integration.recover_cycle(repo, request['transaction'])
 
 
 def cmd_publication_next(request, _stdin_used):
@@ -614,8 +746,9 @@ def _read_record(repo, identity):
 
 
 def cmd_publication_record(request, _stdin_used):
-    _keys(request, ('repo', 'transaction', 'task', 'action_id', 'receipt'))
+    _keys(request, ('repo', 'transaction', 'task', 'action_id', 'receipt', 'coordinator_id'))
     repo = _text(request, 'repo')
+    coordinator = _coordinator(request)
     transaction = request['transaction']
     if not isinstance(transaction, dict):
         _fail('invalid_request', '`transaction` is not an object: {!r}'.format(transaction))
@@ -639,31 +772,33 @@ def cmd_publication_record(request, _stdin_used):
     identity = {name: transaction.get(name)
                 for name in ('ticket', 'task', 'run_id', 'attempt', 'transaction_id')}
     identity['task'] = task
-    durable = _read_record(repo, identity)
-    _require_owner(repo, durable['ticket'], durable['run_id'], durable['phase'])
-    if durable.get('publication') != receipt.get('publication'):
-        _fail('stale_publication', 'the receipt was planned against publication {!r}, not the '
-                                   'durable {!r}; re-plan from the fresh record'.format(
-                                       receipt.get('publication'),
-                                       durable.get('publication')))
-    manifest = _read_manifest(repo, transaction['ticket'], transaction['run_id'])
-    _check_identity(manifest, transaction['ticket'], transaction['run_id'])
-    result = parallel_publication.record_publication(manifest, task, _text(request, 'action_id'),
-                                                     receipt)
-    # Persist the returned publication into the durable transaction's reserved field FIRST: the
-    # reviewed writer validates the record, matches ownership and the integrating latch and
-    # writes atomically. Only then may the manifest move.
-    stored = durable
-    if stored.get('publication') != result['publication']:
-        stored = parallel_integration.recover_cycle(repo, dict(stored,
-                                                               publication=result['publication']))
-    written = manifest
-    if result['manifest'] != manifest:
-        written = parallel_state.write_manifest(
-            str(_manifest_path(repo, transaction['ticket'], transaction['run_id'])),
-            result['manifest'], manifest['revision'])
-    return {'schema': SCHEMA, 'manifest': written, 'publication': stored['publication'],
-            'transaction': stored}
+    with parallel_state.ticket_guard(repo, transaction['ticket']):
+        durable = _read_record(repo, identity)
+        _require_owner(repo, durable['ticket'], durable['run_id'], durable['phase'],
+                       coordinator)
+        if durable.get('publication') != receipt.get('publication'):
+            _fail('stale_publication', 'the receipt was planned against publication {!r}, not '
+                                       'the durable {!r}; re-plan from the fresh record'.format(
+                                           receipt.get('publication'),
+                                           durable.get('publication')))
+        manifest = _read_manifest(repo, transaction['ticket'], transaction['run_id'])
+        _check_identity(manifest, transaction['ticket'], transaction['run_id'])
+        result = parallel_publication.record_publication(manifest, task,
+                                                         _text(request, 'action_id'), receipt)
+        # Persist the returned publication into the durable transaction's reserved field
+        # FIRST: the reviewed writer validates the record, matches ownership and the
+        # integrating latch and writes atomically. Only then may the manifest move.
+        stored = durable
+        if stored.get('publication') != result['publication']:
+            stored = parallel_integration.recover_cycle(repo, dict(stored,
+                                                                   publication=result['publication']))
+        written = manifest
+        if result['manifest'] != manifest:
+            written = parallel_state.write_manifest(
+                str(_manifest_path(repo, transaction['ticket'], transaction['run_id'])),
+                result['manifest'], manifest['revision'])
+        return {'schema': SCHEMA, 'manifest': written, 'publication': stored['publication'],
+                'transaction': stored}
 
 
 def cmd_budget_inspect(request, _stdin_used):
@@ -674,9 +809,10 @@ def cmd_budget_inspect(request, _stdin_used):
 
 def cmd_budget_reserve(request, _stdin_used):
     _keys(request, ('repo', 'ticket', 'run_id', 'phase', 'kind', 'scope', 'attempt',
-                    'ordinal', 'expected_revision'))
+                    'ordinal', 'expected_revision', 'coordinator_id'))
     # Parse and validate the request first, so malformed input keeps its invalid-input
-    # semantics; then the exact run must own the ticket before any helper effect (review B1).
+    # semantics; then the exact run's coordinator must own the ticket before any helper
+    # effect, with the common guard held through the ledger write (review B1).
     repo = _text(request, 'repo')
     ticket = _text(request, 'ticket')
     run_id = _text(request, 'run_id')
@@ -686,15 +822,17 @@ def cmd_budget_reserve(request, _stdin_used):
     attempt = _integer(request, 'attempt', 1)
     ordinal = _integer(request, 'ordinal', 1)
     expected_revision = _integer(request, 'expected_revision', 0)
-    _require_owner(repo, ticket, run_id, phase)
-    return parallel_budget.reserve(repo, ticket, run_id, phase, kind, scope, attempt, ordinal,
-                                   expected_revision)
+    coordinator = _coordinator(request)
+    with _owner_guard(repo, ticket, run_id, phase, coordinator):
+        return parallel_budget.reserve(repo, ticket, run_id, phase, kind, scope, attempt,
+                                       ordinal, expected_revision)
 
 
 DISPATCH = {
     ('config',): cmd_config,
     ('preflight',): cmd_preflight,
     ('owner', 'acquire'): cmd_owner_acquire,
+    ('owner', 'recover'): cmd_owner_recover,
     ('owner', 'release'): cmd_owner_release,
     ('run', 'create'): cmd_run_create,
     ('run', 'inspect'): cmd_run_inspect,

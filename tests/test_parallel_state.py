@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -25,6 +26,8 @@ OTHER_RUN = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
 TICKET = 'PROJ-123'
 DIGEST = 'a' * 64
 TASK = '3.1'
+COORDINATOR = 'ses_coordinator-primary'
+OTHER_COORDINATOR = 'ses_coordinator-secondary'
 
 MANIFEST_KEYS = ('schema', 'ticket', 'phase', 'run_id', 'seats', 'graph_digest', 'revision',
                  'tasks', 'claims', 'stop')
@@ -70,8 +73,9 @@ def new_manifest(**overrides):
 
 
 def owner(**overrides):
-    """An acquire request (the run's identity), with `overrides` applied."""
-    value = {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': 2}
+    """An acquire request (the run's identity and coordinator), with `overrides` applied."""
+    value = {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': 2,
+             'coordinator_id': COORDINATOR}
     value.update(overrides)
     return value
 
@@ -81,8 +85,16 @@ def release_request(stored, completed=True, quiescent=True):
     completion and quiescence asserted."""
     return {'schema': 1, 'ticket': stored.get('ticket', TICKET),
             'run_id': stored.get('run_id', RUN_ID), 'phase': stored.get('phase', 2),
+            'coordinator_id': stored.get('coordinator_id', COORDINATOR),
             'token': stored.get('token', '0' * 32),
             'completed': completed, 'quiescent': quiescent}
+
+
+def recover_request(stored, coordinator=OTHER_COORDINATOR, reason='handoff for test'):
+    """The explicit recovery request for `stored`, handed to `coordinator`."""
+    return {'schema': 1, 'ticket': stored.get('ticket', TICKET),
+            'run_id': stored.get('run_id', RUN_ID), 'phase': stored.get('phase', 2),
+            'coordinator_id': coordinator, 'reason': reason}
 
 
 def rejects(test, kind, call):
@@ -241,7 +253,8 @@ class TestReadWriteManifest(unittest.TestCase):
             with self.assertRaises(OSError):
                 parallel_state.write_manifest(self.path, written, written['revision'])
         self.assertEqual(parallel_state.read_manifest(self.path), written)
-        leftovers = [p.name for p in self.dir.iterdir() if p.name != 'manifest.json']
+        leftovers = [p.name for p in self.dir.iterdir()
+                     if p.name not in ('manifest.json', 'manifest.json.lock')]
         self.assertEqual(leftovers, [], 'the temporary file was not cleaned up')
         retried = parallel_state.write_manifest(self.path, written, written['revision'])
         self.assertEqual(retried['revision'], 2)
@@ -444,10 +457,16 @@ class TestAcquireTicket(RepoCase):
     def test_acquire_writes_the_lock_under_the_git_common_directory(self):
         stored = parallel_state.acquire_ticket(str(self.repo), TICKET, owner())
         self.assertEqual(sorted(stored), sorted(['schema', 'ticket', 'run_id', 'phase',
-                                                 'token', 'acquired_at']))
+                                                 'coordinator_id', 'token', 'acquired_at',
+                                                 'recovered_at', 'prior_coordinator_id',
+                                                 'recovery_reason']))
         self.assertEqual(stored['ticket'], TICKET)
         self.assertEqual(stored['run_id'], RUN_ID)
         self.assertEqual(stored['phase'], 2)
+        self.assertEqual(stored['coordinator_id'], COORDINATOR)
+        self.assertIsNone(stored['recovered_at'])
+        self.assertIsNone(stored['prior_coordinator_id'])
+        self.assertIsNone(stored['recovery_reason'])
         self.assertEqual(len(stored['token']), 32)
         self.assertTrue(stored['token'].isalnum())
         self.assertTrue(stored['acquired_at'].endswith('Z'))
@@ -468,6 +487,13 @@ class TestAcquireTicket(RepoCase):
         rejects(self, 'ticket_owned',
                 lambda: parallel_state.acquire_ticket(str(self.repo), TICKET,
                                                       owner(phase=None)))
+
+    def test_a_different_coordinator_of_the_same_run_is_refused(self):
+        stored = parallel_state.acquire_ticket(str(self.repo), TICKET, owner())
+        rejects(self, 'coordinator_conflict',
+                lambda: parallel_state.acquire_ticket(
+                    str(self.linked), TICKET, owner(coordinator_id=OTHER_COORDINATOR)))
+        self.assertEqual(self.lock_record(), stored)
 
     def test_the_owning_run_reacquires_its_own_record_from_the_other_checkout(self):
         stored = parallel_state.acquire_ticket(str(self.repo), TICKET, owner())
@@ -508,7 +534,8 @@ class TestAcquireTicket(RepoCase):
                     lambda ticket=ticket: parallel_state.acquire_ticket(str(self.repo), ticket,
                                                                         owner()))
         for overrides in ({'schema': 2}, {'run_id': 'not-a-uuid'}, {'phase': 0},
-                          {'phase': True}, {'ticket': 'PROJ-9'}):
+                          {'phase': True}, {'ticket': 'PROJ-9'}, {'coordinator_id': ''},
+                          {'coordinator_id': 7}):
             rejects(self, 'invalid_owner',
                     lambda overrides=overrides: parallel_state.acquire_ticket(
                         str(self.repo), TICKET, owner(**overrides)))
@@ -519,6 +546,168 @@ class TestAcquireTicket(RepoCase):
             rejects(self, 'invalid_owner',
                     lambda request=request: parallel_state.acquire_ticket(
                         str(self.repo), TICKET, request))
+
+
+class TestLegacyLock(RepoCase):
+    """A lock written before coordinator identity existed is never silently adopted."""
+
+    LEGACY = {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': 2,
+              'token': 'f' * 32, 'acquired_at': '2026-01-01T00:00:00Z'}
+
+    def write_legacy(self):
+        path = self.lock_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(self.LEGACY, indent=2) + '\n', encoding='utf-8')
+        return path
+
+    def test_acquire_validate_and_release_refuse_a_legacy_record_unchanged(self):
+        path = self.write_legacy()
+        before = path.read_text(encoding='utf-8')
+        rejects(self, 'legacy_owner',
+                lambda: parallel_state.acquire_ticket(str(self.repo), TICKET, owner()))
+        rejects(self, 'legacy_owner',
+                lambda: parallel_state.validate_owner(str(self.repo), TICKET, RUN_ID, 2,
+                                                      COORDINATOR))
+        rejects(self, 'legacy_owner',
+                lambda: parallel_state.release_ticket(str(self.repo), TICKET,
+                                                      release_request(self.LEGACY)))
+        self.assertEqual(path.read_text(encoding='utf-8'), before)
+
+    def test_explicit_recovery_adopts_a_legacy_record_with_its_prior_identity_recorded(self):
+        path = self.write_legacy()
+        record = parallel_state.recover_ticket(str(self.repo), TICKET,
+                                               recover_request(self.LEGACY,
+                                                               reason='legacy adoption'))
+        self.assertEqual(record['coordinator_id'], OTHER_COORDINATOR)
+        self.assertIsNone(record['prior_coordinator_id'])
+        self.assertEqual(record['recovery_reason'], 'legacy adoption')
+        self.assertTrue(record['recovered_at'].endswith('Z'))
+        self.assertNotEqual(record['token'], self.LEGACY['token'])
+        self.assertEqual(record['acquired_at'], self.LEGACY['acquired_at'])
+        self.assertEqual(self.lock_record(), record)
+        # The explicit adoption is a real handoff: the adopted coordinator now owns it.
+        again = parallel_state.acquire_ticket(
+            str(self.repo), TICKET, owner(coordinator_id=OTHER_COORDINATOR))
+        self.assertEqual(again, record)
+
+
+class TestRecoverTicket(RepoCase):
+    def test_recovery_rotates_the_token_and_fences_the_old_coordinator(self):
+        stored = parallel_state.acquire_ticket(str(self.repo), TICKET, owner())
+        record = parallel_state.recover_ticket(str(self.repo), TICKET,
+                                               recover_request(stored, reason='handoff'))
+        self.assertEqual(record['run_id'], RUN_ID)
+        self.assertEqual(record['phase'], 2)
+        self.assertEqual(record['coordinator_id'], OTHER_COORDINATOR)
+        self.assertEqual(record['prior_coordinator_id'], COORDINATOR)
+        self.assertEqual(record['recovery_reason'], 'handoff')
+        self.assertNotEqual(record['token'], stored['token'])
+        self.assertEqual(record['acquired_at'], stored['acquired_at'])
+        # the replaced coordinator can no longer acquire, validate, mutate or release
+        rejects(self, 'coordinator_conflict',
+                lambda: parallel_state.acquire_ticket(str(self.repo), TICKET, owner()))
+        rejects(self, 'coordinator_conflict',
+                lambda: parallel_state.validate_owner(str(self.repo), TICKET, RUN_ID, 2,
+                                                      COORDINATOR))
+        # the rotated token refuses the old release as a foreign owner, never as a release
+        rejects(self, 'foreign_owner',
+                lambda: parallel_state.release_ticket(str(self.repo), TICKET,
+                                                      release_request(stored)))
+        self.assertEqual(self.lock_record(), record)
+        # the new coordinator is the current owner and can release with its own token
+        parallel_state.validate_owner(str(self.repo), TICKET, RUN_ID, 2, OTHER_COORDINATOR)
+        receipt = parallel_state.release_ticket(str(self.repo), TICKET,
+                                                release_request(record))
+        self.assertTrue(receipt['released'])
+        self.assertFalse(self.lock_path().exists())
+
+    def test_recovery_never_crosses_runs_phases_or_the_same_coordinator(self):
+        stored = parallel_state.acquire_ticket(str(self.repo), TICKET, owner())
+        rejects(self, 'foreign_owner',
+                lambda: parallel_state.recover_ticket(
+                    str(self.repo), TICKET,
+                    dict(recover_request(stored), run_id=OTHER_RUN)))
+        rejects(self, 'foreign_owner',
+                lambda: parallel_state.recover_ticket(
+                    str(self.repo), TICKET, dict(recover_request(stored), phase=None)))
+        rejects(self, 'coordinator_current',
+                lambda: parallel_state.recover_ticket(
+                    str(self.repo), TICKET, recover_request(stored, coordinator=COORDINATOR)))
+        for request in (dict(recover_request(stored), reason=''),
+                        dict(recover_request(stored), extra=1),
+                        dict(recover_request(stored), coordinator_id='')):
+            rejects(self, 'invalid_owner',
+                    lambda request=request: parallel_state.recover_ticket(
+                        str(self.repo), TICKET, request))
+        self.assertEqual(self.lock_record(), stored)
+
+    def test_recovery_without_a_lock_is_refused(self):
+        rejects(self, 'not_owned',
+                lambda: parallel_state.recover_ticket(str(self.repo), TICKET,
+                                                      recover_request(owner())))
+
+
+class TestCoordinatorGuard(RepoCase):
+    def test_the_guard_excludes_a_second_holder_and_recovers_on_release(self):
+        with mock.patch.object(parallel_state, 'GUARD_TIMEOUT', 0.2):
+            with parallel_state.ticket_guard(str(self.repo), TICKET):
+                with self.assertRaises(parallel_state.StateError) as caught:
+                    with parallel_state.ticket_guard(str(self.linked), TICKET):
+                        pass
+                self.assertEqual(caught.exception.kind, 'owner_busy')
+        with parallel_state.ticket_guard(str(self.repo), TICKET):
+            pass  # released: a later holder acquires normally
+
+    def test_concurrent_manifest_writes_serialize_the_compare_and_replace(self):
+        path = self.repo / 'manifest.json'
+        first = parallel_state.write_manifest(path, new_manifest(), 0)
+        self.assertEqual(first['revision'], 1)
+        left = new_manifest(tasks={'3.1': {'state': 'reserved', 'attempt': 1,
+                                           'decision': None}}, revision=1)
+        right = new_manifest(tasks={'3.2': {'state': 'reserved', 'attempt': 1,
+                                            'decision': None}}, revision=1)
+        arrivals = []
+        arrival_lock = threading.Lock()
+        both = threading.Event()
+        real_atomic = parallel_state._atomic_write
+
+        def barrier_atomic(path, text):
+            # Only reachable after the revision check: pre-fix both writers arrive here and
+            # both replace, losing one update. Post-fix the manifest guard admits one.
+            with arrival_lock:
+                arrivals.append(1)
+                if len(arrivals) >= 2:
+                    both.set()
+            both.wait(1.0)
+            return real_atomic(path, text)
+
+        results = []
+        results_lock = threading.Lock()
+
+        def writer(value):
+            try:
+                written = parallel_state.write_manifest(path, value, 1)
+                outcome = ('ok', written)
+            except parallel_state.StateError as exc:
+                outcome = ('error', exc.kind)
+            with results_lock:
+                results.append(outcome)
+
+        with mock.patch.object(parallel_state, '_atomic_write', barrier_atomic):
+            threads = [threading.Thread(target=writer, args=(value,))
+                       for value in (left, right)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(60)
+        successes = [entry for entry in results if entry[0] == 'ok']
+        errors = [entry[1] for entry in results if entry[0] == 'error']
+        self.assertEqual(len(results), 2)
+        self.assertEqual(len(successes), 1)
+        self.assertEqual(errors, ['stale_revision'])
+        stored = parallel_state.read_manifest(path)
+        self.assertEqual(stored['revision'], 2)
+        self.assertEqual(stored, successes[0][1])
 
 
 class TestReleaseTicket(RepoCase):

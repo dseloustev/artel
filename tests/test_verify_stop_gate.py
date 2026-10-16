@@ -61,7 +61,7 @@ def make_worker_root(space):
                                   'ticket': {'projectKey': 'PROJ'}}), encoding='utf-8')
     parallel_state.acquire_ticket(str(coord), WORKER_TICKET, {
         'schema': 1, 'ticket': WORKER_TICKET, 'run_id': WORKER_RUN_ID,
-        'phase': WORKER_PHASE})
+        'phase': WORKER_PHASE, 'coordinator_id': 'ses_stop-gate-fixture'})
     root = (main / '.claude' / 'worktrees' / 'parallel tasks' / WORKER_TICKET /
             WORKER_RUN_ID / '3.1-a1')
     artifact = root / '.artel' / 'run' / 'parallel' / '3.1-a1'

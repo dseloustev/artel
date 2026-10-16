@@ -5,8 +5,12 @@
     read_manifest(path) -> manifest
     write_manifest(path, value, expected_revision) -> manifest
     transition_task(manifest, task, expected, target, fields) -> manifest
+    ticket_guard(repo, ticket) -> context manager (the repository-common guard)
+    validate_owner(repo, ticket, run_id, phase, coordinator_id) -> stored owner
     acquire_ticket(repo, ticket, owner) -> stored owner
+    recover_ticket(repo, ticket, request) -> stored owner (explicit audited handoff)
     release_ticket(repo, ticket, owner) -> receipt
+    release_ticket_locked(repo, ticket, owner) -> receipt (guard already held)
 
 Contract: docs/opencode-parallel.md §6 (task states and transitions) and §13 (the run
 manifest, ticket ownership and claim recovery).
@@ -35,24 +39,37 @@ recorded retry/recovery decision. `claims` and `stop` are the queue's sections -
 Ticket ownership is one JSON record per ticket in the repository-common Git directory,
 `<git-common-dir>/artel/parallel/<TICKET>.json`, so every linked worktree of the repository
 resolves the same lock. `acquire_ticket` creates it exclusively and refuses a lock that
-already exists, whatever its age; only the owning run (same `run_id` and `phase`)
-re-acquires its own record, and only the matching run releases it -- with the `token` proof
-it was given and with `completed` and `quiescent` asserted. A lock that cannot be read is
-ambiguous and is never overwritten, released or reclaimed.
+already exists, whatever its age; only the owning run *and coordinator* (same `run_id`,
+`phase` and `coordinator_id`) re-acquires its own record, and only the matching run releases
+it -- with the `token` proof it was given and with `completed` and `quiescent` asserted. A
+lock that cannot be read is ambiguous and is never overwritten, released or reclaimed; a
+legacy record without `coordinator_id` is never silently adopted (`legacy_owner`), only
+explicitly by `recover_ticket`, which rotates the token and records the prior identity and
+reason. Every mutation runs under `ticket_guard`, the kernel lock beside the record, and
+validates the owner inside it; the manifest write additionally serializes its
+compare-and-replace under a per-manifest lock. The guard is held through the effect, never
+just for an earlier read.
 
 Every function raises `StateError`, a `ValueError` carrying the `kind` a CLI maps into its
 error envelope; nothing is coerced and nothing is dropped.
 """
+import contextlib
 import json
 import os
 import secrets
 import subprocess
 import tempfile
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 import parallel_contract
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - POSIX hosts have fcntl; the fallback stays safe
+    fcntl = None
 
 SCHEMA = 1
 
@@ -63,12 +80,25 @@ CLAIMS_KEYS = ('seq', 'intents')
 INTENT_KEYS = ('intent_id', 'seq', 'attempt', 'actor', 'state', 'row')
 # A claim intent's lifecycle: `pending` is durable before the claim call, `mapped` carries
 # the recorded returned row, `wrong-phase` and `foreign` are the stopped observations,
-# `orphaned` is this run's reconciled claim, and `lost` is a call whose outcome never landed.
-INTENT_STATES = ('pending', 'mapped', 'wrong-phase', 'foreign', 'orphaned', 'lost')
+# `orphaned` is this run's reconciled claim whose release is not confirmed yet, `released`
+# is an orphan whose external release a fresh complete observation confirmed (the exact
+# recorded row is no longer held by the exact actor), and `lost` is a call whose outcome
+# never landed.
+INTENT_STATES = ('pending', 'mapped', 'wrong-phase', 'foreign', 'orphaned', 'released',
+                 'lost')
 STOP_KEYS = ('reason', 'intent_id', 'row')
-OWNER_KEYS = ('schema', 'ticket', 'run_id', 'phase')
-STORED_OWNER_KEYS = OWNER_KEYS + ('token', 'acquired_at')
-RELEASE_KEYS = OWNER_KEYS + ('token', 'completed', 'quiescent')
+# §13.4: the owner identity the coordinator fence compares. `coordinator_id` is the native
+# session id of the coordinator that holds the ticket -- never a run UUID, a token or a CLI
+# process id. The stored record also carries the audit trail of an explicit recovery.
+COORDINATOR_KEYS = ('schema', 'ticket', 'run_id', 'phase', 'coordinator_id')
+OWNER_KEYS = COORDINATOR_KEYS
+LEGACY_OWNER_KEYS = ('schema', 'ticket', 'run_id', 'phase', 'token', 'acquired_at')
+STORED_OWNER_KEYS = COORDINATOR_KEYS + ('token', 'acquired_at', 'recovered_at',
+                                        'prior_coordinator_id', 'recovery_reason')
+RELEASE_KEYS = COORDINATOR_KEYS + ('token', 'completed', 'quiescent')
+RECOVER_KEYS = COORDINATOR_KEYS + ('reason',)
+GUARD_TIMEOUT = 5.0
+GUARD_POLL = 0.05
 ALL_STATES = parallel_contract.TASK_STATES + parallel_contract.SIDE_STATES
 
 # §6: the main sequence, the one return a preparation failure takes, the side entries, and
@@ -299,6 +329,10 @@ def write_manifest(path, value, expected_revision):
     persisted); `value` must carry that same revision. The written manifest's revision is
     `expected_revision + 1`, and it is returned. A file that is not at `expected_revision`,
     a stale value, and a corrupt file on disk are all refused -- never silently overwritten.
+
+    The comparison and the replacement are serialized under a kernel lock on
+    `<manifest>.lock` (never unlinked), so two concurrent callers -- the CLI and a direct
+    trusted helper caller alike -- cannot both pass the revision check and lose one update.
     """
     if isinstance(expected_revision, bool) or not isinstance(expected_revision, int) \
             or expected_revision < 0:
@@ -306,15 +340,16 @@ def write_manifest(path, value, expected_revision):
               'expected_revision is not an integer >= 0: {!r}'.format(expected_revision))
     manifest = _manifest(value)
     path = Path(path)
-    current = _persisted_revision(path)
-    if current != expected_revision:
-        _fail('stale_revision', 'the manifest at {} is at revision {}, not {}'.format(
-            path, current, expected_revision))
-    if manifest['revision'] != expected_revision:
-        _fail('stale_revision', 'the value is at revision {}, not the expected {}'.format(
-            manifest['revision'], expected_revision))
     written = dict(manifest, revision=expected_revision + 1)
-    _atomic_write(path, _dump(written))
+    with _file_guard(Path(str(path) + '.lock'), 'the manifest'):
+        current = _persisted_revision(path)
+        if current != expected_revision:
+            _fail('stale_revision', 'the manifest at {} is at revision {}, not {}'.format(
+                path, current, expected_revision))
+        if manifest['revision'] != expected_revision:
+            _fail('stale_revision', 'the value is at revision {}, not the expected {}'.format(
+                manifest['revision'], expected_revision))
+        _atomic_write(path, _dump(written))
     return written
 
 
@@ -426,8 +461,95 @@ def _lock_path(repo, ticket):
     return _common_dir(repo) / 'artel' / 'parallel' / (ticket + '.json')
 
 
+def _guard_path(repo, ticket):
+    return _common_dir(repo) / 'artel' / 'parallel' / (ticket + '.guard')
+
+
+@contextlib.contextmanager
+def _file_guard(path, what):
+    """A bounded kernel lock on `path`, never unlinked while held.
+
+    POSIX hosts take an `flock` on the guard file itself, which the kernel releases when the
+    process exits -- a crashed holder leaves no stale lock and the file is never unlinked
+    (unlinking would let a later lock bind to a different inode). Without `fcntl` the
+    fallback claims `<path>.claim` by exclusive creation, removes only its own claim, and
+    refuses a busy one after the same bounded wait; the strategy is chosen before the claim
+    file exists, so first use is never blocked by the lock's own file.
+    """
+    path = Path(path)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        _fail('guard_unavailable', 'cannot create the {} lock directory {}: {}'.format(
+            what, path.parent, exc))
+    deadline = time.monotonic() + GUARD_TIMEOUT
+    if fcntl is not None:
+        try:
+            handle = os.open(str(path), os.O_CREAT | os.O_RDWR, 0o644)
+        except OSError as exc:
+            _fail('guard_unavailable', 'cannot open the {} lock {}: {}'.format(
+                what, path, exc))
+        try:
+            while True:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        _fail('owner_busy', 'another operation holds the {} lock {}; '
+                                            'retry'.format(what, path))
+                    time.sleep(GUARD_POLL)
+            yield
+        finally:
+            os.close(handle)
+        return
+    claim = Path(str(path) + '.claim')  # pragma: no cover - non-POSIX fallback
+    handle = None
+    while True:
+        try:
+            handle = os.open(str(claim), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            break
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                _fail('owner_busy', 'another operation holds the {} lock {}; retry'.format(
+                    what, claim))
+            time.sleep(GUARD_POLL)
+        except OSError as exc:
+            _fail('guard_unavailable', 'cannot claim the {} lock {}: {}'.format(
+                what, claim, exc))
+    try:
+        yield
+    finally:
+        os.close(handle)
+        try:
+            os.unlink(str(claim))
+        except OSError:
+            pass
+
+
+def ticket_guard(repo, ticket):
+    """The repository-common coordinator guard for `ticket`: hold it through every effect.
+
+    The guard is one kernel-locked file per ticket next to the lock record, resolved through
+    `git rev-parse --git-common-dir`, so every linked checkout and every coordinator CLI or
+    native operation serializes on the same inode. Acquisition is bounded; a busy guard is a
+    retryable `owner_busy`, never a takeover. Ownership is validated *inside* the guard, and
+    the caller keeps it held until its effect -- a manifest write, a Git effect, a session
+    launch, an owner recovery -- has finished, so a read-only check can never race the effect
+    it authorized.
+    """
+    _ticket(ticket)
+    return _file_guard(_guard_path(repo, ticket), 'coordinator')
+
+
 def _read_lock(path, ticket):
-    """The stored owner record, `None` when there is no lock, or `ambiguous_owner`."""
+    """The stored owner record, `None` when there is no lock, or `ambiguous_owner`.
+
+    Two shapes are accepted: the current record with `coordinator_id` and the explicit
+    recovery audit trail, and the legacy record written before coordinator identity existed.
+    A legacy record is returned as it is stored -- never upgraded, adopted or deleted here;
+    `recover_ticket` is the one explicit path that may replace it.
+    """
     try:
         text = path.read_text(encoding='utf-8')
     except FileNotFoundError:
@@ -440,7 +562,10 @@ def _read_lock(path, ticket):
     except ValueError as exc:
         _fail(kind, 'the ticket lock at {} is not valid JSON: {}'.format(path, exc))
     _object(value, 'the ticket lock', kind)
-    _keys(value, STORED_OWNER_KEYS, 'the ticket lock', kind)
+    keys = sorted(value)
+    if keys != sorted(STORED_OWNER_KEYS) and keys != sorted(LEGACY_OWNER_KEYS):
+        _fail(kind, 'the ticket lock at {} is not a known owner record: {!r}'.format(
+            path, keys))
     if isinstance(value['schema'], bool) or value['schema'] != SCHEMA:
         _fail(kind, 'the ticket lock schema must be {}: {!r}'.format(SCHEMA, value['schema']))
     if value['ticket'] != ticket:
@@ -450,11 +575,19 @@ def _read_lock(path, ticket):
         _integer(value['phase'], 'the ticket lock phase', kind, 1)
     _text(value['token'], 'the ticket lock token', kind)
     _text(value['acquired_at'], 'the ticket lock acquired_at', kind)
+    if 'coordinator_id' in value:
+        _text(value['coordinator_id'], 'the ticket lock coordinator_id', kind)
+        if value['recovered_at'] is not None:
+            _text(value['recovered_at'], 'the ticket lock recovered_at', kind)
+        if value['prior_coordinator_id'] is not None:
+            _text(value['prior_coordinator_id'], 'the ticket lock prior_coordinator_id', kind)
+        if value['recovery_reason'] is not None:
+            _text(value['recovery_reason'], 'the ticket lock recovery_reason', kind)
     return value
 
 
 def _owner(value, keys, what):
-    """The owner identity request (`acquire`) or the release request."""
+    """The owner identity request (`acquire`), the release request or the recovery request."""
     kind = 'invalid_owner'
     _object(value, what, kind)
     _keys(value, keys, what, kind)
@@ -467,6 +600,7 @@ def _owner(value, keys, what):
     _canonical_uuid(value['run_id'], kind, '{} run_id'.format(what))
     if value['phase'] is not None:
         _integer(value['phase'], '{} phase'.format(what), kind, 1)
+    _text(value['coordinator_id'], '{} coordinator_id'.format(what), kind)
     return value
 
 
@@ -474,12 +608,60 @@ def _utc_now():
     return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
+def _legacy(stored):
+    """True for a lock record written before coordinator identity existed."""
+    return 'coordinator_id' not in stored
+
+
 def _held(stored, owner):
-    """The stored record when `owner` is the run that already holds the ticket."""
+    """The stored record when `owner` is the run and coordinator that already holds it."""
     if stored['run_id'] == owner['run_id'] and stored['phase'] == owner['phase']:
+        if _legacy(stored):
+            _fail('legacy_owner', 'the ticket lock for {} predates coordinator identity; '
+                                  'adopt it explicitly with `owner recover` before any '
+                                  'mutation'.format(stored['ticket']))
+        if stored['coordinator_id'] != owner['coordinator_id']:
+            _fail('coordinator_conflict', 'the ticket {} is held by run {} under coordinator '
+                                          '{!r}, not {!r}; only that coordinator may mutate '
+                                          'the run, or an explicit `owner recover` hands it '
+                                          'over'.format(stored['ticket'], stored['run_id'],
+                                                        stored['coordinator_id'],
+                                                        owner['coordinator_id']))
         return stored
     _fail('ticket_owned', 'the ticket {} is owned by run {} (phase {}), acquired {}'.format(
         stored['ticket'], stored['run_id'], stored['phase'], stored['acquired_at']))
+
+
+def validate_owner(repo, ticket, run_id, phase, coordinator_id):
+    """Match the stored lock to the exact run *and* coordinator, read-only.
+
+    The caller must hold `ticket_guard(repo, ticket)` across its whole effect: this read
+    establishes that the lock names the exact run/phase and that `coordinator_id` is its
+    current coordinator. A missing lock is `not_owned`, a legacy record is `legacy_owner`
+    (never silently adopted), another run is `foreign_owner` and another coordinator of the
+    same run is `coordinator_conflict`.
+    """
+    _ticket(ticket)
+    _text(coordinator_id, 'the coordinator_id', 'invalid_owner')
+    stored = _read_lock(_lock_path(repo, ticket), ticket)
+    if stored is None:
+        _fail('not_owned', 'the ticket {} is not owned: acquire the lock before its run '
+                           'state is mutated'.format(ticket))
+    if _legacy(stored):
+        _fail('legacy_owner', 'the ticket lock for {} predates coordinator identity; adopt '
+                              'it explicitly with `owner recover` before any mutation'.format(
+                                  ticket))
+    if stored['run_id'] != run_id or stored['phase'] != phase:
+        _fail('foreign_owner', 'the ticket {} is owned by run {} (phase {}), not by run {} '
+                               '(phase {})'.format(ticket, stored['run_id'], stored['phase'],
+                                                   run_id, phase))
+    if stored['coordinator_id'] != coordinator_id:
+        _fail('coordinator_conflict', 'the ticket {} is held by run {} under coordinator '
+                                      '{!r}, not {!r}; only that coordinator may mutate the '
+                                      'run, or an explicit `owner recover` hands it over'.format(
+                                          ticket, stored['run_id'], stored['coordinator_id'],
+                                          coordinator_id))
+    return stored
 
 
 def acquire_ticket(repo, ticket, owner):
@@ -488,23 +670,32 @@ def acquire_ticket(repo, ticket, owner):
     The lock is `<git-common-dir>/artel/parallel/<TICKET>.json`, so a linked worktree
     cannot bypass it. An existing lock is never reclaimed -- not for another run, not for
     another phase of the same run, and never because time passed; the run that already
-    holds it (same `run_id` and `phase`) re-acquires its own record. A lock that cannot be
-    read is `ambiguous_owner` and is left exactly as found. The returned record is the
-    run's ownership proof: `token` is the release proof and `acquired_at` its record.
+    holds it (same `run_id`, `phase` and `coordinator_id`) re-acquires its own record. A
+    different coordinator of the same run is refused (`coordinator_conflict`), even when the
+    run UUID is known; a legacy record is refused (`legacy_owner`) and only an explicit
+    `recover_ticket` may adopt it. A lock that cannot be read is `ambiguous_owner` and is
+    left exactly as found. The returned record is the run's ownership proof: `token` is the
+    release proof and `acquired_at` its record.
     """
     _ticket(ticket)
     _owner(owner, OWNER_KEYS, 'the owner request')
     if owner['ticket'] != ticket:
         _fail('invalid_owner', 'the owner request names {} but {} was asked for'.format(
             owner['ticket'], ticket))
+    with ticket_guard(repo, ticket):
+        return _acquire_locked(repo, ticket, owner)
+
+
+def _acquire_locked(repo, ticket, owner):
+    """`acquire_ticket` with the ticket guard already held."""
     path = _lock_path(repo, ticket)
-    path.parent.mkdir(parents=True, exist_ok=True)
     stored = _read_lock(path, ticket)
     if stored is not None:
         return _held(stored, owner)
     record = {'schema': SCHEMA, 'ticket': ticket, 'run_id': owner['run_id'],
-              'phase': owner['phase'], 'token': secrets.token_hex(16),
-              'acquired_at': _utc_now()}
+              'phase': owner['phase'], 'coordinator_id': owner['coordinator_id'],
+              'token': secrets.token_hex(16), 'acquired_at': _utc_now(),
+              'recovered_at': None, 'prior_coordinator_id': None, 'recovery_reason': None}
     try:
         handle = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
     except FileExistsError:
@@ -525,12 +716,81 @@ def acquire_ticket(repo, ticket, owner):
     return record
 
 
+def recover_ticket(repo, ticket, request):
+    """Hand the same run's lock to a deliberate, audited replacement coordinator.
+
+    This is the one explicit path that changes `coordinator_id`: the requesting coordinator
+    must be a different one, the run and phase must match, and the request must carry a
+    reason. The token is rotated, so every command and native effect of the previous
+    coordinator fails fenced (`coordinator_conflict`) until it reacquires -- which it cannot,
+    because the lock now names the new coordinator. A legacy record (no `coordinator_id`) is
+    adopted by the same explicit step: its prior identity is recorded as null and the reason
+    is preserved; nothing is deleted, inferred from age, reclaimed across runs, or TTL-based.
+    The new record keeps `acquired_at` and adds `recovered_at`, `prior_coordinator_id` and
+    `recovery_reason`. This proves a handoff was requested and recorded; it does not prove the
+    previous session is dead.
+    """
+    _ticket(ticket)
+    _owner(request, RECOVER_KEYS, 'the recovery request')
+    _text(request['reason'], 'the recovery reason', 'invalid_owner')
+    if request['ticket'] != ticket:
+        _fail('invalid_owner', 'the recovery request names {} but {} was asked for'.format(
+            request['ticket'], ticket))
+    with ticket_guard(repo, ticket):
+        return _recover_locked(repo, ticket, request)
+
+
+def _recover_locked(repo, ticket, request):
+    """`recover_ticket` with the ticket guard already held."""
+    path = _lock_path(repo, ticket)
+    stored = _read_lock(path, ticket)
+    if stored is None:
+        _fail('not_owned', 'the ticket {} is not owned: there is no lock to recover'.format(
+            ticket))
+    if stored['run_id'] != request['run_id'] or stored['phase'] != request['phase']:
+        _fail('foreign_owner', 'the ticket {} is owned by run {} (phase {}), not by run {} '
+                               '(phase {}); recovery never crosses runs'.format(
+                                   ticket, stored['run_id'], stored['phase'],
+                                   request['run_id'], request['phase']))
+    prior = None if _legacy(stored) else stored['coordinator_id']
+    if prior == request['coordinator_id']:
+        _fail('coordinator_current', 'the ticket {} is already held by coordinator {!r}; '
+                                     'recovery hands the run to a different one'.format(
+                                         ticket, request['coordinator_id']))
+    record = {'schema': SCHEMA, 'ticket': ticket, 'run_id': stored['run_id'],
+              'phase': stored['phase'], 'coordinator_id': request['coordinator_id'],
+              'token': secrets.token_hex(16), 'acquired_at': stored['acquired_at'],
+              'recovered_at': _utc_now(), 'prior_coordinator_id': prior,
+              'recovery_reason': request['reason']}
+    _atomic_write(path, _dump(record))
+    return record
+
+
 def release_ticket(repo, ticket, owner):
     """Release the ticket lock for the matching completed, quiescent run, or refuse.
 
-    The request must carry the owning run's `run_id`, `phase` and `token` proof, and must
-    assert `completed` and `quiescent`: a pause, an unfinished run and a foreign run all
-    keep the lock. Nothing is inferred from age, and an unreadable lock is never removed.
+    The request must carry the owning run's `run_id`, `phase`, `coordinator_id` and `token`
+    proof, and must assert `completed` and `quiescent`: a pause, an unfinished run, a foreign
+    run and a replaced coordinator all keep the lock. Nothing is inferred from age, a legacy
+    record is never removed, and an unreadable lock is never removed.
+    """
+    _ticket(ticket)
+    _owner(owner, RELEASE_KEYS, 'the release request')
+    _text(owner['token'], 'the release request token', 'invalid_owner')
+    if not isinstance(owner['completed'], bool) or not isinstance(owner['quiescent'], bool):
+        _fail('invalid_owner', 'the release request completed and quiescent are not booleans')
+    if owner['ticket'] != ticket:
+        _fail('invalid_owner', 'the release request names {} but {} was asked for'.format(
+            owner['ticket'], ticket))
+    with ticket_guard(repo, ticket):
+        return release_ticket_locked(repo, ticket, owner)
+
+
+def release_ticket_locked(repo, ticket, owner):
+    """`release_ticket` with the ticket guard already held by the caller.
+
+    The CLI uses this to keep its own manifest/run-state quiescence checks inside the same
+    guard as the removal; every other caller uses `release_ticket`.
     """
     _ticket(ticket)
     _owner(owner, RELEASE_KEYS, 'the release request')
@@ -544,11 +804,20 @@ def release_ticket(repo, ticket, owner):
     stored = _read_lock(path, ticket)
     if stored is None:
         _fail('not_owned', 'the ticket {} is not owned'.format(ticket))
+    if _legacy(stored):
+        _fail('legacy_owner', 'the ticket lock for {} predates coordinator identity; adopt it '
+                              'explicitly with `owner recover` before releasing it'.format(
+                                  ticket))
     if stored['run_id'] != owner['run_id'] or stored['phase'] != owner['phase'] \
             or stored['token'] != owner['token']:
         _fail('foreign_owner', 'the ticket {} is owned by run {} (phase {}); only the run '
                                'that holds it may release it'.format(
                                    ticket, stored['run_id'], stored['phase']))
+    if stored['coordinator_id'] != owner['coordinator_id']:
+        _fail('coordinator_conflict', 'the ticket {} is held under coordinator {!r}, not '
+                                      '{!r}; a replaced coordinator never releases it'.format(
+                                          ticket, stored['coordinator_id'],
+                                          owner['coordinator_id']))
     if not (owner['completed'] and owner['quiescent']):
         _fail('premature_release', 'run {} is not a completed quiescent run; ownership and '
                                    'recovery state are retained'.format(owner['run_id']))

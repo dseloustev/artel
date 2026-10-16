@@ -117,7 +117,15 @@ class TestBeginClaim(unittest.TestCase):
         reconciled = parallel_queue.reconcile_claims(
             prepared['manifest'], [row(actor=prepared['intent']['actor'])])
         self.assertEqual(reconciled['manifest']['claims']['intents'][0]['state'], 'orphaned')
-        result = parallel_queue.begin_claim(reconciled['manifest'])
+        # An unconfirmed release blocks a new claim...
+        rejects(self, 'unresolved_claim',
+                lambda: parallel_queue.begin_claim(reconciled['manifest']))
+        # ...and a fresh observation proving the exact row is no longer held confirms it.
+        released = parallel_queue.reconcile_claims(
+            reconciled['manifest'], [row(actor=prepared['intent']['actor'], status='done')])
+        self.assertEqual(released['manifest']['claims']['intents'][0]['state'], 'released')
+        self.assertEqual(released['actions'], [])
+        result = parallel_queue.begin_claim(released['manifest'])
         self.assertEqual(result['intent']['seq'], 2)
         self.assertEqual(result['intent']['attempt'], 1)
 
@@ -525,11 +533,13 @@ class TestClaimDurabilityOrder(unittest.TestCase):
         self.assertEqual(reconciled['actions'][0]['reason'], 'orphaned-claim')
         written = parallel_state.write_manifest(self.path, reconciled['manifest'],
                                                 written['revision'])
-        # A foreign holder is never touched, and a second restart finds no own claim.
+        # A foreign holder is never touched, and a second restart finds no own claim: the
+        # exact recorded row is no longer held by this run's actor, so the release decision
+        # is confirmed as `released` -- and the foreign row is left exactly as observed.
         foreign = parallel_queue.reconcile_claims(written, [row(actor='artel@other-host')])
         self.assertEqual(foreign['actions'], [])
-        self.assertEqual(foreign['manifest']['claims']['intents'][0]['state'], 'orphaned')
-        resumed = parallel_queue.begin_claim(written)
+        self.assertEqual(foreign['manifest']['claims']['intents'][0]['state'], 'released')
+        resumed = parallel_queue.begin_claim(foreign['manifest'])
         self.assertEqual(resumed['intent']['seq'], 2)
 
     def test_a_crash_before_the_release_recovers_it_and_a_finished_release_is_not_repeated(self):

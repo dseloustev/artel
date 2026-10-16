@@ -36,7 +36,10 @@ fails closed (`missing_run_state`, `corrupt_run_state`, `run_state_mismatch`,
 `run_not_active`) and is never created, reset or overwritten; a refusal leaves every byte
 exactly as it was. The transient lock is a kernel lock on a separate `<run-state>.lock` file
 (the ledger itself is never the lock), it is never taken over, and it is released on process
-exit.
+exit. The lock strategy is chosen before any lock file exists: without `fcntl` the fallback
+claims a separate `<run-state>.lock.excl` by exclusive creation, removes only its own claim,
+and refuses a busy or stale one -- it never deletes another holder's lock and never touches
+the POSIX kernel-lock file.
 
 Every failure raises `BudgetError`, a `ValueError` carrying the `kind` a CLI maps into its
 error envelope; nothing is coerced and nothing is dropped.
@@ -391,18 +394,20 @@ def _exclusive(state_path):
     """The transient reservation lock: a kernel lock on a separate file, never taken over.
 
     `fcntl.flock` is released by the kernel on process exit, so a crashed coordinator leaves
-    no stale lock to reclaim; the portable fallback creates the lock file exclusively and
-    refuses a busy one rather than removing someone else's. The lock directory is never
-    created: a run with no state directory has no budget, and a refusal leaves the tree
-    exactly as it was.
+    no stale lock to reclaim. The strategy is chosen BEFORE any lock file exists: without
+    `fcntl` the fallback claims a separate `<state>.lock.excl` by exclusive creation, removes
+    only the claim it created itself, and refuses a busy or stale one after the bounded wait
+    -- it never deletes another holder's lock, and it never touches the POSIX kernel-lock
+    file (which is deliberately never unlinked). The lock directory is never created: a run
+    with no state directory has no budget, and a refusal leaves the tree exactly as it was.
     """
     lock = Path(str(state_path) + '.lock')
-    try:
-        handle = os.open(str(lock), os.O_CREAT | os.O_RDWR, 0o644)
-    except FileNotFoundError:
-        _fail('missing_run_state', 'no run state directory at {}; the run is not armed'.format(
-            lock.parent))
     if fcntl is not None:
+        try:
+            handle = os.open(str(lock), os.O_CREAT | os.O_RDWR, 0o644)
+        except FileNotFoundError:
+            _fail('missing_run_state', 'no run state directory at {}; the run is not '
+                                       'armed'.format(lock.parent))
         try:
             deadline = time.monotonic() + LOCK_TIMEOUT
             while True:
@@ -417,24 +422,25 @@ def _exclusive(state_path):
         finally:
             os.close(handle)
         return
-    os.close(handle)
-    deadline = time.monotonic() + LOCK_TIMEOUT  # pragma: no cover - non-POSIX fallback
+    claim = Path(str(state_path) + '.lock.excl')  # pragma: no cover - non-POSIX fallback
+    deadline = time.monotonic() + LOCK_TIMEOUT
+    handle = None
     while True:
         try:
-            handle = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            handle = os.open(str(claim), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
             break
         except FileExistsError:
             if time.monotonic() >= deadline:
-                _fail('budget_busy', 'another reservation holds {}; retry'.format(lock))
+                _fail('budget_busy', 'another reservation holds {}; retry'.format(claim))
             time.sleep(LOCK_POLL)
         except FileNotFoundError:
             _fail('missing_run_state', 'no run state directory at {}; the run is not '
-                                       'armed'.format(lock.parent))
+                                       'armed'.format(claim.parent))
     try:
         yield
     finally:
         os.close(handle)
         try:
-            os.unlink(str(lock))
+            os.unlink(str(claim))
         except OSError:
             pass

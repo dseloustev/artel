@@ -38,6 +38,7 @@ RUN_ID = '0f6f0f2e-6b1a-4f2e-9c5d-2b7a1c8e4d10'
 TASK = '3.1'
 PHASE = 2
 COORD_BRANCH = 'feature/PROJ-123'
+COORDINATOR = 'ses_worker-docs-coordinator'
 HOOKS = ROOT / 'hooks'
 STOP_GATE = HOOKS / 'stop_gate.py'
 SENSITIVE_GUARD = HOOKS / 'sensitive_guard.py'
@@ -85,7 +86,8 @@ class WorkerCase(unittest.TestCase):
         git(self.main, 'worktree', 'add', '-q', '-b', COORD_BRANCH, str(self.coord))
         self.write_config(self.coord)
         parallel_state.acquire_ticket(str(self.coord), TICKET, {
-            'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE})
+            'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'coordinator_id': COORDINATOR})
 
     def tearDown(self):
         self._tmp.cleanup()

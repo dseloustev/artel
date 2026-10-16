@@ -28,8 +28,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -45,6 +48,7 @@ OTHER_RUN = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
 TASK = '3.1'
 PHASE = 2
 COORD_BRANCH = 'feature/PROJ-123'
+COORDINATOR = 'ses_coordinator'
 MODEL = 'tokenguard/deepseek-flash'
 MODEL_REF = {'providerID': 'tokenguard', 'id': 'deepseek-flash'}
 AGENT = 'artel-implementer'
@@ -89,7 +93,8 @@ class WorkerCase(unittest.TestCase):
         git(self.main, 'worktree', 'add', '-q', '-b', COORD_BRANCH, str(self.coord))
         self.write_config(self.coord)
         parallel_state.acquire_ticket(str(self.coord), TICKET, {
-            'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE})
+            'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'coordinator_id': COORDINATOR})
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -242,26 +247,32 @@ def ts_start(helper_input, native, crash=None):
         session = native.create(plan['create'])
         if crash == 'after_create':
             return None
-        recorded = parallel_launch.record_session(helper_input['request'], session)
+        recorded = parallel_launch.record_session(helper_input['request'], session,
+                                                   helper_input['caller'])
         if crash == 'after_record':
             return None
         prompt = recorded['prompt']
         inbox = native.prompt(plan['session_id'], prompt['text'], prompt.get('delivery'))
         if crash == 'after_prompt':
             return None
-        return parallel_launch.record_prompt(helper_input['request'], inbox)['envelope']
+        return parallel_launch.record_prompt(helper_input['request'], inbox,
+                                             helper_input['caller'])['envelope']
     if plan['action'] == 'reconcile':
         session = native.get(plan['session_id'])
         messages = native.context(plan['session_id']) if session else []
-        reconciled = parallel_launch.reconcile(helper_input['request'], session, messages)
+        reconciled = parallel_launch.reconcile(helper_input['request'], session, messages,
+                                               helper_input['caller'])
         if reconciled['action'] == 'create':
             session = native.create(reconciled['create'])
-            recorded = parallel_launch.record_session(helper_input['request'], session)
+            recorded = parallel_launch.record_session(helper_input['request'], session,
+                                                       helper_input['caller'])
             inbox = native.prompt(plan['session_id'], recorded['prompt']['text'])
-            return parallel_launch.record_prompt(helper_input['request'], inbox)['envelope']
+            return parallel_launch.record_prompt(helper_input['request'], inbox,
+                                                     helper_input['caller'])['envelope']
         if reconciled['action'] == 'prompt':
             inbox = native.prompt(plan['session_id'], reconciled['prompt']['text'])
-            return parallel_launch.record_prompt(helper_input['request'], inbox)['envelope']
+            return parallel_launch.record_prompt(helper_input['request'], inbox,
+                                                     helper_input['caller'])['envelope']
         return reconciled['envelope']
     raise AssertionError('unexpected plan action: %r' % plan)
 
@@ -272,7 +283,8 @@ def ts_status(helper_input, native):
         return plan['envelope']
     session = native.get(plan['session_id'])
     messages = native.context(plan['session_id']) if session else []
-    return parallel_launch.interpret_status(helper_input['request'], session, messages)['envelope']
+    return parallel_launch.interpret_status(helper_input['request'], session, messages,
+                                            helper_input['caller'])['envelope']
 
 
 def ts_interrupt(helper_input, native):
@@ -282,7 +294,7 @@ def ts_interrupt(helper_input, native):
     reply = native.interrupt(plan['session_id'])
     session = native.get(plan['session_id'])
     return parallel_launch.interpret_interrupt(
-        helper_input['request'], reply, session)['envelope']
+        helper_input['request'], reply, session, helper_input['caller'])['envelope']
 
 
 def flat(rel):
@@ -301,6 +313,10 @@ class AdapterCase(WorkerCase):
         value.update(overrides)
         return value
 
+    def common_dir(self):
+        return Path(git(self.coord, 'rev-parse', '--path-format=absolute',
+                        '--git-common-dir'))
+
 
 class TestAdapterSource(unittest.TestCase):
     """The TS half: a thin transport registered by the bridge, with the policy living in
@@ -310,8 +326,9 @@ class TestAdapterSource(unittest.TestCase):
         self.source = ADAPTER.read_text(encoding='utf-8')
         self.bridge = BRIDGE.read_text(encoding='utf-8')
 
-    def test_the_adapter_exists_and_registers_the_four_tools(self):
-        for token in ('workerCapabilities', 'startWorker', 'workerStatus', 'interruptWorker'):
+    def test_the_adapter_exists_and_registers_its_tools(self):
+        for token in ('workerCapabilities', 'coordinatorIdentity', 'startWorker',
+                      'workerStatus', 'interruptWorker'):
             self.assertIn(token, self.source, token)
         self.assertIn('tool.transform', self.source)
         self.assertIn('namespace', self.source)
@@ -689,6 +706,206 @@ class TestLaunchLifecycle(AdapterCase):
         self.assertEqual(self.read_journal(second)['attempt'], 2)
 
 
+class TestCoordinatorFence(AdapterCase):
+    """I1: the native path is fenced to the exact run's current coordinator."""
+
+    def test_plan_start_refuses_a_foreign_or_missing_owner(self):
+        assignment, _ = self.create()
+        plan = parallel_launch.plan_start(self.request(assignment=assignment),
+                                          self.capabilities(), self.caller(),
+                                          self.model_facts())
+        self.assertEqual(plan['action'], 'create')
+        with self.assertRaises(parallel_launch.LaunchError) as caught:
+            parallel_launch.plan_start(self.request(assignment=assignment),
+                                       self.capabilities(),
+                                       {'session_id': 'ses_other',
+                                        'location': str(self.main)},
+                                       self.model_facts())
+        self.assertEqual(caught.exception.kind, 'coordinator_conflict')
+        lock = (self.common_dir() / 'artel' / 'parallel' / (TICKET + '.json'))
+        lock.unlink()
+        with self.assertRaises(parallel_launch.LaunchError) as caught:
+            parallel_launch.plan_start(self.request(assignment=assignment),
+                                       self.capabilities(), self.caller(),
+                                       self.model_facts())
+        self.assertEqual(caught.exception.kind, 'not_owned')
+
+    def test_a_replaced_coordinator_is_refused_for_every_native_command(self):
+        assignment, _ = self.create()
+        native = FakeNative()
+        parallel_launch.plan_start(self.request(assignment=assignment), self.capabilities(),
+                                   self.caller(), self.model_facts())
+        parallel_state.recover_ticket(str(self.coord), TICKET, {
+            'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'coordinator_id': 'ses_replacement', 'reason': 'handoff in the fixture'})
+        for call in (
+            lambda: parallel_launch.plan_start(self.request(assignment=assignment),
+                                               self.capabilities(), self.caller(),
+                                               self.model_facts()),
+            lambda: parallel_launch.plan_status({'assignment': assignment}, self.caller()),
+            lambda: parallel_launch.plan_interrupt({'assignment': assignment}, self.caller()),
+        ):
+            with self.assertRaises(parallel_launch.LaunchError) as caught:
+                call()
+            self.assertEqual(caught.exception.kind, 'coordinator_conflict')
+        # the replacement session drives the same run
+        plan = parallel_launch.plan_status(
+            {'assignment': assignment},
+            {'session_id': 'ses_replacement', 'location': str(self.coord)})
+        self.assertEqual(plan['action'], 'read')
+
+
+class TestGuardHold(AdapterCase):
+    """The ephemeral guard-holder child: the transport's exclusion window."""
+
+    def guard(self, coordinator=COORDINATOR, **overrides):
+        payload = {'repo': str(self.coord), 'ticket': TICKET, 'run_id': RUN_ID,
+                   'phase': PHASE, 'coordinator_id': coordinator}
+        payload.update(overrides)
+        return payload
+
+    def spawn_guard(self, payload):
+        child = subprocess.Popen(
+            [sys.executable, str(HELPER), 'guard-hold'], stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            cwd=str(self.coord))
+        child.stdin.write(json.dumps(payload) + '\n')
+        child.stdin.flush()
+        return child
+
+    def read_ready(self, child):
+        line = child.stdout.readline()
+        return json.loads(line) if line.strip() else None
+
+    def test_the_holder_excludes_a_second_holder_until_eof(self):
+        first = self.spawn_guard(self.guard())
+        try:
+            ready = self.read_ready(first)
+            self.assertEqual(ready, {'ok': True, 'data': {'schema': 1, 'held': True,
+                                                          'ticket': TICKET, 'run_id': RUN_ID,
+                                                          'phase': PHASE}})
+            second = self.spawn_guard(self.guard())
+            try:
+                envelope = self.read_ready(second)
+                self.assertFalse(envelope['ok'])
+                self.assertEqual(envelope['error']['kind'], 'owner_busy')
+                self.assertEqual(second.wait(timeout=30), 1)
+            finally:
+                second.kill()
+        finally:
+            first.stdin.close()
+        self.assertEqual(first.wait(timeout=30), 0)
+        third = self.spawn_guard(self.guard())
+        try:
+            self.assertTrue(self.read_ready(third)['ok'])
+        finally:
+            third.stdin.close()
+            third.wait(timeout=30)
+
+    def test_the_holder_refuses_a_replaced_coordinator(self):
+        parallel_state.recover_ticket(str(self.coord), TICKET, {
+            'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'coordinator_id': 'ses_replacement', 'reason': 'handoff in the fixture'})
+        child = self.spawn_guard(self.guard())
+        try:
+            envelope = self.read_ready(child)
+            self.assertFalse(envelope['ok'])
+            self.assertEqual(envelope['error']['kind'], 'coordinator_conflict')
+            self.assertEqual(child.wait(timeout=30), 1)
+        finally:
+            child.kill()
+
+
+class TestActualTransport(AdapterCase):
+    """The real TypeScript adapter, driven through a fake native client."""
+
+    def run_ts(self, tool, input, caller=COORDINATOR, barrier=None, timeout=120):
+        argv = ['node', str(ROOT / 'tests' / 'fixtures' / 'parallel_ts_harness.mjs'),
+                str(ADAPTER), str(ROOT), str(self.coord), caller, tool,
+                json.dumps(input)]
+        if barrier is not None:
+            argv.append(str(barrier))
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+        self.assertEqual(proc.returncode, 0, proc.stderr or proc.stdout)
+        return json.loads(proc.stdout.strip().splitlines()[-1])
+
+    def test_an_unknown_interrupt_answers_the_envelope_without_native_access(self):
+        assignment, _ = self.create()
+        # No launch journal exists for this assignment: plan-interrupt answers `unknown`.
+        report = self.run_ts('interruptWorker', {'assignment': assignment})
+        self.assertIsNone(report['error'], report)
+        self.assertEqual(report['calls']['interrupt'], 0)
+        output = report['result']['output']
+        self.assertEqual(output['state'], 'unknown')
+        self.assertFalse(output['known'])
+
+    def test_an_already_interrupted_worker_answers_without_native_access(self):
+        assignment, _ = self.create()
+        native = FakeNative()
+        ts_start(self.start_input(assignment), native)
+        ts_interrupt({'request': {'assignment': assignment}, 'caller': self.caller()},
+                    native)
+        before = len([call for call in native.calls if call[0] == 'interrupt'])
+        report = self.run_ts('interruptWorker', {'assignment': assignment})
+        self.assertIsNone(report['error'], report)
+        self.assertEqual(report['calls']['interrupt'], 0)
+        self.assertTrue(report['result']['output']['already_interrupted'])
+
+    def test_recovery_cannot_overtake_an_inflight_native_effect_and_the_old_caller_is_fenced(self):
+        assignment, _ = self.create()
+        native = FakeNative()
+        ts_start(self.start_input(assignment), native)
+        barrier = self.space / 'interrupt-release'
+        child = subprocess.Popen(
+            ['node', str(ROOT / 'tests' / 'fixtures' / 'parallel_ts_harness.mjs'),
+             str(ADAPTER), str(ROOT), str(self.coord), COORDINATOR, 'interruptWorker',
+             json.dumps({'assignment': assignment}), str(barrier)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            deadline = time.time() + 60
+            while True:
+                self.assertLess(time.time(), deadline, 'the guard was never taken')
+                try:
+                    with mock.patch.object(parallel_state, 'GUARD_TIMEOUT', 0.05):
+                        with parallel_state.ticket_guard(str(self.coord), TICKET):
+                            pass
+                    time.sleep(0.05)
+                    continue
+                except parallel_state.StateError:
+                    break  # the transport holds the guard now
+            recovered = []
+            recover_error = []
+
+            def recover():
+                try:
+                    recovered.append(parallel_state.recover_ticket(str(self.coord), TICKET, {
+                        'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+                        'coordinator_id': 'ses_replacement', 'reason': 'resume elsewhere'}))
+                except Exception as exc:  # pragma: no cover - failure reporting
+                    recover_error.append(exc)
+
+            thread = threading.Thread(target=recover)
+            thread.start()
+            time.sleep(0.5)
+            self.assertTrue(thread.is_alive(),
+                            'owner recover overtook the in-flight native effect')
+            barrier.write_text('release\n', encoding='utf-8')
+            thread.join(60)
+            self.assertEqual(recover_error, [])
+            self.assertEqual(recovered[0]['prior_coordinator_id'], COORDINATOR)
+        finally:
+            barrier.write_text('release\n', encoding='utf-8')
+            child.wait(timeout=60)
+        report = json.loads(child.stdout.read().strip().splitlines()[-1])
+        self.assertIsNone(report['error'], report)
+        self.assertEqual(report['calls']['interrupt'], 1)
+        # The replaced coordinator's next effect is fenced before any native access.
+        second = self.run_ts('interruptWorker', {'assignment': assignment})
+        self.assertIsNotNone(second['error'])
+        self.assertIn('coordinator_conflict', second['error'])
+        self.assertEqual(second['calls']['interrupt'], 0)
+
+
 class TestWorkerStatus(AdapterCase):
     def started(self, **overrides):
         assignment, _ = self.create(**overrides)
@@ -803,7 +1020,8 @@ class TestWorkerStatus(AdapterCase):
         assignment, native, envelope = self.started()
         wrong = dict(native.sessions[envelope['session_id']], id='ses_other')
         with self.assertRaises(parallel_launch.LaunchError) as caught:
-            parallel_launch.interpret_status({'assignment': assignment}, wrong, [])
+            parallel_launch.interpret_status({'assignment': assignment}, wrong, [],
+                                             self.caller())
         self.assertEqual(caught.exception.kind, 'wrong_session')
 
     def test_a_vanished_session_reports_missing_not_adopted(self):
@@ -909,9 +1127,11 @@ class TestHostMetadataNamespace(AdapterCase):
         lock = json.loads((lock_dir / (TICKET + '.json')).read_text(encoding='utf-8'))
         parallel_state.release_ticket(str(self.coord), TICKET, {
             'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
-            'token': lock['token'], 'completed': True, 'quiescent': True})
+            'coordinator_id': COORDINATOR, 'token': lock['token'],
+            'completed': True, 'quiescent': True})
         parallel_state.acquire_ticket(str(self.coord), TICKET, {
-            'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': None})
+            'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': None,
+            'coordinator_id': COORDINATOR})
         return self.create(phase=None, claim=None)[0]
 
     # --- the native finding: extra host namespaces are tolerated -------------------------
@@ -1058,7 +1278,8 @@ class TestHostMetadataNamespace(AdapterCase):
                 wrong.update(change)
                 wrong['metadata'] = dict(stored['metadata'], **HOST_METADATA)
                 with self.assertRaises(parallel_launch.LaunchError) as caught:
-                    parallel_launch.interpret_status({'assignment': assignment}, wrong, [])
+                    parallel_launch.interpret_status({'assignment': assignment}, wrong, [],
+                                                     self.caller())
                 self.assertEqual(caught.exception.kind, kind)
 
     def test_extra_metadata_does_not_mask_wrong_permissions(self):
@@ -1071,7 +1292,7 @@ class TestHostMetadataNamespace(AdapterCase):
         request = self.request(assignment=assignment, permissions=[
             {'action': 'edit', 'resource': '*', 'effect': 'allow'}])
         with self.assertRaises(parallel_launch.LaunchError) as caught:
-            parallel_launch.record_session(request, session)
+            parallel_launch.record_session(request, session, self.caller())
         self.assertEqual(caught.exception.kind, 'permissions_mismatch')
 
     def test_extra_metadata_does_not_mask_a_missing_key_on_launch(self):
@@ -1083,7 +1304,8 @@ class TestHostMetadataNamespace(AdapterCase):
         metadata.pop('task')
         session['metadata'] = metadata
         with self.assertRaises(parallel_launch.LaunchError) as caught:
-            parallel_launch.record_session(self.request(assignment=assignment), session)
+            parallel_launch.record_session(self.request(assignment=assignment), session,
+                                           self.caller())
         self.assertEqual(caught.exception.kind, 'wrong_session')
 
     def test_metadata_must_be_an_object(self):

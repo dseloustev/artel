@@ -94,6 +94,9 @@ class ExecutionCase(unittest.TestCase):
         git(self.repo, 'commit', '-q', '-m', 'init')
         self.base = git(self.repo, 'rev-parse', 'HEAD')
         git(self.repo, 'branch', '-m', 'main')
+        # The repository's legitimate default branch (I9): the integration preflight
+        # resolves it from this configured name and never guesses `main`.
+        git(self.repo, 'config', 'init.defaultBranch', 'main')
         git(self.repo, 'checkout', '-q', '-b', BRANCH)
         self.write_config()
         return self.repo
@@ -596,7 +599,9 @@ class TestCrashRecovery(ExecutionCase):
         request.write_text(json.dumps({'repo': str(coord.repo),
                                        'transaction': coord.read_json(
                                            coord.record_path('2.1', 1)),
-                                       'subject': px.SUBJECT}), encoding='utf-8')
+                                       'subject': px.SUBJECT,
+                                       'coordinator_id': px.COORDINATOR}),
+                           encoding='utf-8')
         proc = subprocess.Popen([sys.executable, str(px.CLI), 'integration', 'commit',
                                  '--request', str(request)], cwd=str(coord.repo),
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

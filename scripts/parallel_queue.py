@@ -34,8 +34,11 @@ The write order the coordinator keeps:
 Shapes:
 
     intent  {intent_id, seq, attempt, actor, state, row}
-            state is one of pending, mapped, wrong-phase, foreign, orphaned, lost.
-            `row` is the recorded row mapping, null until one is recorded.
+            state is one of pending, mapped, wrong-phase, foreign, orphaned, released,
+            lost. `orphaned` is this run's reconciled claim whose external release is not
+            confirmed; a fresh complete observation that no longer shows the exact recorded
+            row held by the exact actor confirms it as `released`. `row` is the recorded row
+            mapping, null until one is recorded.
 
     row     {task_id, title, status, actor, phase, task} -- the coordinator's normalized
             observation of the claimed queue row: the queue's row id, its title, its
@@ -256,19 +259,22 @@ def begin_claim(manifest):
     """Append the next claim intent to `manifest`, before the coordinator calls the queue.
 
     Refused while the run's admission is stopped for reconciliation and while an earlier
-    intent has no recorded outcome -- an unknown claim outcome is never blindly retried.
-    The sequence numbers claims within the run; a sequence whose claim was reconciled as
-    `lost` is retried with the next `attempt`, and every other outcome opens a new one.
+    intent has no recorded outcome -- an unknown claim outcome is never blindly retried, and
+    an orphaned claim whose external release is not yet confirmed blocks new claims until a
+    fresh complete observation confirms the exact row is no longer held. The sequence numbers
+    claims within the run; a sequence whose claim was reconciled as `lost` is retried with the
+    next `attempt`, and every other outcome opens a new one.
     """
     value = _manifest(manifest)
     if value['stop'] is not None:
         _fail('admission_stopped', 'the run stopped admission for reconciliation ({})'.format(
             value['stop']['reason']))
     intents = value['claims']['intents']
-    pending = [intent for intent in intents if intent['state'] == 'pending']
-    if pending:
-        _fail('unresolved_claim', 'claim intent {} has no recorded outcome; reconcile the '
-                                  'queue before claiming again'.format(pending[0]['intent_id']))
+    blocked = [intent for intent in intents if intent['state'] in ('pending', 'orphaned')]
+    if blocked:
+        _fail('unresolved_claim', 'claim intent {} is {}; reconcile the queue until the '
+                                  'release is confirmed before claiming again'.format(
+                                      blocked[0]['intent_id'], blocked[0]['state']))
     last = intents[-1] if intents else None
     if last is not None and last['state'] == 'lost':
         seq, attempt = last['seq'], last['attempt'] + 1
@@ -331,10 +337,13 @@ def reconcile_claims(manifest, rows):
     """Reconcile the run's claim intents against the queue's rows, before claiming again.
 
     Every `pending` intent is resolved: a row held by its actor is this run's orphan
-    (`orphaned`, and released), and no such row means the claim never landed (`lost`).
-    Every row held by this run's actor prefix that is neither a live claim nor evidence
-    about a wrong-phase decision is released with `orphaned-claim`; a foreign holder is
-    never released, adopted or cleared. A wrong-phase decision is never re-decided and
+    (`orphaned`, and released), and no such row means the claim never landed (`lost`). An
+    `orphaned` intent is confirmed `released` only by a fresh complete observation that no
+    longer shows the exact recorded row `in_progress` under the exact actor; while the row is
+    still observed held, the one release is re-issued (it did not execute) and the decision is
+    never re-decided. Every row held by this run's actor prefix that is neither a live claim
+    nor evidence about a wrong-phase decision is released with `orphaned-claim`; a foreign
+    holder is never released, adopted or cleared. A wrong-phase decision is never re-decided and
     never transferred: its release is re-issued (`wrong-phase`) only while the fresh
     observation still shows the exact recorded row `in_progress` under the exact
     run/sequence/attempt actor -- proof the release did not execute. Once the row is
@@ -349,6 +358,16 @@ def reconcile_claims(manifest, rows):
     live = {intent['actor'] for intent in intents if intent['state'] == 'mapped'}
     updated = []
     for intent in intents:
+        if intent['state'] == 'orphaned':
+            # The orphan's release is confirmed only when the exact recorded row is no
+            # longer observed held by the exact actor; an incomplete row list can never
+            # prove absence, so the coordinator passes its complete observation.
+            held = next((row for row in observed
+                         if row['actor'] == intent['actor']
+                         and row['task_id'] == intent['row']['task_id']
+                         and row['status'] == 'in_progress'), None)
+            updated.append(intent if held is not None else dict(intent, state='released'))
+            continue
         if intent['state'] != 'pending':
             updated.append(intent)
             continue

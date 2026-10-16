@@ -23,6 +23,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -34,6 +35,7 @@ RUN_ID = '0f6f0f2e-6b1a-4f2e-9c5d-2b7a1c8e4d10'
 OTHER_RUN = '1a2b3c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d'
 PHASE = 2
 CAP = 8
+COORDINATOR = 'ses_budget-coordinator'
 
 
 def git(cwd, *args):
@@ -152,6 +154,11 @@ class BudgetCase(unittest.TestCase):
         command = [sys.executable, str(CLI)] + [str(a) for a in argv]
         payload = None
         if request is not None:
+            request = json.loads(json.dumps(request))
+            if tuple(argv) == ('owner', 'acquire'):
+                request.setdefault('owner', {})['coordinator_id'] = COORDINATOR
+            elif tuple(argv) == ('budget', 'reserve'):
+                request.setdefault('coordinator_id', COORDINATOR)
             if stdin:
                 command += ['--request', '-']
                 payload = json.dumps(request)
@@ -513,7 +520,9 @@ class TestReserveOwnership(BudgetCase):
         self.lock_path().parent.mkdir(parents=True, exist_ok=True)
         self.lock_path().write_text(json.dumps({
             'schema': 1, 'ticket': TICKET, 'run_id': OTHER_RUN, 'phase': PHASE,
-            'token': 'f' * 32, 'acquired_at': '2026-01-01T00:00:00Z'}), encoding='utf-8')
+            'coordinator_id': 'ses_someone-else', 'token': 'f' * 32,
+            'acquired_at': '2026-01-01T00:00:00Z', 'recovered_at': None,
+            'prior_coordinator_id': None, 'recovery_reason': None}), encoding='utf-8')
         before = self.snapshot()
         error = self.reserve_error(1)
         self.assertEqual(error['kind'], 'foreign_owner')
@@ -578,6 +587,48 @@ class TestTrustedHelperBoundary(BudgetCase):
         error = self.reserve_error(1, scope='2.2')
         self.assertEqual(error['kind'], 'not_owned')
         self.assertEqual(self.counter(), 1)
+
+
+class TestNonPosixFallback(BudgetCase):
+    """M2: the lock strategy is chosen before its file exists; the fallback never deletes
+    another holder's claim and never touches the POSIX kernel-lock file."""
+
+    def direct_reserve(self, **kwargs):
+        args = {'kind': 'review', 'scope': '2.1', 'attempt': 1, 'ordinal': 1,
+                'expected_revision': 0}
+        args.update(kwargs)
+        return parallel_budget.reserve(str(self.repo), TICKET, RUN_ID, PHASE, **args)
+
+    def test_first_use_and_release_succeed_without_fcntl(self):
+        self.write_state()
+        with mock.patch.object(parallel_budget, 'fcntl', None):
+            first = self.direct_reserve()
+            self.assertFalse(first['replayed'])
+            self.assertEqual(first['correction_rounds'], 1)
+            self.assertFalse((self.state_path().parent /
+                              'run-state.json.lock.excl').exists())
+            second = self.direct_reserve(kind='checkpoint', scope='phase-2',
+                                         expected_revision=first['revision'])
+            self.assertEqual(second['correction_rounds'], 2)
+
+    def test_a_contended_or_stale_claim_refuses_and_is_never_deleted(self):
+        self.write_state()
+        claim = self.state_path().parent / 'run-state.json.lock.excl'
+        claim.write_text('', encoding='utf-8')
+        with mock.patch.object(parallel_budget, 'fcntl', None), \
+                mock.patch.object(parallel_budget, 'LOCK_TIMEOUT', 0.2):
+            with self.assertRaises(parallel_budget.BudgetError) as caught:
+                self.direct_reserve()
+        self.assertEqual(caught.exception.kind, 'budget_busy')
+        self.assertTrue(claim.exists())
+        self.assertEqual(self.counter(), 0)
+
+    def test_the_posix_kernel_lock_file_is_never_unlinked(self):
+        self.write_state()
+        self.direct_reserve()
+        lock = self.state_path().parent / 'run-state.json.lock'
+        self.assertTrue(lock.exists())
+        self.assertFalse((self.state_path().parent / 'run-state.json.lock.excl').exists())
 
 
 if __name__ == '__main__':

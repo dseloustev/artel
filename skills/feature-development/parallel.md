@@ -52,8 +52,15 @@ Nothing below runs before this section passes, in this order:
    with `{"repo": "<the coordinator checkout>", "capabilities": <the report>}`. A refusal —
    the default branch, a dirty tree, an unusable branch reflog — is a blocked outcome: report
    it and stop before any claim, worktree or session.
-3. **Ownership.** Run `owner acquire` for the ticket with this run's identity
-   (`{schema: 1, ticket, run_id, phase}`). A foreign holder is never reclaimed; stop.
+3. **Ownership.** Call `artel_parallel_coordinatorIdentity` (read-only) once: it answers this
+   session's `session_id`. Run `owner acquire` for the ticket with this run's identity and
+   that coordinator (`{schema: 1, ticket, run_id, phase, coordinator_id: <session_id>}`), and
+   pass the same `coordinator_id` on **every** mutating command below — the CLI validates it
+   inside the repository-common guard, so a second coordinator of the same run is refused even
+   when the run UUID is known. A foreign holder is never reclaimed; stop. A deliberate handoff
+   to a new coordinator session is only `owner recover` with the run identity, the new
+   `coordinator_id` and a reason — never a TTL, a reclaim or a silent takeover; after it, the
+   previous coordinator's commands and native effects fail fenced.
 4. **The run manifest.** `run inspect`; when the run does not exist yet, `run create` with the
    ticket, phase, run id, the configured seats and the digest of the pinned task graph. The
    create is revision-guarded: an existing manifest refuses.
@@ -110,6 +117,23 @@ queue cannot claim by task id, and its returned row is authoritative:
 
 For each task in `resume`: persist `preparing` with `run transition` **before any effect**,
 then run §3. Never claim a resumed task again.
+
+**Queue-free (`--local`) runs.** When the invocation inherits `--local`, or the host has no
+queue adapter, the run is queue-free: there is no queue to claim from and no row to complete.
+Every `start` task is admitted by a **local reservation** instead, and the queue half of the
+loop above does not run at all:
+
+1. `run transition` with `expected: null`, `target: reserved` — the assignment's `claim`
+   stays `null` (a local reservation, never a fabricated claim, actor or row).
+2. Recompute `admit` and launch **only** the tasks the fresh `resume` lists, persisting
+   `preparing` before any effect, exactly as above.
+3. Zero queue effects in this branch: never call `claim prepare`, the queue's `task_ready`,
+   `claim record`, `claim reconcile`, a queue list or a queue release, and never publish a
+   queue-done action — the publication plan has no queue action for a null claim, and
+   completion publishes the store/evidence receipts only.
+
+A queue-enabled run keeps the authoritative-row flow above unchanged: the returned row is
+the reservation, and it is never bypassed with a local reservation.
 
 ## 3. Launch and observe one worker
 
@@ -240,7 +264,10 @@ Publication is a loop over fresh observations, never a stale batch:
    receipt after it. Never hand-make an action or a receipt — plan fresh before every effect,
    and reconcile a lost reply from fresh observation instead of repeating the effect.
 4. Queue done is **last** of the external effects, under the run's exact recorded row/actor.
-   Store effects use the action's expected version — never overwrite a concurrent edit.
+   Store effects use the action's expected version — never overwrite a concurrent edit. A
+   receipt is rechecked against the fresh observation before the publication finishes: a
+   reopened, reacquired, replaced or deleted queue row refuses and keeps the `integrating`
+   latch for reconciliation — never a silent re-done.
 5. The record persists into the integration transaction's reserved `publication` field before
    the manifest moves; a valid publication never depends on cleanup, and a dirty or unknown
    worker root is retained rather than force-cleaned. Cleanup is a later, conservative
@@ -274,10 +301,11 @@ receipts all recorded), and the publication latch is clear. Only then:
 2. Write the final report and update the run state exactly as the tail says.
 3. Release ownership with `owner release` **only** for this matching, completed, quiescent run
    (`completed: true`, `quiescent: true`). The CLI re-checks it for you: it reads the exact
-   run's manifest (every task `published`, no latched stop, no unfinished owned claim) and the
-   matching `run-state.json` (`completed: true`) and refuses `premature_release` otherwise — a
-   forged flag cannot release an unfinished run. A pause, an unfinished run or any unresolved
-   `integrating`/publication state keeps the lock.
+   run's manifest (every task `published`, no latched stop, no unfinished owned claim, and no
+   orphan claim whose external release is still unconfirmed — reconcile it with a fresh
+   complete observation first) and the matching `run-state.json` (`completed: true`) and
+   refuses `premature_release` otherwise — a forged flag cannot release an unfinished run. A
+   pause, an unfinished run or any unresolved `integrating`/publication state keeps the lock.
 
 Do not release, move or reconfigure anything else: no global installs, no service restarts, no
 changes to another run's state or another coordinator's claims.

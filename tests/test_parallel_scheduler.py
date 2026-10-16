@@ -320,6 +320,38 @@ class TestFirstUnfinishedIteration(unittest.TestCase):
         self.assertTrue(any('unfinished' in reason for reason in result['reasons']))
 
 
+class TestOwnedTaskCompletion(unittest.TestCase):
+    """I5: for a task this run represents, only `published` completes it -- never a tick."""
+
+    TICKED = iteration(2, block('2.1', files=('src/a.py',), done=True),
+                       block('2.2', files=('src/b.py',), deps='2.1'))
+    TICKED_ITERATIONS = iteration(2, block('2.1', files=('src/a.py',), done=True),
+                                  block('2.2', files=('src/b.py',))) + '\n\n' + iteration(
+        3, block('3.1', files=('src/c.py',)))
+
+    def test_a_ticked_task_with_a_side_state_holds_its_dependents(self):
+        for state in ('cancelled', 'failed', 'blocked'):
+            with self.subTest(state=state):
+                result = select(parse(self.TICKED), value=manifest({'2.1': state}))
+                self.assertEqual(result['start'], [])
+                self.assertEqual(result['resume'], [])
+                self.assertFalse(result['drain'])
+
+    def test_a_ticked_integrating_task_keeps_the_drain(self):
+        result = select(parse(self.TICKED), value=manifest({'2.1': 'integrating'}))
+        self.assertTrue(result['drain'])
+        self.assertEqual(result['start'], [])
+        self.assertEqual(result['resume'], [])
+
+    def test_a_ticked_reserved_task_does_not_advance_the_iteration(self):
+        result = select(parse(self.TICKED_ITERATIONS), value=manifest({'2.1': 'reserved'}))
+        self.assertNotIn('3.1', result['start'])
+        self.assertIn('2.1', result['resume'])
+
+    def test_a_ticked_unrepresented_task_still_completes_by_checkbox(self):
+        self.assertEqual(select(parse(self.TICKED))['start'], ['2.2'])
+
+
 class TestFileConflicts(unittest.TestCase):
     def test_a_ready_task_sharing_a_file_with_a_running_task_waits(self):
         result = select(SAME, value=manifest({'2.1': 'running'}))
@@ -362,6 +394,19 @@ class TestFileConflicts(unittest.TestCase):
                          block('2.2', files=('./src//a.py',)))
         result = select(parse(text), value=manifest({'2.1': 'running'}))
         self.assertEqual(result['start'], [])
+
+    def test_canonical_unicode_aliases_conflict_conservatively(self):
+        nfc = 'caf\u00e9.txt'
+        nfd = 'cafe\u0301.txt'
+        self.assertNotEqual(nfc, nfd)
+        text = iteration(2, block('2.1', files=(nfc,)), block('2.2', files=(nfd,)))
+        iterations = parse(text)
+        value = manifest({'2.1': 'running'})
+        insensitive = select(iterations, value=value, case_sensitive=False)
+        self.assertEqual(insensitive['start'], [])
+        self.assertTrue(any('shares' in reason for reason in insensitive['reasons']))
+        sensitive = select(iterations, value=value, case_sensitive=True)
+        self.assertEqual(sensitive['start'], ['2.2'])
 
     def test_an_exact_path_does_not_conflict_with_its_suffix(self):
         text = iteration(2, block('2.1', files=('src/a.py',)),

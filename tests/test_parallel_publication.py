@@ -40,6 +40,7 @@ DEPENDENT = '3.2'
 ATTEMPT = 1
 PHASE = 2
 COORD_BRANCH = 'feature/PROJ-123'
+COORDINATOR = 'ses_publication-coordinator'
 TASKLIST = 'specs/.current/PROJ-123/tasklist.md'
 NOTES = 'specs/.current/PROJ-123/implementation-notes.md'
 SUBJECT = 'feat: do a thing'
@@ -213,12 +214,14 @@ class PublicationCase(unittest.TestCase):
         git(self.main, 'add', '-A')
         git(self.main, 'commit', '-q', '-m', 'init')
         git(self.main, 'branch', '-M', 'trunk')
+        git(self.main, 'config', 'init.defaultBranch', 'trunk')
         self.base = git(self.main, 'rev-parse', 'HEAD')
         self.coord = self.main / '.claude' / 'worktrees' / TICKET
         git(self.main, 'worktree', 'add', '-q', '-b', COORD_BRANCH, str(self.coord))
         parallel_state.acquire_ticket(
             str(self.coord), TICKET,
-            {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE})
+            {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+             'coordinator_id': COORDINATOR})
         self.manifest_path = (self.coord / '.artel' / 'run' / TICKET / 'parallel' / RUN_ID /
                               'manifest.json')
         self.worker = self.worker_root()
@@ -1363,6 +1366,38 @@ class TestReceiptRevert(PublicationCase):
         self.publish()
         self.assert_complete()
         self.assertEqual(len(self.store.patches), 3)
+        self.assertEqual(self.queue.completions, 1)
+
+    def test_a_reopened_queue_row_refuses_the_promote(self):
+        """I4: a historical queue-done receipt is rechecked against the current row."""
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        self.publish()
+        record = self.assert_complete()
+        self.rewrite_manifest_integrating()
+        self.queue.row['status'] = 'in_progress'
+        rejects(self, 'queue_conflict', lambda: self.plan())
+        self.assertEqual(self.manifest_state(), 'integrating')
+        self.assertEqual(self.publication(), record)
+        self.assertEqual(self.queue.completions, 1)
+        admitted = self.admissions()
+        self.assertNotIn(DEPENDENT, admitted['resume'])
+        self.assertNotIn(DEPENDENT, admitted['start'])
+        self.assertTrue(admitted['drain'])
+
+    def test_a_reacquired_queue_row_refuses_the_promote(self):
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        self.publish()
+        record = self.assert_complete()
+        self.rewrite_manifest_integrating()
+        self.queue.row['actor'] = 'someone-else'
+        rejects(self, 'foreign_row', lambda: self.plan())
+        self.assertEqual(self.manifest_state(), 'integrating')
+        self.assertEqual(self.publication(), record)
+        self.assertEqual(self.queue.row['actor'], 'someone-else')
         self.assertEqual(self.queue.completions, 1)
 
 

@@ -26,7 +26,14 @@ Durable shapes:
       schema, transaction_id, ticket, phase, task, run_id, attempt, base_commit,
       worker_root, repo_root, branch, pre_head, transport_commit, result_ref, route,
       review, changed_files, excluded, diff, documents, drain, publication, stage,
-      subject, cycle_commit, verify, recovery, created_at, updated_at, record
+      subject, cycle_commit, verify, recovery, trees, created_at, updated_at, record
+
+    trees: {transport, landing, integrity} -- the accepted transport tree and the exact
+    landing tree are pinned before the commit they bind, and `integrity` records a hook or
+    gate mutation (`hook_mutated`/`gate_mutated`) with the expected/actual trees. Recovery
+    validates the landing pin, so a bad-hook commit cannot be published after a lost
+    receipt. The integrated gate runs on the deduplicated union of the changed paths and
+    the worker marker's declared tests.
 
     stage: preparing -> prepared -> applying -> applied -> committing -> committed
            (side: conflicted, apply_failed, failed, commit_refused, recovered)
@@ -138,11 +145,16 @@ TRANSACTION_KEYS = (
     'base_commit', 'worker_root', 'repo_root', 'branch', 'pre_head', 'transport_commit',
     'result_ref', 'route', 'review', 'changed_files', 'excluded', 'diff', 'documents',
     'drain', 'publication', 'stage', 'subject', 'cycle_commit', 'verify', 'recovery',
-    'created_at', 'updated_at', 'record',
+    'trees', 'created_at', 'updated_at', 'record',
 )
 DIFF_KEYS = ('base_commit', 'commit', 'sha256', 'files')
 DRAIN_KEYS = ('in_flight', 'waiting', 'checked_at')
 RECOVERY_KEYS = ('state', 'checked_at')
+# The content identity the accepted work is bound to: the tree of the retained transport
+# commit, the exact tree the final cycle commit must carry, and the durable evidence of an
+# integrity refusal (a hook or gate that changed either tree after acceptance).
+TREES_KEYS = ('transport', 'landing', 'integrity')
+INTEGRITY_KEYS = ('stage', 'expected', 'actual', 'detail', 'checked_at')
 # The two paths `create_worker` writes: structural, never a worker's shared-state edit.
 LIFECYCLE_PATHS = ('.artel/parallel-worker.json', '.artel/config.json')
 # A commit hook, a setup command or a git call must never inherit a redirection that points
@@ -217,6 +229,23 @@ def _paths(value, what, kind):
         _fail(kind, '{} is not an array: {!r}'.format(what, value))
     for entry in value:
         _relative(entry, '{} entry'.format(what), kind)
+    return value
+
+
+def _trees(value, kind):
+    """The transaction's pinned content identity, or `invalid_transaction`."""
+    _object(value, 'trees', kind)
+    _keys(value, TREES_KEYS, 'trees', kind)
+    _commit(value['transport'], 'trees.transport', kind)
+    _commit(value['landing'], 'trees.landing', kind)
+    if value['integrity'] is not None:
+        _object(value['integrity'], 'trees.integrity', kind)
+        _keys(value['integrity'], INTEGRITY_KEYS, 'trees.integrity', kind)
+        _text(value['integrity']['stage'], 'trees.integrity.stage', kind)
+        _commit(value['integrity']['expected'], 'trees.integrity.expected', kind)
+        _commit(value['integrity']['actual'], 'trees.integrity.actual', kind)
+        _text(value['integrity']['detail'], 'trees.integrity.detail', kind)
+        _text(value['integrity']['checked_at'], 'trees.integrity.checked_at', kind)
     return value
 
 
@@ -384,6 +413,38 @@ def _diff_paths(root, older, newer):
                         older, newer).stdout)
 
 
+def _tree_of(root, commit):
+    """The tree object id a commit carries."""
+    return _out(root, 'rev-parse', str(commit) + '^{tree}')
+
+
+def _write_tree(root):
+    """The tree object id of the current index: exactly what a commit would land."""
+    return _out(root, 'write-tree')
+
+
+def _integrity(stage, expected, actual, detail):
+    """The durable evidence of one content-identity refusal."""
+    return {'stage': stage, 'expected': expected, 'actual': actual, 'detail': detail,
+            'checked_at': _utc_now()}
+
+
+def _refuse_mutation(root, transaction, stage, expected, actual, detail,
+                     kind='hook_mutated'):
+    """Persist the integrity failure and refuse; nothing is reset, amended or rewritten.
+
+    The hook- or gate-created commit, index and working tree stay exactly as they are, and
+    the transaction keeps the pinned tree plus this evidence for the operator or a new
+    review; the run never reports a successful integration for a mutated tree.
+    """
+    failed = _persist(root, transaction, stage='failed',
+                      trees=dict(transaction['trees'],
+                                 integrity=_integrity(stage, expected, actual, detail)))
+    _fail(kind, '{}; the transaction {} records the pinned tree {} against the actual {} and '
+                'every byte is retained'.format(detail, failed['transaction_id'], expected,
+                                                actual))
+
+
 # --- identity, ownership, the manifest ----------------------------------------------------
 
 def _transaction_id(assignment):
@@ -537,11 +598,27 @@ def _worker_state(repo, value):
 # --- the coordinator's shape ---------------------------------------------------------------
 
 def _default_branch(repo):
+    """The repository's authoritative default branch, or a typed ambiguity.
+
+    Resolution order: the remote HEAD (`refs/remotes/origin/HEAD`) when it exists, then the
+    repository's configured `init.defaultBranch`. There is no guessed conventional name: a
+    default that cannot be resolved refuses (`default_unknown`) instead of permitting a
+    cycle commit on a branch nobody established as a task branch. No network call is made.
+    """
     proc = _git(repo, 'symbolic-ref', '--short', '-q', 'refs/remotes/origin/HEAD', check=False)
     name = proc.stdout.strip()
     if name.startswith('origin/'):
         return name[len('origin/'):]
-    return 'main'
+    if name:
+        return name
+    configured = _git(repo, 'config', '--get', 'init.defaultBranch', check=False)
+    name = configured.stdout.strip()
+    if name:
+        return name
+    _fail('default_unknown', 'the repository {} has no remote HEAD and no configured '
+                             '`init.defaultBranch`; the default branch cannot be resolved '
+                             'and a cycle commit is never made on a guess. Configure '
+                             '`init.defaultBranch` or add a remote HEAD.'.format(repo))
 
 
 def _coordinator_preflight(repo, transaction=None):
@@ -722,6 +799,7 @@ def _transaction(value):
         if not isinstance(value['drain'][name], list):
             _fail(kind, 'drain.{} is not an array: {!r}'.format(name, value['drain'][name]))
     _text(value['drain']['checked_at'], 'drain.checked_at', kind)
+    _trees(value['trees'], kind)
     if value['publication'] is not None:
         _object(value['publication'], 'publication', kind)
     if value['verify'] is not None:
@@ -969,8 +1047,9 @@ def _skeleton(root, value, branch, pre_head, drain):
         'transport_commit': None, 'result_ref': _result_ref(value), 'route': value['route'],
         'review': None, 'changed_files': [], 'excluded': [], 'diff': None, 'documents': [],
         'drain': drain, 'publication': None, 'stage': 'preparing', 'subject': None,
-        'cycle_commit': None, 'verify': None, 'recovery': None, 'created_at': now,
-        'updated_at': now, 'record': str(record_path(root, value)),
+        'cycle_commit': None, 'verify': None, 'recovery': None,
+        'trees': {'transport': None, 'landing': None, 'integrity': None},
+        'created_at': now, 'updated_at': now, 'record': str(record_path(root, value)),
     }
 
 
@@ -1027,6 +1106,12 @@ def prepare_transport(repo, assignment, result):
         if sorted(staged) != sorted(code):
             _fail('staging_mismatch', 'the worker index carries {} after staging {}, not the '
                                       'allowlist'.format(staged, sorted(code)))
+        # Pin the accepted content before the normal hooks run: the tree a commit would
+        # land now is what the review accepted, and a hook that rewrites or restages any
+        # path -- same name or new -- produces a different tree and is refused.
+        pinned = _write_tree(value['worker_root'])
+        transaction = _persist(root, transaction,
+                               trees=dict(transaction['trees'], transport=pinned))
         env = dict(_env(), GIT_REFLOG_ACTION=transaction_id)
         proc = _git(value['worker_root'], 'commit', '-m', TRANSPORT_SUBJECT, check=False,
                     env=env)
@@ -1035,6 +1120,11 @@ def prepare_transport(repo, assignment, result):
             _fail('commit_refused', 'the transport commit was refused in {}: {}'.format(
                 value['worker_root'], _tail((proc.stderr or '') + (proc.stdout or ''))))
         transport = _out(value['worker_root'], 'rev-parse', 'HEAD')
+        actual = _tree_of(value['worker_root'], transport)
+        if actual != pinned:
+            _refuse_mutation(root, transaction, 'transport', pinned, actual,
+                             'the transport hooks changed the accepted tree (commit {})'.format(
+                                 transport))
         if _diff_paths(value['worker_root'], value['base_commit'], transport) != code:
             _fail('git_failed', 'the transport commit {} does not carry the allowlisted '
                                 'diff'.format(transport))
@@ -1050,6 +1140,13 @@ def prepare_transport(repo, assignment, result):
         if tree_code:
             _fail('worker_changed', 'the worker changed {} after its retained transport '
                                     'commit {}'.format(', '.join(tree_code), transport))
+        recorded = (stored or {}).get('trees', {}).get('transport')
+        if recorded is not None:
+            actual = _tree_of(repo, transport)
+            if actual != recorded:
+                _fail('integrity_failed', 'the retained transport {} carries tree {}, not the '
+                                          'accepted {}; a new attempt and review are '
+                                          'required'.format(transport, actual, recorded))
         code = _diff_paths(repo, value['base_commit'], transport)
         route = _require_changes(value, accepted, code)
         transaction = stored if stored is not None else _skeleton(root, value, branch, pre_head,
@@ -1224,6 +1321,15 @@ def _landed_commit(root, transaction):
             _fail('unreachable_evidence', 'the commit {} for transaction {} is no longer '
                                           'reachable from {}'.format(
                                               commit, marker, transaction['branch']))
+        pinned = transaction['trees']['landing']
+        if pinned is not None and _tree_of(root, commit) != pinned:
+            # The commit landed, but the hooks changed the pinned tree: never recognize it
+            # as the accepted landing. A crash before the post-commit check must not let the
+            # reflog parent match publish a bad-hook commit.
+            _fail('integrity_failed', 'the transaction-marked commit {} carries tree {}, not '
+                                      'the pinned landing tree {}; the branch and the '
+                                      'transaction are retained for a new review'.format(
+                                          commit, _tree_of(root, commit), pinned))
         return commit
     if candidates:
         _fail('ambiguous_evidence', 'branch reflog entries carry transaction {} but none '
@@ -1257,19 +1363,54 @@ def _task_gate(root, paths):
             'data': envelope.get('data'), 'error': envelope.get('error')}
 
 
+def _task_gate_paths(transaction):
+    """The deduplicated changed-path plus declared-test union for the integrated gate.
+
+    The pinned assignment lives in the worker's lifecycle marker (the same validated record
+    the launch consumed); its `tests` are the worker's declared verification scope and must
+    run on the combined tree even when the integration did not change them. The marker must
+    be this attempt's own, or the gate scope cannot be established.
+    """
+    context = hook_common.worker_context(root=transaction['worker_root'])
+    if context is None:
+        _fail('not_worker_root', '{} is not a launch-ready worker root; the integrated gate '
+                                 'cannot establish its declared test scope'.format(
+                                     transaction['worker_root']))
+    assignment = context.get('assignment')
+    if not isinstance(assignment, dict) \
+            or (assignment.get('ticket'), assignment.get('task'), assignment.get('run_id'),
+                assignment.get('attempt')) != (transaction['ticket'], transaction['task'],
+                                               transaction['run_id'],
+                                               transaction['attempt']):
+        _fail('worker_identity_mismatch', 'the worker marker at {} carries a different '
+                                          'assignment'.format(transaction['worker_root']))
+    tests = assignment.get('tests')
+    if not isinstance(tests, list):
+        _fail('invalid_assignment', 'the worker marker assignment carries no test list')
+    return sorted(set(transaction['changed_files']) | set(tests))
+
+
 def commit_cycle(repo, transaction, subject):
     """Land exactly one conventional cycle commit for the applied transaction.
 
     The integrated tree is checked with the existing task gate first; a red or broken gate
     commits nothing. The commit stages exactly the transported paths plus the transaction's
     `documents`, runs the host's normal hooks and carries the transaction id as its
-    `GIT_REFLOG_ACTION`. A commit that already landed is recognized, never repeated.
+    `GIT_REFLOG_ACTION`. The staged tree is pinned before the gate and before the commit: a
+    gate or hook that changes the index or the working tree refuses (`gate_mutated`,
+    `hook_mutated`) instead of committing bytes the accepted review never covered. A commit
+    that already landed is recognized, never repeated.
     """
     transaction = _transaction(transaction)
     root = _require_repo_root(repo, transaction)
     identity = _identity_of(transaction)
     _require_owned(_common_dir(repo), identity)
     _require_integrating(repo, identity)
+    if transaction['trees']['integrity'] is not None:
+        _fail('integrity_failed', 'the transaction {} already records an integrity failure '
+                                  '({}); reconcile it explicitly before any new commit'.format(
+                                      transaction['transaction_id'],
+                                      transaction['trees']['integrity']['detail']))
     transport = transaction['transport_commit']
     if transport is None:
         _fail('invalid_transaction', 'the transaction carries no transport commit')
@@ -1283,6 +1424,14 @@ def commit_cycle(repo, transaction, subject):
             _fail('unreachable_evidence', 'the recorded cycle commit {} is not reachable from '
                                           '{}'.format(transaction['cycle_commit'],
                                                       transaction['branch']))
+        pinned = transaction['trees']['landing']
+        if pinned is not None \
+                and _tree_of(repo, transaction['cycle_commit']) != pinned:
+            _refuse_mutation(repo, transaction, 'landing',
+                             pinned, _tree_of(repo, transaction['cycle_commit']),
+                             'the recorded cycle commit {} does not carry the pinned '
+                             'tree'.format(transaction['cycle_commit']),
+                             kind='integrity_failed')
         return transaction
     if transaction['stage'] not in ('applied', 'failed', 'conflicted', 'commit_refused',
                                     'applying', 'committing'):
@@ -1312,8 +1461,21 @@ def commit_cycle(repo, transaction, subject):
     # the transported paths and the pending documents -- including one introduced after a
     # successful apply -- refuses here, before the gate runs.
     _require_clean_coordinator(root, paths)
-    verify = _task_gate(root, [path for path in transaction['changed_files']])
+    landing = _write_tree(root)
+    verify = _task_gate(root, _task_gate_paths(transaction))
     transaction = _persist(root, transaction, verify=verify)
+    # The gate ran on the pinned tree; anything it changed -- the index, the working tree
+    # inside the cycle, or content outside it -- is a mutation, never silently restaged to
+    # make the green receipt describe an earlier tree.
+    if _write_tree(root) != landing or sorted(_staged_paths(root)) != staged:
+        _refuse_mutation(root, transaction, 'gate', landing, _write_tree(root),
+                         'the integrated-tree gate changed the staged tree', kind='gate_mutated')
+    mutated = sorted(set(_unstaged_paths(root)) | set(_untracked_paths(root)))
+    if mutated:
+        _refuse_mutation(root, transaction, 'gate', landing, _write_tree(root),
+                         'the integrated-tree gate changed the working tree: {}'.format(
+                             ', '.join(mutated)), kind='gate_mutated')
+    _require_clean_coordinator(root, paths)
     if verify['exit_code'] == 2:
         _persist(root, transaction, stage='failed')
         _fail('task_gate_error', 'the integrated-tree task gate could not run: {}'.format(
@@ -1322,6 +1484,8 @@ def commit_cycle(repo, transaction, subject):
         _persist(root, transaction, stage='failed')
         _fail('task_gate_failed', 'the integrated-tree task gate is red: {}'.format(
             verify['data'] or verify['error']))
+    transaction = _persist(root, transaction,
+                           trees=dict(transaction['trees'], landing=landing))
     env = dict(_env(), GIT_REFLOG_ACTION=transaction['transaction_id'])
     proc = _git(root, 'commit', '-m', message, check=False, env=env)
     if proc.returncode != 0:
@@ -1332,6 +1496,10 @@ def commit_cycle(repo, transaction, subject):
     if _parent(root, cycle) != transaction['pre_head']:
         _fail('git_failed', 'the cycle commit {} does not sit on the pre-HEAD {}'.format(
             cycle, transaction['pre_head']))
+    actual = _tree_of(root, cycle)
+    if actual != landing:
+        _refuse_mutation(root, transaction, 'landing', landing, actual,
+                         'the final hooks changed the committed tree (commit {})'.format(cycle))
     return _persist(root, transaction, stage='committed', cycle_commit=cycle)
 
 
@@ -1350,12 +1518,22 @@ def recover_cycle(repo, transaction):
     identity = _identity_of(transaction)
     _require_owned(_common_dir(repo), identity)
     _require_integrating(repo, identity)
+    if transaction['trees']['integrity'] is not None:
+        _fail('integrity_failed', 'the transaction {} records an integrity failure ({}); '
+                                  'recovery never publishes a mutated tree'.format(
+                                      transaction['transaction_id'],
+                                      transaction['trees']['integrity']['detail']))
     if transaction['cycle_commit']:
         commit = transaction['cycle_commit']
         if not _commit_exists(repo, commit) \
                 or not _is_ancestor(repo, commit, transaction['branch']):
             _fail('unreachable_evidence', 'the recorded cycle commit {} is not reachable from '
                                           '{}'.format(commit, transaction['branch']))
+        pinned = transaction['trees']['landing']
+        if pinned is not None and _tree_of(repo, commit) != pinned:
+            _fail('integrity_failed', 'the recorded cycle commit {} carries tree {}, not the '
+                                      'pinned {}; the branch is retained for a new '
+                                      'review'.format(commit, _tree_of(repo, commit), pinned))
         return _persist(root, transaction, stage='recovered',
                         recovery={'state': 'landed', 'checked_at': _utc_now()})
     landed = _landed_commit(root, transaction)

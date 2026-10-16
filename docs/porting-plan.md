@@ -191,7 +191,9 @@ decision log.
       guards; a worker never orchestrates.
 - [x] Coordinator CLI (`scripts/parallel.py`) and the generated opt-in loop
       (`skills/feature-development/parallel.md`, `parallel.seats`), with the run-wide
-      correction budget on the existing `counters.correction_rounds`.
+      correction budget on the existing `counters.correction_rounds`. The check marks the
+      **implementation**; the generated loop has not been driven by a model end to end
+      (NOT PROVEN, opencode-parallel.md §14).
 - [x] Real-host fixture validation of the worker-change → scoped gate → task review →
       transport/apply/one-cycle commit → durable publication boundary, `seats: 2` with a
       pause/resume across a coordinator restart plus a `seats: 1` sample, in local
@@ -204,5 +206,5 @@ decision log.
       per-instance bridge wrapper is not a global-install test).
 - [ ] An expensive-setup/codegen host validated (the fixture's setup is real generation work
       measured at ~0.3–0.5 s per worker root — not an expensive-setup host, so per-task
-      worktree setup multiplication at significant setup cost is unmeasured; NOT PROVEN, not
-      a substitute for the cheaper case that was measured).
+      worktree setup multiplication at significant setup cost is unmeasured; NOT PROVEN: the
+      cheaper case that was measured is not a substitute for the expensive-setup host).

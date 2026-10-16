@@ -122,12 +122,14 @@ moves the process into that worktree — only one of the same repository, named 
 input before touching `.artel/` (`tests/test_hook_common.py` pins the order; `using_artel.py`,
 which reads no input, is the one exception). See [docs/worktrees.md](../docs/worktrees.md) §7.
 
-Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines, verify-stop
-counters) — never inside the plugin directory. The verify-layer, session-layer and platform-layer
-hooks return immediately when `.artel/config.json` does not exist, so an installed-but-unconfigured
-plugin leaves zero footprint; `hook_common.py`, `kartoteka_http.py` (the shared kartoteka HTTP
-client) and `spec_decision.py` (the per-ticket storage decision file) are shared helper
-libraries, not registered hooks.
+Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines
+`baseline-<session_id>.json`, verify-stop counters `stopblocks-<session_id>.json`) and the
+run-layer stop-gate counter at `.artel/run/<TICKET_ID>/.stop-gate-blocks` — never inside the
+plugin directory. The verify-layer, session-layer and platform-layer hooks return immediately
+when `.artel/config.json` does not exist, so an installed-but-unconfigured plugin leaves zero
+footprint; `hook_common.py`, `kartoteka_http.py` (the shared kartoteka HTTP client) and
+`spec_decision.py` (the per-ticket storage decision file) are shared helper libraries, not
+registered hooks.
 
 ## The OpenCode bridge
 
@@ -138,3 +140,14 @@ throwing, router context prepended in-memory to the first user message, Stop-blo
 by a `session.execution.succeeded` re-prompt). One output has
 no OpenCode channel: `knowledge_mirror.py`'s `additionalContext` is dropped (the mirror
 side effect still runs). See `docs/opencode.md`.
+
+The bridge also registers the coordinator-only parallel worker-session adapter
+(`registerParallel`, `opencode/plugin/parallel.ts`) and enforces the shipped worker-mode
+protections in a session whose own location carries a complete worker marker: `subagent`,
+`question` and every `artel_parallel_*` tool are denied pre-execution, so a pinned worker
+returns its structured result instead of orchestrating or asking. The authoritative Python
+checks (`hook_common.worker_context`, `parallel_launch`'s `caller_is_worker`) re-validate the
+same fact; a malformed, foreign or wrong-root marker is never a bypass. Worker-session hook
+state (the same `.artel/run/.hooks/` files) lives inside the worker root, which is why
+cleanup of a bridge-active worker root refuses `dirty_worktree` and preserves it
+(docs/opencode-parallel.md §13.7) — retention, never a publication failure.

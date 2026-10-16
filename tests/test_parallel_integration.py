@@ -38,6 +38,7 @@ TASK = '3.1'
 ATTEMPT = 1
 PHASE = 2
 COORD_BRANCH = 'feature/PROJ-123'
+COORDINATOR = 'ses_integration-coordinator'
 REF_ROOT = 'refs/artel/parallel'
 TASKLIST = 'specs/.current/PROJ-123/tasklist.md'
 NOTES = 'specs/.current/PROJ-123/implementation-notes.md'
@@ -87,12 +88,14 @@ class RepoCase(unittest.TestCase):
         git(self.main, 'add', '-A')
         git(self.main, 'commit', '-q', '-m', 'init')
         git(self.main, 'branch', '-M', 'trunk')      # keeps `main` free for the guard test
+        git(self.main, 'config', 'init.defaultBranch', 'trunk')
         self.base = git(self.main, 'rev-parse', 'HEAD')
         self.coord = self.main / '.claude' / 'worktrees' / 'PROJ-123'
         git(self.main, 'worktree', 'add', '-q', '-b', COORD_BRANCH, str(self.coord))
         parallel_state.acquire_ticket(
             str(self.coord), TICKET,
-            {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE})
+            {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+             'coordinator_id': COORDINATOR})
         self.manifest_path = (self.coord / '.artel' / 'run' / TICKET / 'parallel' / RUN_ID /
                               'manifest.json')
         self.write_manifest()
@@ -556,8 +559,44 @@ class TestPreparePreconditions(RepoCase):
 
     def test_the_default_branch_is_refused(self):
         self.worker_write('app.txt', 'v2\n')
-        git(self.coord, 'checkout', '-q', '-b', 'main')
+        git(self.coord, 'config', 'init.defaultBranch', COORD_BRANCH)
         rejects(self, 'default_branch', lambda: self.prepare())
+
+    def test_a_remote_head_names_the_default_branch(self):
+        self.worker_write('app.txt', 'v2\n')
+        git(self.coord, 'symbolic-ref', 'refs/remotes/origin/HEAD',
+            'refs/remotes/origin/' + COORD_BRANCH)
+        rejects(self, 'default_branch', lambda: self.prepare())
+        # a branch that is neither the remote HEAD nor the configured default proceeds
+        git(self.coord, 'symbolic-ref', 'refs/remotes/origin/HEAD',
+            'refs/remotes/origin/other')
+        self.assertEqual(self.prepare()['stage'], 'prepared')
+
+    def test_the_configured_default_is_resolved_from_the_linked_root(self):
+        self.worker_write('app.txt', 'v2\n')
+        git(self.coord, 'config', 'init.defaultBranch', 'release')
+        self.assertEqual(self.prepare()['stage'], 'prepared')
+        git(self.coord, 'config', 'init.defaultBranch', COORD_BRANCH)
+        rejects(self, 'default_branch', lambda: self.prepare())
+
+    def test_an_unknown_default_is_an_actionable_ambiguity(self):
+        self.worker_write('app.txt', 'v2\n')
+        git(self.coord, 'config', '--unset', 'init.defaultBranch')
+        error = rejects(self, 'default_unknown', lambda: self.prepare())
+        self.assertIn('init.defaultBranch', error.message)
+        # a remote HEAD closes the ambiguity
+        git(self.coord, 'symbolic-ref', 'refs/remotes/origin/HEAD',
+            'refs/remotes/origin/trunk')
+        self.assertEqual(self.prepare()['stage'], 'prepared')
+
+    def test_a_legitimate_feature_branch_is_never_guessed_as_the_default(self):
+        self.worker_write('app.txt', 'v2\n')
+        git(self.coord, 'config', '--unset', 'init.defaultBranch')
+        git(self.coord, 'symbolic-ref', 'refs/remotes/origin/HEAD',
+            'refs/remotes/origin/trunk')
+        record = self.prepare()
+        self.assertEqual(record['stage'], 'prepared')
+        self.assertEqual(record['branch'], COORD_BRANCH)
 
     def test_unusable_reflogs_fail_preflight(self):
         self.worker_write('app.txt', 'v2\n')
@@ -628,7 +667,8 @@ class TestPreparePreconditions(RepoCase):
         config.write_text('{}\n', encoding='utf-8')
         parallel_state.acquire_ticket(
             str(other), TICKET,
-            {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE})
+            {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+             'coordinator_id': COORDINATOR})
         root = (other / '.claude' / 'worktrees' / 'parallel tasks' / TICKET / RUN_ID /
                 '{}-a{}'.format(TASK, ATTEMPT))
         assignment = self.assignment(
@@ -768,6 +808,105 @@ class TestTransportHooks(RepoCase):
                              applied['pre_head'] + '..HEAD'), '1')
 
 
+class TestContentIdentity(RepoCase):
+    """I2: the accepted content tree is pinned and validated through hooks and recovery."""
+
+    def hook_in(self, fragment, body):
+        """A pre-commit hook acting only in the checkout whose top level contains `fragment`."""
+        return ('#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\n'
+                'case "$root" in\n  *"{0}"*) {1} ;;\nesac\n'.format(fragment, body))
+
+    def test_a_transport_hook_that_changes_accepted_bytes_is_refused_and_preserved(self):
+        self.worker_write('app.txt', 'v2\n')
+        self.install_hook('pre-commit', self.hook_in(
+            'parallel tasks', 'printf "hooked\\n" > app.txt; git add app.txt'))
+        before = git(self.worker, 'rev-parse', 'HEAD')
+        rejects(self, 'hook_mutated', lambda: self.prepare())
+        record = self.stored_record()
+        self.assertEqual(record['stage'], 'failed')
+        integrity = record['trees']['integrity']
+        self.assertEqual(integrity['stage'], 'transport')
+        self.assertEqual(integrity['expected'], record['trees']['transport'])
+        self.assertNotEqual(integrity['actual'], integrity['expected'])
+        # The hook-created commit and its bytes are preserved; nothing is reset or amended.
+        head = git(self.worker, 'rev-parse', 'HEAD')
+        self.assertNotEqual(head, before)
+        self.assertEqual(self.read('app.txt', self.worker), 'hooked\n')
+        self.assertEqual(git(self.worker, 'rev-parse', head + '^{tree}'), integrity['actual'])
+        self.assertEqual(git(self.coord, 'rev-parse', '--verify', '--quiet',
+                             self.result_ref(), check=False), '')
+        self.assertIsNone(record['transport_commit'])
+
+    def test_a_gate_that_rewrites_a_staged_path_refuses_without_committing(self):
+        self.worker_write('app.txt', 'bad\n')
+        self.set_gate('printf "good\\n" > app.txt')
+        applied = self.prepare_apply()
+        rejects(self, 'gate_mutated', lambda: self.commit(applied))
+        record = self.stored_record()
+        self.assertEqual(record['stage'], 'failed')
+        self.assertEqual(record['trees']['integrity']['stage'], 'gate')
+        # The index still carries the transported `bad`, the gate's `good` stays dirty.
+        self.assertEqual(git(self.coord, 'rev-parse', 'HEAD'), applied['pre_head'])
+        self.assertEqual(self.read('app.txt', self.coord), 'good\n')
+        self.assertIn('app.txt', git(self.coord, 'diff', '--cached', '--name-only'))
+        self.assertEqual(git(self.coord, 'diff', '--name-only'), 'app.txt')
+        self.assertFalse([entry for entry in self.reflog()
+                          if entry[1].startswith(record['transaction_id'])])
+        self.assertEqual(record['verify']['ok'], True)
+
+    def test_a_final_hook_that_changes_allowed_and_foreign_paths_refuses(self):
+        self.worker_write('app.txt', 'v2\n')
+        applied = self.prepare_apply()
+        self.install_hook('pre-commit', self.hook_in(
+            'host repo/.claude/worktrees/PROJ-123',
+            'printf "hooked\\n" > app.txt; printf "foreign\\n" > other.txt;'
+            ' git add app.txt other.txt'))
+        rejects(self, 'hook_mutated', lambda: self.commit(applied))
+        record = self.stored_record()
+        integrity = record['trees']['integrity']
+        self.assertEqual(integrity['stage'], 'landing')
+        self.assertEqual(record['stage'], 'failed')
+        self.assertIsNone(record['cycle_commit'])
+        # The hook-created commit exists, carries both files, and is never accepted.
+        head = git(self.coord, 'rev-parse', 'HEAD')
+        self.assertNotEqual(head, applied['pre_head'])
+        self.assertEqual(self.changed(head, applied['pre_head']), ['app.txt', 'other.txt'])
+        self.assertEqual(self.read('other.txt', self.coord), 'foreign\n')
+        self.assertEqual(git(self.coord, 'rev-parse', head + '^{tree}'), integrity['actual'])
+        self.assertIn('other.txt', git(self.coord, 'diff-tree', '-r', '--name-only',
+                                       applied['pre_head'], head))
+        # Recovery after a lost receipt refuses the mutated commit instead of publishing it.
+        lost = dict(record, stage='committing', cycle_commit=None,
+                    trees=dict(record['trees'], integrity=None))
+        self.rewrite_record(stage='committing', cycle_commit=None,
+                            trees=dict(record['trees'], integrity=None))
+        rejects(self, 'integrity_failed', lambda: self.recover(lost))
+
+    def test_benign_logging_hooks_still_commit_once(self):
+        self.worker_write('app.txt', 'v2\n')
+        log = self.space / 'hooks.log'
+        self.install_hook('pre-commit', '#!/bin/sh\necho ran >> {}\n'.format(log))
+        committed = self.commit(self.prepare_apply())
+        self.assertEqual(committed['stage'], 'committed')
+        recovered = self.recover(committed)
+        self.assertEqual(recovered['cycle_commit'], committed['cycle_commit'])
+        self.assertEqual(git(self.coord, 'rev-list', '--count',
+                             committed['pre_head'] + '..HEAD'), '1')
+
+    def test_a_landed_commit_without_its_receipt_is_recovered_once(self):
+        self.worker_write('app.txt', 'v2\n')
+        applied = self.prepare_apply()
+        self.install_hook('pre-commit', '#!/bin/sh\nexit 0\n')
+        committed = self.commit(applied)
+        lost = dict(committed, stage='committing', cycle_commit=None)
+        self.rewrite_record(stage='committing', cycle_commit=None)
+        recovered = self.recover(lost)
+        self.assertEqual(recovered['cycle_commit'], committed['cycle_commit'])
+        self.assertEqual(recovered['stage'], 'recovered')
+        self.assertEqual(git(self.coord, 'rev-list', '--count',
+                             committed['pre_head'] + '..HEAD'), '1')
+
+
 class TestApplyTransport(RepoCase):
     """`cherry-pick --no-commit` onto the coordinator: staged, never branch history."""
 
@@ -895,6 +1034,26 @@ class TestCommitCycle(RepoCase):
         applied = self.prepare_apply()
         rejects(self, 'missing_document',
                 lambda: self.commit(dict(applied, documents=[NOTES])))
+        self.assertEqual(git(self.coord, 'rev-parse', 'HEAD'), applied['pre_head'])
+
+    def test_an_unchanged_declared_test_runs_on_the_combined_tree(self):
+        assignment, root = self.make_worker('declared-tests', tests=['other.txt'])
+        (root / 'app.txt').write_text('v2\n', encoding='utf-8')
+        self.write('.artel/config.json',
+                   self.config_text(verify={'fast': 'true', 'test': 'false',
+                                            'testSurface': ['other.txt']}),
+                   base=self.coord)
+        git(self.coord, 'add', '--', '.artel/config.json')
+        git(self.coord, 'commit', '-q', '-m', 'chore: configure the test gate')
+        prepared = self.prepare(assignment)
+        applied = self.apply(prepared, assignment)
+        rejects(self, 'task_gate_failed', lambda: self.commit(applied))
+        record = self.stored_record()
+        self.assertEqual(record['stage'], 'failed')
+        stages = {stage['name']: stage for stage in record['verify']['data']['stages']}
+        self.assertFalse(stages['test'].get('skipped', False))
+        self.assertEqual(stages['test']['files'], ['other.txt'])
+        self.assertFalse(stages['test']['ok'])
         self.assertEqual(git(self.coord, 'rev-parse', 'HEAD'), applied['pre_head'])
 
     def test_foreign_staged_work_is_never_swept_into_the_cycle(self):

@@ -25,12 +25,17 @@ All notable changes to this project are documented here. The format follows
   and no second scheduler. Workers are pinned to their assignment and denied orchestration
   (`subagent`, `question`, and the adapter namespace). The worker-session adapter is
   registered by the OpenCode bridge (`opencode/plugin/parallel.ts`:
-  `artel_parallel_workerCapabilities`, `startWorker`, `workerStatus`, `interruptWorker`) and
+  `artel_parallel_workerCapabilities`, `coordinatorIdentity`, `startWorker`, `workerStatus`,
+  `interruptWorker`) and
   refuses anything but the proven OpenCode 2.0.29 surface before a claim or a worktree
   exists. Validated end to end on a real host fixture in local file-backed mode — native
   worker changes, the scoped task gate, task reviews, transport/apply/one-cycle commit and
   durable publication, `seats: 2` with a pause/resume across a coordinator restart plus a
-  `seats: 1` sample; the CI matrix and remote store/queue adapters remain unproven
+  `seats: 1` sample. Limits kept explicit: the CI matrix (Python 3.11/3.13) and the remote
+  artifact-store/queue adapters are unproven; the default globally installed plugin path was
+  not exercised (the fixture used a per-instance wrapper); the generated inline coordinator
+  was not driven by a model; the expensive-setup/codegen host case is NOT PROVEN; and the
+  measured seats-2/seats-1 sample is not a speedup claim
   ([docs/opencode-parallel.md](docs/opencode-parallel.md) §14).
 
 ## [0.35.0] - 2026-10-14

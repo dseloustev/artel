@@ -115,14 +115,29 @@ recovers state from `Session.Info` and the messages, never from an event it did 
 
 ### 2.1 The adapter tools (Task 7)
 
-`opencode/plugin/parallel.ts` registers four tools in the namespace `artel.parallel` (exposed
-ids `artel_parallel_workerCapabilities`, `artel_parallel_startWorker`,
-`artel_parallel_workerStatus`, `artel_parallel_interruptWorker`) through the existing bridge
-(`opencode/plugin/artel.ts`). The tools are the native transport only: every decision —
-request validation, the capability gate, the launch journal, session verification, result
-recovery, interruption semantics — lives in the policy half `scripts/parallel_launch.py`,
-which reuses `parallel_contract.py`, `hook_common.py` and `task_worktree.py`'s contracts
-instead of restating them.
+`opencode/plugin/parallel.ts` registers five tools in the namespace `artel.parallel` (exposed
+ids `artel_parallel_workerCapabilities`, `artel_parallel_coordinatorIdentity`,
+`artel_parallel_startWorker`, `artel_parallel_workerStatus`, `artel_parallel_interruptWorker`)
+through the existing bridge (`opencode/plugin/artel.ts`). The tools are the native transport
+only: every decision — request validation, the capability gate, the launch journal, session
+verification, result recovery, interruption semantics — lives in the policy half
+`scripts/parallel_launch.py`, which reuses `parallel_contract.py`, `hook_common.py` and
+`task_worktree.py`'s contracts instead of restating them.
+
+**Coordinator identity and the native fence.** `coordinatorIdentity` is read-only: it answers
+the calling session's own `session_id` and root, and takes no lock. The generated procedure
+calls it before `owner acquire` and passes that `session_id` as `coordinator_id` on every
+mutating command (§13.4). `startWorker`, `workerStatus` and `interruptWorker` are fenced to
+the exact run's current coordinator: the transport spawns one bounded ephemeral Python
+guard-holder child (`parallel_launch.py guard-hold`) that takes the same repository-common
+kernel guard the CLI takes, validates the owner and the calling coordinator inside it, and
+holds the lock across the whole awaited native sequence — session create/prompt/interrupt and
+the journal writes around them — releasing it on EOF, on error or by the kernel when the
+child dies. A read-only policy check alone would not exclude a concurrent `owner recover`
+while an RPC is in flight; the held guard does, and after a recovery the replaced session's
+native effects are refused (`coordinator_conflict`) before any journal write, session create
+or interrupt. The guard-holder is lifetime plumbing only: it never mutates run state and
+every decision stays in the policy half. `workerCapabilities` stays read-only and unfenced.
 
 **Per-instance root.** `opencode/plugin/artel.ts` exports `createArtelPlugin({root})`: one
 bridge instance bound to an explicit install root for every hook spawn and for the adapter
@@ -518,22 +533,56 @@ The lock is one JSON record per ticket in the **repository-common Git directory*
 Every checkout — the main one and every linked worktree — resolves that same path through
 `git rev-parse --git-common-dir`, so a competing coordinator cannot bypass ownership by
 working from another tree. `acquire_ticket(repo, ticket, owner)` creates the record
-exclusively and refuses one that already exists, whatever its age, its phase or its run;
-the record is the run's ownership proof:
+exclusively and refuses one that already exists, whatever its age, its phase or its run; the
+record is the run's ownership proof:
 
 ```json
 {
   "schema": 1, "ticket": "PROJ-123", "run_id": "0f6f0f2e-…", "phase": 2,
-  "token": "…", "acquired_at": "2026-10-15T12:00:00Z"
+  "coordinator_id": "ses_…", "token": "…", "acquired_at": "2026-10-15T12:00:00Z",
+  "recovered_at": null, "prior_coordinator_id": null, "recovery_reason": null
 }
 ```
 
-Only the owning run (same `run_id` and `phase`) re-acquires its own record; another run is
-refused, and a lock that cannot be read is ambiguous and is never overwritten, released or
-reclaimed. `release_ticket(repo, ticket, owner)` removes the lock only for that matching
-run — the `token` from acquisition is the proof — and only with `completed` and
-`quiescent` asserted: a pause, an unfinished run and an expired timeout all keep the lock.
-Nothing is ever inferred from age.
+`coordinator_id` is the **native session id** of the coordinator that holds the ticket —
+never the run UUID, the token or a CLI process id — obtained from the read-only
+`artel_parallel_coordinatorIdentity` tool. Only the owning run (same `run_id`, `phase` and
+`coordinator_id`) re-acquires its own record; another run is `ticket_owned`, another
+coordinator of the same run is `coordinator_conflict` even when the run UUID is known, and a
+lock that cannot be read is ambiguous and is never overwritten, released or reclaimed.
+
+**The coordinator guard.** Every mutating command — `owner acquire/recover/release` included
+— runs inside `ticket_guard(repo, ticket)`: one kernel-locked file per ticket next to the
+record (`<git-common-dir>/artel/parallel/<TICKET_ID>.guard`), resolved through the common
+Git directory so the CLI and the native adapter serialize on the same inode. Acquisition is
+bounded (`owner_busy`, retry), the lock file is never unlinked while POSIX holds it (the
+kernel releases it on process exit), and the owner — run, phase and coordinator — is
+validated *inside* the guard and held through the whole effect: the manifest write, the Git
+effect, the session launch, the owner release. A read-only check can never race the effect it
+authorized. Manifest writes additionally serialize their compare-and-replace under a
+per-manifest lock, so two concurrent `write_manifest` callers — the CLI and a direct trusted
+helper caller alike — cannot both pass the revision check and lose one update. Lock order is
+always common guard outer, manifest/budget inner; no path nests them the other way.
+
+**Handoff.** A deliberate handoff to a new coordinator session is only `owner recover`:
+`{schema, ticket, run_id, phase, coordinator_id, reason}` for the same run and phase. It
+rotates the token, names the new coordinator, and records `recovered_at`,
+`prior_coordinator_id` and `recovery_reason`; the previous coordinator's commands and native
+effects then fail fenced (`coordinator_conflict`) until the new one holds them. Recovery never
+crosses runs, is never inferred from age, has no TTL, and does not prove the previous session
+is dead. A lock written before coordinator identity existed (the six-key legacy record) is
+never silently adopted: every mutation refuses `legacy_owner` and preserves its bytes until an
+explicit `owner recover` adopts it, recording the prior identity as null and the reason.
+
+`release_ticket(repo, ticket, owner)` removes the lock only for that matching run — the
+`token` from acquisition is the proof and the current `coordinator_id` must match — and only
+with `completed` and `quiescent` asserted: a pause, an unfinished run, a replaced coordinator
+and an expired timeout all keep the lock. Nothing is ever inferred from age.
+
+**Threat boundary.** Deliberate same-user shell or filesystem impersonation is outside the
+sandbox the feature promises: a token or a session id readable by the same user is not a
+secret. What is enforced is the supported flow — two coordinators of the same run cannot both
+mutate it, and a replaced coordinator's effects are fenced.
 
 ### 13.5 Claim intents and recovery
 
@@ -566,6 +615,19 @@ crashed attempts still hold. The order is fixed:
    and is released; no such row means the claim never landed (`lost`), after which the next
    `begin_claim` retries that sequence with the next attempt; a row held by anyone else is
    never adopted, cleared or reclaimed.
+
+An orphan release is a **decision and an effect**: reconciliation persists `orphaned` and
+returns the release action, and the decision stays unresolved until a fresh **complete**
+observation confirms it. `reconcile_claims` moves an `orphaned` intent to `released` only
+when the exact recorded row is no longer observed `in_progress` under the exact
+run/sequence/attempt actor; while the row is still observed held, the one release is
+re-issued (it did not execute) and never re-decided. `released` is the durable confirmation
+that this run no longer holds the row — an incomplete or filtered row list can never prove
+absence, so the coordinator passes its complete observation. An unconfirmed `orphaned` intent
+blocks new claims (`begin_claim` → `unresolved_claim`) and blocks `owner release`
+(`premature_release`), so ownership is never abandoned over a decision whose external effect
+never ran; a foreign or reacquired holder is never released, adopted or cleared, and there is
+no release/reclaim scan.
 
 `record_claim` classifies the returned row against the intent:
 
@@ -721,11 +783,15 @@ inspection report, state `published` only means "a result ref exists" — it is 
 `published` task state, which remains the coordinator's record.
 
 A real host's worker root is not only the worker's own files: the bridge's hooks keep their
-per-session state in the root's own `.artel/run/.hooks/` (session baselines, stop-gate
-counters). Those files are not part of the publication proof's accounted set, so cleanup
-refuses `dirty_worktree` and preserves the root — by design (nothing is force-removed), but
-it means a root on a host with the bridge active stays for the operator to inspect and
-remove. The refusal never undoes a valid publication and never requires a relaunch.
+per-session state in the root's own `.artel/run/.hooks/` (`baseline-<session_id>.json` from
+the verify layer, `stopblocks-<session_id>.json` from the stop gate; the run layer's
+`.artel/run/<TICKET_ID>/.stop-gate-blocks` counter only exists in an armed root). Those files
+are not part of the publication proof's accounted set, so cleanup refuses `dirty_worktree` and
+preserves the root — by design (nothing is force-removed), but it means a root on a host with
+the bridge active stays for the operator to inspect and remove. The refusal never undoes a
+valid publication and never requires a relaunch. It is not a scan of the root either: the
+accounting walk treats any traversal or read error as fatal (`scan_failed`), so a failed
+directory scan can never authorize deleting content it did not see.
 
 ### 13.8 Serialized integration and recovery
 
@@ -761,7 +827,9 @@ every Git side effect, with exactly these keys:
  "diff": {"base_commit": "<40hex>", "commit": "<40hex>", "sha256": "<64hex>", "files": ["…"]},
  "documents": ["…"], "drain": {"in_flight": [], "waiting": ["2.4"], "checked_at": "…"},
  "publication": null, "stage": "…", "subject": null, "cycle_commit": null,
- "verify": null, "recovery": null, "created_at": "…", "updated_at": "…", "record": "/abs/…"}
+ "verify": null, "recovery": null,
+ "trees": {"transport": "<40hex>|null", "landing": "<40hex>|null", "integrity": null},
+ "created_at": "…", "updated_at": "…", "record": "/abs/…"}
 ```
 
 `stage` moves `preparing → prepared → applying → applied → committing → committed`; the side
@@ -771,6 +839,21 @@ artifact-store path); `drain.waiting` lists the parked safe-return work — wait
 reservations and `prepared` siblings, which are never relaunched to make room; `publication` is
 reserved for Task 9 and is never written here; `verify` is the integrated-tree gate envelope;
 `recovery` is `{"state": "landed"|"none", "checked_at": "…"}`.
+
+**Content identity — `trees`.** `trees.transport` pins the tree of the accepted transport
+commit and `trees.landing` the exact tree the final cycle commit must carry; both are
+persisted before the commit they bind, and `trees.integrity` is durable evidence
+(`{stage, expected, actual, detail, checked_at}`) when a hook or gate changed either tree after
+acceptance. A transport or final hook that rewrites or restages any path — the same allowed
+name or a new one — produces a different tree and refuses (`hook_mutated`); a gate that writes
+the working tree or the index refuses (`gate_mutated`) instead of silently restaging the
+mutation so the green receipt describes an earlier tree. The hook-created commit, the index and
+the working tree stay exactly as they are: nothing is reset, amended or rewritten, and the
+transaction keeps the pinned tree plus the failure evidence for the operator or a new review.
+Recovery validates the pin too: a transaction-marked commit whose tree differs from
+`trees.landing` is refused (`integrity_failed`), so a crash after a bad hook commit but before
+the post-commit check cannot let reflog parent recognition publish it; the branch, the
+integration latch and the evidence are retained.
 Every function returns exactly the record it persisted, so the coordinator persists the returned
 value (or reads the file back) and passes it to the next step.
 
@@ -829,18 +912,24 @@ tick/ordered notes **after** a successful apply, never before, and lists them in
 **Final commit — `commit_cycle`.** Before anything is committed, the tree is checked twice. The
 index may carry only the transported paths and the transaction's `documents` (`foreign_staged`);
 and the whole nonignored working tree may carry nothing outside those two sets
-(`coordinator_dirty`) — including a change introduced after a successful apply. Only then does
-the integrated tree meet the existing task gate (`scripts/verify.py task`, run in the coordinator
-root) and the normal commit hooks, so the gate and the hooks always see **exactly the tree that
-can land**: two individually green task roots do not establish combined correctness, an unrelated
-WIP file can neither fake that gate green nor block a good integration, and a red gate
-(`task_gate_failed`) or an environment error (`task_gate_error`) commits nothing and leaves the
-staged tree inspectable for the coordinator's bounded fix. A fix stays inside the transported
-paths; a new path is a new attempt. A person's staged or dirty work is never swept in, never
-unstaged and never reset. On the **files path** the tick and ordered notes are the pending
-`documents` and land in this one commit with the code; on the **artifact-store path** `documents`
-is empty, the code commit lands first, and Task 9 publishes the versioned artifacts afterwards —
-never the reverse. The subject must be a conventional, subject-only message (`feat`, `fix`,
+(`coordinator_dirty`) — including a change introduced after a successful apply. The staged tree
+is then pinned (`trees.landing`) and the integrated tree meets the existing task gate
+(`scripts/verify.py task`, run in the coordinator root) and the normal commit hooks, so the gate
+and the hooks always see **exactly the tree that can land**: two individually green task roots do
+not establish combined correctness, an unrelated WIP file can neither fake that gate green nor
+block a good integration, and a red gate (`task_gate_failed`) or an environment error
+(`task_gate_error`) commits nothing and leaves the staged tree inspectable for the coordinator's
+bounded fix. The gate's scope is the **deduplicated union of the transported changed paths and
+the assignment's declared `Test:` paths** — read from the validated worker marker, so an
+unchanged declared test still runs on the combined tree and cannot be skipped just because the
+integration did not touch it; the gate's own generated/surface/missing-path rules are unchanged.
+A gate or hook that changes the index or the working tree after the pin refuses
+(`gate_mutated`/`hook_mutated`, §13.8 `trees`) and is never restaged to make an earlier review
+apply. A fix stays inside the transported paths; a new path is a new attempt. A person's staged
+or dirty work is never swept in, never unstaged and never reset. On the **files path** the tick
+and ordered notes are the pending `documents` and land in this one commit with the code; on the
+**artifact-store path** `documents` is empty, the code commit lands first, and Task 9 publishes
+the versioned artifacts afterwards — never the reverse. The subject must be a conventional, subject-only message (`feat`, `fix`,
 `refactor`, `test`, `docs` or `chore`) with no task id and no trailer, and the commit carries the
 transaction id as its `GIT_REFLOG_ACTION`, so it is attributable from the reflog, the retained
 refs and the run
@@ -934,6 +1023,12 @@ over a concurrent append takes the next free number and consumes it once. A queu
 under a foreign actor, a changed row id or task, a missing row, or a status that is neither
 `in_progress` nor `done` is never completed (`foreign_row`, `row_changed`, `row_missing`,
 `row_not_in_progress`); a queue-free (local) run keeps the same lifecycle with no queue action.
+A **receipted** queue completion is rechecked like the store kinds: before any promotion the
+fresh observation must still show the exact receipted row, actor and `done` status. A row that
+was reopened (`in_progress` again), reacquired by another actor, replaced or deleted refuses
+(`queue_conflict`; a foreign or reacquired holder is refused earlier as `foreign_row`) and the
+integration latch is retained — the old receipt never silently re-completes a row that is no
+longer done.
 
 **Completion and cleanup.** When the last required receipt lands, the reducer marks the record
 `complete`, builds the §13.7 cleanup publication proof — `cycle_commit` under
@@ -974,21 +1069,23 @@ those stay the configured coordinator's calls, through its own tools.
     python3 scripts/parallel.py <command...> --request <JSON-file|->
 
 Request keys are the selected helper's argument names plus the explicit run context a
-mutation needs: the coordinator checkout (`repo`), the run identity (`ticket`, `run_id`) and
-`expected_revision` for manifest writes. The commands:
+mutation needs: the coordinator checkout (`repo`), the run identity (`ticket`, `run_id`),
+`expected_revision` for manifest writes, and — on **every mutating command** — the caller's
+`coordinator_id` (the native session id from `artel_parallel_coordinatorIdentity`). The
+commands:
 
 | Command | Request | Effect |
 |---|---|---|
 | `config` | `{repo}` | Reads `<repo>/.artel/config.json` and resolves `parallel.seats`; absent or `1` is the serial default. |
 | `preflight` | `{repo, capabilities}` | Consumes the adapter's read-only capability report and verifies the coordinator's branch, cleanliness and reflog before any claim or worktree. Read-only. |
-| `owner acquire` / `owner release` | `{repo, ticket, owner}` | The repository-common ticket lock; release requires the exact run's manifest quiescent (every task published, no latched stop, no unfinished owned claim) and its run state `completed: true` and unpaused, then the matching token. |
-| `run create` / `run inspect` / `run transition` | `{repo, ticket, phase, run_id, seats, graph_digest}` / `{repo, ticket, run_id}` / `{repo, ticket, run_id, expected_revision, task, expected, target, fields?}` | The run manifest; `inspect` is a pure read. |
-| `claim prepare` / `claim record` / `claim reconcile` | `{repo, ticket, run_id, expected_revision, intent_id?, row?, rows?}` | The claim intent before the queue call, the recorded returned row, and reconciliation against fresh rows. |
-| `admit` | `{repo, ticket, run_id, tasklist, case_sensitive?}` | The pure admission selector over the parsed tasklist; only the current unfinished iteration is admitted. |
-| `worktree create` / `worktree inspect` / `worktree cleanup` | `{repo, assignment[, publication]}` | The per-task worker worktree lifecycle. |
-| `integration prepare` / `integration apply` / `integration commit` / `integration recover` | `{repo, assignment, result}` / `{repo, assignment, prepared}` / `{repo, transaction, subject}` / `{repo, transaction}` | The serialized integration transaction. |
-| `publication next` / `publication record` | `{repo, ticket, run_id, task, observed}` / `{repo, transaction, task, action_id, receipt}` | The publication plan and one durable intent/receipt. |
-| `budget inspect` / `budget reserve` | `{repo, ticket, phase}` / `{repo, ticket, run_id, phase, kind, scope, attempt, ordinal, expected_revision}` | The run-wide correction budget (§13.12). |
+| `owner acquire` / `owner recover` / `owner release` | `{repo, ticket, owner}` / `{repo, ticket, run_id, phase, coordinator_id, reason}` / `{repo, ticket, owner}` | The repository-common ticket lock. `acquire` is idempotent for the same run and coordinator; `recover` is the explicit audited handoff that rotates the token and the coordinator (and adopts a legacy record); `release` requires the exact run's manifest quiescent (every task published, no latched stop, no unfinished owned claim, no unconfirmed orphan release) and its run state `completed: true` and unpaused, then the matching token and coordinator. |
+| `run create` / `run inspect` / `run transition` | `{repo, ticket, phase, run_id, seats, graph_digest, coordinator_id}` / `{repo, ticket, run_id}` / `{repo, ticket, run_id, expected_revision, task, expected, target, fields?, coordinator_id}` | The run manifest; `inspect` is a pure read. |
+| `claim prepare` / `claim record` / `claim reconcile` | `{repo, ticket, run_id, expected_revision, coordinator_id, intent_id?, row?, rows?}` | The claim intent before the queue call, the recorded returned row, and reconciliation against fresh rows (an orphan becomes `released` only when a fresh complete observation confirms it). |
+| `admit` | `{repo, ticket, run_id, tasklist, case_sensitive?}` | The pure admission selector over the parsed tasklist; only the current unfinished iteration is admitted. Without the optional override, case sensitivity is read from the actual volume that holds the checkout, never from `normcase`'s POSIX string behavior; an unknown volume is treated conservatively as case-insensitive and NFC/NFD aliases conflict. Read-only. |
+| `worktree create` / `worktree inspect` / `worktree cleanup` | `{repo, assignment, coordinator_id}` / `{repo, assignment}` / `{repo, assignment, publication, coordinator_id}` | The per-task worker worktree lifecycle. |
+| `integration prepare` / `integration apply` / `integration commit` / `integration recover` | `{repo, assignment, result, coordinator_id}` / `{repo, assignment, prepared, coordinator_id}` / `{repo, transaction, subject, coordinator_id}` / `{repo, transaction, coordinator_id}` | The serialized integration transaction. |
+| `publication next` / `publication record` | `{repo, ticket, run_id, task, observed}` / `{repo, transaction, task, action_id, receipt, coordinator_id}` | The publication plan and one durable intent/receipt. |
+| `budget inspect` / `budget reserve` | `{repo, ticket, phase}` / `{repo, ticket, run_id, phase, kind, scope, attempt, ordinal, expected_revision, coordinator_id}` | The run-wide correction budget (§13.12). |
 
 Every command answers with the deterministic-script envelope — `{ok, verb, elapsed_ms,
 data}` or `{ok, verb, elapsed_ms, error: {kind, message}}` — and exits `0` on success, exit `1`
@@ -997,13 +1094,17 @@ exit `2` for invalid input or an environment failure. The exit code is a classif
 the refusal kind, never a new decision: a `start`, `resume`, `drain` or stop action is data the
 coordinator acts on, not an error.
 
-**Authoritative mutations.** Reads are side-effect-free. Every manifest write resolves the
-run's canonical path from the explicit coordinator checkout and reads the manifest fresh: a
-caller-supplied copy is never trusted for an effect. The request names the exact run, the
-repository-common lock must match it (`not_owned`, `ambiguous_owner`, `foreign_owner`), and
-`expected_revision` must equal the revision on disk (`stale_revision`) before any reducer runs
-— a stale caller or a foreign revision fails before a Git or setup effect, and a refusal leaves
-the bytes exactly as they were. `publication record` reads the durable integration record and
+**Authoritative mutations.** Reads are side-effect-free. Every mutating command runs inside
+`parallel_state.ticket_guard(repo, ticket)` (§13.4), the repository-common kernel guard shared
+with the native adapter: inside it the lock is matched to the exact run/phase **and**
+coordinator (`not_owned`, `legacy_owner`, `foreign_owner`, `coordinator_conflict`) and the
+guard stays held through the whole effect. Every manifest write resolves the run's canonical
+path from the explicit coordinator checkout and reads the manifest fresh: a caller-supplied
+copy is never trusted for an effect, and `expected_revision` must equal the revision on disk
+(`stale_revision`) before any reducer runs — a stale caller or a foreign revision fails before
+a Git or setup effect, and a refusal leaves the bytes exactly as they were. The manifest write
+itself serializes its compare-and-replace under a per-manifest lock, so two concurrent callers
+cannot both pass the revision check and lose one update. `publication record` reads the durable integration record and
 requires the caller's copy to be exactly it: a stale caller is `stale_publication`, never a
 silent clobber of a newer record. It then persists the returned publication record into the
 transaction's reserved `publication` field **first** — through the reviewed, ownership- and
@@ -1199,14 +1300,16 @@ The bridge's stop gate ran in every worker root (each left its `stopblocks` coun
 passed: a worker root carries no armed run state, which is the shipped answer to the
 armed-stop-gate question of §12.
 
-Raw times (one sample each, wall-clock ms; one synthetic fixture, not a benchmark):
+Raw times (one sample each, wall-clock ms; one synthetic fixture, not a benchmark). The
+**column total** row sums the per-task cells: it is not run active wall time (that is the
+phase clocks below) and not a benchmark figure:
 
 | Task | setup | worker | review | integration | publication |
 |---|---|---|---|---|---|
 | 1.1 (full) | 460 | 48428 | 12550 | 1570 | 598 |
 | 1.2 (full, route floor) | 401 | 96905 | 5954 | 1367 | 600 |
 | 1.3 (light) | 300 | 55462 | — (skipped) | 1891 | 671 |
-| **active total** | 1161 | 200795 | 18504 | 4828 | 1869 |
+| **column total** | 1161 | 200795 | 18504 | 4828 | 1869 |
 
 Phase wall clocks: phase A (claim → pause) 205.3 s, phase B (resume → release) 86.5 s; the
 pause gap was 86.6 s of driver time outside the run. Operator interventions inside the run:

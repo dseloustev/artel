@@ -11,6 +11,7 @@ coordinator procedure consumes -- the envelope, the exit codes, the ownership/re
 and the persisted artifacts -- never the helpers' internal reducers, which their own modules
 already cover.
 """
+import copy
 import hashlib
 import json
 import os
@@ -31,6 +32,18 @@ PHASE = 2
 TASK = '3.1'
 BRANCH = 'feature/PROJ-123'
 DIGEST = 'a' * 64
+COORDINATOR = 'ses_coordinator-primary'
+OTHER_COORDINATOR = 'ses_coordinator-secondary'
+# Every mutating command; the fixture injects this coordinator's id unless `raw=True`.
+MUTATING_VERBS = frozenset({
+    ('owner', 'acquire'), ('owner', 'recover'), ('owner', 'release'),
+    ('run', 'create'), ('run', 'transition'),
+    ('claim', 'prepare'), ('claim', 'record'), ('claim', 'reconcile'),
+    ('worktree', 'create'), ('worktree', 'cleanup'),
+    ('integration', 'prepare'), ('integration', 'apply'), ('integration', 'commit'),
+    ('integration', 'recover'),
+    ('publication', 'record'), ('budget', 'reserve'),
+})
 CAPABILITIES = {
     'version': '2.0.29',
     'api': {'app.version': True, 'model.list': True, 'session.create': True,
@@ -74,6 +87,8 @@ EXCLUSIVE = ('# Tasklist\n\n' + iteration(
 class CliCase(unittest.TestCase):
     """A temporary repository with the coordinator on a feature branch and its config."""
 
+    coordinator = COORDINATOR
+
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.space = Path(os.path.realpath(self._tmp.name))
@@ -92,6 +107,7 @@ class CliCase(unittest.TestCase):
         git(self.repo, 'commit', '-q', '-m', 'init')
         self.base = git(self.repo, 'rev-parse', 'HEAD')
         git(self.repo, 'branch', '-m', 'main')
+        git(self.repo, 'config', 'init.defaultBranch', 'main')
         git(self.repo, 'checkout', '-q', '-b', BRANCH)
         self.write_config()
         return self.repo
@@ -149,12 +165,25 @@ class CliCase(unittest.TestCase):
 
     # --- the CLI ------------------------------------------------------------------------
 
-    def cli(self, *argv, request=None, stdin=False, cwd=None, input=None):
+    def cli(self, *argv, request=None, stdin=False, cwd=None, input=None, raw=False):
         """Run the CLI; `request` goes to a file, or to stdin with `stdin=True`.
 
         `input` is raw stdin for commands that read their own document from stdin (the
-        request then comes from a file).
+        request then comes from a file). Every mutating verb receives this fixture's
+        `coordinator_id` unless `raw=True`, which the fence tests use to omit or replace it.
         """
+        if request is not None and not raw:
+            key = tuple(argv)
+            if key in MUTATING_VERBS:
+                request = copy.deepcopy(request)
+                if key in (('owner', 'acquire'), ('owner', 'release')):
+                    owner = request.get('owner')
+                    if isinstance(owner, dict) and 'coordinator_id' not in owner:
+                        request['owner'] = dict(owner, coordinator_id=self.coordinator)
+                elif key == ('owner', 'recover'):
+                    request.setdefault('coordinator_id', self.coordinator)
+                else:
+                    request.setdefault('coordinator_id', self.coordinator)
         command = [sys.executable, str(CLI)] + [str(a) for a in argv]
         payload = input
         if request is not None:
@@ -452,6 +481,206 @@ class TestOwner(CliCase):
         self.assertEqual(self.read_json(self.lock_path())['token'], record['token'])
 
 
+class TestCoordinatorFence(CliCase):
+    """I1: one actual coordinator per run, fenced through the mutation, with an explicit
+    audited handoff (`owner recover`) and a legacy record that is never silently adopted."""
+
+    def transition_request(self, coordinator=None, **overrides):
+        request = {'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+                   'expected_revision': 1, 'task': TASK, 'expected': None,
+                   'target': 'reserved'}
+        if coordinator is not None:
+            request['coordinator_id'] = coordinator
+        request.update(overrides)
+        return request
+
+    def test_a_second_coordinator_of_the_same_run_is_refused(self):
+        self.acquire()
+        self.assertEqual(self.kind(1, 'owner', 'acquire', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET,
+            'owner': {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+                      'coordinator_id': OTHER_COORDINATOR}}), 'coordinator_conflict')
+        self.assertEqual(self.read_json(self.lock_path())['coordinator_id'], COORDINATOR)
+
+    def test_a_mutating_request_needs_the_current_coordinator(self):
+        self.acquire()
+        self.create_run()
+        before = self.manifest_path().read_bytes()
+        self.assertEqual(self.kind(2, 'run', 'transition', raw=True,
+                                   request=self.transition_request()), 'invalid_request')
+        self.assertEqual(self.kind(1, 'run', 'transition', raw=True,
+                                   request=self.transition_request(OTHER_COORDINATOR)),
+                         'coordinator_conflict')
+        self.assertEqual(self.manifest_path().read_bytes(), before)
+        self.ok('run', 'transition', raw=True,
+                request=self.transition_request(COORDINATOR))
+        self.assertEqual(self.read_json(self.manifest_path())['revision'], 2)
+
+    def test_owner_recover_hands_the_run_over_and_fences_the_old_coordinator(self):
+        original = self.acquire()
+        self.create_run()
+        self.ok('run', 'transition', raw=True, request=self.transition_request(COORDINATOR))
+        recovered = self.ok('owner', 'recover', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'coordinator_id': OTHER_COORDINATOR, 'reason': 'the first session paused'})
+        self.assertEqual(recovered['coordinator_id'], OTHER_COORDINATOR)
+        self.assertEqual(recovered['prior_coordinator_id'], COORDINATOR)
+        self.assertEqual(recovered['recovery_reason'], 'the first session paused')
+        self.assertNotEqual(recovered['token'], original['token'])
+        before = self.manifest_path().read_bytes()
+        self.assertEqual(self.kind(1, 'run', 'transition', raw=True,
+                                   request=self.transition_request(
+                                       COORDINATOR, expected='reserved',
+                                       target='preparing', expected_revision=2)),
+                         'coordinator_conflict')
+        self.assertEqual(self.manifest_path().read_bytes(), before)
+        self.ok('run', 'transition', raw=True,
+                request=self.transition_request(OTHER_COORDINATOR, expected='reserved',
+                                                target='preparing', expected_revision=2))
+        self.assertEqual(self.read_json(self.manifest_path())['revision'], 3)
+
+    def test_recovery_refuses_a_foreign_run_or_the_current_coordinator(self):
+        self.acquire()
+        base = {'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+                'coordinator_id': OTHER_COORDINATOR, 'reason': 'handoff'}
+        self.assertEqual(self.kind(1, 'owner', 'recover', raw=True,
+                                   request=dict(base, run_id=OTHER_RUN)), 'foreign_owner')
+        self.assertEqual(self.kind(1, 'owner', 'recover', raw=True,
+                                   request=dict(base, coordinator_id=COORDINATOR)),
+                         'coordinator_current')
+        self.assertEqual(self.kind(2, 'owner', 'recover', raw=True,
+                                   request=dict(base, reason='')), 'invalid_request')
+        self.assertEqual(self.read_json(self.lock_path())['coordinator_id'], COORDINATOR)
+
+    def test_the_recovered_coordinator_releases_and_a_new_run_acquires(self):
+        self.acquire()
+        self.create_run()
+        self.walk(TASK)
+        self.write_run_state(completed=True)
+        recovered = self.ok('owner', 'recover', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'coordinator_id': OTHER_COORDINATOR, 'reason': 'resume in a new session'})
+        old = {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+               'coordinator_id': COORDINATOR, 'token': recovered['token'],
+               'completed': True, 'quiescent': True}
+        self.assertEqual(self.kind(1, 'owner', 'release', raw=True,
+                                   request={'repo': str(self.repo), 'ticket': TICKET,
+                                            'owner': old}), 'coordinator_conflict')
+        self.assertTrue(self.lock_path().is_file())
+        receipt = self.ok('owner', 'release', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET,
+            'owner': {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+                      'coordinator_id': OTHER_COORDINATOR, 'token': recovered['token'],
+                      'completed': True, 'quiescent': True}})
+        self.assertTrue(receipt['released'])
+        self.assertFalse(self.lock_path().exists())
+        # a fresh run takes the freed ticket
+        other = self.ok('owner', 'acquire', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET,
+            'owner': {'schema': 1, 'ticket': TICKET, 'run_id': OTHER_RUN, 'phase': PHASE,
+                      'coordinator_id': OTHER_COORDINATOR}})
+        self.assertEqual(other['run_id'], OTHER_RUN)
+
+    def test_a_legacy_lock_is_never_silently_adopted(self):
+        self.acquire()
+        self.create_run()
+        legacy = {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+                  'token': 'f' * 32, 'acquired_at': '2026-01-01T00:00:00Z'}
+        self.lock_path().write_text(json.dumps(legacy), encoding='utf-8')
+        before = self.manifest_path().read_bytes()
+        self.assertEqual(self.kind(1, 'run', 'transition', raw=True,
+                                   request=self.transition_request(COORDINATOR)),
+                         'legacy_owner')
+        self.assertEqual(self.kind(1, 'owner', 'acquire', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET,
+            'owner': {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+                      'coordinator_id': COORDINATOR}}), 'legacy_owner')
+        self.assertEqual(self.manifest_path().read_bytes(), before)
+        self.assertEqual(self.read_json(self.lock_path()), legacy)
+        adopted = self.ok('owner', 'recover', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'coordinator_id': COORDINATOR, 'reason': 'explicit legacy adoption'})
+        self.assertIsNone(adopted['prior_coordinator_id'])
+        self.assertEqual(adopted['recovery_reason'], 'explicit legacy adoption')
+        self.assertEqual(self.read_json(self.lock_path()), adopted)
+        self.ok('run', 'transition', raw=True, request=self.transition_request(COORDINATOR))
+
+
+class TestOrphanReleaseConfirmation(CliCase):
+    """I6: an orphan-release decision is not resolved until its external effect is confirmed."""
+
+    def queue_row(self, actor):
+        return {'task_id': 41, 'title': 'I2 · 3.1 · do a thing', 'status': 'in_progress',
+                'actor': actor, 'phase': PHASE, 'task': TASK}
+
+    def test_an_unconfirmed_orphan_release_blocks_release_and_new_claims(self):
+        record = self.acquire()
+        self.create_run()
+        prepared = self.ok('claim', 'prepare', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 1})
+        actor = prepared['intent']['actor']
+        reconciled = self.ok('claim', 'reconcile', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 2, 'rows': [self.queue_row(actor)]})
+        self.assertEqual([action['kind'] for action in reconciled['actions']], ['release'])
+        self.assertEqual(reconciled['manifest']['claims']['intents'][0]['state'], 'orphaned')
+        revision = self.walk(TASK)
+        self.write_run_state(completed=True)
+        owner = {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+                 'coordinator_id': COORDINATOR, 'token': record['token'],
+                 'completed': True, 'quiescent': True}
+        self.assertEqual(self.kind(1, 'owner', 'release', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET, 'owner': owner}),
+            'premature_release')
+        self.assertTrue(self.lock_path().is_file())
+        self.assertEqual(self.kind(1, 'claim', 'prepare', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': revision}), 'unresolved_claim')
+        # The external release executed; a fresh complete observation confirms it.
+        confirmed = self.ok('claim', 'reconcile', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': revision, 'rows': []})
+        self.assertEqual(confirmed['actions'], [])
+        self.assertEqual(confirmed['manifest']['claims']['intents'][0]['state'], 'released')
+        receipt = self.ok('owner', 'release', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET, 'owner': owner})
+        self.assertTrue(receipt['released'])
+        self.assertFalse(self.lock_path().exists())
+        other = self.ok('owner', 'acquire', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET,
+            'owner': {'schema': 1, 'ticket': TICKET, 'run_id': OTHER_RUN, 'phase': PHASE,
+                      'coordinator_id': OTHER_COORDINATOR}})
+        self.assertEqual(other['run_id'], OTHER_RUN)
+
+    def test_a_crash_before_the_release_reissues_exactly_one_release(self):
+        self.acquire()
+        self.create_run()
+        prepared = self.ok('claim', 'prepare', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 1})
+        actor = prepared['intent']['actor']
+        row = self.queue_row(actor)
+        first = self.ok('claim', 'reconcile', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 2, 'rows': [row]})
+        self.assertEqual([action['reason'] for action in first['actions']],
+                         ['orphaned-claim'])
+        # still held: the one release is re-issued, never re-decided
+        second = self.ok('claim', 'reconcile', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 3, 'rows': [row]})
+        self.assertEqual([action['reason'] for action in second['actions']],
+                         ['orphaned-claim'])
+        self.assertEqual(second['manifest']['claims']['intents'][0]['state'], 'orphaned')
+        # a foreign holder is never released and confirms our row is gone
+        third = self.ok('claim', 'reconcile', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 4, 'rows': [self.queue_row('artel@other-host')]})
+        self.assertEqual(third['actions'], [])
+        self.assertEqual(third['manifest']['claims']['intents'][0]['state'], 'released')
+
+
 class TestReleaseSafety(CliCase):
     """Important 1: the caller's `completed`/`quiescent` bytes are never proof — the
     authoritative manifest must be quiescent and the run-state completed for the exact run."""
@@ -719,8 +948,11 @@ class TestRunState(CliCase):
         common = git(self.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')
         lock = Path(common) / 'artel' / 'parallel' / (TICKET + '.json')
         lock.write_text(json.dumps({'schema': 1, 'ticket': TICKET, 'run_id': OTHER_RUN,
-                                    'phase': PHASE, 'token': 'f' * 32,
-                                    'acquired_at': '2026-01-01T00:00:00Z'}),
+                                    'phase': PHASE, 'coordinator_id': OTHER_COORDINATOR,
+                                    'token': 'f' * 32,
+                                    'acquired_at': '2026-01-01T00:00:00Z',
+                                    'recovered_at': None, 'prior_coordinator_id': None,
+                                    'recovery_reason': None}),
                         encoding='utf-8')
         before = self.manifest_path().read_bytes()
         self.assertEqual(self.kind(1, 'run', 'transition', request={
@@ -834,6 +1066,82 @@ class TestClaims(CliCase):
 # ============================================================================================
 # admission: the pure selector over the real tasklist
 # ============================================================================================
+
+class TestFilesystemCaseEvidence(CliCase):
+    """I7: the default admission decision is read from the actual volume, not `normcase`."""
+
+    def volume_case_insensitive(self):
+        probe = Path(os.path.realpath(str(self.repo)))
+        variant = probe.name.swapcase()
+        if variant == probe.name:
+            return None
+        try:
+            return os.path.samefile(str(probe), str(probe.parent / variant))
+        except OSError:
+            return False
+
+    def alias_tasks(self):
+        return ('# Tasklist\n\n' + iteration(
+            2, task_block('2.1', files=('src/CaseFile.py',)),
+            task_block('2.2', files=('src/casefile.py',))))
+
+    def admit(self, text, **extra):
+        tasklist = self.write('specs/.current/{}/tasklist.md'.format(TICKET), text)
+        request = {'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+                   'tasklist': str(tasklist)}
+        request.update(extra)
+        return self.ok('admit', request=request)
+
+    def test_the_default_admission_matches_the_actual_volume(self):
+        self.acquire()
+        self.create_run()
+        self.transition('2.1', None, 'reserved', 1)
+        self.transition('2.1', 'reserved', 'preparing', 2)
+        self.transition('2.1', 'preparing', 'running', 3)
+        result = self.admit(self.alias_tasks())
+        if self.volume_case_insensitive():
+            self.assertEqual(result['start'], [])
+            self.assertTrue(any('casefile' in reason for reason in result['reasons']))
+        else:
+            self.assertEqual(result['start'], ['2.2'])
+
+    def test_an_explicit_case_sensitive_override_is_honored(self):
+        self.acquire()
+        self.create_run()
+        self.transition('2.1', None, 'reserved', 1)
+        self.transition('2.1', 'reserved', 'preparing', 2)
+        self.transition('2.1', 'preparing', 'running', 3)
+        sensitive = self.admit(self.alias_tasks(), case_sensitive=True)
+        self.assertEqual(sensitive['start'], ['2.2'])
+        insensitive = self.admit(self.alias_tasks(), case_sensitive=False)
+        self.assertEqual(insensitive['start'], [])
+        self.assertTrue(any('casefile' in reason for reason in insensitive['reasons']))
+
+
+class TestQueueFreeLocalConsumer(CliCase):
+    """I8: the generated procedure's `--local` branch is a real, queue-free sequence."""
+
+    def test_the_local_sequence_reserves_locally_and_launches_through_resume(self):
+        self.acquire()
+        self.create_run()
+        tasklist = self.write('specs/.current/{}/tasklist.md'.format(TICKET), TWO_TASKS)
+        request = {'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+                   'tasklist': str(tasklist)}
+        first = self.ok('admit', request=request)
+        self.assertEqual(first['start'], ['2.1', '2.2'])
+        self.transition('2.1', None, 'reserved', 1)
+        self.transition('2.2', None, 'reserved', 2)
+        manifest = self.read_json(self.manifest_path())
+        self.assertEqual(manifest['claims']['intents'], [])  # zero queue intents
+        self.assertEqual(manifest['tasks']['2.1']['state'], 'reserved')
+        second = self.ok('admit', request=request)
+        self.assertEqual(second['resume'], ['2.1', '2.2'])
+        self.assertEqual(second['start'], [])
+        self.transition('2.1', 'reserved', 'preparing', 3)
+        third = self.ok('admit', request=request)
+        self.assertEqual(third['resume'], ['2.2'])
+        self.assertEqual(third['start'], [])
+
 
 class TestAdmit(CliCase):
     def arm(self):
@@ -1283,7 +1591,9 @@ class PublicationCase(WorktreeCase):
 
         self.lock_path().write_text(json.dumps(
             {'schema': 1, 'ticket': TICKET, 'run_id': OTHER_RUN, 'phase': PHASE,
-             'token': 'f' * 32, 'acquired_at': '2026-01-01T00:00:00Z'}), encoding='utf-8')
+             'coordinator_id': OTHER_COORDINATOR, 'token': 'f' * 32,
+             'acquired_at': '2026-01-01T00:00:00Z', 'recovered_at': None,
+             'prior_coordinator_id': None, 'recovery_reason': None}), encoding='utf-8')
         self.assertEqual(self.kind(1, 'publication', 'record', request=request),
                          'foreign_owner')
         self.assertEqual(self.record_path().read_bytes(), record_before)

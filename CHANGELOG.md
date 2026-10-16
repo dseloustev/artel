@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-16
+
 ### Added
 
 - **Parallel task execution on OpenCode.** With `parallel.seats` set to an integer above `1`,

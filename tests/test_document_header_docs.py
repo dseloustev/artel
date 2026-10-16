@@ -214,10 +214,13 @@ class TestReleaseDocs(unittest.TestCase):
 
 class TestTheOpenCodeMigrationIsInTheChangelog(unittest.TestCase):
     """The release skill stops on an empty [Unreleased], and the migration must not ride an
-    empty section: it is written down with its upgrade instructions before the bump is cut."""
+    empty section: it was written down with its upgrade instructions before 0.36.0 was cut, and
+    the notes stay in the released section rather than moving back to [Unreleased]."""
 
-    def test_unreleased_announces_the_migration(self):
-        body = read('CHANGELOG.md').split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+    VERSION = '0.36.0'
+
+    def test_the_release_carries_the_migration(self):
+        body = read('CHANGELOG.md').split('## [' + self.VERSION + ']', 1)[1].split('\n## [', 1)[0]
         flat_body = ' '.join(body.split())
         for phrase in ('OpenCode-only plugin',
                        'scripts/install-opencode.sh',

@@ -218,7 +218,7 @@ class TestParallelAdapterRegistration(unittest.TestCase):
 
     def test_the_adapter_is_registered_inside_setup(self):
         setup = self.source[self.source.index('const setup: Plugin["setup"]'):]
-        self.assertIn('registerParallel(ctx)', setup)
+        self.assertIn('registerParallel(ctx, { root })', setup)
 
     def test_the_adapter_namespace_is_denied_for_workers(self):
         # The denial derives from the adapter's exported ids, so a renamed or added adapter
@@ -236,6 +236,56 @@ class TestParallelAdapterRegistration(unittest.TestCase):
         for token in ('ctx.tool.hook', 'ctx.session.hook', 'ctx.event.subscribe',
                       'session_baseline.py', 'stop_gate.py', 'using_artel.py'):
             self.assertNotIn(token, self.adapter, token)
+
+
+class TestPerInstanceFactory(unittest.TestCase):
+    """Task 11 fix: the bridge is constructible per instance with an explicit install root
+    and no shared/global mutation. The default export stays the same plugin with the
+    `ARTEL_ROOT` environment fallback; a scratch proof wrapper builds its own instance
+    bound to its own checkout (the Task 11 native proof), which is impossible with the
+    prior temporary `process.env.ARTEL_ROOT` mutation."""
+
+    def setUp(self):
+        self.source = BRIDGE.read_text(encoding='utf-8')
+
+    def factory_source(self):
+        start = self.source.index('export function createArtelPlugin')
+        end = self.source.index('const plugin: Plugin = createArtelPlugin()')
+        return self.source[start:end]
+
+    def test_the_bridge_exports_a_per_instance_factory(self):
+        self.assertIn('export function createArtelPlugin', self.source)
+
+    def test_the_default_export_is_still_the_default_instance(self):
+        self.assertIn('const plugin: Plugin = createArtelPlugin()', self.source)
+        self.assertIn('export default plugin', self.source)
+        self.assertIn('id: "artel", setup', self.source)
+
+    def test_the_factory_binds_its_root_to_every_hook_spawn(self):
+        factory = self.factory_source()
+        self.assertIn('const root = options.root || ARTEL_ROOT', factory)
+        self.assertIn('const runHook = (script', factory)
+        self.assertIn('spawnHook(root, script', factory)
+        self.assertIn('path.join(root, "hooks", script)', self.source)
+        self.assertIn('registerParallel(ctx, { root })', factory)
+
+    def test_the_factory_root_is_a_local_binding_not_shared_state(self):
+        self.assertNotIn('let ARTEL_ROOT', self.source)
+        self.assertNotIn('export let', self.source)
+        self.assertNotIn('globalThis', self.source)
+
+    def test_the_factory_never_mutates_the_process_environment(self):
+        # The prior scratch stand-in assigned process.env.ARTEL_ROOT; the seam must not.
+        self.assertNotIn('process.env.ARTEL_ROOT =', self.source)
+        self.assertNotIn('setArtelRoot', self.source)
+        self.assertIn('process.env.ARTEL_ROOT ||', self.source)
+
+    def test_two_instances_cannot_change_each_other_or_the_default(self):
+        # The only root input is the construction-time option; nothing exports a setter.
+        factory = self.factory_source()
+        self.assertIn('options: { root?: string } = {}', factory)
+        self.assertNotIn('export function set', self.source)
+        self.assertNotIn('module.exports', self.source)
 
 
 if __name__ == '__main__':

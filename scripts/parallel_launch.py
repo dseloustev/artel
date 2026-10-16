@@ -460,6 +460,29 @@ def _started_envelope(assignment, journal, adopted):
 
 # --- session verification -----------------------------------------------------------------
 
+def _metadata_matches(metadata, assignment):
+    """Whether `metadata` carries this launch identity, extra host namespaces allowed.
+
+    A host may decorate a session with its own metadata namespaces; every required
+    identity key must still be PRESENT and exactly typed and equal. A missing key, a null
+    where an integer belongs, a non-null where the identity is null, and a boolean or float
+    for an integer are all refusals -- `.get(name) == expected` alone would pass a missing
+    nullable key.
+    """
+    if not isinstance(metadata, dict):
+        return False
+    for name, expected in _identity_metadata(assignment).items():
+        if name not in metadata:
+            return False
+        actual = metadata[name]
+        if expected is None:
+            if actual is not None:
+                return False
+        elif type(actual) is not type(expected) or actual != expected:
+            return False
+    return True
+
+
 def _verify_session(session, journal, assignment, ref, agent=None, permissions=None):
     """The returned native session must be exactly the launched one, or a refusal.
 
@@ -492,7 +515,7 @@ def _verify_session(session, journal, assignment, ref, agent=None, permissions=N
     if ref.get('variant') is not None and model.get('variant') != ref['variant']:
         _fail('wrong_model', 'the native session {} runs variant {!r}, not {!r}'.format(
             session_id, model.get('variant'), ref['variant']))
-    if session.get('metadata') != _identity_metadata(assignment):
+    if not _metadata_matches(session.get('metadata'), assignment):
         _fail('wrong_session', 'the native session {} metadata does not carry this launch '
                                'identity'.format(session_id))
     if permissions is not None and session.get('permissions') != permissions:

@@ -118,6 +118,13 @@ recovery, interruption semantics — lives in the policy half `scripts/parallel_
 which reuses `parallel_contract.py`, `hook_common.py` and `task_worktree.py`'s contracts
 instead of restating them.
 
+**Per-instance root.** `opencode/plugin/artel.ts` exports `createArtelPlugin({root})`: one
+bridge instance bound to an explicit install root for every hook spawn and for the adapter
+registration (`registerParallel(ctx, {root})`). The default export is the default instance
+with the `ARTEL_ROOT` environment fallback unchanged; instances never share a root and never
+mutate the process environment, so a trusted scratch proof can load the current bridge from
+its own checkout without touching global state.
+
 **Capabilities.** `workerCapabilities` is read-only and reports the installed version and the
 plugin-client surface the adapter needs. `startWorker` re-checks that report first: anything
 but exactly 2.0.29 with the full surface is refused (`unsupported_version` /
@@ -136,10 +143,15 @@ intent and the assignment identity **before** any session can exist, then the se
 identity, so the native create is idempotent by id: a duplicate start, a crash between
 create and record, or a crash between prompt and record reconciles from the durable native
 session and messages — adopting the existing session or prompting once — instead of creating
-a second session or double-prompting. A wrong session (id, metadata or parent), root, agent,
-model or permission ruleset is refused, never adopted; a malformed journal is refused, never
-overwritten; a null or unresolvable model is refused (`unresolved_model`) and never inherited
-(§9).
+a second session or double-prompting. A wrong session (id or parent), root, agent, model or
+permission ruleset is refused, never adopted; the session's `metadata` must carry every
+launch-identity key — `schema`, `ticket`, `phase`, `task`, `run_id`, `attempt` and `claim`,
+with nullable `phase`/`claim` present as explicit `null` — exactly typed and equal, so a
+missing key, a null where an integer belongs and a boolean or float for an integer all
+refuse, while additional host-added namespaces (a host may decorate its sessions with its own
+metadata) are tolerated because they do not change the launch identity; a malformed journal is
+refused, never overwritten; a null or unresolvable model is refused (`unresolved_model`) and
+never inherited (§9).
 
 **Durable status.** `workerStatus` reads the native session and the validated
 `<artifact_root>/result.json` only — never the event stream, so a missed event window costs

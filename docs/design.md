@@ -1457,3 +1457,24 @@ move to the decision log.
   a separate budget ledger or manifest field, an optimistic fallback when the run state is
   missing, and resetting the counter for another run id. Evidence:
   `tests/test_parallel_budget.py`, `tests/test_parallel_cli.py`.
+- **2026-10-16 — Host-decorated session metadata is tolerated; the bridge is constructible
+  per instance.** Task 11 native-proof fix. The reviewed adapter's session verification
+  required the native session's `metadata` to equal the launch identity exactly; the
+  OpenChamber-managed 2.0.29 service adds its own `metadata.openchamber` namespace to
+  sessions that do work, so `workerStatus` and the interrupt interpretation refused
+  `wrong_session` on every real host while the launch path passed only by racing the
+  decoration. The check now requires every launch-identity key (`schema`, `ticket`, `phase`,
+  `task`, `run_id`, `attempt`, `claim`) to be PRESENT and exactly typed and equal — a missing
+  key, a null where an integer belongs, a non-null where the identity is null, and a boolean
+  or float for an integer all refuse — while additional host namespaces are tolerated; the
+  session id, parent, root, agent, model/variant and permission checks stay strict, and no
+  assignment/result schema, worker payload or caller path changed. In the same round the
+  bridge gained the smallest per-instance seam, `createArtelPlugin({root})`: one instance
+  bound to an explicit install root for every hook spawn and for `registerParallel(ctx,
+  {root})`, the default export being the default instance with the unchanged `ARTEL_ROOT`
+  environment fallback. Rejected: a mutable module/global root setter, a temporary
+  `process.env.ARTEL_ROOT` mutation (the prior scratch proof did the latter; the Task 11
+  report corrects that claim — the restore was never observed, so it is not reused), and
+  special-casing OpenChamber in the policy half. Evidence: `tests/test_parallel_adapter.py`
+  (host-namespace acceptance and the strict negatives), `tests/test_opencode_bridge.py`
+  (the factory seam) and the fresh native two-root proof.

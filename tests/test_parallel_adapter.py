@@ -860,6 +860,242 @@ class TestInterrupt(AdapterCase):
         self.assertEqual(native.calls, [])
 
 
+HOST_METADATA = {'openchamber': {'work': {'state': 'open', 'openedAt': 1792124423347,
+                                          'openedBy': 'auto'}}}
+
+
+class TestHostMetadataNamespace(AdapterCase):
+    """Task 11 native finding: a host may decorate a session's metadata with its own
+    namespaces (the running OpenChamber service adds `metadata.openchamber`). Every
+    launch-identity key must still be PRESENT and exactly typed; a wrong required identity
+    is never adopted. The positive cases are red before the Task 11 fix; the negative
+    guards below stay strict (the report names the ones that were already green)."""
+
+    def decorate(self, native, session_id, metadata=None):
+        value = dict(native.sessions[session_id]['metadata'])
+        value.update(HOST_METADATA if metadata is None else metadata)
+        native.sessions[session_id]['metadata'] = value
+        return value
+
+    def start(self, assignment=None, decorate_on_create=False, **overrides):
+        assignment = assignment or self.create(**overrides)[0]
+        native = FakeNative()
+        if decorate_on_create:
+            original = native.create
+
+            def create(payload):
+                session = original(payload)
+                session['metadata'] = dict(session['metadata'], **HOST_METADATA)
+                native.sessions[session['id']]['metadata'] = session['metadata']
+                return session
+
+            native.create = create
+        envelope = ts_start(self.start_input(assignment), native)
+        return assignment, native, envelope
+
+    def status(self, assignment, native):
+        return ts_status({'request': {'assignment': assignment}, 'caller': self.caller()},
+                         native)
+
+    def interrupt(self, assignment, native):
+        return ts_interrupt({'request': {'assignment': assignment}, 'caller': self.caller()},
+                            native)
+
+    def phase_less(self):
+        """Re-point the ticket lock at a phase-less run so the assignment can carry phase
+        null (the reviewed lifecycle requires the lock to match the assignment)."""
+        lock_dir = Path(git(self.coord, 'rev-parse', '--path-format=absolute',
+                            '--git-common-dir')) / 'artel' / 'parallel'
+        lock = json.loads((lock_dir / (TICKET + '.json')).read_text(encoding='utf-8'))
+        parallel_state.release_ticket(str(self.coord), TICKET, {
+            'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'token': lock['token'], 'completed': True, 'quiescent': True})
+        parallel_state.acquire_ticket(str(self.coord), TICKET, {
+            'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': None})
+        return self.create(phase=None, claim=None)[0]
+
+    # --- the native finding: extra host namespaces are tolerated -------------------------
+
+    def test_a_host_metadata_namespace_is_accepted_on_the_launch_path(self):
+        assignment, native, envelope = self.start(decorate_on_create=True)
+        self.assertEqual(envelope['status'], 'started')
+        self.assertEqual(self.read_journal(assignment)['state'], 'prompted')
+
+    def test_a_host_metadata_namespace_is_accepted_on_status(self):
+        assignment, native, envelope = self.start()
+        self.decorate(native, envelope['session_id'])
+        native.complete(envelope['session_id'], 'succeeded')
+        self.write_result(assignment)
+        status = self.status(assignment, native)
+        self.assertTrue(status['success'])
+        self.assertEqual(status['result']['task'], TASK)
+
+    def test_a_host_metadata_namespace_is_accepted_on_interrupt(self):
+        assignment, native, envelope = self.start()
+        self.decorate(native, envelope['session_id'])
+        reply = self.interrupt(assignment, native)
+        self.assertTrue(reply['interrupted'])
+        self.assertEqual(reply['state'], 'interrupted')
+
+    def test_a_host_metadata_namespace_is_accepted_on_reconcile(self):
+        assignment, _ = self.create()
+        native = FakeNative()
+        self.assertIsNone(ts_start(self.start_input(assignment), native, crash='after_record'))
+        self.decorate(native, native.calls[0][1]['id'])
+        envelope = ts_start(self.start_input(assignment), native)
+        self.assertEqual(envelope['status'], 'started')
+        self.assertEqual(self.read_journal(assignment)['state'], 'prompted')
+
+    # --- strict negatives (already green before the fix where noted) ---------------------
+
+    def test_every_required_identity_key_must_be_present(self):
+        # Already strict before the fix: whole-dict inequality caught a missing key.
+        assignment, native, envelope = self.start()
+        session_id = envelope['session_id']
+        original = dict(native.sessions[session_id]['metadata'])
+        for name in ('schema', 'ticket', 'phase', 'task', 'run_id', 'attempt', 'claim'):
+            with self.subTest(name=name):
+                metadata = dict(original)
+                metadata.pop(name)
+                native.sessions[session_id]['metadata'] = metadata
+                with self.assertRaises(parallel_launch.LaunchError) as caught:
+                    self.status(assignment, native)
+                self.assertEqual(caught.exception.kind, 'wrong_session')
+        native.sessions[session_id]['metadata'] = original
+
+    def test_a_nullable_key_must_be_present_with_matching_null(self):
+        # `phase` null and `claim` null are legal identities; a naive
+        # `.get(name) == expected` would pass a MISSING nullable key, so membership is
+        # pinned here. The positive step is red before the fix only because of the host
+        # namespace; the missing/null steps were already strict.
+        assignment = self.phase_less()
+        native = FakeNative()
+        envelope = ts_start(self.start_input(assignment), native)
+        session_id = envelope['session_id']
+        native.complete(session_id, 'succeeded')
+        self.write_result(assignment)
+        metadata = dict(native.sessions[session_id]['metadata'])
+        self.assertIsNone(metadata['phase'])
+        self.assertIsNone(metadata['claim'])
+        self.assertTrue(self.status(assignment, native)['success'])
+
+        for name in ('phase', 'claim'):
+            with self.subTest(missing=name):
+                broken = dict(metadata)
+                broken.pop(name)
+                native.sessions[session_id]['metadata'] = broken
+                with self.assertRaises(parallel_launch.LaunchError) as caught:
+                    self.status(assignment, native)
+                self.assertEqual(caught.exception.kind, 'wrong_session')
+        for name, value in (('phase', 0), ('claim', 'artel@someone')):
+            with self.subTest(name=name, value=value):
+                native.sessions[session_id]['metadata'] = dict(metadata, **{name: value})
+                with self.assertRaises(parallel_launch.LaunchError) as caught:
+                    self.status(assignment, native)
+                self.assertEqual(caught.exception.kind, 'wrong_session')
+        native.sessions[session_id]['metadata'] = metadata
+        self.assertTrue(self.status(assignment, native)['success'])
+
+    def test_a_boolean_or_float_never_matches_an_integer_identity(self):
+        # Python's `==` says True == 1 and 1.0 == 1, so the old whole-dict equality
+        # accepted a boolean or a float where the schema/attempt integer belongs. These
+        # subtests are genuine red guards on 7e7c61b.
+        assignment, native, envelope = self.start()
+        session_id = envelope['session_id']
+        original = dict(native.sessions[session_id]['metadata'])
+        for name, value in (('schema', True), ('attempt', True), ('schema', 1.0),
+                            ('attempt', 1.0), ('phase', True)):
+            with self.subTest(name=name, value=value):
+                native.sessions[session_id]['metadata'] = dict(original, **{name: value})
+                with self.assertRaises(parallel_launch.LaunchError) as caught:
+                    self.status(assignment, native)
+                self.assertEqual(caught.exception.kind, 'wrong_session')
+        native.sessions[session_id]['metadata'] = original
+
+    def test_null_and_wrong_typed_values_are_refused(self):
+        # Green before the fix too (dict inequality), but pinned here for the typed
+        # comparison: a null where a value is required, and a value of the wrong type.
+        assignment, native, envelope = self.start()
+        session_id = envelope['session_id']
+        original = dict(native.sessions[session_id]['metadata'])
+        for name, value in (('schema', None), ('attempt', None), ('phase', None),
+                            ('task', 7), ('ticket', ['PROJ-123']), ('claim', 7)):
+            with self.subTest(name=name, value=value):
+                native.sessions[session_id]['metadata'] = dict(original, **{name: value})
+                with self.assertRaises(parallel_launch.LaunchError) as caught:
+                    self.status(assignment, native)
+                self.assertEqual(caught.exception.kind, 'wrong_session')
+        native.sessions[session_id]['metadata'] = original
+
+    def test_extra_metadata_does_not_mask_a_wrong_required_identity(self):
+        # Green before the fix (whole-dict inequality); must stay strict.
+        assignment, native, envelope = self.start()
+        session_id = envelope['session_id']
+        original = dict(native.sessions[session_id]['metadata'])
+        for name, value in (('ticket', 'OTHER-1'), ('task', '9.9'), ('run_id', OTHER_RUN),
+                            ('phase', 3), ('claim', 'artel@someone')):
+            with self.subTest(name=name):
+                native.sessions[session_id]['metadata'] = dict(original, **{name: value})
+                with self.assertRaises(parallel_launch.LaunchError) as caught:
+                    self.status(assignment, native)
+                self.assertEqual(caught.exception.kind, 'wrong_session')
+        native.sessions[session_id]['metadata'] = original
+
+    def test_extra_metadata_does_not_mask_a_wrong_session_shape(self):
+        assignment, native, envelope = self.start()
+        session_id = envelope['session_id']
+        stored = native.sessions[session_id]
+        cases = (
+            ('id', {'id': 'ses_other'}, 'wrong_session'),
+            ('parent', {'parentID': 'ses_parent'}, 'wrong_session'),
+            ('root', {'location': {'directory': str(self.coord)}}, 'wrong_root'),
+            ('agent', {'agent': 'someone-else'}, 'wrong_agent'),
+            ('model', {'model': {'providerID': 'x', 'id': 'y'}}, 'wrong_model'),
+        )
+        for name, change, kind in cases:
+            with self.subTest(name=name):
+                wrong = dict(stored)
+                wrong.update(change)
+                wrong['metadata'] = dict(stored['metadata'], **HOST_METADATA)
+                with self.assertRaises(parallel_launch.LaunchError) as caught:
+                    parallel_launch.interpret_status({'assignment': assignment}, wrong, [])
+                self.assertEqual(caught.exception.kind, kind)
+
+    def test_extra_metadata_does_not_mask_wrong_permissions(self):
+        assignment, _ = self.create()
+        native = FakeNative()
+        plan = parallel_launch.plan_start(**self.start_input(assignment))
+        session = native.create(plan['create'])
+        session['metadata'] = dict(session['metadata'], **HOST_METADATA)
+        session['permissions'] = [{'action': 'edit', 'resource': '*', 'effect': 'deny'}]
+        request = self.request(assignment=assignment, permissions=[
+            {'action': 'edit', 'resource': '*', 'effect': 'allow'}])
+        with self.assertRaises(parallel_launch.LaunchError) as caught:
+            parallel_launch.record_session(request, session)
+        self.assertEqual(caught.exception.kind, 'permissions_mismatch')
+
+    def test_extra_metadata_does_not_mask_a_missing_key_on_launch(self):
+        assignment, _ = self.create()
+        native = FakeNative()
+        plan = parallel_launch.plan_start(**self.start_input(assignment))
+        session = native.create(plan['create'])
+        metadata = dict(session['metadata'], **HOST_METADATA)
+        metadata.pop('task')
+        session['metadata'] = metadata
+        with self.assertRaises(parallel_launch.LaunchError) as caught:
+            parallel_launch.record_session(self.request(assignment=assignment), session)
+        self.assertEqual(caught.exception.kind, 'wrong_session')
+
+    def test_metadata_must_be_an_object(self):
+        assignment, native, envelope = self.start()
+        for value in (None, [], 'not-an-object', 7):
+            with self.subTest(value=value):
+                native.sessions[envelope['session_id']]['metadata'] = value
+                with self.assertRaises(parallel_launch.LaunchError) as caught:
+                    self.status(assignment, native)
+                self.assertEqual(caught.exception.kind, 'wrong_session')
+
+
 class TestAdapterDocs(unittest.TestCase):
     def test_the_contract_documents_the_adapter_tools(self):
         text = flat('docs/opencode-parallel.md')

@@ -38,6 +38,12 @@
  * Everything is inert unless the project has .artel/config.json. Install root:
  * $ARTEL_ROOT or ~/.config/opencode/artel (scripts/install-opencode.sh).
  *
+ * `createArtelPlugin({root})` builds one instance bound to an explicit install root for
+ * every hook spawn and for the parallel adapter registration; the default export is the
+ * default instance (the `ARTEL_ROOT` environment fallback, unchanged). Instances never
+ * share a root and never mutate the process environment, so a trusted scratch proof can
+ * load the current bridge from its own checkout without touching global state.
+ *
  * The default export is a plain object: v2 validates it for `id` + `setup`. The
  * `@opencode/plugin` import is type-only and erased — the package is not resolvable
  * from the plugin's install directory.
@@ -115,11 +121,11 @@ function isWorkerLocation(directory: string): boolean {
   }
 }
 
-function runHook(script: string, payload: unknown, cwd: string, timeoutMs: number): Promise<HookResult> {
+function spawnHook(root: string, script: string, payload: unknown, cwd: string, timeoutMs: number): Promise<HookResult> {
   return new Promise((resolve) => {
     let stdout = ""
     let stderr = ""
-    const child = spawn("python3", [path.join(ARTEL_ROOT, "hooks", script)], { cwd })
+    const child = spawn("python3", [path.join(root, "hooks", script)], { cwd })
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs)
     child.stdout.on("data", (chunk) => (stdout += chunk))
     child.stderr.on("data", (chunk) => (stderr += chunk))
@@ -223,247 +229,259 @@ const stopRuns = new Set<string>()
  * event-driven hook checks this before touching this location's state. */
 const sessionLocations = new Map<string, string>()
 
-const setup: Plugin["setup"] = async (ctx) => {
-  const directory = ctx.location.directory
-  const controller = new AbortController()
+export function createArtelPlugin(options: { root?: string } = {}): Plugin {
+  const root = options.root || ARTEL_ROOT
+  /** One hook invocation bound to THIS instance's install root; two instances with
+   * different roots never share one, and the default instance keeps the
+   * `ARTEL_ROOT` environment fallback. */
+  const runHook = (script: string, payload: unknown, cwd: string, timeoutMs: number) =>
+    spawnHook(root, script, payload, cwd, timeoutMs)
 
-  // The parallel worker-session adapter (Task 7): tools only — it registers no hooks and
-  // subscribes to no events, so loading it never doubles the bridge's hook bindings. A
-  // host without the registration surface keeps the bridge (and loses only parallel mode,
-  // which its capability preflight then refuses).
-  try {
-    registerParallel(ctx)
-  } catch (error) {
-    console.warn("artel: the parallel worker adapter did not register: " + String(error))
-  }
+  const setup: Plugin["setup"] = async (ctx) => {
+    const directory = ctx.location.directory
+    const controller = new AbortController()
 
-  /** This location's worker role, resolved once: the lifecycle writes the marker before the
-   * worker session exists and nothing rewrites it while the session runs. */
-  let workerLocation: boolean | undefined
-  const isWorker = (): boolean => {
-    if (workerLocation === undefined) workerLocation = isWorkerLocation(directory)
-    return workerLocation
-  }
-
-  /** The session's own location directory, or '' when it cannot be resolved. Cached:
-   * `session.created` carries the location, execution events do not. A failed lookup is
-   * not cached, so a transient error never pins a session as foreign. */
-  const sessionDirectory = async (sessionID: string): Promise<string> => {
-    const known = sessionLocations.get(sessionID)
-    if (known !== undefined) return known
+    // The parallel worker-session adapter (Task 7): tools only — it registers no hooks and
+    // subscribes to no events, so loading it never doubles the bridge's hook bindings. A
+    // host without the registration surface keeps the bridge (and loses only parallel mode,
+    // which its capability preflight then refuses).
     try {
-      const session: any = await ctx.session.get({ sessionID })
-      const resolved = String((session?.data ?? session)?.location?.directory ?? "")
-      sessionLocations.set(sessionID, resolved)
-      return resolved
-    } catch {
-      return ""
-    }
-  }
-
-  await ctx.tool.hook("execute.before", async (event) => {
-    if (!hasArtelConfig(directory)) return
-
-    // A pinned worker never orchestrates and never asks the user: it returns the pinned
-    // assignment's structured result, with questions and deviations as proposals.
-    if (isWorker() && WORKER_DENIED_TOOLS.has(event.tool)) {
-      throw new Error(
-        `artel worker role: a pinned worker session never calls \`${event.tool}\` — return ` +
-          "the result with a structured proposal instead of orchestrating or asking.",
-      )
+      registerParallel(ctx, { root })
+    } catch (error) {
+      console.warn("artel: the parallel worker adapter did not register: " + String(error))
     }
 
-    if (event.tool === "shell" || isPlatformTool(event.tool)) {
-      const payload = {
-        session_id: event.sessionID,
-        cwd: directory,
-        tool_name: event.tool === "shell" ? "Bash" : event.tool,
-        tool_input: event.tool === "shell" ? { command: (event.input as any)?.command ?? "" } : {},
-      }
-      const result = await runHook("vcs_guard.py", payload, directory, 10_000)
-      const decision = firstJson(result.stdout)?.hookSpecificOutput
-      if (decision?.permissionDecision === "deny") {
-        throw new Error(
-          `artel vcs guard: ${decision.permissionDecisionReason ?? "this platform is not this project's home"}`,
-        )
-      }
-      return
+    /** This location's worker role, resolved once: the lifecycle writes the marker before the
+     * worker session exists and nothing rewrites it while the session runs. */
+    let workerLocation: boolean | undefined
+    const isWorker = (): boolean => {
+      if (workerLocation === undefined) workerLocation = isWorkerLocation(directory)
+      return workerLocation
     }
 
-    if (event.tool === "read") {
-      const filePath = toolPath(event.input)
-      if (!filePath) return
-      const hint = await runHook(
-        "spec_store_guard.py",
-        claudePayload(event.sessionID, directory, "Read", filePath),
-        directory,
-        10_000,
-      )
-      const hintDecision = firstJson(hint.stdout)?.hookSpecificOutput
-      if (hintDecision?.permissionDecision === "deny") {
-        throw new Error(
-          `artel spec-store guard: ${hintDecision.permissionDecisionReason ?? "images are stored in kartoteka"}`,
-        )
-      }
-      return
-    }
-
-    if (!MUTATION_TOOLS.has(event.tool)) return
-    for (const filePath of mutationPaths(event.tool, event.input)) {
-      const payload = claudePayload(event.sessionID, directory, claudeToolName(event.tool), filePath)
-      const result = await runHook("sensitive_guard.py", payload, directory, 30_000)
-      const decision = firstJson(result.stdout)?.hookSpecificOutput
-      if (decision?.permissionDecision === "deny") {
-        throw new Error(
-          `artel sensitive-path guard: ${decision.permissionDecisionReason ?? "this path is protected"}`,
-        )
-      }
-      const store = await runHook("spec_store_guard.py", payload, directory, 10_000)
-      const storeDecision = firstJson(store.stdout)?.hookSpecificOutput
-      if (storeDecision?.permissionDecision === "deny") {
-        throw new Error(
-          `artel spec-store guard: ${storeDecision.permissionDecisionReason ?? "spec documents live in kartoteka"}`,
-        )
-      }
-    }
-  })
-
-  await ctx.tool.hook("execute.after", async (event) => {
-    if (!hasArtelConfig(directory) || !MUTATION_TOOLS.has(event.tool)) return
-    // Verify first, mirror second (hooks.json's order): nothing throws anymore, so the
-    // ordering hack the v1 bridge needed is gone.
-    for (const filePath of mutationPaths(event.tool, event.input)) {
-      const payload = claudePayload(event.sessionID, directory, claudeToolName(event.tool), filePath)
-      const result = await runHook("fast_verify_post_edit.py", payload, directory, 150_000)
-      await runHook("knowledge_mirror.py", payload, directory, 15_000)
-      const findings = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
-      if (findings) appendFindings(event, findings)
-    }
-  })
-
-  await ctx.session.hook("context", async (event) => {
-    if (!hasArtelConfig(directory)) return
-    // A pinned worker gets its assignment from the coordinator's prompt, never the router.
-    if (isWorker()) return
-    const firstUser: any = (event.messages ?? []).find((message: any) => message.role === "user")
-    const sessionID = event.sessionID
-    if (!firstUser || !Array.isArray(firstUser.content) || !sessionID) return
-    // Subagent child sessions get no router: routing is the main session's job.
-    if (childSessions.has(sessionID)) return
-    if (firstUser.content.some((part: any) => part?.type === "text" && part.text?.includes(ROUTER_MARKER))) return
-    let context = routerCache.get(sessionID)
-    if (context === undefined) {
-      const result = await runHook("using_artel.py", { session_id: sessionID, cwd: directory }, directory, 10_000)
-      context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
-      if (context) {
-        routerCache.set(sessionID, context)
-      } else {
-        // With .artel/config.json present the hook ALWAYS emits context, so no output means
-        // it failed. Don't cache the failure: retry on the next model step.
-        const diagnostic = result.stderr.trim()
-        if (diagnostic) console.warn("artel: using_artel produced no router context: " + diagnostic)
-        return
-      }
-    }
-    firstUser.content.unshift({ type: "text", text: context + ROUTER_NOTE })
-  })
-
-  const runStopGate = async (sessionID: string) => {
-    // The stream is server-wide and execution events carry no location: a session from
-    // another checkout must never run this location's gates.
-    if ((await sessionDirectory(sessionID)) !== directory) return
-    for (const script of ["stop_gate.py", "verify_stop_gate.py"]) {
-      const result = await runHook(script, { session_id: sessionID, cwd: directory }, directory, 300_000)
-      const decision = firstJson(result.stdout)
-      if (decision?.decision !== "block" || !decision?.reason) {
-        // The gates' pass-through warnings (cap reached, verify env error) must not become
-        // silent here; v2 has no app-log client, so console carries them.
-        const warning = decision?.systemMessage || result.stderr.trim()
-        if (warning) console.warn("artel: " + warning)
-        continue
-      }
-      const blocks = (stopBlocks.get(sessionID) ?? 0) + 1
-      stopBlocks.set(sessionID, blocks)
-      if (blocks > MAX_STOP_BLOCKS) {
-        console.warn(`artel: stop-gate block cap (${MAX_STOP_BLOCKS}) reached for session ${sessionID}`)
-        return
-      }
+    /** The session's own location directory, or '' when it cannot be resolved. Cached:
+     * `session.created` carries the location, execution events do not. A failed lookup is
+     * not cached, so a transient error never pins a session as foreign. */
+    const sessionDirectory = async (sessionID: string): Promise<string> => {
+      const known = sessionLocations.get(sessionID)
+      if (known !== undefined) return known
       try {
-        await ctx.session.prompt({
-          sessionID,
-          text:
-            `artel stop gate blocked this stop:\n${decision.reason}\n` +
-            "Address the findings, then finish again.",
-        })
-      } catch (error) {
-        console.warn("artel: stop-gate re-prompt failed: " + String(error))
+        const session: any = await ctx.session.get({ sessionID })
+        const resolved = String((session?.data ?? session)?.location?.directory ?? "")
+        sessionLocations.set(sessionID, resolved)
+        return resolved
+      } catch {
+        return ""
       }
-      return
     }
-    // Both gates passed — the consecutive-block run (if any) is over.
-    stopBlocks.delete(sessionID)
-  }
 
-  // The subscription is pull-based and awaits this handler, so a 300 s hook awaited inline
-  // would stall every other event: gate and baseline runs are fire-and-forget, and the
-  // per-session in-flight set keeps two gate runs from overlapping.
-  void (async () => {
-    try {
-      for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
-        if (!hasArtelConfig(directory)) continue
-        const data: any = (event as any).data ?? {}
-        const sessionID: string | undefined = data.sessionID
+    await ctx.tool.hook("execute.before", async (event) => {
+      if (!hasArtelConfig(directory)) return
 
-        if (event.type === "session.created") {
-          // The session's own location rides on the event; cache it, and act only when it
-          // is this checkout (the stream is server-wide).
-          const sessionDir = String(data.location?.directory ?? "")
-          if (sessionID) sessionLocations.set(sessionID, sessionDir)
-          if (sessionDir !== directory) continue
-          if (data.parentID) {
-            if (sessionID) childSessions.add(sessionID)
+      // A pinned worker never orchestrates and never asks the user: it returns the pinned
+      // assignment's structured result, with questions and deviations as proposals.
+      if (isWorker() && WORKER_DENIED_TOOLS.has(event.tool)) {
+        throw new Error(
+          `artel worker role: a pinned worker session never calls \`${event.tool}\` — return ` +
+            "the result with a structured proposal instead of orchestrating or asking.",
+        )
+      }
+
+      if (event.tool === "shell" || isPlatformTool(event.tool)) {
+        const payload = {
+          session_id: event.sessionID,
+          cwd: directory,
+          tool_name: event.tool === "shell" ? "Bash" : event.tool,
+          tool_input: event.tool === "shell" ? { command: (event.input as any)?.command ?? "" } : {},
+        }
+        const result = await runHook("vcs_guard.py", payload, directory, 10_000)
+        const decision = firstJson(result.stdout)?.hookSpecificOutput
+        if (decision?.permissionDecision === "deny") {
+          throw new Error(
+            `artel vcs guard: ${decision.permissionDecisionReason ?? "this platform is not this project's home"}`,
+          )
+        }
+        return
+      }
+
+      if (event.tool === "read") {
+        const filePath = toolPath(event.input)
+        if (!filePath) return
+        const hint = await runHook(
+          "spec_store_guard.py",
+          claudePayload(event.sessionID, directory, "Read", filePath),
+          directory,
+          10_000,
+        )
+        const hintDecision = firstJson(hint.stdout)?.hookSpecificOutput
+        if (hintDecision?.permissionDecision === "deny") {
+          throw new Error(
+            `artel spec-store guard: ${hintDecision.permissionDecisionReason ?? "images are stored in kartoteka"}`,
+          )
+        }
+        return
+      }
+
+      if (!MUTATION_TOOLS.has(event.tool)) return
+      for (const filePath of mutationPaths(event.tool, event.input)) {
+        const payload = claudePayload(event.sessionID, directory, claudeToolName(event.tool), filePath)
+        const result = await runHook("sensitive_guard.py", payload, directory, 30_000)
+        const decision = firstJson(result.stdout)?.hookSpecificOutput
+        if (decision?.permissionDecision === "deny") {
+          throw new Error(
+            `artel sensitive-path guard: ${decision.permissionDecisionReason ?? "this path is protected"}`,
+          )
+        }
+        const store = await runHook("spec_store_guard.py", payload, directory, 10_000)
+        const storeDecision = firstJson(store.stdout)?.hookSpecificOutput
+        if (storeDecision?.permissionDecision === "deny") {
+          throw new Error(
+            `artel spec-store guard: ${storeDecision.permissionDecisionReason ?? "spec documents live in kartoteka"}`,
+          )
+        }
+      }
+    })
+
+    await ctx.tool.hook("execute.after", async (event) => {
+      if (!hasArtelConfig(directory) || !MUTATION_TOOLS.has(event.tool)) return
+      // Verify first, mirror second (hooks.json's order): nothing throws anymore, so the
+      // ordering hack the v1 bridge needed is gone.
+      for (const filePath of mutationPaths(event.tool, event.input)) {
+        const payload = claudePayload(event.sessionID, directory, claudeToolName(event.tool), filePath)
+        const result = await runHook("fast_verify_post_edit.py", payload, directory, 150_000)
+        await runHook("knowledge_mirror.py", payload, directory, 15_000)
+        const findings = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
+        if (findings) appendFindings(event, findings)
+      }
+    })
+
+    await ctx.session.hook("context", async (event) => {
+      if (!hasArtelConfig(directory)) return
+      // A pinned worker gets its assignment from the coordinator's prompt, never the router.
+      if (isWorker()) return
+      const firstUser: any = (event.messages ?? []).find((message: any) => message.role === "user")
+      const sessionID = event.sessionID
+      if (!firstUser || !Array.isArray(firstUser.content) || !sessionID) return
+      // Subagent child sessions get no router: routing is the main session's job.
+      if (childSessions.has(sessionID)) return
+      if (firstUser.content.some((part: any) => part?.type === "text" && part.text?.includes(ROUTER_MARKER))) return
+      let context = routerCache.get(sessionID)
+      if (context === undefined) {
+        const result = await runHook("using_artel.py", { session_id: sessionID, cwd: directory }, directory, 10_000)
+        context = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
+        if (context) {
+          routerCache.set(sessionID, context)
+        } else {
+          // With .artel/config.json present the hook ALWAYS emits context, so no output means
+          // it failed. Don't cache the failure: retry on the next model step.
+          const diagnostic = result.stderr.trim()
+          if (diagnostic) console.warn("artel: using_artel produced no router context: " + diagnostic)
+          return
+        }
+      }
+      firstUser.content.unshift({ type: "text", text: context + ROUTER_NOTE })
+    })
+
+    const runStopGate = async (sessionID: string) => {
+      // The stream is server-wide and execution events carry no location: a session from
+      // another checkout must never run this location's gates.
+      if ((await sessionDirectory(sessionID)) !== directory) return
+      for (const script of ["stop_gate.py", "verify_stop_gate.py"]) {
+        const result = await runHook(script, { session_id: sessionID, cwd: directory }, directory, 300_000)
+        const decision = firstJson(result.stdout)
+        if (decision?.decision !== "block" || !decision?.reason) {
+          // The gates' pass-through warnings (cap reached, verify env error) must not become
+          // silent here; v2 has no app-log client, so console carries them.
+          const warning = decision?.systemMessage || result.stderr.trim()
+          if (warning) console.warn("artel: " + warning)
+          continue
+        }
+        const blocks = (stopBlocks.get(sessionID) ?? 0) + 1
+        stopBlocks.set(sessionID, blocks)
+        if (blocks > MAX_STOP_BLOCKS) {
+          console.warn(`artel: stop-gate block cap (${MAX_STOP_BLOCKS}) reached for session ${sessionID}`)
+          return
+        }
+        try {
+          await ctx.session.prompt({
+            sessionID,
+            text:
+              `artel stop gate blocked this stop:\n${decision.reason}\n` +
+              "Address the findings, then finish again.",
+          })
+        } catch (error) {
+          console.warn("artel: stop-gate re-prompt failed: " + String(error))
+        }
+        return
+      }
+      // Both gates passed — the consecutive-block run (if any) is over.
+      stopBlocks.delete(sessionID)
+    }
+
+    // The subscription is pull-based and awaits this handler, so a 300 s hook awaited inline
+    // would stall every other event: gate and baseline runs are fire-and-forget, and the
+    // per-session in-flight set keeps two gate runs from overlapping.
+    void (async () => {
+      try {
+        for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+          if (!hasArtelConfig(directory)) continue
+          const data: any = (event as any).data ?? {}
+          const sessionID: string | undefined = data.sessionID
+
+          if (event.type === "session.created") {
+            // The session's own location rides on the event; cache it, and act only when it
+            // is this checkout (the stream is server-wide).
+            const sessionDir = String(data.location?.directory ?? "")
+            if (sessionID) sessionLocations.set(sessionID, sessionDir)
+            if (sessionDir !== directory) continue
+            if (data.parentID) {
+              if (sessionID) childSessions.add(sessionID)
+              continue
+            }
+            if (sessionID) {
+              void runHook("session_baseline.py", { session_id: sessionID, cwd: directory }, directory, 120_000)
+            }
             continue
           }
-          if (sessionID) {
-            void runHook("session_baseline.py", { session_id: sessionID, cwd: directory }, directory, 120_000)
+
+          if (event.type === "session.moved") {
+            // A move changes a session's location; a stale cache entry would misroute it.
+            if (sessionID) sessionLocations.set(sessionID, String(data.location?.directory ?? ""))
+            continue
           }
-          continue
-        }
 
-        if (event.type === "session.moved") {
-          // A move changes a session's location; a stale cache entry would misroute it.
-          if (sessionID) sessionLocations.set(sessionID, String(data.location?.directory ?? ""))
-          continue
-        }
-
-        if (event.type === "session.compaction.ended") {
-          if (sessionID) routerCache.delete(sessionID)
-          continue
-        }
-
-        if (event.type === "session.deleted") {
-          if (sessionID) {
-            routerCache.delete(sessionID)
-            childSessions.delete(sessionID)
-            stopBlocks.delete(sessionID)
-            sessionLocations.delete(sessionID)
+          if (event.type === "session.compaction.ended") {
+            if (sessionID) routerCache.delete(sessionID)
+            continue
           }
-          continue
-        }
 
-        if (event.type === "session.execution.succeeded") {
-          if (!sessionID || childSessions.has(sessionID) || stopRuns.has(sessionID)) continue
-          stopRuns.add(sessionID)
-          void runStopGate(sessionID).finally(() => stopRuns.delete(sessionID))
+          if (event.type === "session.deleted") {
+            if (sessionID) {
+              routerCache.delete(sessionID)
+              childSessions.delete(sessionID)
+              stopBlocks.delete(sessionID)
+              sessionLocations.delete(sessionID)
+            }
+            continue
+          }
+
+          if (event.type === "session.execution.succeeded") {
+            if (!sessionID || childSessions.has(sessionID) || stopRuns.has(sessionID)) continue
+            stopRuns.add(sessionID)
+            void runStopGate(sessionID).finally(() => stopRuns.delete(sessionID))
+          }
         }
+      } catch (error) {
+        if (!controller.signal.aborted) console.warn("artel: event subscription ended: " + String(error))
       }
-    } catch (error) {
-      if (!controller.signal.aborted) console.warn("artel: event subscription ended: " + String(error))
-    }
-  })()
+    })()
 
-  return () => controller.abort()
+    return () => controller.abort()
+  }
+
+  return { id: "artel", setup }
 }
 
-const plugin: Plugin = { id: "artel", setup }
+const plugin: Plugin = createArtelPlugin()
 export default plugin
+

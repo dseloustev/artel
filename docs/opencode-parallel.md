@@ -1,6 +1,6 @@
 # OpenCode parallel workers — frozen contract
 
-*Status: v0.1 · 2026-10-15 · proven on OpenCode 2.0.29*
+*Status: v0.2 · 2026-10-16 · proven on OpenCode 2.0.29*
 
 Sub-project 2c runs one worker session per task on the OpenCode host. This file is the
 contract the native capability gate froze: it fixes the session interfaces the adapter
@@ -20,6 +20,12 @@ Proven against **OpenCode 2.0.29** only. The names below are the installed v2 HT
 event stream, retrieved through `opencode api get /openapi.json`; capability coverage is
 exactly the proven version, not every V2 release, so a version change re-runs the gate before
 parallel mode is enabled.
+
+Validated end to end on a real host fixture (2026-10-16) in local file-backed mode: native
+worker sessions implemented disjoint tasks at `seats: 2`, ran the scoped task gate, passed
+task reviews, and the coordinator owned the transport/apply/one-cycle commit and the durable
+completion publication, with a pause/resume across a coordinator restart and a `seats: 1`
+sample. §14 records the evidence and, explicitly, the limits.
 
 ## 1. What the proof established
 
@@ -367,7 +373,7 @@ did not declare. When `changed_files` exceeds `files`, the result records a devi
 — minor continues, major halts and escalates. A path escaping `worker_root` is not a
 deviation to route: it is rejected (§5).
 
-## 12. Capability failure, unproven items and non-native protections
+## 12. Capability failure, unproven items and the native boundary
 
 Parallel mode fails preflight: before any production claim or worktree is created, the
 coordinator checks the running service against this contract (the version and the interface
@@ -393,29 +399,30 @@ Unproven on 2.0.29, and therefore not relied on without re-verification:
 - The barrier that held the two proof workers relied on the model following the pinned
   prompt; it was scratch instrumentation, not protection.
 
-### Not native — worker-mode protections (Task 6)
+### Worker-mode protections (shipped) and the remaining native boundary
 
-The proof demonstrated the native session mechanics only; none of these protections ship
-today:
+The native session mechanics do not enforce the worker role by themselves; the following
+protections are implementation, and they ship:
 
-- **No-orchestrator role guard.** Nothing native stops a worker session from dispatching
-  subagents, creating sessions or otherwise acting as a second orchestrator; the base policy
-  allows the `subagent` action unless a permission rule denies it. The implementation must
-  enforce the worker role — workers execute the pinned assignment and never orchestrate — and
-  deny orchestration actions in worker sessions.
-- **Armed stop-gate interaction.** The existing bridge re-prompts a finished root session
-  while the host run is armed (`run_active: true`, `completed: false`, `pause_reason: null`),
-  so a worker that stops under an armed run is re-prompted by the gate. Parallel runs must
-  either keep workers outside the armed stop-gate path or account for the gate in the worker
-  lifecycle; worker stop and router flows need the same role handling.
+- **No-orchestrator role guard.** The bridge denies `subagent`, `question` and every
+  `artel_parallel_*` tool in a worker location (the authoritative marker decides), and the
+  policy half independently refuses a caller whose location is a pinned worker root
+  (`caller_is_worker`), so a worker gains no session-creation authority by naming the
+  adapter instead of `subagent`. Natively proven (Task 7 fix round): the three calls were
+  denied pre-execution, no child session, no form and no journal.
+- **Armed stop-gate interaction.** A worker root is its own checkout with its own run
+  state; the coordinator never arms a worker root, so the stop gate is inert there. The
+  gate is not disabled for workers — a worker root that were armed would still be
+  re-prompted by the existing bridge.
 - **Seat admission, queue and lease.** There is no native seat limit, queue or lease: the
-  coordinator enforces `parallel.seats`, owns retries, and a crashed coordinator leaves its
-  workers running.
+  coordinator enforces `parallel.seats`, owns claims and retries, and a crashed coordinator
+  leaves its workers running — recovery is the coordinator's durable-state reconciliation
+  (§13).
 - **Worktree scoping.** Nothing native scopes a session to `worker_root` (only the base
-  policy's `external_directory` ask limits paths); the coordinator's path validation is the
-  boundary.
-- **Missed-event recovery policy.** The stream has no replay, so the coordinator must
-  reconcile from durable session state and define the reconnect semantics.
+  policy's `external_directory` ask limits paths); the coordinator's path validation and
+  the assignment contract are the boundary.
+- **Missed-event recovery.** The stream has no replay; the adapter never reads events, and
+  the coordinator recovers from durable session state and messages (§2, §10).
 
 ## 13. Run state, ticket ownership and claim recovery
 
@@ -712,6 +719,13 @@ commit is the task's integration, and the collection step itself; the lifecycle 
 the Git and evidence proofs available to it and refuses anything it cannot prove. In the
 inspection report, state `published` only means "a result ref exists" — it is not §6's
 `published` task state, which remains the coordinator's record.
+
+A real host's worker root is not only the worker's own files: the bridge's hooks keep their
+per-session state in the root's own `.artel/run/.hooks/` (session baselines, stop-gate
+counters). Those files are not part of the publication proof's accounted set, so cleanup
+refuses `dirty_worktree` and preserves the root — by design (nothing is force-removed), but
+it means a root on a host with the bridge active stays for the operator to inspect and
+remove. The refusal never undoes a valid publication and never requires a relaunch.
 
 ### 13.8 Serialized integration and recovery
 
@@ -1149,3 +1163,67 @@ the shipped `artel`, and the scratch wrapper pointed `ARTEL_ROOT` at the checkou
 module evaluation only (the globally installed copy predates this task; the process value is
 restored immediately). Raw evidence: `.artel/run/repro/opencode-parallel-proof/task7/fix1-native-preflight/`
 and `.../fix1-native-run/`.
+
+**Task 12 real-host fixture (2026-10-16).** A disposable scratch host carried a real
+file-backed ticket (`PROOF-12`, phase 1) with a three-task tasklist — 1.1 and 1.2 disjoint,
+1.3 depending on both — a configured `setup.commands` codegen step (a real generator plus a
+baseline test run, ~0.3–0.5 s per worker root), configured `verify.test`/`verify.testSurface`
+gate commands, and the scratch-local per-instance bridge wrapper (a distinct plugin id
+building one `createArtelPlugin({root})` instance from the exact checkout, with the obsolete
+global `artel` disabled for the location only). The run drove the documented coordinator CLI
+(`scripts/parallel.py`); a native coordinator session performed every adapter call
+(`workerCapabilities`, `startWorker`, `workerStatus`), native worker sessions
+(`tokenguard/deepseek-flash`, agent `artel-implementer`) implemented the tasks, and native
+reviewer sessions (`tokenguard/glm-5.3`) produced the task-review verdicts. This is
+**script-assisted CLI coordination** with native sessions for the adapter and the reviews —
+not the generated inline coordinator procedure (§13.11), which no model drove here, and not
+the artel `run-reviewer` skill.
+
+Recorded at `seats: 2`: two workers ran concurrently (both in `session/active` at once, and
+the event stream shows both `session.execution.started` before either `succeeded`), each
+wrote real code and tests and ran the scoped task gate green in its own worktree; the
+coordinator accepted the reviews (1.1 full; 1.2 route-floored to full by its recorded minor
+deviation on an undeclared path); 1.1's integration parked 1.2 at `prepared` (`drain.waiting`
+names it) and committed code plus the files-path tick; then the run **paused** — run-state
+`pause_reason` set, lock retained, 1.3 absent from the manifest with no worktree and no
+journal — and a **new process** with a **new coordinator session** rediscovered the run from
+disk, reconciled both worker dispositions with `workerStatus`, integrated and published 1.2,
+and only then admitted 1.3, whose base commit is 1.2's cycle commit. Exactly one cycle commit
+per task landed on the ticket branch (three, plus the fixture seed), each carrying the code
+plus the tasklist tick (and 1.2's ordered note); `integration recover` recognized each landed
+commit without a second commit; the publication plan ran committed-documents →
+collect-evidence → promote per task; the lock was released only after `completed` and
+quiescent. A cleanup attempt was refused `dirty_worktree` — the bridge's own hook-state files
+in the worker root are not part of the accounted set (§13.7) — and the root was preserved.
+The bridge's stop gate ran in every worker root (each left its `stopblocks` counter) and
+passed: a worker root carries no armed run state, which is the shipped answer to the
+armed-stop-gate question of §12.
+
+Raw times (one sample each, wall-clock ms; one synthetic fixture, not a benchmark):
+
+| Task | setup | worker | review | integration | publication |
+|---|---|---|---|---|---|
+| 1.1 (full) | 460 | 48428 | 12550 | 1570 | 598 |
+| 1.2 (full, route floor) | 401 | 96905 | 5954 | 1367 | 600 |
+| 1.3 (light) | 300 | 55462 | — (skipped) | 1891 | 671 |
+| **active total** | 1161 | 200795 | 18504 | 4828 | 1869 |
+
+Phase wall clocks: phase A (claim → pause) 205.3 s, phase B (resume → release) 86.5 s; the
+pause gap was 86.6 s of driver time outside the run. Operator interventions inside the run:
+0.
+
+The `seats: 1` sample ran the same three tasks, prompts, models and CLI path one at a time
+(the parallel path capped at one seat, not the shipped serial procedure): active total
+297.5 s; worker 161003 + 38856 + 33141 ms; setup 1044 ms; review 19708 ms; integration
+4822 ms; publication 2268 ms; 0 interventions; three cycle commits. The measured difference
+(291.8 s vs 297.5 s) is **not** a speedup claim: on one sample the model's own turn latency
+dominates (the same task 1.1 took 48.4 s at seats 2 and 161.0 s at seats 1), the overlap is
+real but small against that variance, and nothing here is a production benchmark. What the
+sample establishes is that both seat counts close the same boundary with the same artifacts.
+
+Limits, not claims: local file-backed mode only — no remote artifact store or queue adapter
+was exercised live (its deterministic coverage is not a live proof); the CI matrix's 3.11 and
+3.13 full suites were not run; the default globally installed plugin path was not exercised
+(the fixture used the per-instance wrapper); and the generated inline coordinator procedure
+was not driven by a model. Raw evidence:
+`.artel/run/repro/opencode-parallel-proof/task12/` (host-owned, not committed).

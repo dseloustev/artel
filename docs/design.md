@@ -175,15 +175,19 @@ move to the decision log.
   dispatch; a stronger-model retry after a red task gate. `tech-writer` and `issue-scout` stay
   `opus`: no superpowers equivalent argues for `sonnet`, and their only measurement points the
   other way.
-- **Sub-project 2c: parallel seats.** The frozen contract is
-  [opencode-parallel.md](opencode-parallel.md), proven against OpenCode 2.0.29. Per-task
-  worktrees ([worktrees.md](worktrees.md)) replace shared-tree workers, and the 2026-10-13
-  per-cycle commits replace wave-level commits, so the six shared-state collisions the earlier
-  plan listed — the `NNN-` report counter, one actor name, the whole-tree review snapshot,
-  every task patching one tasklist, the shared `implementation-notes.md`, whole-tree codegen —
-  are resolved by construction rather than by serializing around them. What remains is the
-  coordinator's seat admission and the worker-mode protections the contract lists as not
-  native.
+- **Sub-project 2c: parallel seats.** Shipped behind `parallel.seats` (absent or `1` is the
+  serial procedure); the frozen contract is [opencode-parallel.md](opencode-parallel.md),
+  proven against OpenCode 2.0.29 and validated end to end on a real host fixture in local
+  file-backed mode (2026-10-16: worker changes → scoped gate → task review →
+  transport/apply/one-cycle commit → durable publication, `seats: 2` with pause/resume plus a
+  `seats: 1` sample). Per-task worktrees ([worktrees.md](worktrees.md)) replace shared-tree
+  workers, and the 2026-10-13 per-cycle commits replace wave-level commits, so the six
+  shared-state collisions the earlier plan listed — the `NNN-` report counter, one actor name,
+  the whole-tree review snapshot, every task patching one tasklist, the shared
+  `implementation-notes.md`, whole-tree codegen — are resolved by construction rather than by
+  serializing around them. Still unproven and not to be claimed: the CI matrix's 3.11/3.13
+  full suites, remote store/queue adapters exercised live, and the default globally installed
+  plugin path (the fixture used a per-instance bridge wrapper).
 - **Follow-up work on a finished ticket.** A lean run on a ticket whose work list has no open
   task stops before arming and says so (0.25.0, `skills/feature-development/heads/lean.md`):
   `generate-tasklist` skips a tasklist that exists, and before the merge such a request was
@@ -1478,3 +1482,27 @@ move to the decision log.
   special-casing OpenChamber in the policy half. Evidence: `tests/test_parallel_adapter.py`
   (host-namespace acceptance and the strict negatives), `tests/test_opencode_bridge.py`
   (the factory seam) and the fresh native two-root proof.
+- **2026-10-16 — The parallel worker cycle is validated on a real host fixture, and the
+  measured limits are stated, not claimed.** A disposable scratch host ran the whole
+  boundary — native worker changes in per-task worktrees, the scoped task gate, a real
+  task review (glm-5.3 for the full-route tasks), the coordinator-owned transport/apply and
+  one cycle commit per task, then the restartable completion publication — at `seats: 2`
+  with a pause after 1.1 was published and 1.2 parked `prepared`, resumed by a **new
+  process** with a **new coordinator session** that rediscovered the run from disk, and a
+  `seats: 1` sample of the same tasks. Exactly one cycle commit per task landed (three in
+  each run), `integration recover` recognized each landed commit without re-committing, and
+  the lock was released only after `completed`/quiescent. Raw times and the full evidence
+  live in [opencode-parallel.md](opencode-parallel.md) §14; the seats-2-vs-1 difference
+  (291.8 s vs 297.5 s on one sample) is explicitly **not** a speedup claim — model turn
+  latency dominates and the fixture is synthetic. The fixture also surfaced that a worker
+  root on a bridge-active host carries the bridge's own hook state, so `cleanup_worker`
+  refuses `dirty_worktree` and preserves the root: documented as the conservative behavior
+  it is (§13.7), not patched, because widening the accounted set is a safety change outside
+  this task. Rejected: reading a production benchmark or a linear speedup from one
+  synthetic fixture; claiming the remote store/queue adapters, the CI matrix or the default
+  global install path from this run; and claiming the generated inline coordinator was
+  exercised — the fixture is script-assisted CLI coordination with native adapter and
+  review sessions. Docs updated with the shipped behavior, the serial default and the
+  honest limits: [opencode-parallel.md](opencode-parallel.md) §12/§14,
+  [config.md](config.md), [porting-plan.md](porting-plan.md) (sub-project 2c), this log and
+  `CHANGELOG.md` (Unreleased).

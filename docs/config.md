@@ -294,7 +294,9 @@ runs at once — and it is **not `seat.enabled`**: the seat
 ([autonomous-run.md](autonomous-run.md) §18) is a Claude Code tail layer and has nothing to do
 with this key, and OpenCode runs the tail inline. The parallel coordinator loop
 ([opencode-parallel.md](opencode-parallel.md) §13.11) reads this key at the gate and stops
-before any claim or worktree when it is invalid or the capability gate refuses.
+before any claim or worktree when it is invalid or the capability gate refuses. What the
+loop was validated against, and what remains unproven:
+[opencode-parallel.md](opencode-parallel.md) §14.
 
 ### `models` — the OpenCode dispatch models
 

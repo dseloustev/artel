@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Parallel task execution on OpenCode.** With `parallel.seats` set to an integer above `1`,
+  the generated `feature-development` tail can run the current unfinished iteration's
+  disjoint tasks in concurrent pinned worker sessions — one detached worktree per task, one
+  coordinator, never more workers than seats — while `parallel.seats` absent or `1` keeps the
+  serial procedure exactly as it is. The coordinator drives the frozen contract
+  ([docs/opencode-parallel.md](docs/opencode-parallel.md)) through one explicit CLI
+  (`scripts/parallel.py`): admission is limited to the current unfinished iteration and a
+  dependent moves only after its dependency is integrated, reviewed, durably published and —
+  where the run is queue-backed — its queue row completed; each completed worker cycle gets
+  its own normal, hooked coordinator commit
+  — code plus, on the files path, the tasklist tick and the ordered notes — and a restartable
+  completion publication that collects the worker evidence and completes the owned queue row
+  last; a durable claim intent, a repository-wide ticket lock and a run-wide correction
+  budget on the existing `counters.correction_rounds` bound recovery, with no second ledger
+  and no second scheduler. Workers are pinned to their assignment and denied orchestration
+  (`subagent`, `question`, and the adapter namespace). The worker-session adapter is
+  registered by the OpenCode bridge (`opencode/plugin/parallel.ts`:
+  `artel_parallel_workerCapabilities`, `startWorker`, `workerStatus`, `interruptWorker`) and
+  refuses anything but the proven OpenCode 2.0.29 surface before a claim or a worktree
+  exists. Validated end to end on a real host fixture in local file-backed mode — native
+  worker changes, the scoped task gate, task reviews, transport/apply/one-cycle commit and
+  durable publication, `seats: 2` with a pause/resume across a coordinator restart plus a
+  `seats: 1` sample; the CI matrix and remote store/queue adapters remain unproven
+  ([docs/opencode-parallel.md](docs/opencode-parallel.md) §14).
+
 ## [0.35.0] - 2026-10-14
 
 ### Added

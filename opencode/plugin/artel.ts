@@ -484,4 +484,3 @@ export function createArtelPlugin(options: { root?: string } = {}): Plugin {
 
 const plugin: Plugin = createArtelPlugin()
 export default plugin
-

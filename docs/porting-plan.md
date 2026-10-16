@@ -173,3 +173,32 @@ The host moves to the OpenCode 2.x plugin API; v1 is dropped. Design:
       guard, fast-verify findings, stop-gate hooks, autoinvoke; the live re-prompt is cut off
       by headless mode, as documented).
 - [x] Release. Shipped as `0.26.0`, tagged 2026-10-01.
+
+## Sub-project 2c — OpenCode parallel workers
+
+New work rather than a port (the 2a/2b/2c split is design.md's 2026-09-29 decision; 2c is
+the parallel-seats sub-project). The frozen contract and the operator guide are
+[opencode-parallel.md](opencode-parallel.md); the design decisions are in design.md's
+decision log.
+
+- [x] Native capability gate against the installed OpenCode service, and the frozen contract
+      (assignment/result `schema: 1`, task states, integration ownership, the capability
+      boundary) — OpenCode 2.0.29.
+- [x] Contract/state/queue/scheduler helpers, per-task worktrees, the serialized integration
+      transaction and restartable completion publication (`scripts/parallel_*.py`,
+      `scripts/task_worktree.py`).
+- [x] Worker-session adapter (`opencode/plugin/parallel.ts`) and the bridge's worker-mode
+      guards; a worker never orchestrates.
+- [x] Coordinator CLI (`scripts/parallel.py`) and the generated opt-in loop
+      (`skills/feature-development/parallel.md`, `parallel.seats`), with the run-wide
+      correction budget on the existing `counters.correction_rounds`.
+- [x] Real-host fixture validation of the worker-change → scoped gate → task review →
+      transport/apply/one-cycle commit → durable publication boundary, `seats: 2` with a
+      pause/resume across a coordinator restart plus a `seats: 1` sample, in local
+      file-backed mode (evidence and limits: opencode-parallel.md §14).
+- [ ] CI-matrix Python 3.11/3.13 full-suite runs on the final source (only 3.9 and 3.14 are
+      installed here; not inferable from those runs).
+- [ ] Remote artifact-store and queue adapters exercised live (the fixture is file-backed;
+      the deterministic fake coverage is not a live proof).
+- [ ] The default globally installed plugin path observed end to end (the fixture's
+      per-instance bridge wrapper is not a global-install test).

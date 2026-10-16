@@ -570,6 +570,25 @@ class PublicationCase(unittest.TestCase):
         self.manifest = parallel_state.read_manifest(str(self.manifest_path))
         return self.manifest
 
+    def reset_publication(self):
+        """Back to the durable state a restarted coordinator would read before publication."""
+        record = self.stored_transaction()
+        record['publication'] = None
+        self.write_transaction(record)
+        self.store.reset()
+        if self.queue is not None:
+            self.queue.reset()
+        shutil.rmtree(str(self.collected_root()), ignore_errors=True)
+        self.effects = [('commit', self.transaction['cycle_commit'])]
+        self.rewrite_manifest_integrating()
+
+    def rewrite_manifest_integrating(self):
+        """Rewind only the manifest: a durable complete record whose write was lost."""
+        stored = parallel_state.read_manifest(str(self.manifest_path))
+        self.manifest = parallel_state.write_manifest(
+            str(self.manifest_path), dict(self.armed, revision=stored['revision']),
+            stored['revision'])
+
     # --- assertions -------------------------------------------------------------------
 
     def manifest_state(self, task=TASK):
@@ -951,6 +970,9 @@ class TestCrashRecovery(PublicationCase):
         self.record(actions[0], 'observed', None)
         self.assertEqual(self.manifest_state(), 'published')
         self.assertEqual(self.plan(), [])
+        # the promotion repeats no effect and duplicates nothing
+        self.assertEqual(self.commit_count(), 1)
+        self.assertEqual(self.queue.completions, 1)
 
     def test_a_duplicate_receipt_is_idempotent(self):
         self.arm()
@@ -1005,26 +1027,6 @@ class TestCrashRecovery(PublicationCase):
         recovered = parallel_integration.recover_cycle(str(self.coord), stored)
         self.assertEqual(recovered['publication'], stored['publication'])
         self.assertEqual(self.publication(), stored['publication'])
-
-    # --- helpers ----------------------------------------------------------------------
-
-    def reset_publication(self):
-        """Back to the durable state a restarted coordinator would read before publication."""
-        record = self.stored_transaction()
-        record['publication'] = None
-        self.write_transaction(record)
-        self.store.reset()
-        if self.queue is not None:
-            self.queue.reset()
-        shutil.rmtree(str(self.collected_root()), ignore_errors=True)
-        self.effects = [('commit', self.transaction['cycle_commit'])]
-        self.rewrite_manifest_integrating()
-
-    def rewrite_manifest_integrating(self):
-        stored = parallel_state.read_manifest(str(self.manifest_path))
-        self.manifest = parallel_state.write_manifest(
-            str(self.manifest_path), dict(self.armed, revision=stored['revision']),
-            stored['revision'])
 
 
 class TestRefusals(PublicationCase):
@@ -1189,6 +1191,179 @@ class TestRefusals(PublicationCase):
         observation['collected_root'] = str(self.artifact_root())
         rejects(self, 'invalid_evidence', lambda: parallel_publication.next_publication_actions(
             self.manifest, TASK, self.observed_with_evidence(observation)))
+
+
+class TestReceiptRevert(PublicationCase):
+    """A receipted store effect must still be in the fresh observation before completion.
+
+    A forward version that drops an already-receipted tick or note is a conflict, not a
+    completion: the reducer refuses, keeps the durable record and the integrating latch
+    exactly as they were, and never silently re-applies the deletion, overwrites the
+    concurrent edit or allocates a new note number. A complete record whose manifest write
+    was lost runs the same fresh checks before it may offer the promote action.
+    """
+
+    def collect_id(self):
+        return 'artel-publish-{}-{}-a{}-collect'.format(RUN_ID, TASK, ATTEMPT)
+
+    def queue_id(self):
+        return 'artel-publish-{}-{}-a{}-queue'.format(RUN_ID, TASK, ATTEMPT)
+
+    def forward_rewrite_without_tick(self):
+        """A concurrent writer publishes a newer tasklist version with the tick removed."""
+        content = self.store.get(TASKLIST)['content']
+        reverted = content.replace(TICKED_CHECKBOX, TICK_CHECKBOX, 1)
+        return self.store.put(TASKLIST, reverted + '\n- [ ] 9.9 unrelated edit\n')
+
+    def forward_rewrite_notes(self, entries):
+        """A concurrent writer publishes a newer notes version with exactly `entries`."""
+        content = '# Implementation notes\n'
+        for number, key in entries:
+            content = self.append_note(content, number, key, 'rewritten elsewhere')
+        return self.store.put(NOTES, content)
+
+    def assert_refused_and_held(self, kind, record):
+        rejects(self, kind, lambda: self.plan())
+        self.assertEqual(self.publication(), record)
+        self.assertEqual(self.manifest_state(), 'integrating')
+        self.assertEqual(self.queue.observe()['status'], 'in_progress')
+        self.assertEqual(self.queue.completions, 0)
+        admitted = self.admissions()
+        self.assertNotIn(DEPENDENT, admitted['resume'])
+        self.assertNotIn(DEPENDENT, admitted['start'])
+        self.assertTrue(admitted['drain'])
+
+    def test_a_receipted_tick_dropped_before_collection_refuses_and_holds_the_latch(self):
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        self.publish(crash=(self.collect_id(), 'before-intent'))
+        record = self.publication()
+        self.assertEqual([entry['kind'] for entry in record['receipts']],
+                         ['store-tick', 'note-append', 'note-append'])
+        rewritten = self.forward_rewrite_without_tick()
+        self.assert_refused_and_held('conflicting_receipt', record)
+        self.assertEqual(self.store.get(TASKLIST), rewritten)
+        self.assertEqual(self.note_entries(self.store.get(NOTES)['content']),
+                         [{'number': 1, 'key': 'earlier-work'},
+                          {'number': 2, 'key': PROPOSALS[0][0]},
+                          {'number': 3, 'key': PROPOSALS[1][0]}])
+
+    def test_a_receipted_tick_dropped_after_collection_refuses_before_the_queue(self):
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        self.publish(crash=(self.queue_id(), 'before-intent'))
+        record = self.publication()
+        self.assertEqual([entry['kind'] for entry in record['receipts']],
+                         ['store-tick', 'note-append', 'note-append', 'collect-evidence'])
+        rewritten = self.forward_rewrite_without_tick()
+        self.assert_refused_and_held('conflicting_receipt', record)
+        self.assertEqual(self.store.get(TASKLIST), rewritten)
+        self.assertEqual(self.tree_entries(self.collected_root()),
+                         self.tree_entries(self.artifact_root()))
+
+    def test_a_receipted_note_dropped_by_a_forward_rewrite_refuses(self):
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        self.publish(crash=(self.collect_id(), 'before-intent'))
+        record = self.publication()
+        rewritten = self.forward_rewrite_notes([(1, 'earlier-work'), (3, PROPOSALS[1][0])])
+        self.assert_refused_and_held('conflicting_receipt', record)
+        self.assertEqual(self.store.get(NOTES), rewritten)
+
+    def test_a_receipted_note_moved_to_another_number_refuses(self):
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        self.publish(crash=(self.collect_id(), 'before-intent'))
+        record = self.publication()
+        rewritten = self.forward_rewrite_notes([(1, 'earlier-work'), (3, PROPOSALS[1][0]),
+                                                (5, PROPOSALS[0][0])])
+        self.assert_refused_and_held('note_conflict', record)
+        self.assertEqual(self.store.get(NOTES), rewritten)
+
+    def test_a_complete_publication_with_a_reverted_tick_refuses_the_promote(self):
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        self.publish()
+        record = self.assert_complete()
+        patches = list(self.store.patches)
+        self.rewrite_manifest_integrating()
+        rewritten = self.forward_rewrite_without_tick()
+        rejects(self, 'conflicting_receipt', lambda: self.plan())
+        self.assertEqual(self.manifest_state(), 'integrating')
+        self.assertEqual(self.publication(), record)
+        self.assertEqual(self.store.get(TASKLIST), rewritten)
+        self.assertEqual(self.store.patches, patches)
+        self.assertEqual(self.queue.completions, 1)
+
+    def test_a_complete_publication_with_a_reverted_note_refuses_the_promote(self):
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        self.publish()
+        record = self.assert_complete()
+        self.rewrite_manifest_integrating()
+        rewritten = self.forward_rewrite_notes([(1, 'earlier-work'), (3, PROPOSALS[1][0])])
+        rejects(self, 'conflicting_receipt', lambda: self.plan())
+        self.assertEqual(self.manifest_state(), 'integrating')
+        self.assertEqual(self.publication(), record)
+        self.assertEqual(self.store.get(NOTES), rewritten)
+
+    def test_a_complete_publication_with_tampered_evidence_refuses_the_promote(self):
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        self.publish()
+        record = self.assert_complete()
+        self.rewrite_manifest_integrating()
+        (self.collected_root() / 'result.json').write_text('tampered\n', encoding='utf-8')
+        rejects(self, 'collection_lost', lambda: self.plan())
+        self.assertEqual(self.manifest_state(), 'integrating')
+        self.assertEqual(self.publication(), record)
+        shutil.rmtree(str(self.collected_root()))
+        rejects(self, 'collection_lost', lambda: self.plan())
+        self.assertEqual(self.manifest_state(), 'integrating')
+        self.assertEqual(self.publication(), record)
+        self.assertEqual(self.queue.completions, 1)
+
+    def test_a_benign_forward_edit_preserves_the_receipts_and_still_completes(self):
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        self.publish(crash=(self.collect_id(), 'before-intent'))
+        ticked = self.store.get(TASKLIST)['content']
+        self.store.put(TASKLIST, ticked + '\n- [ ] 9.9 unrelated edit\n')
+        notes = self.store.get(NOTES)['content']
+        self.store.put(NOTES, notes + '\nmore prose\n')
+        self.publish()
+        self.assert_complete()
+        self.assertEqual(len(self.store.patches), 3)
+        self.assertIn(TICKED_CHECKBOX, self.store.get(TASKLIST)['content'])
+        self.assertIn('- [ ] 9.9 unrelated edit', self.store.get(TASKLIST)['content'])
+        self.assertEqual([entry['number'] for entry in
+                          self.note_entries(self.store.get(NOTES)['content'])], [1, 2, 3])
+        self.assertEqual(self.queue.completions, 1)
+
+    def test_a_lost_reply_tick_survives_a_benign_forward_edit(self):
+        self.arm()
+        self.seed_store()
+        self.integrate()
+        tick = self.plan()[0]
+        self.publish(lose=tick['action_id'])
+        self.assertEqual(len(self.store.patches), 1)
+        self.store.put(TASKLIST,
+                       self.store.get(TASKLIST)['content'] + '\n- [ ] 9.9 unrelated\n')
+        resumed = self.plan()
+        self.assertEqual(resumed[0]['action_id'], tick['action_id'])
+        self.assertEqual(resumed[0]['state'], 'observed')
+        self.publish()
+        self.assert_complete()
+        self.assertEqual(len(self.store.patches), 3)
+        self.assertEqual(self.queue.completions, 1)
 
 
 class TestLocalAndFilesBoundaries(PublicationCase):

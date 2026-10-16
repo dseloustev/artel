@@ -105,6 +105,23 @@ foreign actor, a different row id or task, or a status that is not `in_progress`
 never completed (`foreign_row`, `row_changed`, `row_missing`, `row_not_in_progress`). A
 collected copy that is missing or changed after its receipt is `collection_lost`.
 
+A receipt proves the effect landed; it is not proof the effect is still there. Before the
+publication may finish -- for an incomplete record and for a complete record whose manifest
+write was lost -- the fresh observation must still carry every receipted effect: a receipted
+tick that a forward rewrite dropped, or a receipted note key that is gone or renumbered,
+refuses (`conflicting_receipt`, or `note_conflict` for the exact renumber conflict) and the
+reducer never silently re-applies the deletion, overwrites the concurrent edit, removes the
+store's history or allocates a new note number. A benign forward edit that still carries the
+tick and every note key at its recorded number continues. "After completion" means the
+manifest is already `published` (the reducer then owes nothing), never merely this record's
+`complete` flag.
+
+Trust boundary. `record_publication` receives no observation bundle, so it cannot re-verify
+the planning prerequisites: its `receipt` must name an action `next_publication_actions`
+returned for the current fresh observation, and the trusted coordinator plans fresh before
+every effect. A hand-made action with plausible identity fields is not checked against the
+queue row or the store content there; only the planner's fresh observation is.
+
 Every failure raises `PublicationError`, a `ValueError` carrying the `kind` a CLI maps into
 its error envelope; nothing is coerced and nothing is dropped.
 """
@@ -1002,9 +1019,14 @@ def next_publication_actions(manifest, task, observed):
     then the worker evidence collection, then the owned queue completion last; every action
     carries its stable identity and the full ordered plan. An action whose effect the fresh
     observation already proves is returned as `observed` (record its receipt, never repeat
-    it); a store action whose durable base moved is re-based on the fresh version. When the
-    durable record is complete and the task is still `integrating`, the single `promote`
-    action is returned. Nothing here calls the store, the queue, a session or Git.
+    it); a store action whose durable base moved is re-based on the fresh version. Every
+    receipted effect must still be present in the fresh observation -- a receipted tick a
+    forward rewrite dropped, or a receipted note key gone or renumbered, refuses
+    (`conflicting_receipt`/`note_conflict`) instead of completing on the historical receipt.
+    That check runs before a complete record offers its single `promote` action too, so a
+    complete record whose manifest write was lost re-checks the fresh content and evidence;
+    "after completion" is the manifest's `published` state, never merely the record's
+    `complete` flag. Nothing here calls the store, the queue, a session or Git.
     """
     value = _manifest(manifest)
     _task_id(task, 'the task', 'invalid_task')
@@ -1028,21 +1050,58 @@ def next_publication_actions(manifest, task, observed):
                                                       transaction['documents'])):
             _fail('identity_conflict', 'the durable publication record does not belong to '
                                        'this transaction')
-        if prior['complete']:
-            return [_promote_action(prior)]
     actions = _plan_actions(value, task, transaction, bundle, prior)
     plan = [action['action_id'] for action in actions]
     if prior is not None and prior['plan'] != plan:
         _fail('plan_conflict', 'the durable plan {} is not the recomputed {}'.format(
             prior['plan'], plan))
     if prior is not None:
+        # A receipt proves the effect landed; it is not proof the effect is still there.
+        # The fresh observation must carry every receipted effect before the publication
+        # may finish -- for an incomplete record and equally for a complete record whose
+        # manifest write was lost, so a reverted tick or note is never mistaken for
+        # current completion. "After completion" is the manifest's `published` state, not
+        # this record's `complete` flag; a refusal leaves the record, the effects and the
+        # integrating latch exactly as they were.
         _require_recorded_receipts(prior, actions, bundle)
+        if prior['complete']:
+            return [_promote_action(prior)]
     return [action for action in actions
             if _receipt_state(prior, action['action_id']) is None]
 
 
+def _observed_document(observed, path):
+    """The fresh observation of one tasklist document, or `conflicting_receipt`.
+
+    A receipted tick whose document is no longer observed at all is a content loss, not a
+    shape error: the refusal is typed, never a raw indexing error.
+    """
+    for document in observed['store']['documents']:
+        if document['path'] == path:
+            return document
+    _fail('conflicting_receipt', 'the ticked document {} is no longer observed'.format(path))
+
+
+def _observed_notes(observed, path):
+    """The fresh observation of the numbered notes document, or `conflicting_receipt`."""
+    notes = observed['store']['notes']
+    if notes is None or notes['path'] != path:
+        _fail('conflicting_receipt', 'the numbered notes {} are no longer observed'.format(
+            path))
+    return notes
+
+
 def _require_recorded_receipts(prior, actions, observed):
-    """Every durable receipt must still be consistent with the fresh observation."""
+    """Every durable receipt must still be consistent with the fresh observation.
+
+    The version floor is the weakest check: a forward rewrite that drops an already
+    receipted tick, or a note key that is gone or renumbered, refuses with
+    `conflicting_receipt` (an exact renumber conflict with `note_conflict`). The reducer
+    never silently re-applies the deletion, overwrites the concurrent edit, removes the
+    store's history or allocates a new note number; the durable record is returned
+    untouched. A benign forward edit that still carries the tick and every note key at its
+    recorded number continues.
+    """
     by_id = {action['action_id']: action for action in actions}
     for receipt in prior['receipts']:
         action = by_id.get(receipt['action_id'])
@@ -1058,13 +1117,32 @@ def _require_recorded_receipts(prior, actions, observed):
                 _fail('collection_lost', 'the collected evidence for {} is missing or '
                                          'changed after its receipt'.format(
                                              receipt['action_id']))
-        elif kind in STORE_KINDS:
-            document = observed['store']['documents'][0] if kind == 'store-tick' else None
-            version = document['version'] if document is not None \
-                else observed['store']['notes']['version']
-            if version < receipt['evidence']['version']:
+        elif kind == 'store-tick':
+            document = _observed_document(observed, action['payload']['path'])
+            if document['version'] < receipt['evidence']['version']:
                 _fail('conflicting_receipt', 'the store moved behind the recorded receipt '
                                              '{}'.format(receipt['action_id']))
+            if not document['applied']:
+                _fail('conflicting_receipt', 'the receipted tick for {} is absent from the '
+                                             'newest store version; the concurrent rewrite '
+                                             'is preserved'.format(
+                                                 action['payload']['path']))
+        elif kind == 'note-append':
+            notes = _observed_notes(observed, action['payload']['path'])
+            if notes['version'] < receipt['evidence']['version']:
+                _fail('conflicting_receipt', 'the store moved behind the recorded receipt '
+                                             '{}'.format(receipt['action_id']))
+            landed = next((entry for entry in notes['entries']
+                           if entry['key'] == receipt['evidence']['key']), None)
+            if landed is None:
+                _fail('conflicting_receipt', 'the receipted note {} is absent from the '
+                                             'newest notes version'.format(
+                                                 receipt['evidence']['key']))
+            if landed['number'] != receipt['evidence']['number']:
+                _fail('note_conflict', 'the receipted note {} is now at number {}, not the '
+                                       'recorded {}'.format(receipt['evidence']['key'],
+                                                            landed['number'],
+                                                            receipt['evidence']['number']))
 
 
 def record_publication(manifest, task, action_id, receipt):
@@ -1077,7 +1155,10 @@ def record_publication(manifest, task, action_id, receipt):
     repeat is idempotent; a conflicting one is refused. When the last required receipt
     lands, the publication is complete, the §13.7 cleanup proof is built and the returned
     manifest carries the one `integrating -> published` transition -- the state
-    `parallel_scheduler` treats as complete, so dependents move only now.
+    `parallel_scheduler` treats as complete, so dependents move only now. The receipt must
+    name an action `next_publication_actions` returned for the current fresh observation:
+    this function has no observation bundle and cannot re-verify the planning prerequisites
+    (queue ownership, fresh store content) itself.
     """
     value = _manifest(manifest)
     _task_id(task, 'the task', 'invalid_task')

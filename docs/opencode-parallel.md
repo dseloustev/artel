@@ -910,12 +910,29 @@ under a foreign actor, a changed row id or task, a missing row, or a status that
 `complete`, builds the §13.7 cleanup publication proof — `cycle_commit` under
 `refs/heads/<branch>`, the retained `result_ref`/`result_commit` (the transport commit), the
 task/attempt-scoped `collected_root` and the collected evidence digests — and returns the
-promoted manifest. The cleanup itself stays a later, conservative lifecycle operation: it
-re-verifies the real copies and refuses a dirty or unknown root, and such a refusal never
-undoes a valid publication or requires a relaunch. Evidence collection is a publication
-prerequisite, not a cleanup one. A lost reply is reconciled from fresh observation, and a
-complete record whose manifest write was lost is finished by the single `promote` action,
-whose receipt re-checks the durable record instead of asserting anything new.
+promoted manifest. A receipt proves an effect landed, not that it is still there: before the
+publication may finish, the fresh observation must still carry every receipted effect. A
+forward store version that drops an already-receipted tick, or a receipted note key that is
+gone or renumbered, refuses (`conflicting_receipt`, or `note_conflict` for the exact renumber
+conflict) and the reducer never silently re-applies the deletion, overwrites the concurrent
+edit, removes the store's history or allocates a new note number; a benign forward edit that
+still carries the tick and every note key at its recorded number continues. That re-check runs
+for a complete record too: a complete record whose manifest write was lost returns its single
+`promote` action only after the same fresh receipt/content/evidence checks, so a reverted
+effect is never mistaken for completion — "after completion" is the manifest's `published`
+state, not the record's `complete` flag. The cleanup itself stays a later, conservative
+lifecycle operation: it re-verifies the real copies and refuses a dirty or unknown root, and
+such a refusal never undoes a valid publication or requires a relaunch. Evidence collection is
+a publication prerequisite, not a cleanup one. A lost reply is reconciled from fresh
+observation, a refusal preserves the durable record, the effects already done and the
+`integrating` latch exactly as they were, and the `promote` receipt re-checks the durable
+record instead of asserting anything new.
+
+**Caller trust.** `record_publication` receives no observation bundle, so it cannot re-verify
+the planning prerequisites: a receipt must name an action `next_publication_actions` returned
+for the current fresh observation, and the trusted coordinator plans fresh before every
+effect. A hand-made action with plausible identity fields is not checked against the queue row
+or the store content there.
 
 ## 14. Proof record
 

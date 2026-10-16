@@ -1,8 +1,9 @@
 """Task 10: the coordinator CLI (`scripts/parallel.py`) and its operator contract.
 
 Contract: docs/opencode-parallel.md §13.10-§13.11, the approved CLI row of the interface map,
-and the reviewed Task 9 handoff. Every command is exercised as a real subprocess against a
-temporary Git repository: requests arrive on stdin and from a file, refusals are typed and
+and the reviewed Task 9 handoff. Commands are exercised as real subprocesses against a
+temporary Git repository; filesystem-fault tests call the real admission handler in process
+to inject only probe errors. Requests arrive on stdin and from a file, refusals are typed and
 leave the durable bytes unchanged, and every mutation is re-opened from disk instead of being
 trusted from its own envelope.
 
@@ -12,6 +13,7 @@ and the persisted artifacts -- never the helpers' internal reducers, which their
 already cover.
 """
 import copy
+import errno
 import hashlib
 import json
 import os
@@ -22,8 +24,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import parallel
+
 CLI = ROOT / 'scripts' / 'parallel.py'
 TICKET = 'PROJ-123'
 RUN_ID = '0f6f0f2e-6b1a-4f2e-9c5d-2b7a1c8e4d10'
@@ -1085,12 +1091,79 @@ class TestFilesystemCaseEvidence(CliCase):
             2, task_block('2.1', files=('src/CaseFile.py',)),
             task_block('2.2', files=('src/casefile.py',))))
 
-    def admit(self, text, **extra):
+    def admit_request(self, text, **extra):
         tasklist = self.write('specs/.current/{}/tasklist.md'.format(TICKET), text)
         request = {'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
                    'tasklist': str(tasklist)}
         request.update(extra)
-        return self.ok('admit', request=request)
+        return request
+
+    def admit(self, text, **extra):
+        return self.ok('admit', request=self.admit_request(text, **extra))
+
+    def test_a_numeric_checkout_name_serializes_case_aliases(self):
+        self.make_repo('12345')
+        self.acquire()
+        self.create_run()
+        self.walk('2.1', to='running')
+
+        result = self.admit(self.alias_tasks())
+
+        self.assertEqual(result['start'], [])
+        self.assertTrue(any('casefile' in reason for reason in result['reasons']))
+
+    def test_realpath_io_errors_serialize_case_aliases(self):
+        self.acquire()
+        self.create_run()
+        self.walk('2.1', to='running')
+        request = self.admit_request(self.alias_tasks())
+
+        for error in (OSError(errno.EIO, 'volume evidence unavailable'),
+                      PermissionError(errno.EACCES, 'volume evidence unreadable')):
+            with self.subTest(error=type(error).__name__):
+                with mock.patch.object(parallel.os.path, 'realpath', side_effect=error):
+                    result = parallel.cmd_admit(request, False)
+                self.assertEqual(result['start'], [])
+                self.assertTrue(any('casefile' in reason for reason in result['reasons']))
+
+    def test_samefile_io_errors_serialize_case_aliases(self):
+        self.acquire()
+        self.create_run()
+        self.walk('2.1', to='running')
+        request = self.admit_request(self.alias_tasks())
+
+        for error in (OSError(errno.EIO, 'volume evidence unavailable'),
+                      PermissionError(errno.EACCES, 'volume evidence unreadable')):
+            with self.subTest(error=type(error).__name__):
+                with mock.patch.object(parallel.os.path, 'samefile', side_effect=error):
+                    result = parallel.cmd_admit(request, False)
+                self.assertEqual(result['start'], [])
+                self.assertTrue(any('casefile' in reason for reason in result['reasons']))
+
+    def test_confirmed_case_sensitive_evidence_keeps_distinct_resources(self):
+        self.acquire()
+        self.create_run()
+        self.walk('2.1', to='running')
+        request = self.admit_request(self.alias_tasks())
+
+        with mock.patch.object(parallel.os.path, 'samefile', return_value=False):
+            self.assertEqual(parallel.cmd_admit(request, False)['start'], ['2.2'])
+        # A missing case variant is the normal evidence on a case-sensitive volume.
+        with mock.patch.object(parallel.os.path, 'samefile', side_effect=FileNotFoundError(
+                errno.ENOENT, 'case variant does not exist')):
+            self.assertEqual(parallel.cmd_admit(request, False)['start'], ['2.2'])
+
+    def test_explicit_case_overrides_do_not_depend_on_probe_success(self):
+        self.acquire()
+        self.create_run()
+        self.walk('2.1', to='running')
+        for sensitive, expected in ((True, ['2.2']), (False, [])):
+            with self.subTest(case_sensitive=sensitive):
+                request = self.admit_request(self.alias_tasks(), case_sensitive=sensitive)
+                with mock.patch.object(parallel.os.path, 'realpath', side_effect=OSError(
+                        errno.EIO, 'volume evidence unavailable')):
+                    result = parallel.cmd_admit(request, False)
+                self.assertEqual(result['start'], expected)
 
     def test_the_default_admission_matches_the_actual_volume(self):
         self.acquire()

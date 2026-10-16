@@ -375,22 +375,24 @@ def _case_sensitive(request, repo):
     """
     if 'case_sensitive' in request:
         return _boolean(request, 'case_sensitive')
-    return not _volume_case_insensitive(Path(repo))
+    return _volume_case_insensitive(Path(repo)) is False
 
 
 def _volume_case_insensitive(root):
-    """Read-only: does the volume holding `root` resolve case variants? Unknown -> False."""
+    """Read-only case evidence: True/False when known, None when the probe is uncertain."""
     try:
         probe = Path(os.path.realpath(str(root)))
     except OSError:
-        return False
+        return None
     variant = probe.name.swapcase()
     if not probe.name or variant == probe.name:
-        return False  # no cased character to probe with: unknown, handled conservatively
+        return None  # no cased character to probe with: unknown, handled conservatively
     try:
         return os.path.samefile(str(probe), str(probe.parent / variant))
+    except FileNotFoundError:
+        return False  # the case variant does not exist on a case-sensitive volume
     except OSError:
-        return False
+        return None
 
 
 # --- commands -----------------------------------------------------------------------------

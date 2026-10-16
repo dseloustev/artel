@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-16
+
 ### Added
 
 - **A `planner` family names the model for the analytical work.** `models.opencode.planner`

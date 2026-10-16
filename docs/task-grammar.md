@@ -2,7 +2,7 @@
 
 How a tasklist states its work: one block per task, each with the fields the queue, the
 orchestrator and the plan review read. Every writer of a tasklist (`task-planner`,
-`tasklist-writer`, `/artel:tasks add`, the approval fold-back) writes this grammar, and every
+`tasklist-writer`, `/artel-tasks add`, the approval fold-back) writes this grammar, and every
 reader cites this file rather than restating it. `scripts/tasklist_tasks.py` is the only
 program that parses it (`scripts/task_grammar.py` holds the rules).
 
@@ -182,15 +182,15 @@ Requirements marked `(withdrawn — <reason>)` or `(already met — <evidence>)`
 need no task. The PRD's IDs arrive through `--requirements`, from the `requirements` read of
 the PRD:
 
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd <prd-path>
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <ids>
+    python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd <prd-path>
+    python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <tasklist-path> --ticket-key <TICKET_ID> --check --requirements <ids>
 
 `<ids>` is `data.ids` joined by commas; `none` when `data.present` is true and `data.ids` is
 empty; `absent` when there is no PRD or `data.present` is false. On the kartoteka path both
 documents are piped from the store, never copied locally:
 
-    set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -
-    set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <ids>
+    set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <prd-path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd -
+    set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <tasklist-path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID> --check --requirements <ids>
 
 ## 7. Rows, waves, readiness and route floors
 
@@ -242,7 +242,7 @@ What a mirror run emits (`data.format` is `"tasks"`):
 
 ## 8. The route helper
 
-`scripts/tasklist_tasks.py route` answers the model question before an iteration dispatch.
+`scripts/tasklist_tasks.py route` answers the route question before an iteration dispatch.
 It contacts nothing.
 
     tasklist-tasks route --tasklist <path|-> --ticket-key <KEY> --next|--task <N.M> [--repo <dir>] [--sensitive-paths <file>]
@@ -254,10 +254,11 @@ admission is the coordinator's decision — and a number that is not a task of t
 `2` (`task_not_found`) instead of answering with another task. `route_declared` and
 `route_effective` follow §7's floors, plus two runtime ones: one of the task's `Files:` is in
 `run-state.json` `deviation_files` — `earlier deviation: <path>` per path, applying to a route
-set at approval too — or `review.perTask` is true — `review.perTask`. `model` is
-`MODEL_BY_ROUTE = {'light': 'sonnet', 'full': 'opus'}`, a constant in `scripts/task_grammar.py`;
-`next_route()` and `pinned_route()` are the pure functions behind the two selectors. No ready
-task on `--next` → `task`, `title`, `route_*` and `model` are `null`; a non-task-format or
+set at approval too — or `review.perTask` is true — `review.perTask`.
+`next_route()` and `pinned_route()` are the pure functions behind the two selectors. The
+implementer resolves `implementer.<route_effective>` from `models.opencode`
+(`autonomous-run.md` §16.3). No ready task on `--next` → `task`, `title` and `route_*` are
+`null`; a non-task-format or
 malformed tasklist, an unreadable `run-state.json`, or a non-boolean `review.perTask` exits `2`
 with an error envelope. The route decision after completion (`autonomous-run.md` §16.1) is
-unchanged; the helper only chooses the model before dispatch.
+unchanged; the helper only reports the route before dispatch.

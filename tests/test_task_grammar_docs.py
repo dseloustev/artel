@@ -85,7 +85,7 @@ class TestGrammarContract(unittest.TestCase):
         doc = flat(self.doc)
         for phrase in ('tasklist_tasks.py requirements --prd <prd-path>',
                        '--check --requirements <ids>',
-                       'spec_store.py get <prd-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py requirements --prd -',
+                       'spec_store.py get <prd-path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py requirements --prd -',
                        '`absent` when there is no PRD or `data.present` is false'):
             self.assertIn(phrase, doc)
 
@@ -122,8 +122,8 @@ class TestGrammarContract(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 # Plan 2 of sub-project 2a: the analyst's requirements, the writers, the
-# reviewer's plan mode, gate 4.2, the dev-path check, sync-phases and
-# /artel:tasks add. Prompts have no code path, so a phrase dropped here fails a
+# reviewer's plan review, gate 4.2, the dev-path check, sync-phases and
+# /artel-tasks add. Prompts have no code path, so a phrase dropped here fails a
 # test instead of a run nobody is watching. Helpers carry a `_w_` prefix so they
 # never shadow a helper of plan 1's class above.
 # ---------------------------------------------------------------------------
@@ -153,7 +153,7 @@ class TestAnalystRequirements(unittest.TestCase):
     """Spec §2: the PRD's `## Requirements` section, required for PRD_READY."""
 
     def setUp(self):
-        self.analyst = _w_flat('agents/analyst.md')
+        self.analyst = _w_flat('agents/artel-analyst.md')
         self.section = _w_between(self.analyst, '## Requirements in the PRD', '## Rules')
 
     def test_the_section_is_listed_and_required_for_prd_ready(self):
@@ -201,7 +201,7 @@ class TestAnalystRequirements(unittest.TestCase):
         self.assertIn('**Requirement IDs carry over.**', rules)
 
     def test_the_analysis_skill_asks_for_the_section(self):
-        finalize = _w_between(_w_flat('skills/analysis/SKILL.md'),
+        finalize = _w_between(_w_flat('skills/artel-analysis/SKILL.md'),
                               '### Phase 3: Finalize the PRD', '### Completion')
         for phrase in ('metrics, requirements, risks', 'Write `## Requirements`',
                        '`PRD_READY` requires it'):
@@ -213,12 +213,12 @@ class TestTaskPlannerWritesTheGrammar(unittest.TestCase):
     `Test:` and `Implements:`; the phase-scoped output uses the same blocks."""
 
     def setUp(self):
-        self.agent = _w_flat('agents/task-planner.md')
+        self.agent = _w_flat('agents/artel-task-planner.md')
         self.output = _w_between(self.agent, '## Output', '## Rules')
         self.rules = _w_between(self.agent, '## Rules', '## Fix rounds and fold-backs')
 
     def test_both_outputs_are_written_in_the_grammar(self):
-        for phrase in ('`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md`',
+        for phrase in ('`${ARTEL_ROOT}/docs/task-grammar.md`',
                        'a `### Task <N>.<m>: <title>` heading, its field bullets, then its steps',
                        'one `## Iteration <N>: <title>` section per phase / iteration',
                        'one `## Iteration <PHASE_NUM>: <title>` section',
@@ -266,14 +266,14 @@ class TestTaskPlannerWritesTheGrammar(unittest.TestCase):
 
     def test_the_tasklist_skill_asks_for_task_blocks(self):
         self.assertIn('write every task as a task block in the task grammar',
-                      _w_flat('skills/tasklist/SKILL.md'))
+                      _w_flat('skills/artel-tasklist/SKILL.md'))
 
     def test_a_task_grammar_tasklist_is_not_mirrored_before_approval(self):
         # Spec §4 as amended while planning: gate 4.2 and the approval fold-back can
         # renumber or retitle tasks, and create-only rows would outlive them (the
         # AW-3342 D4 class), so the first mirror of a task-grammar tasklist is the
         # orchestrator's re-mirror after approval.
-        skill = _w_flat('skills/tasklist/SKILL.md')
+        skill = _w_flat('skills/artel-tasklist/SKILL.md')
         for phrase in ('Skipped too for a task-grammar tasklist',
                        'whose plan is not yet `PLAN_APPROVED`',
                        "the queue's rows are create-only",
@@ -287,7 +287,7 @@ class TestTasklistWriterWritesTheGrammar(unittest.TestCase):
     blocks, reads the PRD only for its IDs, and drafts into run state for the plan check."""
 
     def setUp(self):
-        self.agent = _w_flat('agents/tasklist-writer.md')
+        self.agent = _w_flat('agents/artel-tasklist-writer.md')
 
     def test_the_template_is_task_blocks(self):
         template = _w_between(self.agent, '### Required structure',
@@ -334,24 +334,24 @@ class TestTasklistWriterWritesTheGrammar(unittest.TestCase):
 
 
 class TestReviewerPlanMode(unittest.TestCase):
-    """Spec §6.2 and §2: the reviewer's plan mode, `run-reviewer --plan`, the acceptance
+    """Spec §6.2 and §2: the reviewer's plan review, `run-reviewer --plan`, the acceptance
     table per requirement, and an ID in code reported as Minor."""
 
     def setUp(self):
-        self.agent = _w_flat('agents/reviewer.md')
-        self.plan = _w_between(self.agent, '## Plan mode', '## Review focus')
-        self.skill = _w_flat('skills/run-reviewer/SKILL.md')
+        self.agent = _w_flat('agents/artel-reviewer.md')
+        self.plan = _w_between(self.agent, '## Plan review', '## Review focus')
+        self.skill = _w_flat('skills/artel-run-reviewer/SKILL.md')
 
     def test_the_role_names_four_modes(self):
         role = _w_between(self.agent, '## Role', '## Phase support')
         for phrase in ('Four modes:', '- **plan** — the tasklist before the approval pause',
-                       'Task mode and plan mode are never assumed'):
+                       'Task mode and plan review are never assumed'):
             self.assertIn(phrase, role)
 
     def test_plan_mode_sits_between_task_mode_and_the_review_focus(self):
-        raw = _w_raw('agents/reviewer.md')
-        self.assertLess(raw.index('\n## Task mode\n'), raw.index('\n## Plan mode\n'))
-        self.assertLess(raw.index('\n## Plan mode\n'), raw.index('\n## Review focus'))
+        raw = _w_raw('agents/artel-reviewer.md')
+        self.assertLess(raw.index('\n## Task mode\n'), raw.index('\n## Plan review\n'))
+        self.assertLess(raw.index('\n## Plan review\n'), raw.index('\n## Review focus'))
 
     def test_the_eight_points(self):
         for point in ('1. **Delivery.**', '2. **Clarity.**', '3. **Size and route.**',
@@ -379,7 +379,7 @@ class TestReviewerPlanMode(unittest.TestCase):
             self.assertIn(phrase, self.plan)
 
     def test_plan_mode_writes_nothing_else(self):
-        self.assertIn('plan mode edits no spec document, appends to no fix section', self.plan)
+        self.assertIn('plan review edits no spec document, appends to no fix section', self.plan)
 
     def test_the_acceptance_table_is_one_row_per_requirement(self):
         output = _w_between(self.agent, '### Output', '### Deviation check')
@@ -396,9 +396,9 @@ class TestReviewerPlanMode(unittest.TestCase):
             self.assertIn(phrase, focus)
 
     def test_run_reviewer_dispatches_plan_mode(self):
-        for phrase in ('--package <path> | --plan] [--local]', '### Plan mode (`--plan`)',
+        for phrase in ('--package <path> | --plan] [--local]', '### Plan review (`--plan`)',
                        '**Mode: plan**', 'skip `## Record the fix tasks` below',
-                       "In plan mode relay the agent's one line verbatim"):
+                       "In plan review relay the agent's one line verbatim"):
             self.assertIn(phrase, self.skill)
 
 
@@ -407,9 +407,9 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
     (heads/full.md) since 0.25.0. Arming stays in SKILL.md."""
 
     def setUp(self):
-        self.raw = _w_raw('skills/feature-development/heads/full.md')
-        self.head = _w_flat('skills/feature-development/heads/full.md')
-        self.fd = _w_flat('skills/feature-development/SKILL.md')
+        self.raw = _w_raw('skills/artel-feature-development/heads/full.md')
+        self.head = _w_flat('skills/artel-feature-development/heads/full.md')
+        self.fd = _w_flat('skills/artel-feature-development/SKILL.md')
         self.gate = _w_between(self.head, '### Gate 4.2 — the plan review', '## THE ONE PAUSE')
         self.pause = _w_between(self.head, '## THE ONE PAUSE')
 
@@ -437,8 +437,8 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
             self.assertIn(phrase, self.gate)
 
     def test_the_agent_half_and_the_capped_rounds(self):
-        for phrase in ('`Skill: run-reviewer --plan` with `$0`',
-                       '`MAX_PLAN_REVIEW_ROUNDS = 2`', 'the `task-planner` agent',
+        for phrase in ('invoke the `artel-run-reviewer` skill with `--plan` and `$0`',
+                       '`MAX_PLAN_REVIEW_ROUNDS = 2`', 'the `artel-task-planner` agent',
                        'Minor findings never start a round'):
             self.assertIn(phrase, self.gate)
 
@@ -458,7 +458,7 @@ class TestGateFourTwoPlanReviewed(unittest.TestCase):
 
     def test_the_fold_back_reaches_the_analyst_and_rechecks(self):
         approve = _w_between(self.pause, '- **Approve** →', '- **Request changes** →')
-        for phrase in ('fields as well as its prose', 'goes to the `analyst` agent instead',
+        for phrase in ('fields as well as its prose', 'goes to the `artel-analyst` agent instead',
                        '`(already met — <evidence>)`',
                        "re-run gate 4.2's requirements read and mechanical check"):
             self.assertIn(phrase, approve)
@@ -483,13 +483,13 @@ class TestDevPathPlanCheck(unittest.TestCase):
     work list are gone."""
 
     def setUp(self):
-        self.gen = _w_flat('skills/generate-tasklist/SKILL.md')
+        self.gen = _w_flat('skills/artel-generate-tasklist/SKILL.md')
         self.check = _w_between(self.gen, '### Phase 1b: Check the draft', '### Phase 2:')
-        self.ladder = _w_between(_w_flat('skills/feature-development/heads/lean.md'),
+        self.ladder = _w_between(_w_flat('skills/artel-feature-development/heads/lean.md'),
                                  '## The ladder', '## Routes at the confirmation')
 
     def test_the_draft_is_checked_before_the_approval_round(self):
-        raw = _w_raw('skills/generate-tasklist/SKILL.md')
+        raw = _w_raw('skills/artel-generate-tasklist/SKILL.md')
         self.assertLess(raw.index('### Phase 1b: Check the draft'),
                         raw.index('### Phase 2: Ask User Questions'))
         for phrase in ('tasklist_tasks.py --tasklist .artel/run/<TICKET_ID>/tasklist-draft.md'
@@ -508,7 +508,7 @@ class TestDevPathPlanCheck(unittest.TestCase):
         self.assertIn('`MAX_PLAN_REVIEW_ROUNDS = 2`', self.check)
         self.assertIn('Minor findings never start a round', self.check)
         rules = _w_between(self.gen, '## Important Rules')
-        self.assertIn('at most `MAX_PLAN_REVIEW_ROUNDS` fix-round `SendMessage`s in Phase 1b',
+        self.assertIn('at most `MAX_PLAN_REVIEW_ROUNDS` fix-round `subagent` dispatches in Phase 1b',
                       rules)
 
     def test_the_writer_is_asked_for_task_blocks_and_given_the_prd(self):
@@ -533,7 +533,7 @@ class TestDevPathPlanCheck(unittest.TestCase):
 
     def test_the_third_branch_is_gone(self):
         self.assertNotIn('old checkbox format', self.ladder)
-        self.assertIn('2. **Otherwise** → `Skill: generate-tasklist` with `$0`', self.ladder)
+        self.assertIn('2. **Otherwise** → invoke the `artel-generate-tasklist` skill with `$0`', self.ladder)
 
     def test_yolo_still_presents_a_critical_or_important_finding(self):
         self.assertIn('a Critical or Important plan-check finding still presents the'
@@ -550,7 +550,7 @@ class TestDevPathPlanCheck(unittest.TestCase):
             self.assertIn(phrase, phase2)
         self.assertIn('A route the person changed is written'
                       ' `Route: <light|full> — set at approval`',
-                      _w_flat('agents/tasklist-writer.md'))
+                      _w_flat('agents/artel-tasklist-writer.md'))
 
 
 class TestSyncPhasesCopiesTheIteration(unittest.TestCase):
@@ -558,7 +558,7 @@ class TestSyncPhasesCopiesTheIteration(unittest.TestCase):
     ticks."""
 
     def setUp(self):
-        self.skill = _w_flat('skills/sync-phases/SKILL.md')
+        self.skill = _w_flat('skills/artel-sync-phases/SKILL.md')
         self.extract = _w_between(self.skill, '### Step 6', '### Step 7')
         self.writeback = _w_between(self.skill, '### Step 4', '### Step 5')
 
@@ -581,19 +581,19 @@ class TestSyncPhasesCopiesTheIteration(unittest.TestCase):
 
 
 class TestTasksAddWritesATaskBlock(unittest.TestCase):
-    """Spec §7 and §8: `/artel:tasks add` writes in the tasklist's own format; the check runs
+    """Spec §7 and §8: `/artel-tasks add` writes in the tasklist's own format; the check runs
     before the row; `done` ticks a whole task block; `add --fix` is unchanged."""
 
     FLAGS = ('--iteration N [--files <paths>] [--depends <tasks>] [--route <route>]'
              ' [--test <paths>]')
 
     def setUp(self):
-        self.skill = _w_flat('skills/tasks/SKILL.md')
+        self.skill = _w_flat('skills/artel-tasks/SKILL.md')
         self.add = _w_between(self.skill, '### `add <ticket> "<title>" --iteration N',
                               '### `add <ticket> "<title>" --fix')
 
     def test_the_hint_and_the_heading_name_the_field_flags(self):
-        hint = [ln for ln in _w_raw('skills/tasks/SKILL.md').splitlines()
+        hint = [ln for ln in _w_raw('skills/artel-tasks/SKILL.md').splitlines()
                 if ln.startswith('argument-hint:')][0]
         self.assertIn(self.FLAGS, hint)
         self.assertIn('### `add <ticket> "<title>" ' + self.FLAGS, self.skill)
@@ -607,7 +607,7 @@ class TestTasksAddWritesATaskBlock(unittest.TestCase):
     def test_a_task_block_with_its_title_as_its_one_step(self):
         for phrase in ('### Task <N>.<m>: <title>',
                        "The title is both the heading and the task's one step",
-                       'Ask for every required field still missing in one `AskUserQuestion`',
+                       'Ask for every required field still missing in one `question` tool call',
                        'Never invent a value'):
             self.assertIn(phrase, self.add)
 
@@ -656,11 +656,11 @@ class TestOneTaskPerDispatch(unittest.TestCase):
     """Plan 3, Task 1: one dispatch works one whole task block (spec §4)."""
 
     def setUp(self):
-        self.agent = flat(read('agents/implementer.md'))
+        self.agent = flat(read('agents/artel-implementer.md'))
 
     def test_step_one_takes_a_task_block(self):
         step = _between(self.agent, '### Step 1', '### Step 2')
-        for phrase in ('**A task-format tasklist**', '`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §4',
+        for phrase in ('**A task-format tasklist**', '`${ARTEL_ROOT}/docs/task-grammar.md` §4',
                        '`I<N> · <N.M> · <title>`', 'take the first task of `data.ready_now`',
                        'never the first unticked box', '`tasklist_malformed`',
                        'is a `DEVIATION` halt',
@@ -678,7 +678,7 @@ class TestOneTaskPerDispatch(unittest.TestCase):
         step = _between(self.agent, '### Step 3', '### Step 4')
         for phrase in ('**A task block is worked whole.**', 'the report lists it (Step 6)',
                        '**A missing or wrong dependency is a deviation.**',
-                       '**Major** under `${CLAUDE_PLUGIN_ROOT}/docs/deviation-protocol.md` §2',
+                       '**Major** under `${ARTEL_ROOT}/docs/deviation-protocol.md` §2',
                        'Halt before writing a stand-in'):
             self.assertIn(phrase, step)
 
@@ -706,14 +706,14 @@ class TestOneTaskPerDispatch(unittest.TestCase):
     def test_rules(self):
         rules = _between(self.agent, '## Rules')
         for phrase in ('**IDs stay out of the product**',
-                       '`${CLAUDE_PLUGIN_ROOT}/docs/task-grammar.md` §5',
+                       '`${ARTEL_ROOT}/docs/task-grammar.md` §5',
                        'the task is the whole `### Task <N.M>:` block',
                        '`D1 (minor: <path>, …), …`',
                        '§16 on a task whose route is `full`'):
             self.assertIn(phrase, rules)
 
     def test_the_skill_dispatch_carries_the_same_rules(self):
-        skill = flat(read('skills/implementer/SKILL.md'))
+        skill = flat(read('skills/artel-implementer/SKILL.md'))
         for phrase in ("the first task of the parser's `data.ready_now`",
                        "on the task's `Test:` files, touched or not",
                        'every step of a task block, in one write',
@@ -722,7 +722,7 @@ class TestOneTaskPerDispatch(unittest.TestCase):
             self.assertIn(phrase, skill)
 
     def test_inner_loop_and_gates_add_the_test_files(self):
-        loop = _between(flat(read('skills/inner-loop/SKILL.md')), '## Inputs', '## Exit-code contract')
+        loop = _between(flat(read('skills/artel-inner-loop/SKILL.md')), '## Inputs', '## Exit-code contract')
         self.assertIn("every file the task's `Test:` field lists, touched or not", loop)
         gates = flat(read('docs/gates.md'))
         self.assertIn("the paths also carry the task's `Test:` files, touched or not",
@@ -773,7 +773,7 @@ class TestPromotionByDependency(unittest.TestCase):
             self.assertIn(phrase, mirror)
         bullet = _between(flat(read('docs/autonomous-run.md')), '**Task-queue mirror**', '## 10.')
         self.assertIn('For a task-format tasklist it is also the first mirror', bullet)
-        remirror = _between(flat(read('skills/feature-development/tail.md')),
+        remirror = _between(flat(read('skills/artel-feature-development/tail.md')),
                             '**Re-mirror first.**', '| 5 |')
         self.assertIn('For a task-format tasklist this step is also the first mirror', remirror)
 
@@ -830,7 +830,7 @@ class TestRoutes(unittest.TestCase):
 
     def test_the_journal_line(self):
         for phrase in ('task 2.3: route full (declared full; floor: sensitive path (payments): '
-                       'lib/ramps/ramps_bloc.dart); model opus',
+                       'lib/ramps/ramps_bloc.dart); model tokenguard/opus-5.5',
                        '`task <N.M>: route <effective> (declared <route>[; floor: <reason>[, '
                        '<reason>…]]); model <value>`',
                        '`earlier deviation: <path>`'):
@@ -857,8 +857,8 @@ class TestRoutes(unittest.TestCase):
                       _between(self.run, '## 4. AFK / HITL task tags', '## 5.'))
 
     def test_feature_development_routes(self):
-        fd = flat(read('skills/feature-development/SKILL.md'))
-        gate = _between(flat(read('skills/feature-development/tail.md')),
+        fd = flat(read('skills/artel-feature-development/SKILL.md'))
+        gate = _between(flat(read('skills/artel-feature-development/tail.md')),
                         '| 5 | `IMPLEMENT_STEP_OK`', '| 6 |')
         for phrase in ('add every path its `Deviations:` line names to `run-state.json` `deviation_files`',
                        '**Routes** (autonomous-run.md §16)',
@@ -868,7 +868,7 @@ class TestRoutes(unittest.TestCase):
                        'a `light` task gets none'):
             self.assertIn(phrase, gate)
         self.assertNotIn('old-format tasklist', gate)
-        pause = _between(flat(read('skills/feature-development/heads/full.md')),
+        pause = _between(flat(read('skills/artel-feature-development/heads/full.md')),
                          '**Routes at the pause**')
         for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered',
                        'In `yolo` the routes stand as declared and floored'):
@@ -878,12 +878,12 @@ class TestRoutes(unittest.TestCase):
         self.assertIn('carry `requested_local` and `deviation_files` forward unchanged', arm)
 
     def test_lean_head_routes(self):
-        lean = flat(read('skills/feature-development/heads/lean.md'))
+        lean = flat(read('skills/artel-feature-development/heads/lean.md'))
         confirm = _between(lean, '## Routes at the confirmation', '## Raised by the writer')
         for phrase in ('`<light|full> — set at approval`', 'naming any floor it lowered'):
             self.assertIn(phrase, confirm)
         self.assertNotIn('old-format tasklist', confirm)
-        fd = flat(read('skills/feature-development/SKILL.md'))
+        fd = flat(read('skills/artel-feature-development/SKILL.md'))
         arm = _between(fd, '### 5. Arm the run', '### 6.')
         self.assertIn("every task's effective route (§16.1)", arm)
         self.assertIn("a task's `Route:` line changed at the lean head's confirmation",
@@ -891,12 +891,12 @@ class TestRoutes(unittest.TestCase):
 
     def test_config_setup_and_run_reviewer(self):
         row = _between(flat(read('docs/config.md')), '| `review.perTask` |',
-                       '| `seat.enabled` |')
+                       'The phase review')
         for phrase in ('`true` raises every iteration task to the `full` route',
                        'so `full` tasks are reviewed either way'):
             self.assertIn(phrase, row)
-        self.assertIn('every task on the `full` route', flat(read('skills/setup/SKILL.md')))
-        reviewer = flat(read('skills/run-reviewer/SKILL.md'))
+        self.assertIn('every task on the `full` route', flat(read('skills/artel-setup/SKILL.md')))
+        reviewer = flat(read('skills/artel-run-reviewer/SKILL.md'))
         self.assertIn('whose task runs on the `full` route', reviewer)
         self.assertIn("its heading's text after `### `", reviewer)
 
@@ -907,25 +907,25 @@ class TestReadersAudit(unittest.TestCase):
     # `grep -rlE 'tasklist\.md|tasks\.md|checkbox|- \[ \]|first incomplete' agents skills/*/SKILL.md
     # docs/*.md README.md`, each hit read and ruled on in plan 3, Task 4.
     AUDITED = {
-        'README.md', 'agents/implementer.md', 'agents/planner.md', 'agents/qa.md',
-        'agents/researcher.md', 'agents/reviewer.md',
-        'agents/task-planner.md', 'agents/tasklist-writer.md', 'agents/tech-writer.md',
-        'agents/validator.md', 'docs/autonomous-run.md', 'docs/config.md', 'docs/design.md',
+        'README.md', 'agents/artel-implementer.md', 'agents/artel-planner.md', 'agents/artel-qa.md',
+        'agents/artel-researcher.md', 'agents/artel-reviewer.md',
+        'agents/artel-task-planner.md', 'agents/artel-tasklist-writer.md', 'agents/artel-tech-writer.md',
+        'agents/artel-validator.md', 'docs/autonomous-run.md', 'docs/config.md', 'docs/design.md',
         'docs/deviation-protocol.md', 'docs/kartoteka-requirements.md',
         'docs/orchestrator-common.md', 'docs/porting-plan.md',
         'docs/skills-reference.md', 'docs/source-inventory-workflow.md', 'docs/spec-storage.md',
         'docs/deep-review.md',
         'docs/task-grammar.md', 'docs/task-queue.md', 'docs/ticket-parsing.md',
-        'docs/workflow-guide.md', 'skills/address-pr-comment/SKILL.md',
-        'skills/change-digest/SKILL.md', 'skills/deep-review/SKILL.md',
-        'skills/feature-development/SKILL.md', 'skills/feature-development/heads/bug.md',
-        'skills/feature-development/heads/full.md', 'skills/feature-development/heads/lean.md',
-        'skills/feature-development/tail.md', 'skills/generate-tasklist/SKILL.md',
-        'skills/implementer/SKILL.md', 'skills/issue-draft/SKILL.md', 'skills/planner/SKILL.md',
-        'skills/pr-description/SKILL.md', 'skills/researcher/SKILL.md',
-        'skills/run-reviewer/SKILL.md', 'skills/sync-phases/SKILL.md', 'skills/tasklist/SKILL.md',
-        'skills/tasks/SKILL.md', 'skills/using-artel/SKILL.md',
-        'skills/collaborative-review/SKILL.md',
+        'docs/workflow-guide.md', 'skills/artel-address-pr-comment/SKILL.md',
+        'skills/artel-change-digest/SKILL.md', 'skills/artel-deep-review/SKILL.md',
+        'skills/artel-feature-development/SKILL.md', 'skills/artel-feature-development/heads/bug.md',
+        'skills/artel-feature-development/heads/full.md', 'skills/artel-feature-development/heads/lean.md',
+        'skills/artel-feature-development/tail.md', 'skills/artel-generate-tasklist/SKILL.md',
+        'skills/artel-implementer/SKILL.md', 'skills/artel-issue-draft/SKILL.md', 'skills/artel-planner/SKILL.md',
+        'skills/artel-pr-description/SKILL.md', 'skills/artel-researcher/SKILL.md',
+        'skills/artel-run-reviewer/SKILL.md', 'skills/artel-sync-phases/SKILL.md', 'skills/artel-tasklist/SKILL.md',
+        'skills/artel-tasks/SKILL.md', 'skills/artel-using-artel/SKILL.md',
+        'skills/artel-collaborative-review/SKILL.md',
     }
 
     def test_every_tasklist_reader_was_audited(self):
@@ -940,7 +940,7 @@ class TestReadersAudit(unittest.TestCase):
                          'assumption, then add it to AUDITED')
 
     def test_reviewer_task_mode_scopes_the_task_block(self):
-        task_mode = _between(flat(read('agents/reviewer.md')), '## Task mode', '## Review focus')
+        task_mode = _between(flat(read('agents/artel-reviewer.md')), '## Task mode', '## Review focus')
         for phrase in ('the task is its whole `### Task <N.M>:` block',
                        'every step, its `Files:`, its `Test:` and its `Implements:`',
                        'with the `*Accepts when:*` line as the check',
@@ -950,29 +950,29 @@ class TestReadersAudit(unittest.TestCase):
 
     def test_fix_task_numbers_ignore_task_headings(self):
         self.assertIn("its `### Task N.M:` headings number iteration tasks and never count",
-                      flat(read('skills/deep-review/SKILL.md')))
+                      flat(read('skills/artel-deep-review/SKILL.md')))
 
     def test_change_digest_reads_task_blocks(self):
-        digest = flat(read('skills/change-digest/SKILL.md'))
+        digest = flat(read('skills/artel-change-digest/SKILL.md'))
         self.assertIn('each `### Task N.M:` block is one unit of work', digest)
         self.assertIn("(each task's `Files:` field; an older tasklist groups its boxes under file "
                       "headings, `` ### `path` ``)", digest)
 
     def test_product_text_carries_no_ids(self):
-        pr = _between(flat(read('skills/pr-description/SKILL.md')), '5. **Cite no trail document.**',
+        pr = _between(flat(read('skills/artel-pr-description/SKILL.md')), '5. **Cite no trail document.**',
                       '6. **Reader contract.**')
         self.assertIn('no task number (`2.3`) or requirement ID (`R1`) either', pr)
         self.assertIn('never a task number (`2.3`) or a requirement ID (`R1`)',
-                      flat(read('agents/tech-writer.md')))
+                      flat(read('agents/artel-tech-writer.md')))
 
     def test_qa_and_validator(self):
         self.assertIn('every active requirement gets at least one scenario',
-                      flat(read('agents/qa.md')))
+                      flat(read('agents/artel-qa.md')))
         self.assertIn('every step of every `### Task N.M:` block',
-                      flat(read('agents/validator.md')))
+                      flat(read('agents/artel-validator.md')))
 
     def test_tasks_done_and_list(self):
-        tasks = flat(read('skills/tasks/SKILL.md'))
+        tasks = flat(read('skills/artel-tasks/SKILL.md'))
         done = _between(tasks, '### `done <task-id>`', '### `block')
         self.assertIn('names a task block, not a box', done)
         self.assertIn('the file is the fallback the implementer reads', done)
@@ -1059,14 +1059,14 @@ class TestWholeBranchReviewFixes(unittest.TestCase):
         self.assertNotIn('sits on the checkbox', section)
 
     def test_a_red_post_write_check_gets_one_round_then_the_person(self):
-        gen = flat(read('skills/generate-tasklist/SKILL.md'))
+        gen = flat(read('skills/artel-generate-tasklist/SKILL.md'))
         phase3 = gen.split('### Phase 3:')[1].split('### Phase 4:')[0]
-        for phrase in ('one fix `SendMessage` to the same agent',
+        for phrase in ('one fix `subagent` dispatch to the same agent',
                        'still has a Critical or Important finding',
                        '**Fix it by hand**', '**Proceed anyway**', '**Abort**',
                        'even in `yolo`'):
             self.assertIn(phrase, phase3)
-        self.assertIn('at most one post-write fix `SendMessage` in Phase 3', gen)
+        self.assertIn('at most one post-write fix `subagent` dispatch in Phase 3', gen)
 
 
 if __name__ == '__main__':

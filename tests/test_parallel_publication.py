@@ -216,7 +216,7 @@ class PublicationCase(unittest.TestCase):
         git(self.main, 'branch', '-M', 'trunk')
         git(self.main, 'config', 'init.defaultBranch', 'trunk')
         self.base = git(self.main, 'rev-parse', 'HEAD')
-        self.coord = self.main / '.claude' / 'worktrees' / TICKET
+        self.coord = self.main / '.opencode' / 'worktrees' / TICKET
         git(self.main, 'worktree', 'add', '-q', '-b', COORD_BRANCH, str(self.coord))
         parallel_state.acquire_ticket(
             str(self.coord), TICKET,
@@ -252,7 +252,7 @@ class PublicationCase(unittest.TestCase):
         return ((base or self.main) / rel).read_text(encoding='utf-8')
 
     def worker_root(self):
-        return (self.main / '.claude' / 'worktrees' / 'parallel tasks' / TICKET / RUN_ID /
+        return (self.main / '.opencode' / 'worktrees' / 'parallel tasks' / TICKET / RUN_ID /
                 '{}-a{}'.format(TASK, ATTEMPT))
 
     def artifact_root(self):

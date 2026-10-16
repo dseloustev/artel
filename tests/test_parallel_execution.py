@@ -86,7 +86,7 @@ class ExecutionCase(unittest.TestCase):
         self.write('.gitignore', '.artel/\n')
         exclude = self.repo / '.git' / 'info' / 'exclude'
         exclude.parent.mkdir(parents=True, exist_ok=True)
-        exclude.write_text('/.claude/worktrees/\n', encoding='utf-8')
+        exclude.write_text('/.opencode/worktrees/\n', encoding='utf-8')
         self.write('src/a.txt', 'base a\n')
         self.write('src/b.txt', 'base b\n')
         self.write('src/c.txt', 'base c\n')
@@ -911,9 +911,9 @@ class TestQueueAuthority(ExecutionCase):
         self._coordinators.append(second)
         foreign = dict(coord.assignment('2.1', 1, 'src/a.txt'),
                        run_id=OTHER_RUN,
-                       worker_root=str(self.repo / '.claude' / 'worktrees' / 'parallel' /
+                       worker_root=str(self.repo / '.opencode' / 'worktrees' / 'parallel' /
                                        TICKET / OTHER_RUN / '2.1-a1'),
-                       artifact_root=str(self.repo / '.claude' / 'worktrees' / 'parallel' /
+                       artifact_root=str(self.repo / '.opencode' / 'worktrees' / 'parallel' /
                                          TICKET / OTHER_RUN / '2.1-a1' / '.artel' /
                                          'artifacts' / '2.1-a1'))
         for root, label in ((self.repo, 'main'), (linked, 'linked')):

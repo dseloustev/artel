@@ -11,7 +11,8 @@ NEW_SKILLS = ('move-to-worktree', 'return-from-worktree')
 
 
 def body(name):
-    return (SKILLS / name / 'SKILL.md').read_text(encoding='utf-8')
+    """The skill's SKILL.md — `name` is the route name; its folder carries the `artel-` prefix."""
+    return (SKILLS / ('artel-' + name) / 'SKILL.md').read_text(encoding='utf-8')
 
 
 def read(rel):
@@ -21,12 +22,13 @@ def read(rel):
 class WorktreeSkillsCase(unittest.TestCase):
     def test_frontmatter_names_each_skill(self):
         for name in NEW_SKILLS:
-            self.assertTrue(body(name).startswith('---\nname: {}\n'.format(name)), name)
+            self.assertTrue(
+                body(name).startswith('---\nname: artel-{}\n'.format(name)), name)
 
     def test_both_are_user_invoked_only(self):
         # They move the session and change two checkouts: never auto-triggered.
         for name in NEW_SKILLS:
-            self.assertIn('disable-model-invocation: true', body(name), name)
+            self.assertIn('metadata.opencode/autoinvoke: false', body(name), name)
 
     def test_both_take_an_optional_ticket(self):
         for name in NEW_SKILLS:
@@ -34,12 +36,12 @@ class WorktreeSkillsCase(unittest.TestCase):
 
     def test_both_go_through_the_script(self):
         for name in NEW_SKILLS:
-            self.assertIn('${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py', body(name), name)
-            self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md', body(name), name)
+            self.assertIn('${ARTEL_ROOT}/scripts/worktree.py', body(name), name)
+            self.assertIn('${ARTEL_ROOT}/docs/worktrees.md', body(name), name)
 
     def test_both_confirm_first(self):
         for name in NEW_SKILLS:
-            self.assertIn('AskUserQuestion', body(name), name)
+            self.assertIn('the `question` tool', body(name), name)
 
     def test_neither_forces_nor_deletes_a_branch(self):
         # Assert the prohibition is stated, not merely that the string is absent.
@@ -51,20 +53,23 @@ class WorktreeSkillsCase(unittest.TestCase):
             self.assertNotIn('git worktree remove', text, name)
 
     def test_move_enters_the_worktree(self):
-        self.assertIn('`EnterWorktree`', body('move-to-worktree'))
+        self.assertIn('`cd <path> && opencode`', body('move-to-worktree'))
 
     def test_return_only_keeps(self):
         text = body('return-from-worktree')
-        self.assertIn('`ExitWorktree` with `action: "keep"`', text)
+        self.assertIn('leaving the worktree always keeps it', text)
         self.assertNotIn('"remove"', text)
 
     def test_return_checks_before_it_asks(self):
         text = body('return-from-worktree')
         self.assertLess(text.index('--check'), text.index('### Step 3: Confirm'))
 
-    def test_both_name_the_opencode_fallback(self):
-        for name in NEW_SKILLS:
-            self.assertIn('**OpenCode:**', body(name), name)
+    def test_both_name_the_worktree_handover(self):
+        # No tool moves a running session in or out of a worktree: each skill states what it
+        # does instead.
+        self.assertIn('`cd <path> && opencode`', body('move-to-worktree'))
+        self.assertIn("this session's directory is about to be removed",
+                      body('return-from-worktree'))
 
 
 class InitBranchWorktreeCase(unittest.TestCase):
@@ -75,8 +80,8 @@ class InitBranchWorktreeCase(unittest.TestCase):
         self.assertIn('header `Worktree`', self.text)
 
     def test_follows_the_shared_procedure(self):
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/worktrees.md', self.text)
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py move-in', self.text)
+        self.assertIn('${ARTEL_ROOT}/docs/worktrees.md', self.text)
+        self.assertIn('${ARTEL_ROOT}/scripts/worktree.py move-in', self.text)
 
     def test_the_move_comes_before_setup(self):
         self.assertLess(self.text.index('### Step 2b'), self.text.index('### Step 3'))
@@ -99,7 +104,7 @@ class WorktreeContractCase(unittest.TestCase):
             self.assertIn(status, self.text)
 
     def test_names_the_location_and_the_include_file(self):
-        self.assertIn('.claude/worktrees/<name>', self.text)
+        self.assertIn('.opencode/worktrees/<name>', self.text)
         self.assertIn('.worktreeinclude', self.text)
 
     def test_the_procedures_ask_before_anything_moves(self):
@@ -109,11 +114,30 @@ class WorktreeContractCase(unittest.TestCase):
         self.assertLess(self.text.index('**Ask.** Confirm once'),
                         self.text.index('**Leave** the worktree'))
 
+    def test_the_upgrade_path_is_documented(self):
+        """A pre-OpenCode worktree is refused, never hand-back-with-git: the contract carries
+        the two upgrade routes, the manifest that validates the move, and the include note."""
+        section = self.text[self.text.index('## 8. Upgrading'):]
+        for phrase in ('Finish the hand-back before upgrading',
+                       'git worktree move',
+                       '.artel/worktree.json',
+                       'OLD_HOST_DIR',
+                       '/.opencode/worktrees/',
+                       'plain Git',
+                       '.worktreeinclude'):
+            self.assertIn(phrase, section)
+
+    def test_the_return_skill_points_at_the_upgrade_path(self):
+        text = ' '.join(body('return-from-worktree').split())
+        self.assertIn('`${ARTEL_ROOT}/docs/worktrees.md` §8', text)
+        self.assertIn('never hand it back with plain Git', text)
+        self.assertNotIn('git worktree remove', text)
+
     def test_the_reference_has_an_entry_per_skill(self):
         reference = read('docs/skills-reference.md')
         for name in NEW_SKILLS:
             self.assertIn('\n### {}\n'.format(name), reference, name)
-            self.assertIn('/artel:{} [ticket-id]'.format(name), reference, name)
+            self.assertIn('/artel-{} [ticket-id]'.format(name), reference, name)
 
 
 if __name__ == '__main__':

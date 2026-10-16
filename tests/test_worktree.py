@@ -42,13 +42,13 @@ class RepoCase(unittest.TestCase):
         for key, value in (('user.email', 'test@example.com'), ('user.name', 'Test'),
                            ('commit.gpgsign', 'false')):
             git(self.root, 'config', key, value)
-        self.write('.gitignore', '.artel/\n.claude/\n.mcp.json\nbuild/\n')
+        self.write('.gitignore', '.artel/\n.claude/\n.opencode/\nopencode.json\nopencode.jsonc\nbuild/\n')
         self.write('app.txt', 'v1\n')
         git(self.root, 'add', '.')
         git(self.root, 'commit', '-q', '-m', 'init')
         git(self.root, 'push', '-q', 'origin', 'main')
         git(self.root, 'branch', BRANCH)
-        self.target = self.root / '.claude' / 'worktrees' / 'T-1'
+        self.target = self.root / '.opencode' / 'worktrees' / 'T-1'
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -91,6 +91,15 @@ class RepoCase(unittest.TestCase):
         return [line[len('worktree '):] for line in
                 git(self.root, 'worktree', 'list', '--porcelain').splitlines()
                 if line.startswith('worktree ')]
+
+    def seed_exclude(self, *lines):
+        path = self.root / '.git' / 'info' / 'exclude'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('a', encoding='utf-8') as fh:
+            fh.write('\n'.join(lines) + '\n')
+
+    def exclude_lines(self):
+        return self.read('.git/info/exclude').splitlines()
 
 
 class TestMoveInGit(RepoCase):
@@ -166,14 +175,14 @@ class TestMoveInGit(RepoCase):
         self.assertEqual(self.stashes(), '')
 
     def test_refused_when_the_target_is_not_a_worktree(self):
-        self.write('.claude/worktrees/T-1/stray.txt', 'x\n')
+        self.write('.opencode/worktrees/T-1/stray.txt', 'x\n')
         code, report = self.move_in()
         self.assertEqual((code, report['status']), (1, 'refused'), report)
 
     def test_a_failed_worktree_add_rolls_back(self):
         git(self.root, 'checkout', '-q', BRANCH)
         self.write('app.txt', 'v1\nwip\n')
-        self.write('.claude/worktrees', 'a file where the directory should be\n')
+        self.write('.opencode/worktrees', 'a file where the directory should be\n')
         code, report = self.move_in()
         self.assertEqual((code, report['status']), (1, 'rolled-back'), report)
         self.assertEqual(self.branch_of(self.root), BRANCH)
@@ -204,8 +213,35 @@ class TestMoveInGit(RepoCase):
         code, report = self.move_in()
         self.assertEqual(code, 0, report)
         exclude = self.read('.git/info/exclude')
-        self.assertIn('/.claude/worktrees/', exclude)
+        self.assertIn('/.opencode/worktrees/', exclude)
         self.assertEqual(self.status(self.root), '')
+
+    def test_a_stale_claude_worktrees_exclude_line_is_left_alone(self):
+        """The host's .git/info/exclude is not ours to clean; the new entry is added idempotently."""
+        self.write('.gitignore', '.artel/\nbuild/\n')
+        git(self.root, 'commit', '-q', '-am', 'narrow ignore')
+        self.seed_exclude('/.claude/worktrees/')
+        git(self.root, 'branch', 'feature/T-2-work')
+        code, report = self.move_in()
+        self.assertEqual(code, 0, report)
+        code, report = self.run_script('move-in', '--ticket', 'T-2', '--name', 'T-2',
+                                       '--branch', 'feature/T-2-work', '--base', 'main')
+        self.assertEqual(code, 0, report)
+        lines = self.exclude_lines()
+        self.assertIn('/.claude/worktrees/', lines)  # the stale line survives
+        self.assertEqual(lines.count('/.opencode/worktrees/'), 1)
+
+
+class TestWorktreeLocation(RepoCase):
+    """A worktree is found only where worktree.py puts it: under `.opencode/`."""
+
+    def test_the_old_worktree_location_is_refused(self):
+        """hand-back resolves MAIN/.opencode/worktrees/<name>; a stale .claude path must not match."""
+        stale = self.root / '.claude' / 'worktrees' / 'T-1'
+        git(self.root, 'worktree', 'add', '-q', str(stale), BRANCH)
+        code, report = self.hand_back()
+        self.assertEqual((code, report['status']), (1, 'refused'), report)
+        self.assertTrue(stale.is_dir(), 'the stale worktree is left alone')
 
 
 class TestMoveInEnvironment(RepoCase):
@@ -255,32 +291,40 @@ class TestMoveInEnvironment(RepoCase):
         self.assertFalse((hooks / 'knowledge-mirror.log').exists())
         self.assertTrue((self.root / '.artel/run/.hooks/baseline-s1.json').is_file(), 'copied')
 
+    def test_the_include_list_tolerates_a_host_with_no_opencode_config(self):
+        """Most hosts have neither .opencode/ nor opencode.json on first use."""
+        code, report = self.move_in()  # a repo with neither path present
+        self.assertEqual((code, report['status']), (0, 'ok'), report)
+        self.assertFalse((Path(report['path']) / '.opencode').exists())
+
     def test_default_host_files(self):
-        self.write('.claude/settings.json', '{}\n')
-        self.write('.claude/tools/agent/agent.dart', 'main() {}\n')
-        self.write('.mcp.json', '{}\n')
+        self.write('.opencode/agent/artel-implementer.md', '# a\n')
+        self.write('.opencode/plugin/local.ts', 'export {}\n')
+        self.write('opencode.json', '{}\n')
+        self.write('opencode.jsonc', '{}\n')
         self.write('build/out.bin', 'binary\n')
         code, report = self.move_in()
-        for rel in ('.claude/settings.json', '.claude/tools/agent/agent.dart', '.mcp.json'):
+        for rel in ('.opencode/agent/artel-implementer.md', '.opencode/plugin/local.ts',
+                    'opencode.json', 'opencode.jsonc'):
             self.assertTrue((self.target / rel).is_file(), rel)
             self.assertIn(rel, report['copied'])
         self.assertFalse((self.target / 'build').exists())
 
     def test_worktreeinclude_replaces_the_default(self):
-        self.write('.worktreeinclude', '/.mcp.json\nbuild/keep.txt\n')
+        self.write('.worktreeinclude', '/opencode.json\nbuild/keep.txt\n')
         git(self.root, 'add', '.worktreeinclude')
         git(self.root, 'commit', '-q', '-m', 'include')
-        self.write('.claude/settings.json', '{}\n')
-        self.write('.mcp.json', '{}\n')
+        self.write('.opencode/settings.json', '{}\n')
+        self.write('opencode.json', '{}\n')
         self.write('build/keep.txt', 'k\n')
         self.write('build/drop.txt', 'd\n')
         self.write('.artel/config.json', '{}\n')
         code, report = self.move_in()
         self.assertEqual(code, 0, report)
-        self.assertTrue((self.target / '.mcp.json').is_file())
+        self.assertTrue((self.target / 'opencode.json').is_file())
         self.assertTrue((self.target / 'build/keep.txt').is_file())
         self.assertFalse((self.target / 'build/drop.txt').exists())
-        self.assertFalse((self.target / '.claude').exists())
+        self.assertFalse((self.target / '.opencode').exists())
         self.assertTrue((self.target / '.artel/config.json').is_file(), 'artel is always handled')
 
     def test_never_copies_tracked_or_untracked_files(self):
@@ -292,36 +336,36 @@ class TestMoveInEnvironment(RepoCase):
 
     def test_never_overwrites_a_file_the_branch_tracks(self):
         git(self.root, 'checkout', '-q', BRANCH)
-        self.write('.mcp.json', 'from the branch\n')
-        git(self.root, 'add', '-f', '.mcp.json')
-        git(self.root, 'commit', '-q', '-m', 'track mcp on the branch')
+        self.write('opencode.json', 'from the branch\n')
+        git(self.root, 'add', '-f', 'opencode.json')
+        git(self.root, 'commit', '-q', '-m', 'track opencode.json on the branch')
         git(self.root, 'checkout', '-q', 'main')
-        mine = self.write('.mcp.json', 'from main\n')
+        mine = self.write('opencode.json', 'from main\n')
         future = time.time() + 3600  # newer than the checkout: only the tracked filter saves it
         os.utime(mine, (future, future))
         code, report = self.move_in()
         self.assertEqual(code, 0, report)
-        self.assertEqual(self.read('.mcp.json', self.target), 'from the branch\n')
-        self.assertNotIn('.mcp.json', report['copied'])
+        self.assertEqual(self.read('opencode.json', self.target), 'from the branch\n')
+        self.assertNotIn('opencode.json', report['copied'])
 
     def test_never_copies_nested_worktrees(self):
-        self.write('.claude/settings.json', '{}\n')
+        self.write('.opencode/settings.json', '{}\n')
         self.move_in()
         git(self.root, 'branch', 'feature/T-2-work')
         code, report = self.run_script('move-in', '--ticket', 'T-2', '--name', 'T-2',
                                        '--branch', 'feature/T-2-work', '--base', 'main')
         self.assertEqual(code, 0, report)
-        second = self.root / '.claude/worktrees/T-2'
-        self.assertTrue((second / '.claude/settings.json').is_file())
-        self.assertFalse((second / '.claude/worktrees').exists())
+        second = self.root / '.opencode/worktrees/T-2'
+        self.assertTrue((second / '.opencode/settings.json').is_file())
+        self.assertFalse((second / '.opencode/worktrees').exists())
 
     def test_writes_a_manifest(self):
-        self.write('.mcp.json', '{}\n')
+        self.write('opencode.json', '{}\n')
         self.move_in()
         manifest = json.loads(self.read('.artel/worktree.json', self.target))
         self.assertEqual(manifest['ticket'], 'T-1')
         self.assertEqual(manifest['branch'], BRANCH)
-        self.assertEqual(manifest['copied'], ['.mcp.json'])
+        self.assertEqual(manifest['copied'], ['opencode.json'])
         self.assertEqual(manifest['main'], str(self.root))
 
 
@@ -367,7 +411,7 @@ class TestMoveInRecovery(RepoCase):
         self.assertEqual(self.stashes(), '')
 
     def test_a_failed_stash_reapply_is_an_error_that_names_the_stash(self):
-        self.write('.claude/worktrees', 'a file where the directory should be\n')
+        self.write('.opencode/worktrees', 'a file where the directory should be\n')
         with self.failing(lambda args: args[:2] == ('stash', 'apply')):
             report = self.run_move_in()
         self.assertEqual(report['status'], 'error')
@@ -375,7 +419,7 @@ class TestMoveInRecovery(RepoCase):
         self.assert_stash_kept(report)
 
     def test_a_failed_restore_checkout_keeps_the_stash_off_the_wrong_branch(self):
-        self.write('.claude/worktrees', 'a file where the directory should be\n')
+        self.write('.opencode/worktrees', 'a file where the directory should be\n')
         with self.failing(lambda args: args == ('checkout', BRANCH)):
             report = self.run_move_in()
         self.assertEqual(report['status'], 'error')
@@ -397,7 +441,7 @@ class TestMoveInRecovery(RepoCase):
 class HandBackCase(RepoCase):
     def setUp(self):
         super().setUp()
-        self.write('.claude/settings.local.json', '{"allow": []}\n')
+        self.write('opencode.json', '{}\n')
         code, report = self.move_in()
         self.assertEqual(code, 0, report)
 
@@ -487,14 +531,14 @@ class TestHandBack(HandBackCase):
         self.assertEqual(self.read('.artel/context/root/AGENTS.md'), '# saved in the worktree\n')
 
     def test_reports_environment_changes_without_copying_them(self):
-        self.write('.claude/settings.local.json', '{"allow": ["Bash(make:*)"]}\n', self.target)
-        self.write('.claude/new.json', '{}\n', self.target)
+        self.write('opencode.json', '{"allow": ["shell(make:*)"]}\n', self.target)
+        self.write('.opencode/new.json', '{}\n', self.target)
         code, report = self.hand_back()
         self.assertEqual(code, 0, report)
         self.assertEqual(sorted(report['envChanged']),
-                         ['.claude/new.json', '.claude/settings.local.json'])
-        self.assertEqual(self.read('.claude/settings.local.json'), '{"allow": []}\n')
-        self.assertFalse((self.root / '.claude/new.json').exists())
+                         ['.opencode/new.json', 'opencode.json'])
+        self.assertEqual(self.read('opencode.json'), '{}\n')
+        self.assertFalse((self.root / '.opencode/new.json').exists())
 
     def test_marks_the_hand_back_done(self):
         self.hand_back()

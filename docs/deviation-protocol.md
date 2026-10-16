@@ -3,7 +3,7 @@
 *Status: draft v0.1 · 2026-08-01*
 
 How implementation-time deviations from an approved plan are recorded, escalated, and reviewed.
-Referenced by the `implementer` agent and skill (writers), the `reviewer` agent (verifier), and
+Referenced by the `artel-implementer` agent and skill (writers), the `artel-reviewer` agent (verifier), and
 the `feature-development` orchestrator (reporting). Do not duplicate these rules in
 agent prompts — link to this file instead.
 
@@ -83,12 +83,13 @@ The implementer agent never prompts the user directly — the orchestrator owns 
    - **Recommendation:** 1
    ```
 
-2. **The orchestrating skill asks the user** via `AskUserQuestion`: one option per report
+2. **The orchestrating skill asks the user** via the `question` tool: one option per report
    option — the agent's recommendation first, labeled "(Recommended)" — plus an **Abort task**
    option (stop this task for re-planning). Free-form alternatives arrive via the built-in
    "Other".
 
-3. **The skill resumes the agent** via `SendMessage` with the decision.
+3. **The skill re-dispatches the agent** via the `subagent` tool with the decision (a fresh
+   dispatch; the agent re-reads its context files).
 
 4. **The agent records** the entry (§3) with the user's decision, then:
    - a way forward was chosen → continue implementing accordingly;
@@ -124,7 +125,7 @@ report (`.artel/run/<TICKET_ID>/reports/`, [autonomous-run.md](autonomous-run.md
 
 ## 6. Review duties
 
-In ticket mode the `reviewer` agent:
+In ticket mode the `artel-reviewer` agent:
 
 - Reads `implementation-notes.md` (missing file = no deviations recorded — not an error).
 - Verifies each entry is justified and matches the actual diff.

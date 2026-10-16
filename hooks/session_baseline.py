@@ -1,4 +1,4 @@
-"""SessionStart: capture the findings baseline so the verify stop gate blocks only NEW findings."""
+"""session.created: capture the findings baseline so the verify stop gate blocks only NEW findings."""
 import json
 import sys
 from pathlib import Path

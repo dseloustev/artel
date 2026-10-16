@@ -125,11 +125,11 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
     └── summary.md       # phase-scoped summary (optional)
 ```
 
-**Where the `reviewer` agent's bare-standalone report goes:** with no ticket id available the
+**Where the `artel-reviewer` agent's bare-standalone report goes:** with no ticket id available the
 agent writes `<specs.dir>/review-claude.md` — at the specs **root**, outside any ticket
-directory (`agents/reviewer.md`). The `deep-review` skill never uses that path: it directs its
+directory (`agents/artel-reviewer.md`). The `artel-deep-review` skill never uses that path: it directs its
 reviewer dispatch to write the ticket's single deliverable, `deep-review.md`, into the ticket
-directory (`agents/reviewer.md`, the deep-review output).
+directory (`agents/artel-reviewer.md`, the deep-review output).
 
 ---
 
@@ -149,10 +149,10 @@ to the addresses unchanged.
 |---|---|
 | Tasks | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` |
 | Implementation notes | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/implementation-notes.md` |
-| Review findings | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/review/findings.json` — machine-readable lens findings from the `reviewer` agent, scoped to this phase's review run (`review.md` itself stays ticket-level — see 4.2) |
+| Review findings | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/review/findings.json` — machine-readable lens findings from the `artel-reviewer` agent, scoped to this phase's review run (`review.md` itself stays ticket-level — see 4.2) |
 | Verify evidence | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/verify/` — quality-gate evidence from `inner-loop` runs scoped to this phase (ticket-wide variant: 4.2) |
 | Runtime evidence | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/runtime/observation.md` (`run-app`) and `.../runtime/drive-observation.md` (`drive-app`), scoped to this phase (ticket-wide variant: 4.2) |
-| Change report | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/change-report.html` — derived HTML change-comprehension report from the `change-digest` skill, scoped to this phase; regenerable, never committed (ticket-wide variant: 4.2) |
+| Change report | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/change-report.html` — derived HTML change-comprehension report from the `artel-change-digest` skill, scoped to this phase; regenerable, never committed (ticket-wide variant: 4.2) |
 | PRD | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/prd.md` |
 | Plan | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/plan.md` |
 | Research | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/research.md` |
@@ -178,11 +178,11 @@ On the files path, create the `phase-<PHASE_NUM>/` subfolder lazily on first wri
 | QA | `<specs.dir>/<TICKET_ID>/qa.md` |
 | Summary | `<specs.dir>/<TICKET_ID>/summary.md` |
 | Review | `<specs.dir>/<TICKET_ID>/review.md` |
-| Review findings | `<specs.dir>/<TICKET_ID>/review/findings.json` — machine-readable lens findings from the `reviewer` agent (phase-scoped variant: 4.1) |
-| Deep review | `<specs.dir>/<TICKET_ID>/deep-review.md` — the `deep-review` skill's single deliverable: the reviewer's whole-branch report (Critical / Warnings / Suggestions, PR Compliance, pre-existing issues, accepted audits) and its proposed fixes as `### Tasks` blocks (`agents/reviewer.md`); ticket-wide only (`deep-review` discards any phase suffix). Its pinned target manifest and machine report are local run evidence under `.artel/run/<TICKET_ID>/deep-review/` on both spec-store paths ([deep-review.md](deep-review.md)) |
+| Review findings | `<specs.dir>/<TICKET_ID>/review/findings.json` — machine-readable lens findings from the `artel-reviewer` agent (phase-scoped variant: 4.1) |
+| Deep review | `<specs.dir>/<TICKET_ID>/deep-review.md` — the `artel-deep-review` skill's single deliverable: the reviewer's whole-branch report (Critical / Warnings / Suggestions, PR Compliance, pre-existing issues, accepted audits) and its proposed fixes as `### Tasks` blocks (`agents/artel-reviewer.md`); ticket-wide only (`deep-review` discards any phase suffix). Its pinned target manifest and machine report are local run evidence under `.artel/run/<TICKET_ID>/deep-review/` on both spec-store paths ([deep-review.md](deep-review.md)) |
 | Verify evidence | `<specs.dir>/<TICKET_ID>/verify/` — quality-gate evidence from `inner-loop` runs: `iteration-<i>.json` (the task gate's envelope, both stages — `docs/gates.md` §1), `residual.json` (on stop-and-ask) (phase-scoped variant: 4.1) |
 | Runtime evidence | `<specs.dir>/<TICKET_ID>/runtime/observation.md` — `RUNTIME_OK` evidence from `run-app`; `<specs.dir>/<TICKET_ID>/runtime/drive-observation.md` — UI-driving evidence from `drive-app` (phase-scoped variant: 4.1) |
-| Change report | `<specs.dir>/<TICKET_ID>/change-report.html` — derived HTML change-comprehension report from the `change-digest` skill; regenerable, never committed (phase-scoped variant: 4.1) |
+| Change report | `<specs.dir>/<TICKET_ID>/change-report.html` — derived HTML change-comprehension report from the `artel-change-digest` skill; regenerable, never committed (phase-scoped variant: 4.1) |
 | ADR | `<specs.dir>/<TICKET_ID>/adr.md` |
 | PR description | `<specs.dir>/<TICKET_ID>/pr-description.md` |
 | PR pending | `<specs.dir>/<TICKET_ID>/pr-pending.md` — intended PR/tracker actions recorded by `pr-create` when an adapter identity check fails ([config.md](config.md)); ticket-wide only |
@@ -202,7 +202,7 @@ research, QA, tasks, summary, ADR) must follow this decision tree:
    Create the `phase-<PHASE_NUM>/` folder if missing.
 
 2. **If `PHASE_NUM` is null:**
-   - Use `Glob` to check whether `<specs.dir>/<TICKET_ID>/phase-*/` exists. On the kartoteka path: whether any name in `artifact_list(project=<project>, ticket_key=<TICKET_ID>)` starts `phase-`.
+   - Use `glob` to check whether `<specs.dir>/<TICKET_ID>/phase-*/` exists. On the kartoteka path: whether any name in `artifact_list(project=<project>, ticket_key=<TICKET_ID>)` starts `phase-`.
    - **If no phase folder exists** → write to the ticket-wide path
      `<specs.dir>/<TICKET_ID>/<artifact>.md` (this is a brand-new ticket, or a project with
      `ticket.phaseSuffix: false`).

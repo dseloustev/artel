@@ -153,8 +153,8 @@ class TestShippedPolicy(GuardCase):
             self.assertIn('secrets', self.assertDenied(path), path)
 
     def test_gate_config_shapes(self):
-        for path in ('.claude/settings.json', '.artel/config.json',
-                     '.artel/sensitive-paths.json'):
+        for path in ('opencode.json', 'opencode.jsonc', '.opencode/settings.json',
+                     '.artel/config.json', '.artel/sensitive-paths.json'):
             self.assertIn('gate-config', self.assertDenied(path), path)
 
     def test_ci_cd_shapes(self):

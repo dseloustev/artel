@@ -1,19 +1,19 @@
 # hooks/
 
-Quality gates: `hooks.json` registers nine Python hooks via `${CLAUDE_PLUGIN_ROOT}` paths.
-Requires `python3` on the host. Verify commands come from host config
-(`.artel/config.json` — [config.md](../docs/config.md)), never hardcoded.
+Quality gates: nine Python hooks on **artel's internal hook ABI** ([below](#the-hook-abi)),
+spawned by `opencode/plugin/artel.ts`. Requires `python3` on the host. Verify commands come
+from host config (`.artel/config.json` — [config.md](../docs/config.md)), never hardcoded.
 
 Five layers:
 
 - **Run layer** — enforces the autonomous-run contract
   ([autonomous-run.md](../docs/autonomous-run.md)):
-  - `stop_gate.py` (`Stop`) — blocks a session from ending while a run is armed
+  - `stop_gate.py` (`session.execution.succeeded`) — blocks a session from ending while a run is armed
     (`run_active: true`, `completed: false`, `pause_reason: null` in
     `.artel/run/<TICKET_ID>/run-state.json`). Fail-safes: disarms past
     `WALL_CLOCK_HOURS = 3` (stale run) and after `MAX_CONSECUTIVE_BLOCKS = 5`
     (counter: `.artel/run/<TICKET_ID>/.stop-gate-blocks`); fails open on infra errors.
-  - `sensitive_guard.py` (`PreToolUse` on `Edit|Write|MultiEdit`) — during an armed run,
+  - `sensitive_guard.py` (`tool.execute.before` on `edit|write|patch`) — during an armed run,
     denies edits to paths matched by the sensitive-paths policy when the category's floor
     outranks the effective mode, or before `TASKLIST_READY` is in `gates_confirmed`.
     Policy: [`sensitive-paths.json`](sensitive-paths.json) (shipped defaults: `secrets` and
@@ -21,19 +21,20 @@ Five layers:
     `.artel/sensitive-paths.json` when present. Inert outside armed runs.
 - **Platform layer** — always armed, never gated on a run: enforces which VCS and tracker
   platform this project actually uses, in every session, not only autonomous ones.
-  - `vcs_guard.py` (`PreToolUse` on `Bash|mcp__.*`) — denies any call that **writes** to a VCS
-    or tracker platform other than the one `.artel/config.json` declares. **Always armed**,
-    unlike `sensitive_guard.py` (the Run layer's own `PreToolUse` guard): a project that has
-    moved to GitHub must not post to Bitbucket in any session, autonomous run or not. Domain
+  - `vcs_guard.py` (`tool.execute.before` on the `Bash` shell call or a platform-named tool) —
+    denies any call that **writes** to a VCS or tracker platform other than the one
+    `.artel/config.json` declares. **Always armed**, unlike `sensitive_guard.py` (the Run layer's
+    own `tool.execute.before` guard): a project that has moved to GitHub must not post to
+    Bitbucket in any session, autonomous run or not. Domain
     routing is by platform, not tool name: `gh pr`/`repo`/`release`/`alias`/`api` and
     Bitbucket-named tools answer to `vcs.adapter`; `gh issue` and Jira-named tools answer to
     `tracker.adapter`; a GitHub-named tool is judged against **both** domains, since GitHub
     hosts both pull requests and issues. config.md requires `gh` for issues even when the VCS
-    adapter is not `github-cli`, so one adapter cannot govern both. A non-`Bash` tool is matched
-    by the platform token in its **name**, with no `mcp__` prefix test — that prefix is a Claude
-    Code convention (`hooks.json`'s matcher already scopes what arrives there) and OpenCode
-    names MCP tools without it. Verb extraction is positional, never substring: for a tool name
-    it is the first recognized verb among the `_`-separated segments after the platform segment,
+    adapter is not `github-cli`, so one adapter cannot govern both. Any tool other than the ABI's
+    `Bash` is matched by the platform token in its **name**, with no `mcp__` prefix test — legacy
+    `mcp__`-prefixed names are tolerated (nothing produces them) and OpenCode names MCP tools
+    without the prefix. Verb extraction is positional, never substring: for a tool name it is the
+    first recognized verb among the `_`-separated segments after the platform segment,
     and for `gh` the subcommand after the noun — substring matching would read the write token
     `comment` inside `bitbucket_get_pr_comments` and deny a read that `migrate-prs` depends on.
     The two surfaces use slightly different read-verb sets: `status`, `checks` and `diff` are
@@ -50,7 +51,7 @@ Five layers:
     that is declared and *unrecognized* keeps its domain enforced rather than unguarding it.
     Where the guarantee stops: it covers the `gh` subcommands named above and tools naming a
     platform, and nothing else — not `git push` (a stale `origin` still pushes to the old host;
-    `/artel:set-home` moves it), not `gh gist`/`secret`/`variable`/`label`/`workflow`/`project`,
+    `/artel-set-home` moves it), not `gh gist`/`secret`/`variable`/`label`/`workflow`/`project`,
     not the *use* of a `gh` alias created earlier (its creation via `gh alias set` is denied),
     and not direct HTTP such as `curl` against a platform API. Two spellings of a wrapped
     command line also escape it: `script -c "gh pr create" /dev/null`, because `script` is a
@@ -61,17 +62,17 @@ Five layers:
 - **Verify layer** — same-session quality feedback, driven by `verify.fast` /
   `verify.surface` (config.md) through the `scripts/verify.py` envelope
   (exit 0 clean / 1 findings / 2 environment error):
-  - `session_baseline.py` (`SessionStart`) — captures the findings baseline so pre-existing
+  - `session_baseline.py` (`session.created`) — captures the findings baseline so pre-existing
     findings never block.
-  - `fast_verify_post_edit.py` (`PostToolUse` on `Edit|Write|MultiEdit`) — runs `verify.fast`
+  - `fast_verify_post_edit.py` (`tool.execute.after` on `edit|write|patch`) — runs `verify.fast`
     scoped to the edited file for same-turn feedback; never blocks.
-  - `verify_stop_gate.py` (`Stop`) — blocks completion only while findings **new vs the
-    session baseline** stay red; after `MAX_CONSECUTIVE_BLOCKS = 2` it latches open with a
-    loud warning. Escape hatch: delete `.artel/run/.hooks/baseline-<session_id>.json` to
+  - `verify_stop_gate.py` (`session.execution.succeeded`) — blocks completion only while findings
+    **new vs the session baseline** stay red; after `MAX_CONSECUTIVE_BLOCKS = 2` it latches open
+    with a loud warning. Escape hatch: delete `.artel/run/.hooks/baseline-<session_id>.json` to
     re-baseline on the next stop.
 - **Knowledge layer** — optional, driven by `knowledge.adapter` / `knowledge.baseUrl` /
   `knowledge.project` / `knowledge.tokenEnv` (config.md):
-  - `knowledge_mirror.py` (`PostToolUse` on `Edit|Write|MultiEdit`) — posts each
+  - `knowledge_mirror.py` (`tool.execute.after` on `edit|write|patch`) — posts each
     deliberation artifact written under `<specs.dir>/<TICKET>/` to a kartoteka artifact
     store as it is written, under `knowledge.project`. Additive and best-effort: files on
     disk stay primary, nothing blocks, nothing retries, every attempt is logged to
@@ -87,7 +88,7 @@ Five layers:
     never reaches the log: a value with whitespace or control characters, or a plaintext
     `http://` `baseUrl` off loopback while a token is present, is `misconfigured` by name and
     nothing is sent, and an exception text is redacted before it is logged.
-  - `spec_store_guard.py` (`PreToolUse` on `Edit|Write|MultiEdit`, and on `Read`) — with
+  - `spec_store_guard.py` (`tool.execute.before` on `edit|write|patch`, and on `read`) — with
     `knowledge.adapter` `"kartoteka"`, kartoteka is the spec store
     ([spec-storage.md](../docs/spec-storage.md)), and this denies writing a spec document to disk
     unless the ticket's storage decision (`.artel/run/<TICKET_ID>/spec-store.json`) is a fresh
@@ -95,32 +96,32 @@ Five layers:
     (`pending`). The deny names the MCP tools to use instead, or, under a files decision that has
     gone stale, says to re-resolve it. Inert without the adapter, for a `ticket.projectKey`
     outside kartoteka's ticket-key grammar (one character, or containing `_` or `-`), and for
-    evidence files, images and `.active_ticket`. Bash writes are not seen. On `Read` it only
-    hints: under a fresh kartoteka decision, a Read of an image path under the trail where no
-    file exists — the sweep moved it into kartoteka — is denied with the
-    `spec_store.py image fetch` command that fetches it (spec-storage.md §6). Every other Read
-    passes after a file-extension check.
+    evidence files, images and `.active_ticket`. Shell writes (`cat >`, `cp`, `rsync` — the ABI's
+    `Bash` call) are not seen. On `Read` it only hints: under a fresh kartoteka decision, a Read
+    of an image path under the trail where no file exists — the sweep moved it into kartoteka —
+    is denied with the `spec_store.py image fetch` command that fetches it (spec-storage.md §6).
+    Every other Read passes after a file-extension check.
 - **Session layer** — turn-one routing, no gate:
-  - `using_artel.py` (`SessionStart`, matcher `startup|clear|compact`) — injects the
+  - `using_artel.py` (`session.hook("context")`) — injects the
     `using-artel` router skill (frontmatter stripped) plus the host-status lines as
     `additionalContext`, so the routing rule is in context on turn one and comes back after
-    `/clear` and compaction. The lines: `config: present`; `knowledge.adapter` with `baseUrl`
+    compaction. The lines: `config: present`; `knowledge.adapter` with `baseUrl`
     and `project`; with the adapter `kartoteka`, `knowledge.tokenEnv` and whether the variable
     it names is set in the session's environment (never its value); the raw `.active_ticket`
     pointer; and whether the `ast-index` CLI is on PATH (`shutil.which`, no subprocess). Prints nothing without `.artel/config.json`; any
     error goes to stderr and the hook still exits 0 — a session never fails to start
-    because of it. The `ast-index` line reflects the PATH Claude Code was launched with, not
-    the Bash tool's shell profile: a launch from an IDE can say `not on PATH` for a CLI that
-    `/opt/homebrew/bin` supplies in a terminal. A config that is present but not valid JSON
-    is named as such rather than reported as `knowledge.adapter: none`.
+    because of it. The `ast-index` line reflects the PATH the OpenCode server was launched with,
+    not the shell profile the `shell` tool's commands see: a launch from an IDE can say
+    `not on PATH` for a CLI that `/opt/homebrew/bin` supplies in a terminal. A config that is
+    present but not valid JSON is named as such rather than reported as `knowledge.adapter: none`.
 
-Every hook runs in the root of the checkout the session works in. `hooks.json` starts each one
-in `$CLAUDE_PROJECT_DIR`, which stays on the main checkout when a session enters a linked
-worktree (`EnterWorktree`, `/artel:move-to-worktree`); `hook_common.read_hook_input()` then
-moves the process into that worktree — only one of the same repository, named by the payload's
-`cwd` — so the gates check the files the session actually edits. Every hook therefore reads its
-input before touching `.artel/` (`tests/test_hook_common.py` pins the order; `using_artel.py`,
-which reads no input, is the one exception). See [docs/worktrees.md](../docs/worktrees.md) §7.
+Every hook runs in the root of the checkout the session works in. The bridge spawns each one in
+the checkout the session belongs to — the main checkout, which stays put when the session moves
+into a linked worktree (`/artel-move-to-worktree`); `hook_common.read_hook_input()` then moves
+the process into that worktree — only one of the same repository, named by the payload's `cwd` —
+so the gates check the files the session actually edits. Every hook therefore reads its input
+before touching `.artel/` (`tests/test_hook_common.py` pins the order; `using_artel.py`, which
+reads no input, is the one exception). See [docs/worktrees.md](../docs/worktrees.md) §7.
 
 Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines
 `baseline-<session_id>.json`, verify-stop counters `stopblocks-<session_id>.json`) and the
@@ -131,15 +132,7 @@ footprint; `hook_common.py`, `kartoteka_http.py` (the shared kartoteka HTTP clie
 `spec_decision.py` (the per-ticket storage decision file) are shared helper libraries, not
 registered hooks.
 
-## The OpenCode bridge
-
-On OpenCode the same scripts run unchanged, driven by
-`opencode/plugin/artel.ts` instead of `hooks.json`: it synthesizes the stdin payloads
-this README documents and maps the JSON outputs onto OpenCode's mechanisms (deny by
-throwing, router context prepended in-memory to the first user message, Stop-block
-by a `session.execution.succeeded` re-prompt). One output has
-no OpenCode channel: `knowledge_mirror.py`'s `additionalContext` is dropped (the mirror
-side effect still runs). See `docs/opencode.md`.
+## The hook ABI
 
 The bridge also registers the coordinator-only parallel worker-session adapter
 (`registerParallel`, `opencode/plugin/parallel.ts`) and enforces the shipped worker-mode
@@ -151,3 +144,37 @@ same fact; a malformed, foreign or wrong-root marker is never a bypass. Worker-s
 state (the same `.artel/run/.hooks/` files) lives inside the worker root, which is why
 cleanup of a bridge-active worker root refuses `dirty_worktree` and preserves it
 (docs/opencode-parallel.md §13.7) — retention, never a publication failure.
+
+The hooks are internal: `opencode/plugin/artel.ts` is the ABI's only producer and consumer — it
+synthesises every stdin payload and reads every stdout reply, and nothing else spawns these
+scripts. Each hook reads one JSON object on stdin:
+
+- `session_id` — the session the event belongs to.
+- `cwd` — the checkout the session works in; `read_hook_input()` moves the process into the
+  linked worktree it names.
+- `tool_name` — the tool the event is about, in the ABI's casing: `Edit`/`Write` for mutations,
+  `Read` for the read hint, `Bash` for a shell call, the platform-named tool otherwise.
+- `tool_input.file_path` — the file a mutation or read touches; `tool_input.command` — the
+  command line of a shell call. Hooks that need neither get `session_id` and `cwd` alone.
+
+Each hook writes at most one JSON object on stdout (side-effect-only hooks write none):
+
+- `hookSpecificOutput.hookEventName` — the event the reply belongs to, retained from the
+  original hook ABI: `PreToolUse` from the three guards (`sensitive_guard.py`,
+  `spec_store_guard.py`, `vcs_guard.py`), `PostToolUse` from `fast_verify_post_edit.py`,
+  `SessionStart` from `using_artel.py`. The bridge ignores it — it reads the sibling fields —
+  but the field stays: the shape is frozen, and a harness that keys on the event name can still
+  consume a reply.
+- `hookSpecificOutput.permissionDecision: "deny"` with `permissionDecisionReason` — a
+  `tool.execute.before` refusal; the bridge turns it into the tool call's error.
+- `hookSpecificOutput.additionalContext` — fast-verify findings (appended to the tool result)
+  or the router context (prepended in memory to the first user message).
+- `decision: "block"` with `reason` — a stop gate; the bridge re-prompts the session.
+- `systemMessage` — a pass-through warning the bridge logs.
+
+The field names are the ABI's historical spelling; the shape is frozen because the bridge
+synthesises the payloads and the hooks answer them (design spec §6).
+
+`vcs_guard.py` tolerates legacy `mcp__`-prefixed tool names — it classifies by the platform
+token in the name, so the prefix is ignored — without producing them: OpenCode names MCP tools
+without the prefix.

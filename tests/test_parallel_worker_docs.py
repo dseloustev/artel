@@ -82,7 +82,7 @@ class WorkerCase(unittest.TestCase):
         git(self.main, 'add', '.')
         git(self.main, 'commit', '-q', '-m', 'init')
         self.base = git(self.main, 'rev-parse', 'HEAD')
-        self.coord = self.main / '.claude' / 'worktrees' / TICKET
+        self.coord = self.main / '.opencode' / 'worktrees' / TICKET
         git(self.main, 'worktree', 'add', '-q', '-b', COORD_BRANCH, str(self.coord))
         self.write_config(self.coord)
         parallel_state.acquire_ticket(str(self.coord), TICKET, {
@@ -103,7 +103,7 @@ class WorkerCase(unittest.TestCase):
         return path
 
     def worker_root(self, task=TASK, attempt=1, run_id=RUN_ID):
-        return (self.main / '.claude' / 'worktrees' / 'parallel tasks' / TICKET / run_id /
+        return (self.main / '.opencode' / 'worktrees' / 'parallel tasks' / TICKET / run_id /
                 '{}-a{}'.format(task, attempt))
 
     def artifact_root(self, task=TASK, attempt=1, run_id=RUN_ID):
@@ -276,7 +276,7 @@ class TestWorkerRoleRecognition(WorkerCase):
 
     def test_a_marker_outside_the_worktree_area_is_not_a_worker(self):
         # The same repository, a valid assignment and a real common dir — but the root is
-        # not in the lifecycle's `.claude/worktrees/` area, so it is not a worker root.
+        # not in the lifecycle's `.opencode/worktrees/` area, so it is not a worker root.
         self.create()
         marker = self.read_marker(self.worker_root())
         elsewhere = self.main / 'elsewhere'
@@ -411,7 +411,7 @@ def flat(rel):
 
 class TestWorkerProcedureDocs(unittest.TestCase):
     def test_the_implementer_agent_defines_worker_mode(self):
-        text = flat('agents/implementer.md')
+        text = flat('agents/artel-implementer.md')
         self.assertIn('## Worker mode', text)
         for phrase in ('one pinned assignment',
                        '`worker_root`', '`artifact_root`', '`run_id`', '`attempt`',
@@ -421,15 +421,15 @@ class TestWorkerProcedureDocs(unittest.TestCase):
                        '`<artifact_root>/result.json`',
                        '`review` is always `null`', 'verbatim', 'No extra keys',
                        "against this worker's diff and attempt",
-                       'never ask the user', '`AskUserQuestion`',
+                       'never ask the user', 'the `question` tool',
                        'never dispatch a subagent', 'structured proposal',
                        '`verify-baseline.json`', 'cleanup', 'transport'):
             self.assertIn(phrase, text, phrase)
 
     def test_the_implementer_skill_keeps_worker_mode_out_of_the_serial_flow(self):
-        text = flat('skills/implementer/SKILL.md')
+        text = flat('skills/artel-implementer/SKILL.md')
         self.assertIn('## Worker mode', text)
-        self.assertIn('agents/implementer.md', text)
+        self.assertIn('agents/artel-implementer.md', text)
         self.assertIn('`artifact_root`', text)
         self.assertIn('never loads this skill', text)
         self.assertIn('serial procedure below is unchanged', text)
@@ -438,7 +438,7 @@ class TestWorkerProcedureDocs(unittest.TestCase):
         self.assertIn('task_ready', text)
 
     def test_the_inner_loop_takes_the_worker_evidence_root(self):
-        text = flat('skills/inner-loop/SKILL.md')
+        text = flat('skills/artel-inner-loop/SKILL.md')
         self.assertIn('Worker mode', text)
         self.assertIn('`<artifact_root>/verify/`', text)
         self.assertIn('`verify-baseline.json`', text)

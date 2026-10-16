@@ -7,15 +7,12 @@ the orchestrator acts from its skill, so a rule that drifts in the prose
 silently stops executing in a run nobody is watching.
 """
 import re
-import sys
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / 'scripts'))
-import build_opencode  # noqa: E402
 
-FD = 'skills/feature-development/'
+FD = 'skills/artel-feature-development/'
 
 
 def raw(path):
@@ -64,17 +61,6 @@ class TestTaskCommitProcedure(unittest.TestCase):
 
     def test_no_placeholders(self):
         self.assertNotRegex(self.section, r'\b(TBD|TODO)\b')
-
-
-class TestOpencodeTransforms(unittest.TestCase):
-    """Spec §4.4/§8: a reworded prompt must not silently drop an OpenCode rewrite.
-
-    scripts/build_opencode.py exits 2 when a transform's source text is absent
-    from the tree, so this is the guard that makes edits to the tail safe.
-    """
-
-    def test_every_transform_source_is_present(self):
-        self.assertEqual(build_opencode.missing_transforms(ROOT), [])
 
 
 class TestTheRunUsesIt(unittest.TestCase):
@@ -134,7 +120,7 @@ class TestTheImplementerNeverCommits(unittest.TestCase):
     """Spec §4.2: the invariant lives in the agent body, not only in prose around it."""
 
     def test_the_agent_says_so(self):
-        text = flat('agents/implementer.md')
+        text = flat('agents/artel-implementer.md')
         self.assertIn('never commit, never stage and never push', text)
         self.assertIn('the orchestrator commits your cycle', text)
 
@@ -223,9 +209,12 @@ class TestTheReviewFindings(unittest.TestCase):
 
     def test_the_non_goals_hold(self):
         # Finding 5's missing guards: no hook, and the à la carte skills unchanged.
-        self.assertNotIn('task-commit', raw('hooks/hooks.json'))
-        self.assertIn('Never commits, pushes or opens a PR', flat('skills/debugging/SKILL.md'))
-        self.assertNotIn('git commit', flat('skills/implementer/SKILL.md'))
+        # hooks.json is gone; the hook layer is hooks/*.py plus its only producer, the bridge.
+        hook_layer = ' '.join(p.read_text(encoding='utf-8')
+                              for p in sorted((ROOT / 'hooks').glob('*.py')))
+        self.assertNotIn('task-commit', hook_layer + raw('opencode/plugin/artel.ts'))
+        self.assertIn('Never commits, pushes or opens a PR', flat('skills/artel-debugging/SKILL.md'))
+        self.assertNotIn('git commit', flat('skills/artel-implementer/SKILL.md'))
 
 
 class TestNoNinthCompletionFact(unittest.TestCase):

@@ -9,7 +9,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - **Parallel task execution on OpenCode.** With `parallel.seats` set to an integer above `1`,
-  the generated `feature-development` tail can run the current unfinished iteration's
+  the canonical `artel-feature-development` tail can run the current unfinished iteration's
   disjoint tasks in concurrent pinned worker sessions — one detached worktree per task, one
   coordinator, never more workers than seats — while `parallel.seats` absent or `1` keeps the
   serial procedure exactly as it is. The coordinator drives the frozen contract
@@ -37,6 +37,83 @@ All notable changes to this project are documented here. The format follows
   was not driven by a model; the expensive-setup/codegen host case is NOT PROVEN; and the
   measured seats-2/seats-1 sample is not a speedup claim
   ([docs/opencode-parallel.md](docs/opencode-parallel.md) §14).
+
+## [0.37.0] - 2026-10-16
+
+### Added
+
+- **A `planner` family names the model for the analytical work.** `models.opencode.planner`
+  carries `default` — the shared fallback for every planning dispatch — and four kinds on top of
+  it: `plan` (the architecture / implementation plan), `tasklist` (the task breakdown and the
+  tasklist), `research` (research, issue scouting, Figma analysis) and `analysis` (the PRD and
+  the vision). An unset `planner.<kind>` resolves `planner.default`, so one line sets the model
+  for all of the planning work and naming a kind carves out the exceptions; the resolver applies
+  that fallback, so a dispatch still makes a single `models.py` call. The eight analytical
+  agents — `planner`, `task-planner`, `tasklist-writer`, `researcher`, `analyst`,
+  `vision-writer`, `figma-analyst`, `issue-scout` — resolve by their kind rather than the
+  generic `agents.<name>` site. Contract: [docs/config.md](docs/config.md) `models`,
+  [docs/agents.md](docs/agents.md) `## Models`.
+
+### Upgrade
+
+- **Move an analytical agent's model to its `planner.<kind>` site.** A `models.opencode.agents`
+  entry for one of the eight analytical agents is now ignored — every dispatch has exactly one
+  site. `agents.planner` → `planner.plan`; `agents.task-planner` and `agents.tasklist-writer` →
+  `planner.tasklist`; `agents.researcher`, `agents.issue-scout` and `agents.figma-analyst` →
+  `planner.research`; `agents.analyst` and `agents.vision-writer` → `planner.analysis`. Setting
+  `planner.default` alone puts all of them on one model instead.
+
+## [0.36.0] - 2026-10-15
+
+### Changed
+
+- **artel is an OpenCode-only plugin.** The canonical `skills/`, `agents/` and `docs/` trees
+  are OpenCode idiom — the Claude Code dialect and the build's translation layer are gone — and
+  `scripts/install-opencode.sh` installs them directly: it bakes the install copy in place
+  (`${ARTEL_ROOT}` becomes the install root), places the baked skills and agents into
+  `~/.config/opencode/{skills,agents}/`, and generates only the `/artel-<name>` command
+  wrappers under the build's `commands/`. The build refuses a `--root` that is the source
+  checkout, before the first write. Contract: [docs/opencode.md](docs/opencode.md).
+- **Every dispatch resolves its model from `models.opencode`.** The generic rule has one home —
+  the dispatch procedure in [docs/agents.md](docs/agents.md) `## Models`: resolve the site
+  (`agents.<name>` for an ordinary dispatch, the specialised site otherwise), pass the concrete
+  `provider/model[#variant]` on the `subagent` call, treat `null` as inherit and a resolver
+  error (exit `2`) as a stop, and re-dispatch a refused model once without one. The frontmatter
+  model tiers are gone.
+- **A question's sketch travels in the question text.** The `question` tool has no `preview`
+  field: a flow, structure or chart sketch is a `mermaid` block and a screen wireframe a plain
+  monospace block, written beneath its option's label.
+- **A fresh re-dispatch carries the state it needs.** There is no resume-by-id, so the
+  interview transcript and the vision and plan drafts persist under `.artel/run/<TICKET_ID>/`
+  and every continuation prompt passes the ticket, the phase, the resolved paths and the
+  storage decision.
+
+### Removed
+
+- **The Claude Code surface.** `.claude-plugin/`, the Claude-era command wrappers and the
+  build's dialect translation layer are gone, as are the `/artel:<name>` namespace, the
+  `AskUserQuestion`/`SendMessage`/`EnterWorktree` idioms and the frontmatter model tiers in the
+  instruction files. Ticket worktrees now live under `.opencode/worktrees/`; a worktree left
+  under the previous location is refused, never deleted — [docs/worktrees.md](docs/worktrees.md)
+  §8 gives the upgrade path. `docs/design.md`, `docs/porting-plan.md` and the
+  `source-inventory-*.md` files keep the Claude Code era as declared history.
+
+### Upgrade
+
+1. **Finish any in-flight hand-back first.** With the previous version still installed, run its
+   hand-back skill from the main checkout: it moves the branch, the uncommitted work and the
+   `.artel/run/` state back, and removes the worktree. A worktree still under the previous
+   location after the upgrade is not recognised — relocate it per
+   [docs/worktrees.md](docs/worktrees.md) §8 (a manifest-validated `git worktree move`), never
+   with plain Git, which would leave the run state behind.
+2. **Install the plugin from the checkout:** `scripts/install-opencode.sh` (it respects
+   `XDG_CONFIG_HOME`), then restart OpenCode. A refresh and `--remove` delete exactly what the
+   install manifest records, so a skill retired upstream is pruned and a skill of your own
+   named `artel-…` is left alone.
+3. **Review `.worktreeinclude` and `models.opencode`.** The default include patterns moved to
+   `/.opencode/`, `/opencode.json` and `/opencode.jsonc`, so a file written for the old
+   defaults selects nothing until it is updated; and the `models.opencode` sites now replace
+   the old frontmatter tiers ([docs/config.md](docs/config.md), `models`).
 
 ## [0.35.0] - 2026-10-14
 

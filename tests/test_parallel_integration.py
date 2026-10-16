@@ -90,7 +90,7 @@ class RepoCase(unittest.TestCase):
         git(self.main, 'branch', '-M', 'trunk')      # keeps `main` free for the guard test
         git(self.main, 'config', 'init.defaultBranch', 'trunk')
         self.base = git(self.main, 'rev-parse', 'HEAD')
-        self.coord = self.main / '.claude' / 'worktrees' / 'PROJ-123'
+        self.coord = self.main / '.opencode' / 'worktrees' / 'PROJ-123'
         git(self.main, 'worktree', 'add', '-q', '-b', COORD_BRANCH, str(self.coord))
         parallel_state.acquire_ticket(
             str(self.coord), TICKET,
@@ -135,7 +135,7 @@ class RepoCase(unittest.TestCase):
         return git(self.coord, 'rev-parse', 'HEAD')
 
     def worker_root(self, task=TASK, attempt=ATTEMPT, run_id=RUN_ID):
-        return (self.main / '.claude' / 'worktrees' / 'parallel tasks' / TICKET / run_id /
+        return (self.main / '.opencode' / 'worktrees' / 'parallel tasks' / TICKET / run_id /
                 '{}-a{}'.format(task, attempt))
 
     def artifact_root(self, task=TASK, attempt=ATTEMPT, run_id=RUN_ID):
@@ -669,7 +669,7 @@ class TestPreparePreconditions(RepoCase):
             str(other), TICKET,
             {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
              'coordinator_id': COORDINATOR})
-        root = (other / '.claude' / 'worktrees' / 'parallel tasks' / TICKET / RUN_ID /
+        root = (other / '.opencode' / 'worktrees' / 'parallel tasks' / TICKET / RUN_ID /
                 '{}-a{}'.format(TASK, ATTEMPT))
         assignment = self.assignment(
             base_commit=base, worker_root=str(root),
@@ -858,7 +858,7 @@ class TestContentIdentity(RepoCase):
         self.worker_write('app.txt', 'v2\n')
         applied = self.prepare_apply()
         self.install_hook('pre-commit', self.hook_in(
-            'host repo/.claude/worktrees/PROJ-123',
+            'host repo/.opencode/worktrees/PROJ-123',
             'printf "hooked\\n" > app.txt; printf "foreign\\n" > other.txt;'
             ' git add app.txt other.txt'))
         rejects(self, 'hook_mutated', lambda: self.commit(applied))

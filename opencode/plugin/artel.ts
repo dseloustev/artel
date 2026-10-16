@@ -65,20 +65,12 @@ const MUTATION_TOOLS = new Set(["edit", "write", "patch"])
  * authority — a worker must not reach it by naming a different tool. A worker returns the
  * pinned assignment's structured result instead. */
 const WORKER_DENIED_TOOLS = new Set(["subagent", "question", ...PARALLEL_TOOL_IDS])
-/** Platform tokens hooks/vcs_guard.py classifies a tool name by. The guard deliberately does
- * NOT test for Claude Code's `mcp__` prefix — OpenCode names MCP tools without it. */
+/** Platform tokens hooks/vcs_guard.py classifies a tool name by — no `mcp__` prefix test. */
 const PLATFORM_TOKENS = ["bitbucket", "github", "jira"]
 /** Bridge-side fail-safe on top of the hooks' own consecutive-block caps (5 and 2). */
 const MAX_STOP_BLOCKS = 10
 /** Marker from using_artel.py's header — proves a message already carries the router. */
 const ROUTER_MARKER = "This repository is configured for artel"
-
-const ROUTER_NOTE =
-  "\n\nOpenCode note: the routing tables above name skills as `/artel:<name>`. " +
-  "On this host they are the skills `artel-<name>` (TUI commands `/artel-<name>`), " +
-  "loaded with the `skill` tool; agents are dispatched with the `subagent` tool as " +
-  "`artel-<name>`. `/ast-index:*` commands are not available unless that plugin is " +
-  "installed — otherwise run the `ast-index` CLI directly."
 
 type HookResult = { code: number; stdout: string; stderr: string }
 
@@ -114,7 +106,7 @@ function isWorkerLocation(directory: string): boolean {
     if (!repository || typeof repository !== "object") return false
     const main = repository.main
     if (typeof main !== "string" || !main) return false
-    const area = path.join(path.resolve(main), ".claude", "worktrees") + path.sep
+    const area = path.join(path.resolve(main), ".opencode", "worktrees") + path.sep
     return path.resolve(directory).startsWith(area)
   } catch {
     return false
@@ -193,12 +185,13 @@ function mutationPaths(tool: string, input: any): string[] {
   return one ? [one] : []
 }
 
-/** artel file path -> the Claude Code hook payload shape. */
-function claudePayload(sessionID: string, directory: string, claudeName: string, filePath: string) {
-  return { session_id: sessionID, cwd: directory, tool_name: claudeName, tool_input: { file_path: filePath } }
+/** artel file path -> the hook ABI's stdin payload (hooks/README.md). */
+function hookPayload(sessionID: string, directory: string, toolName: string, filePath: string) {
+  return { session_id: sessionID, cwd: directory, tool_name: toolName, tool_input: { file_path: filePath } }
 }
 
-function claudeToolName(tool: string): string {
+/** The ABI's tool name for a v2 mutation tool. */
+function hookToolName(tool: string): string {
   return tool === "write" ? "Write" : "Edit"
 }
 
@@ -309,7 +302,7 @@ export function createArtelPlugin(options: { root?: string } = {}): Plugin {
         if (!filePath) return
         const hint = await runHook(
           "spec_store_guard.py",
-          claudePayload(event.sessionID, directory, "Read", filePath),
+          hookPayload(event.sessionID, directory, "Read", filePath),
           directory,
           10_000,
         )
@@ -324,7 +317,7 @@ export function createArtelPlugin(options: { root?: string } = {}): Plugin {
 
       if (!MUTATION_TOOLS.has(event.tool)) return
       for (const filePath of mutationPaths(event.tool, event.input)) {
-        const payload = claudePayload(event.sessionID, directory, claudeToolName(event.tool), filePath)
+        const payload = hookPayload(event.sessionID, directory, hookToolName(event.tool), filePath)
         const result = await runHook("sensitive_guard.py", payload, directory, 30_000)
         const decision = firstJson(result.stdout)?.hookSpecificOutput
         if (decision?.permissionDecision === "deny") {
@@ -344,10 +337,10 @@ export function createArtelPlugin(options: { root?: string } = {}): Plugin {
 
     await ctx.tool.hook("execute.after", async (event) => {
       if (!hasArtelConfig(directory) || !MUTATION_TOOLS.has(event.tool)) return
-      // Verify first, mirror second (hooks.json's order): nothing throws anymore, so the
+      // Verify first, mirror second: nothing throws anymore, so the
       // ordering hack the v1 bridge needed is gone.
       for (const filePath of mutationPaths(event.tool, event.input)) {
-        const payload = claudePayload(event.sessionID, directory, claudeToolName(event.tool), filePath)
+        const payload = hookPayload(event.sessionID, directory, hookToolName(event.tool), filePath)
         const result = await runHook("fast_verify_post_edit.py", payload, directory, 150_000)
         await runHook("knowledge_mirror.py", payload, directory, 15_000)
         const findings = firstJson(result.stdout)?.hookSpecificOutput?.additionalContext
@@ -379,7 +372,7 @@ export function createArtelPlugin(options: { root?: string } = {}): Plugin {
           return
         }
       }
-      firstUser.content.unshift({ type: "text", text: context + ROUTER_NOTE })
+      firstUser.content.unshift({ type: "text", text: context })
     })
 
     const runStopGate = async (sessionID: string) => {

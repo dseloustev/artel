@@ -32,7 +32,7 @@ An empty or whitespace-only report is unprocessable input: `check` refuses it as
 
 `check` prints one JSON envelope on stdout: `{"ok": true, "data": ...}` on success,
 `{"ok": false, "errors": [...]}` on failure, with best-effort `data` once the machine
-report parses. Contract: skills/deep-review/SKILL.md, agents/reviewer.md.
+report parses. Contract: skills/artel-deep-review/SKILL.md, agents/artel-reviewer.md.
 """
 import argparse
 import json

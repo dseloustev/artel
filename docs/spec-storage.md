@@ -27,8 +27,8 @@ spike.md         diagnosis.md
 ```
 
 `spike.md` is the researcher's answer to a ticket that asks a question
-(`/artel:researcher --question`); `diagnosis.md` is a bug ticket's cause, written by
-`/artel:debugging --diagnose`. Both are ticket-wide only: neither is ever written under
+(`/artel-researcher --question`); `diagnosis.md` is a bug ticket's cause, written by
+`/artel-debugging --diagnose`. Both are ticket-wide only: neither is ever written under
 `phase-<N>/`.
 
 **And every image file under the trail**, at any depth: `design/`, `runtime/`,
@@ -95,7 +95,7 @@ error itself:
 tools are `artifact_get`, `artifact_put`, `artifact_patch`, `artifact_list` and
 `artifact_versions`. Everything else is one command:
 
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py decide <TICKET_ID> --decided-by <your skill> [--local]
+    python3 ${ARTEL_ROOT}/scripts/spec_store.py decide <TICKET_ID> --decided-by <your skill> [--local]
 
 - **Exit 0** prints the decision (`"store": "kartoteka"` or `"files"`). On the kartoteka path it
   also prints `local_trail`, this ticket's spec documents and committed or saved images found on
@@ -130,7 +130,7 @@ row 9 does.
   `base_version`;
 - `files_base` — optional: the `versions` a files decision froze, carried on by later
   `decide`s while that run's documents are still on disk. It is the version each local copy
-  was edited from, and `/artel:migrate-specs` reads it (after `pending`, before a standing
+  was edited from, and `/artel-migrate-specs` reads it (after `pending`, before a standing
   files decision's own `versions`) to tell a `successor` from a `conflict`. A plain `decide`
   at resume replaces the files decision, so without it every locally edited document would be
   judged against a listing taken long after those copies were made. `migrate apply` drops it
@@ -267,23 +267,23 @@ kartoteka, which then stores the block unread and checks nothing.
 - **Documents written before the header** have none. Nothing migrates them. A document gains its
   header the next time it is rewritten (a put), not when it is patched.
 - **On the files path** a new document says `version: 0`, and an edit never changes the line.
-  `/artel:migrate-specs` reads it to tell a successor from a copy the store has moved past (§7).
+  `/artel-migrate-specs` reads it to tell a successor from a copy the store has moved past (§7).
 
 ## 4. Operations
 
 ### 4.1 Agents and inline-writing skills
 
 When **Spec store:** is `kartoteka`, every spec-trail path in your instructions is an address.
-Read and write it with kartoteka's MCP tools, never with Read/Write/Edit:
+Read and write it with kartoteka's MCP tools, never with `read`/`write`/`edit`:
 
 | On the files path | On the kartoteka path |
 |---|---|
-| Read `<path>` | `artifact_get(project=<project>, ticket_key, stage, name)`. `No such artifact.` means the file does not exist. Note the `vN` on the answer's first line: every write needs it. |
+| `read` `<path>` | `artifact_get(project=<project>, ticket_key, stage, name)`. `No such artifact.` means the file does not exist. Note the `vN` on the answer's first line: every write needs it. |
 | Does `<path>` exist? | `artifact_list(project=<project>, ticket_key)` once; its names answer every existence check in this step. |
-| `Glob <specs.dir>/<T>/phase-*/` | Any name in that listing that starts `phase-`. |
-| Write a new `<path>` | `artifact_put(project=<project>, ticket_key, stage, name, content, author_agent="artel:<you>", expected_version=0)`, the content opening with the header (§3.2) at `version: 1`. `Conflict` means it appeared meanwhile: read it and continue as if it had existed. |
+| `glob <specs.dir>/<T>/phase-*/` | Any name in that listing that starts `phase-`. |
+| `write` a new `<path>` | `artifact_put(project=<project>, ticket_key, stage, name, content, author_agent="artel:<you>", expected_version=0)`, the content opening with the header (§3.2) at `version: 1`. `Conflict` means it appeared meanwhile: read it and continue as if it had existed. |
 | Rewrite an existing `<path>` | `artifact_put(project=<project>, …, expected_version=<N, the version you read>)`, the header at `version: <N+1>`. A document without a header gains one here. On `Conflict`, or a refusal naming the header, re-read, re-apply your change once, and put again with the new numbers. A second conflict is reported, never forced. |
-| Edit `<path>` | `artifact_patch(project=<project>, ticket_key, stage, name, expected_version=<N>, edits=[{old_string: "ticket: <T>\nversion: <N>\n", new_string: "ticket: <T>\nversion: <N+1>\n"}, {old_string, new_string}, …])` — the version bump first, always, then your edits. A document without a header takes no bump edit, but still `expected_version`. On `Conflict`, or a refusal naming the header, re-read and re-apply once. |
+| `edit` `<path>` | `artifact_patch(project=<project>, ticket_key, stage, name, expected_version=<N>, edits=[{old_string: "ticket: <T>\nversion: <N>\n", new_string: "ticket: <T>\nversion: <N+1>\n"}, {old_string, new_string}, …])` — the version bump first, always, then your edits. A document without a header takes no bump edit, but still `expected_version`. On `Conflict`, or a refusal naming the header, re-read and re-apply once. |
 | Append to `<path>` | `artifact_patch(project=<project>, …, expected_version=<N>, edits=[<the version bump>, {append: "<text>"}])`. On `Conflict`, or a refusal naming the header, re-read and re-apply once. |
 | Insert at the end of a `## ` section | A replace edit whose `old_string` is the next `## ` heading line, or `append` when the section is last. It follows the version bump, like every edit. |
 | Delete `<path>` | Not an operation. The one deletion artel performs is §4.4. |
@@ -309,7 +309,7 @@ model's context:
 | `spec_store.py status < <path>` | `doc=$(spec_store.py get <path>) && printf '%s\n' "$doc" \| spec_store.py status` |
 | `doc=$(spec_store.py body < <path>) && printf '%s\n' "$doc" \| gh pr … --body-file -` | `set -o pipefail; doc=$(spec_store.py get <path> \| spec_store.py body) && printf '%s\n' "$doc" \| gh pr … --body-file -` |
 
-`spec_store.py` is `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py`. A status is always read with
+`spec_store.py` is `python3 ${ARTEL_ROOT}/scripts/spec_store.py`. A status is always read with
 `status`, never `grep`: the header's `status:` is lower-case, and `status` falls back to the old
 `Status:` line for documents written before 0.21.0. A document leaves for a pull request only
 through `body`, which drops the header.
@@ -389,7 +389,7 @@ fails, stop and return:
     STORE_UNAVAILABLE: <operation> <name> — <first line of the error>
 
 Never write the document anywhere else. Your unsaved work stays in your context: the
-orchestrator resumes you with the user's answer (§5.2).
+orchestrator re-dispatches you with the user's answer (§5.2).
 
 **A retry must not double-apply.** A call that timed out or lost its connection may have landed.
 Before re-sending an `artifact_patch`, `artifact_get` the newest version and check whether your
@@ -425,7 +425,7 @@ where `path` is the rest of the logical path below the ticket folder, kept verba
 The rule's one implementation is `hooks/kartoteka_http.py`'s `image_identity`, and a test pins
 this table to it.
 
-**Viewing.** `spec_store.py image fetch <logical path>` prints one local path; Read that path.
+**Viewing.** `spec_store.py image fetch <logical path>` prints one local path; `read` that path.
 
 - Without `--version`, while a regular file that is not a symlink is still at the logical path
   (not yet swept), it prints that file's absolute path, with no network call.
@@ -435,7 +435,7 @@ this table to it.
   otherwise a failing store call (§4.5). An unreachable store is never served from the cache.
 
 The cache is disposable: `.artel/run/` is gitignored, there is one cache per worktree, and
-migration never reads it. Once an image is swept its logical path is empty on disk, and a Read of
+migration never reads it. Once an image is swept its logical path is empty on disk, and a `read` of
 it is answered by the guard with this command (§6).
 
 **Producing.** Unchanged. `figma-analyst`, host `runtime.drive` scripts and ad hoc simulator or
@@ -494,13 +494,13 @@ removes its bytes from kartoteka.
 
 ### 5.1 At the start
 
-Before any spec document is read, when §2.1 answers unavailable, ask (`AskUserQuestion`):
+Before any spec document is read, when §2.1 answers unavailable, ask (the `question` tool):
 
 - **Retry** — probe again. A failed retry asks again; never loop on your own.
 - **Work locally for this run** — record it with
   `decide <TICKET_ID> --decided-by <you> --files "kartoteka unavailable; working locally at the user's request — <record>"`,
   and use the files path for the rest of the run, renewing the decision with the same `--files`
-  (§2.2). `/artel:migrate-specs` moves the documents in later.
+  (§2.2). `/artel-migrate-specs` moves the documents in later.
 - **Abort** — stop; nothing written.
 
 **Documents known to be stored are protected.** When the decision's `versions` names a document
@@ -513,7 +513,7 @@ A `STORE_UNAVAILABLE` return, or a failing call of your own, is the environment 
 `docs/autonomous-run.md` §1 lists among legitimate interruptions. Set
 `pause_reason: "store-unavailable"` and ask:
 
-- **Retry** — resume the agent (`SendMessage`) to try again.
+- **Retry** — dispatch a fresh `subagent` to the same agent to try again.
 - **Save it locally and pause** — offered only when a produced document is unsaved. First run
   `spec_store.py pending add <path> --base-version <the version it was based on, 0 for new>` so
   the guard (§6) admits the write, then resume the agent to write it to its logical path, with its
@@ -529,31 +529,31 @@ Re-run `decide` — the one place a files decision is re-probed. Read the standi
 first (`spec_store.py decision <TICKET_ID>`): a successful re-probe replaces it, reason and all.
 When the store is back:
 
-- `pending` files are moved in by `/artel:migrate-specs <TICKET_ID> --pending-only`: uploaded,
+- `pending` files are moved in by `/artel-migrate-specs <TICKET_ID> --pending-only`: uploaded,
   verified and deleted without asking. Permission to keep them was for the outage only.
 - A run that worked locally (§5.1) is asked once, before any document is read or written:
   **Move this run's documents into kartoteka and continue there** (recommended; runs
-  `/artel:migrate-specs <TICKET_ID>`) or **Keep working locally**, which renews the files
+  `/artel-migrate-specs <TICKET_ID>`) or **Keep working locally**, which renews the files
   decision with `decide <TICKET_ID> --decided-by <you> --files "<its reason>"`.
 
 When the store is still down, §5.2 applies again, without the save option.
 
 ### 5.4 Headless
 
-`AskUserQuestion` does not exist under `-p`. `specs.onUnavailable` (`docs/config.md`) answers:
+the `question` tool does not exist under `opencode run`. `specs.onUnavailable` (`docs/config.md`) answers:
 
 | Situation | `"abort"` (default) | `"local"` |
 |---|---|---|
 | Unavailable at start | stop; journal it | work locally (§5.1) |
 | Unavailable mid-run, document unsaved | pause without saving; journal the loss | save it locally and pause |
 | Resume with `pending` | move them in (§5.3) | same |
-| Resume of a local run, store back | keep working locally; the final report names `/artel:migrate-specs` | same |
-| Local trail found at start (§7) | stop and name `/artel:migrate-specs` | same |
+| Resume of a local run, store back | keep working locally; the final report names `/artel-migrate-specs` | same |
+| Local trail found at start (§7) | stop and name `/artel-migrate-specs` | same |
 
 ### 5.5 Completion
 
 A run that finished on the files path lists the documents left on disk and the command that
-moves them in: `/artel:migrate-specs <TICKET_ID>`.
+moves them in: `/artel-migrate-specs <TICKET_ID>`.
 
 ### 5.6 Images
 
@@ -584,7 +584,7 @@ moves them in: `/artel:migrate-specs <TICKET_ID>`.
   left local — each `failed` or `skipped` entry with its reason (a name outside §4.6's grammar
   must be renamed before the command can move it), or on exit `5` or `2` every image still under
   the trail — with the command that moves them in:
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:<skill>`.
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py image sync <TICKET_ID> --author artel:<skill>`.
   Headless runs journal the same lines.
 - **The images still under the trail** are
   `find '<specs.dir>/<TICKET_ID>' -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.gif' -o -iname '*.webp' \)`.
@@ -594,7 +594,7 @@ moves them in: `/artel:migrate-specs <TICKET_ID>`.
 
 ## 6. The guard
 
-`hooks/spec_store_guard.py` (`PreToolUse` on `Edit|Write|MultiEdit`, and on `Read` for the hint
+`hooks/spec_store_guard.py` (the bridge's `execute.before` on `edit|write|patch`, and on `read` for the hint
 below) denies writing a spec
 document to disk while kartoteka is the store. It allows the write only when the ticket's
 decision is a fresh files decision, or when the path is in `pending` (paths compare normalised,
@@ -604,17 +604,17 @@ call a tool. Under a files decision that has gone stale it says so instead —
 `the storage decision for <TICKET_ID> is stale (older than 3 hours): re-resolve it (docs/spec-storage.md §2) before writing <name>`
 — and the fix is to renew that decision (§2.2). It is inert without the adapter, for a project
 key outside kartoteka's ticket-key grammar (§1), and for anything that is not a spec document.
-It does not see Bash writes. Writing an image is always allowed: producers save images at their
+It does not see `shell` writes. Writing an image is always allowed: producers save images at their
 logical paths, and the sweep moves them in (§4.6).
 
-**The `Read` hint.** On `Read` the guard acts only when the ticket's decision is a fresh kartoteka
+**The `read` hint.** On `read` the guard acts only when the ticket's decision is a fresh kartoteka
 decision, the path is an image under the trail within §4.6's grammar, and no file is there — an
 image already swept. It denies with:
 
     images are stored in kartoteka: run spec_store.py image fetch <path> and Read the path it prints
 
 It is a hint, not enforcement: without it, an agent that reads the old path by habit sees "file
-does not exist" and may conclude the image is missing. Every other `Read` passes untouched, an
+does not exist" and may conclude the image is missing. Every other `read` passes untouched, an
 unswept image included.
 
 ## 7. Local trails and migration
@@ -625,14 +625,14 @@ and its images that git tracks under the trail or that sit in that context copy.
 under the trail are the sweep's (§4.6), not a local trail, so a resume after a failed sweep asks
 nothing; `restore-context` leaves the context copy's images where they are. Finding any, ask:
 
-- **Move them into kartoteka** (recommended) — runs `/artel:migrate-specs <TICKET_ID>`, then
+- **Move them into kartoteka** (recommended) — runs `/artel-migrate-specs <TICKET_ID>`, then
   continue.
 - **Work locally for this run.**
 - **Abort.**
 
 Headless: stop (§5.4).
 
-`/artel:migrate-specs [<TICKET_ID>… | --all]` compares each local copy's hash with every stored
+`/artel-migrate-specs [<TICKET_ID>… | --all]` compares each local copy's hash with every stored
 version. **Each distinct local copy is one item**: where a document's working-tree copy and its
 `.artel/context` copy differ, each is classified, reported and settled on its own.
 
@@ -700,7 +700,7 @@ skipped are never deleted.
 
 ## 8. spec_store.py
 
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py <verb> …`. Paths are logical paths (§3, §4.6).
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py <verb> …`. Paths are logical paths (§3, §4.6).
 
 | Verb | Prints | Exit |
 |---|---|---|
@@ -718,7 +718,7 @@ skipped are never deleted.
 | `migrate apply <plan's arguments> [--resolve <path>=keep-local[:<source>][@<N>]\|keep-merged[@<N>]\|keep-stored\|skip]…` | `uploaded`, `merged`, `conflicted`, `failed`, `deletable`, `kept`, `flipped`, `pending_left` | `0`; `5` unavailable |
 | `migrate delete <apply's arguments> [--commit]` | `removed`, `kept`, `commit`, `pending_left` | `0`; `5` unavailable |
 | `image put <path> [--file F] [--author A] [--expected-version N]` | the receipt, JSON `{project, ticket_key, path, version, content_hash, byte_size, content_type, unchanged}` | `0`; `4` conflict, printing `{current_version}` |
-| `image fetch <path> [--version N]` | one local path to Read (§4.6) | `0`; `3` absent; `2` kind `redacted` for a redacted version, or a store error |
+| `image fetch <path> [--version N]` | one local path to `read` (§4.6) | `0`; `3` absent; `2` kind `redacted` for a redacted version, or a store error |
 | `image list <ticket-id>` | JSON `[{path, logical, version, content_type, byte_size, content_hash, created_at}]` | `0` |
 | `image sync <ticket-id> --author A` | JSON `{uploaded, unchanged, skipped, failed, tracked}` | `0`, even with `failed` entries; `5` unavailable; `2` kind `unrecoverable` (§5.6) |
 

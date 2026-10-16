@@ -8,11 +8,11 @@
 Contract: docs/opencode-parallel.md §3 (worker role, permissions and location), §4
 (assignment), §5 (result), §13.4 (the repository-common ticket lock) and §13.7 (the task
 worktree and the cleanup publication proof), plus docs/worktrees.md §1 for the
-`.claude/worktrees/` area. `repo` is any checkout of the repository -- the coordinator may
+`.opencode/worktrees/` area. `repo` is any checkout of the repository -- the coordinator may
 itself live in a ticket worktree -- and every operation is rooted there: nothing here moves,
 stashes, switches or cleans the coordinator, and `scripts/worktree.py`'s move-in/hand-back
 are never reused. A worker root is a linked worktree of the same repository, detached at the
-assignment's `base_commit`, under the main checkout's `.claude/worktrees/` area; the
+assignment's `base_commit`, under the main checkout's `.opencode/worktrees/` area; the
 coordinator's branch, index, stash and `.artel/run/` stay byte-for-byte as they were.
 
 Ownership. Every operation verifies the repository-common ticket lock
@@ -95,7 +95,7 @@ from pathlib import Path
 import parallel_contract
 
 SCHEMA = 1
-WORKTREES_DIR = '.claude/worktrees'
+WORKTREES_DIR = '.opencode/worktrees'
 MARKER_PATH = '.artel/parallel-worker.json'
 CONFIG_PATH = '.artel/config.json'
 REF_ROOT = 'refs/artel/parallel'
@@ -644,7 +644,7 @@ def create_worker(repo, assignment):
     """Create the assignment's detached worker worktree, or adopt a complete one.
 
     The root is a linked worktree of `repo`'s repository, detached at `base_commit`, under
-    the main checkout's `.claude/worktrees/` area, owned by the run that holds the
+    the main checkout's `.opencode/worktrees/` area, owned by the run that holds the
     repository-common ticket lock. The marker, the copied config and the namespaced base ref
     are written before any configured setup runs; the setup state is recorded in the marker
     so a restart can tell a complete root from an interrupted or failed one.

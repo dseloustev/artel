@@ -60,7 +60,7 @@ updates it in place, it does not relocate it.
   ([deviation-protocol.md](deviation-protocol.md)).
 - **Mid-run interruptions are exceptional**, limited to: a deviation escalation (per the deviation
   protocol above), a `[HITL: …]` task, a loop-cap escalation, the PR-gate pause, or an environment
-  error (kartoteka becoming unreachable while it is the spec store is one — spec-storage.md §5.2). Nothing else may call `AskUserQuestion` after the pause.
+  error (kartoteka becoming unreachable while it is the spec store is one — spec-storage.md §5.2). Nothing else may call the `question` tool after the pause.
 - **Escalate, never spin.** Every loop is capped; counters persist in the artifacts the loop writes.
 - **Run state lives in artifacts**, never in conversation memory. Re-read the relevant artifacts after
   every sub-agent return — never decide on stale state.
@@ -133,11 +133,6 @@ orchestrator adds each path the completion's `Deviations:` line names
 it, so a deviation in phase 1 still raises a phase-3 task on the same file to `full` (§16,
 floor 4). A run armed before 0.23.0 has no such key; read it as `[]`.
 
-`pause-request.json` sits beside `run-state.json` only while a seated run waits on a human
-(§18.2): `{reason, question, options, context}`, written by the seat with the question worded
-exactly as the inline tail words it, deleted when the pause clears. Existence **and**
-`pause_reason != null` together mean "waiting on a human"; either alone is stale and ignored.
-
 ## 3. Question collection — `open-questions.md`
 
 Path: `.artel/run/<TICKET_ID>/open-questions.md`. Between the interview and the approval pause,
@@ -158,11 +153,11 @@ flip each entry to `- **Status:** resolved: "<answer>"`. A missing file means no
 
 ## 4. AFK / HITL task tags
 
-Tasklist writers (`task-planner`, `tasklist-writer` agents) tag tasks at generation time:
+Tasklist writers (`task-planner`, `artel-tasklist-writer` agents) tag tasks at generation time:
 
 - Untagged task ⇒ **AFK**: runs without any human interaction.
 - A `[HITL: <reason>]` tag ⇒ the orchestrator pauses **before starting** the task, sets
-  `pause_reason: "hitl-task"`, asks the pre-declared question via `AskUserQuestion`, then resumes.
+  `pause_reason: "hitl-task"`, asks the pre-declared question via the `question` tool, then resumes.
   The tag sits on the task's heading —
   `### Task 2.3: <title> [HITL: <reason>]` ([task-grammar.md](task-grammar.md) §1) — and covers
   the whole task: one question before its first step, none between steps; a tag on a step is a
@@ -218,37 +213,36 @@ those keys the gate is recorded as `skipped` (config.md) and this loop never arm
 `runtime.surface` is set (config.md), the gate additionally runs only when the run's diff
 matches it — a non-match is recorded as `skipped (no runtime surface)`.
 
-Cap hit ⇒ set `pause_reason: "cap-escalation"`, present consolidated findings via `AskUserQuestion`, stop.
+Cap hit ⇒ set `pause_reason: "cap-escalation"`, present consolidated findings via the `question` tool, stop.
 
 **Debug it here first.** On three cap escalations — each a red gate in app code — the question
 opens with one more option, **Debug it here first**: a task aborted when `MAX_VERIFY_ITERATIONS`
 ran out, a checkpoint still red after `MAX_CHECKPOINT_VERIFY_ROUNDS`, and the runtime gate's
 second red from an app-code error. Not the review cap, not an environment error, not
 `MAX_TOTAL_CORRECTION_ROUNDS` or the wall clock; a headless run journals and stops as before.
-The option runs the `debugging` skill on the red evidence while `pause_reason` stays
+The option runs the `artel-debugging` skill on the red evidence while `pause_reason` stays
 `cap-escalation`. Fixed → the orchestrator journals `debugged here: <root cause> — <files>`,
 adds the files to `deviation_files` (§2) and re-runs the gate that was red; green resets that
 loop's counter as a resume with guidance does. Red again → the question is asked again without
 the option: `MAX_DEBUG_HERE_ATTEMPTS = 1`, one attempt per halt. The procedure is in the
-`feature-development` skill (`../skills/feature-development/tail.md`, `## Debug it here first`).
+`artel-feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Debug it here first`).
 
-**Step-up rounds.** A fix round that follows a failed one runs one tier up, on `fable`: the
-review loop's fix round whose findings come from a `review.md` with `**Review round:**` 2 or
-more, and a checkpoint's second `## Verify Fixes` round. The orchestrator passes the
-`implementer` skill `--model fable`. A fix list's first round runs on `opus`, whatever the
-task's route — a fix list is run-level correction, not a task dispatch. Rounds that exist once —
-the per-task review's fix round, the runtime retry, review fix round 1 — keep the default, and a
-stepped-up round counts toward `MAX_TOTAL_CORRECTION_ROUNDS` like any other.
-**OpenCode:** the generated build resolves the stepped-up round from `models.opencode`'s
-`implementer.stepUp` — and a first fix round from `implementer.fix` — via `scripts/models.py`;
-unset → no flag ([opencode.md](opencode.md)).
+**Step-up rounds.** A fix round that follows a failed one runs one tier up: the review loop's
+fix round whose findings come from a `review.md` with `**Review round:**` 2 or more, and a
+checkpoint's second `## Verify Fixes` round. The orchestrator passes the `artel-implementer`
+skill `--model <value>`, resolved from `models.opencode`'s `implementer.stepUp`
+(`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site implementer.stepUp`); unset → no flag.
+A fix list's first round resolves `implementer.fix`, whatever the task's route — a fix list is
+run-level correction, not a task dispatch. Rounds that exist once — the per-task review's fix
+round, the runtime retry, review fix round 1 — keep the default, and a stepped-up round counts
+toward `MAX_TOTAL_CORRECTION_ROUNDS` like any other.
 
 Environment errors (toolchain/dependency mismatches, subprocess failures, missing tools) are **never**
 loop findings — immediate stop-and-ask pointing at setup.
 
 ## 6. `--step` compatibility flag
 
-`/artel:feature-development --step` enables per-gate confirmations instead of
+`/artel-feature-development --step` enables per-gate confirmations instead of
 the autonomous default — confirm between major phases, per-task implementer approval. No
 `run-state.json` is written in step mode and the Stop hook stays disarmed.
 
@@ -269,10 +263,10 @@ open `## Code Review Fixes` box), `RUNTIME_OK` (green or skipped, newer than the
 `DOCS_UPDATED` (`summary.md` exists — written on the last phase before its checkpoint, so that
 checkpoint commit carries the docs; `skipped (no PRD)` when the ticket has no PRD, because the
 docs stage runs only with one) and `AUTOMATION_REMOVED`; the table is in the
-`feature-development` skill (`../skills/feature-development/tail.md`, `## Completion gate`). A
+`artel-feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Completion gate`). A
 fact that reads `skipped` is green. Those readings are keyed on what exists for the ticket,
 never on the head that ran. No
-agent is dispatched: `/artel:validate` is à la carte. The final report always includes the
+agent is dispatched: `/artel-validate` is à la carte. The final report always includes the
 aggregated `Deviations:` line (per the deviation protocol) and the loop counters.
 
 ## 8. Stop hook interplay
@@ -282,9 +276,6 @@ session from ending while
 `run_active` is true, `completed` is false, and `pause_reason` is null. Waiting for a human (any
 `pause_reason`) is a legitimate stop. The hook fails open on infra errors and disarms itself past
 the wall-clock budget (§5).
-Under a seated run (§18) the same file rule holds across two layers: the seat sets
-`pause_reason` before returning its pause; the main thread clears it on the answer. A stop in
-the window between is a legitimate stop.
 
 ## 9. Worker-skill invocation (skip-if-exists)
 
@@ -347,7 +338,7 @@ Three ranked modes control how much the run pauses for approval: `yolo=0 < plan-
 the lean head's confirmation, the bug head's work-list approval) — or, in `yolo`, at the moment
 the pause would have occurred — the orchestrator
 appends `"TASKLIST_READY"`. The sensitive-path guard (the plugin's `hooks/sensitive_guard.py`,
-a `PreToolUse` hook) denies writes to floored paths until it is present.
+a `tool.execute.before` hook) denies writes to floored paths until it is present.
 
 ## 11. Run journal
 
@@ -372,29 +363,28 @@ A budget breach or guardrail trip is journaled before the run stops.
 ## 12. Headless invocation
 
 ```bash
-claude -p "/artel:feature-development <TICKET_ID> --mode=yolo" --output-format stream-json --verbose
+opencode run "/artel-feature-development <TICKET_ID> --mode=yolo"
 ```
 
-- Requires a curated tool/command permissions allowlist (Claude Code settings) — never a
-  permissions-bypass flag. A stall on a missing permission is the guardrail working; the fix is
-  a deliberate allowlist extension, never a bypass.
+- Requires a curated tool/command allowlist (the host's `opencode.json` `permission` config) —
+  never a bypass flag. A stall on a missing permission is the guardrail working; the fix is a
+  deliberate allowlist extension, never a bypass.
 - First `yolo` runs: throwaway branch, low-risk ticket, transcript reviewed against the journal.
 - Crash/sleep mid-run: artifacts + journal survive; re-invoking the same command resumes
   (skip-if-exists); §2 staleness prevents a dead run from arming hooks forever.
-- Headless escalation rules (`AskUserQuestion` does not exist under `-p`): a **deviation escalation**
+- Headless escalation rules (the `question` tool does not exist under `opencode run`): a **deviation escalation**
   takes the implementer's recommended option and is journaled as
   `paused (deviation-escalation) → auto-resolved`; **HITL tags** and **cap escalations** are never
   auto-resolved — journal the entry, set the `pause_reason`, and stop. A stalled headless run on a
   HITL/cap pause is the guardrail working; resume it interactively.
-- Spec store unavailability follows `specs.onUnavailable` (spec-storage.md §5.4): `"abort"` stops (journaled), `"local"` works locally; a local trail found at start always stops and names `/artel:migrate-specs`.
+- Spec store unavailability follows `specs.onUnavailable` (spec-storage.md §5.4): `"abort"` stops (journaled), `"local"` works locally; a local trail found at start always stops and names `/artel-migrate-specs`.
 - Sizing (§17) never pauses, so it needs no answer: the size line goes to the output and into
   `sizing.json`, and the run-start journal entry repeats it. Two outcomes end a headless run
   unarmed: a spike prints its answer and stops, and a `NOT_REPRODUCED` diagnosis prints the
   diagnosis' path and stops. A `yolo` run opens its pull request unattended whichever head ran.
 
-On OpenCode, the same unattended pattern runs through `opencode run` with the host's
-`permission` config as the curated allowlist; the Stop gate fires on the idle event as a
-re-prompt rather than a hard block. Host specifics: `docs/opencode.md`.
+The Stop gate fires on the idle event as a re-prompt rather than a hard block; the host
+specifics, including `opencode run`'s terminal-event caveat, are `docs/opencode.md`.
 
 ## 13. Design analysis stage (`figma-analysis`)
 
@@ -405,7 +395,7 @@ contains a design-tool link (e.g. a Figma URL) or a URL is passed explicitly. Pr
 `image fetch`; files path: files, as before — see [ticket-parsing.md](ticket-parsing.md)) consumed
 by `analysis`, `researcher`, and `planner`.
 
-- Runs pre-arm (chatty head): its **Major-findings handshake** may call `AskUserQuestion` — plain,
+- Runs pre-arm (chatty head): its **Major-findings handshake** may call the `question` tool — plain,
   no `pause_reason` bracketing.
 - Minor findings never pause — they land in the artifact's minor-findings section and are bundled
   into the analysis interview.
@@ -425,7 +415,7 @@ the latest approved docs and every completed phase: a **planning checkpoint** ri
 arming (docs only, no verify gate; its subject says `planning artifacts` when a plan exists and
 `work list` otherwise) and a **phase-end checkpoint** after each phase's gates pass
 (the checkpoint gate — `verify.commands` compared against the run's baseline, gates.md §1 — plus capped fixes first). Checkpoints are orchestrator-owned
-Bash actions, pre-approved at the approval pause (§4 exception), never pause, and are journaled as
+`shell` actions, pre-approved at the approval pause (§4 exception), never pause, and are journaled as
 external actions (§11).
 
 The second kind is task commits, and the finer one: one commit per completed implementer cycle —
@@ -437,7 +427,7 @@ stopping the run) commits the in-flight cycle as
 are orchestrator-owned and pre-authorized the same way, are journaled as external actions, and
 **never push on their own**: they reach `origin` at the next phase-end checkpoint, or at
 `pr-create`'s close-out. The trigger table, the subject rules and the staging discipline are in the
-`feature-development` skill (`../skills/feature-development/tail.md`, `## Task commits`).
+`artel-feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Task commits`).
 
 **A push follows a build gate, never precedes it.** The checkpoint procedure's step 6 pushes only
 when step 3's verdict was green or `skipped` — a red gate runs its capped fix rounds instead, and a
@@ -450,7 +440,7 @@ follows the completion gate's final verify pass.
 
 The full procedure (branch guard, the image sweep, idempotence, the verify
 gate, explicit staging, push, journal) and the commit-subject table are defined in the `feature-development`
-skill (`../skills/feature-development/tail.md`, `## Checkpoint commits & pushes`). On the
+skill (`../skills/artel-feature-development/tail.md`, `## Checkpoint commits & pushes`). On the
 kartoteka path the planning checkpoint stages the same paths, and when, images
 aside, only `.active_ticket` changed it skips the commit and journals
 `planning checkpoint: skipped — the spec trail is in kartoteka`. On the kartoteka path every
@@ -524,7 +514,7 @@ its own), floor 4 and `review.perTask`. A `light` task's snapshot is never used.
 
 One journal line per dispatched task (§11), in this form:
 
-    task 2.3: route full (declared full; floor: sensitive path (payments): lib/ramps/ramps_bloc.dart); model opus
+    task 2.3: route full (declared full; floor: sensitive path (payments): lib/ramps/ramps_bloc.dart); model tokenguard/opus-5.5
 
 — `task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]]); model <value>`,
 the reasons the row's `route_reasons`, plus `earlier deviation: <path>` for floor 4 and
@@ -538,26 +528,26 @@ the reasons the row's `route_reasons`, plus `earlier deviation: <path>` for floo
 The `full` wrapper, per iteration-task dispatch:
 
 1. **Snapshot** — before dispatching the implementer, run
-   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/review_package.py snapshot` and keep the printed tree
+   `python3 ${ARTEL_ROOT}/scripts/review_package.py snapshot` and keep the printed tree
    id as `BASE`. It captures the working tree (tracked + untracked, ignore rules honoured)
    through a temporary index — the real index, HEAD and the checkpoint's explicit staging are
    untouched. Exit 2 → journal it and run this task without the gate; never skip the task.
 2. **Package** — on a completion (not a `HITL:` return or a `DEVIATION` halt), run
-   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/review_package.py diff <BASE> --out
+   `python3 ${ARTEL_ROOT}/scripts/review_package.py diff <BASE> --out
    .artel/run/<TICKET_ID>/reports/NNN-<slug>.diff`, `NNN-<slug>` taken from the completion's
    `Report:` path so the three files pair up. The one-line output carries the file count:
    `0 file(s)` → journal `task review: skipped (empty diff)` and move on.
-3. **Review** — `Skill: run-reviewer` with `$0 --task "<task title>" --report <report path>
+3. **Review** — invoke the `artel-run-reviewer` skill with `$0 --task "<task title>" --report <report path>
    --package <diff path>` (plus `--local` on a run that holds it); on a task-format tasklist
    `<task title>` is the task heading's text after `### ` (`Task 2.3: Show the purchase success
-   dialog`). The `reviewer` agent's task
+   dialog`). The `artel-reviewer` agent's task
    mode writes `NNN-<slug>-review.md` and appends every Blocking / Important finding and every
    spec gap as a task under `## Code Review Fixes` in the phase-aware tasklist — the same
    section and format the phase review uses, so nothing downstream learns a new shape —
    beneath a `### task-gate-<NNN>` source heading, and `run-reviewer` records the batch in the
    task queue before step 4's round starts (`docs/task-queue.md` §6).
 4. **One fix round** — when it appended fix tasks: increment `counters.correction_rounds` (the
-   `MAX_TOTAL_CORRECTION_ROUNDS` check applies), then loop `Skill: implementer` naming
+   `MAX_TOTAL_CORRECTION_ROUNDS` check applies), then loop the `artel-implementer` skill naming
    `## Code Review Fixes` (plus `--local` on a run that holds it) until no fix task from this
    review is left unchecked (one round = the whole list, counted once).
    `MAX_TASK_REVIEW_ROUNDS = 1`: there is no per-task re-review — a fix task the round could
@@ -581,54 +571,49 @@ that drift across tasks has room to compound.
 
 ### 16.3 The implementer's model
 
-An iteration task's model follows its effective route: `light` → `sonnet`, `full` → `opus`
-(`MODEL_BY_ROUTE` in `scripts/task_grammar.py`). Before the Agent call the implementer skill runs
-the route helper over the tasklist in scope — the phase tasks file or `tasklist.md`, on the
-kartoteka path through `spec_store.py get … |` ([task-grammar.md](task-grammar.md) §8) — and
-passes a non-null `data.model` as the call's `model`; `null` or exit `2` leaves it off, on the
-frontmatter `opus`. The choice is relayed as a `Model:` line, after `Verify iterations:` and
-before `Deviations:`, and §16.1's journal line takes the line's value verbatim as the
-`; model <value>` suffix.
+An iteration task's model is resolved from `models.opencode`, keyed by the task's effective
+route: `implementer.light` or `implementer.full`. Before the `subagent` call the implementer
+skill runs the route helper over the tasklist in scope — the phase tasks file or `tasklist.md`,
+on the kartoteka path through `spec_store.py get … |` ([task-grammar.md](task-grammar.md) §8) —
+takes its `route_effective` and resolves
+`implementer.<route_effective>`
+(`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site implementer.<route_effective>`),
+passing a non-null value as the call's `model`; a `null` route, a route-helper exit `2` or a
+`null` model leaves it off, and a resolver exit `2` is reported and stops the run. The choice is
+relayed as a `Model:` line, after `Verify iterations:` and before `Deviations:`, and §16.1's
+journal line takes the line's value verbatim as the `; model <value>` suffix.
 
 The prediction can miss — the helper answers for the task that was ready when it ran, while the
 completion's first line names the task actually worked. The relayed line then reads
-`Model: sonnet (predicted task 2.3 at route light; worked task 2.4)`. The worked task's route
-still decides whether its task review runs (§16.2): a task that ran on `sonnet` by a missed
-prediction is wrapped when its effective route came out `full`.
+`Model: <value> (predicted task 2.3 at route light; worked task 2.4)`. The worked task's route
+still decides whether its task review runs (§16.2): a task whose model came from
+`implementer.light` by a missed prediction is wrapped when its effective route came out `full`.
 
 Fix lists are the exception: a fix list is correction of a failed gate, not a task dispatch, so
-its base is `opus` whatever the task's route, with `fable` on the round after a failed one (§5);
-the skill runs no helper for one.
-
-**OpenCode:** the generated build drops the helper's alias `model`; it still runs the helper for
-`route_effective` and the reasons, then resolves `implementer.<route_effective>` from
-`models.opencode` via `scripts/models.py` and passes it on the `subagent` call — unset → no
-model, and the child inherits the caller's.
+it resolves `implementer.fix` whatever the task's route, and `implementer.stepUp` on the round
+after a failed one (§5); the skill runs no route helper for one.
 
 ### 16.4 The reviewer's model
 
-The reviewer scales by scope, and `run-reviewer --model` carries the choice to the Agent call
-(no flag → no `model`, on the frontmatter `opus`):
+The reviewer scales by scope. `run-reviewer --model` carries an explicit choice to the
+`subagent` call; with no flag the skill resolves the mode's site from `models.opencode` and
+passes it when non-null:
 
-| Review | Model |
+| Review | Config site |
 |---|---|
-| task review (the §16.2 wrapper, `full` tasks only) | `sonnet` |
-| ticket / phase review, round 1 | `opus` (frontmatter) |
-| re-review after a fix round | `sonnet` |
-| plan mode (gate 4.2) | `opus` (frontmatter) |
-| `deep-review`'s standalone whole-branch review | `fable` (its own direct dispatch) |
+| task review (the §16.2 wrapper, `full` tasks only) | `reviewer.task` |
+| ticket / phase review, round 1 | `reviewer.phase` |
+| re-review after a fix round | `reviewer.reReview` |
+| plan review (gate 4.2) | `reviewer.plan` |
+| `deep-review`'s standalone whole-branch review | `reviewer.deepReview` (its own direct dispatch) |
 
-The tail passes `--model sonnet` on the task-review wrapper and on every re-review dispatch,
-and both journal the model (`; model sonnet`); round 1's entries are unchanged. A re-review is
-not a fix-diff-only review — it verdicts the fix batch and repeats on the surface round 1
-already read — so `sonnet` is the mid-tier floor superpowers measured, with the final `fable`
-review and the review cap as the backstops. `deep-review` step 3 is untouched: it dispatches
-the same agent on `fable` directly, with its own refused-model fallback.
-
-**OpenCode:** the generated build resolves the scope's site from `models.opencode` via
-`scripts/models.py` — task → `reviewer.task`, ticket → `reviewer.phase`, re-review →
-`reviewer.reReview`, plan → `reviewer.plan`; `deep-review` resolves `reviewer.deepReview` — and
-passes it on the `subagent` call; unset → no model.
+The tail passes the re-review flag (resolved from `reviewer.reReview`) on every re-review
+dispatch, and both the task-review wrapper and the re-review journal the resolved model
+(`; model <value>`); round 1's entries are unchanged. A re-review is not a fix-diff-only review
+— it verdicts the fix batch and repeats on the surface round 1 already read — so its site is
+the mid-tier floor superpowers measured, with the `reviewer.deepReview` review and the review
+cap as the backstops. `deep-review` step 3 is untouched: it dispatches the same agent and
+resolves `reviewer.deepReview` directly, with its own refused-model fallback.
 
 ## 17. Sizing and heads
 
@@ -636,7 +621,7 @@ passes it on the `subagent` call; unset → no model.
 (gate 0) it sizes the work, records the size, says it aloud with its reasons and runs the head
 that fits — never a pause, and no agent is dispatched: sizing is the orchestrator's own
 procedure, like the mode classifier (§10). The orchestrator acts from its skill, so the rules
-are stated in full there (`../skills/feature-development/SKILL.md`, step 3); this section is
+are stated in full there (`../skills/artel-feature-development/SKILL.md`, step 3); this section is
 their contract.
 
 ### 17.1 The four sizes
@@ -648,10 +633,10 @@ their contract.
 | `bounded` | `lean` — `heads/lean.md` | it changes a flow that already exists in the repo, in one area, with acceptance that can be stated in a few lines and no open product question |
 | `architectural` | `full` — `heads/full.md` | a new flow, screen or subsystem; an interface other code depends on; a data-model change or migration; a Figma design to analyse; work that needs several phases; or acceptance that is unclear |
 
-The head files sit beside the skill, in `../skills/feature-development/`. The full head runs
+The head files sit beside the skill, in `../skills/artel-feature-development/`. The full head runs
 gates 0.5–4.5 with the plan review and ends in the plan+tasklist pause. The lean head takes an
 existing tasklist with open tasks as the work list, or has `generate-tasklist` write one, and
-confirms it once. The bug head has the `debugging` skill diagnose first (`diagnosis.md`) and
+confirms it once. The bug head has the `artel-debugging` skill diagnose first (`diagnosis.md`) and
 writes the work list from the diagnosis. Each ends in one approval; then the run is armed (§2)
 and the tail is the same for every one of them.
 
@@ -741,34 +726,3 @@ sizing. Sized `spike` again, it prints
     Already answered: <path to spike.md>. To build on it, re-run with --head=lean or --head=full.
 
 and stops, without a second dispatch.
-
-## 18. The orchestrator seat
-
-With `seat.enabled: true` (config.md) — Claude Code only, never in a `--step` or `--dry-run` run — the
-post-approval loop runs one layer down: step 6 of `feature-development` dispatches the `seat`
-agent (frontmatter `sonnet`) whose procedure is `skills/feature-development/tail.md` unchanged.
-The interview, the approval pause and arming stay on the main thread. OpenCode runs the tail
-inline (no seat dispatch). One dispatch per run; a resume dispatches a fresh seat.
-
-`seat.enabled` is unrelated to `parallel.seats` (config.md): the seat is this one Claude Code
-tail layer, while `parallel.seats` is the OpenCode parallel coordinator's worker concurrency
-([opencode-parallel.md](opencode-parallel.md) §13.11). A parallel run needs no seat and never
-reads `seat.enabled`; a seat dispatch never turns parallel mode on.
-
-### 18.1 Returns
-
-- `COMPLETED` — the final report plus the rulings list (deviations, route decisions, relayed
-  pauses and their answers).
-- `PAUSED: <reason> — <summary>` — interactive runs only; §18.2.
-- `STOPPED: <reason> — <journal pointer>` — a headless pause (§12) or an environment error.
-
-A dispatch that fails, or returns none of the three, falls back once to the inline tail,
-journaled `seat: unavailable — running the tail inline`.
-
-### 18.2 The pause relay
-
-Every tail pause (§2's enum) becomes, on the seat: set `pause_reason`; write
-`.artel/run/<TICKET_ID>/pause-request.json`; return `PAUSED`. The main thread asks the question
-verbatim, clears `pause_reason` and deletes `pause-request.json` on the answer, and `SendMessage`s the answer to the same seat.
-A resume that finds both the file and a non-null `pause_reason` re-presents the question from
-the file and dispatches a fresh seat carrying the answer.

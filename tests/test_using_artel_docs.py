@@ -6,29 +6,29 @@ Same guard as tests/test_knowledge_consultation_docs.py and
 tests/test_task_queue_docs.py -- a routing row pointing at a renamed skill, or a
 tool name one underscore off, fails in a session nobody is watching.
 """
-import json
 import re
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-ROUTER = 'skills/using-artel/SKILL.md'
-KNOWLEDGE = 'skills/knowledge/SKILL.md'
-TASKS = 'skills/tasks/SKILL.md'
+ROUTER = 'skills/artel-using-artel/SKILL.md'
+KNOWLEDGE = 'skills/artel-knowledge/SKILL.md'
+TASKS = 'skills/artel-tasks/SKILL.md'
 
 # Every session pays for the router; the spec caps it.
 ROUTER_MAX_BYTES = 10240
 
-SKILL_REF = re.compile(r'/artel:([a-z0-9-]+)')
+SKILL_REF = re.compile(r'/artel-([a-z0-9-]+)')
 
 def read(rel):
     return (ROOT / rel).read_text(encoding='utf-8')
 
 
 def skill_names():
-    """Every skill shipped under skills/, by folder name."""
-    return sorted(p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md'))
+    """Every skill's route name: its installed folder name without the `artel-` prefix
+    (the router's `/artel-<name>` spellings still name the route, not the folder)."""
+    return sorted(p.parent.name[len('artel-'):] for p in (ROOT / 'skills').glob('*/SKILL.md'))
 
 
 class TestRouter(unittest.TestCase):
@@ -40,14 +40,14 @@ class TestRouter(unittest.TestCase):
         for name in skill_names():
             if name == 'using-artel':
                 continue
-            self.assertIn('/artel:' + name, text,
-                          ROUTER + ' has no route to /artel:' + name)
+            self.assertIn('/artel-' + name, text,
+                          ROUTER + ' has no route to /artel-' + name)
 
     def test_router_names_only_skills_that_exist(self):
         names = set(skill_names())
         for ref in sorted(set(SKILL_REF.findall(read(ROUTER)))):
             self.assertIn(ref, names,
-                          ROUTER + ' routes to /artel:' + ref + ', which does not exist')
+                          ROUTER + ' routes to /artel-' + ref + ', which does not exist')
 
     def test_router_fits_the_injection_budget(self):
         size = (ROOT / ROUTER).stat().st_size
@@ -59,21 +59,21 @@ class TestRouter(unittest.TestCase):
 
 
 class TestHookRegistration(unittest.TestCase):
-    def test_hooks_json_registers_the_router_hook_on_session_start(self):
-        groups = json.loads(read('hooks/hooks.json'))['hooks']['SessionStart']
-        matchers = [group.get('matcher')
-                    for group in groups
-                    for hook in group['hooks']
-                    if 'hooks/using_artel.py' in hook['command']]
-        self.assertEqual(matchers, ['startup|clear|compact'])
+    """The bridge is the hook layer's only producer: it binds the router to the context
+    hook and refreshes it when compaction ends."""
+
+    def setUp(self):
+        self.bridge = read('opencode/plugin/artel.ts')
+
+    def test_the_bridge_registers_the_router_hook_on_context(self):
+        context = self.bridge[self.bridge.index('ctx.session.hook("context"'):]
+        self.assertIn('runHook("using_artel.py"', context)
+        self.assertIn('session.compaction.ended', self.bridge)
+        self.assertIn('routerCache.delete(sessionID)', self.bridge)
 
     def test_router_hook_has_a_short_timeout(self):
-        groups = json.loads(read('hooks/hooks.json'))['hooks']['SessionStart']
-        timeouts = [hook['timeout']
-                    for group in groups
-                    for hook in group['hooks']
-                    if 'hooks/using_artel.py' in hook['command']]
-        self.assertEqual(timeouts, [10])
+        self.assertIn('runHook("using_artel.py", { session_id: sessionID, cwd: directory }, '
+                      'directory, 10_000)', self.bridge)
 
 
 # The read-side kartoteka tools the knowledge skill calls. Exact spellings.
@@ -104,7 +104,7 @@ class TestKnowledgeSkill(unittest.TestCase):
 
     def test_carries_the_gate_messages(self):
         text = read(KNOWLEDGE)
-        self.assertIn('declare it with `/artel:setup`', text)
+        self.assertIn('declare it with `/artel-setup`', text)
         self.assertIn('kartoteka is configured for this project but its MCP tools are not '
                       'available in this session', text)
         self.assertNotIn('--force', text)
@@ -150,14 +150,14 @@ class TestTasksSkill(unittest.TestCase):
 
     def test_carries_the_gate_messages(self):
         text = read(TASKS)
-        self.assertIn('declare it with `/artel:setup`', text)
+        self.assertIn('declare it with `/artel-setup`', text)
         self.assertIn('kartoteka is configured for this project but its MCP tools are not '
                       'available in this session', text)
         self.assertNotIn('--force', text)
 
     def test_release_confirms(self):
         text = read(TASKS)
-        self.assertIn('AskUserQuestion', text)
+        self.assertIn('Ask with the `question` tool', text)
 
     def test_release_never_touches_an_iteration_parent(self):
         text = read(TASKS)
@@ -184,7 +184,7 @@ class TestTasksSkill(unittest.TestCase):
     def test_add_fix_names_sync_phases_when_the_phase_file_is_missing(self):
         text = read(TASKS)
         fix = text[text.index('### `add <ticket> "<title>" --fix'):text.index('### `done')]
-        self.assertIn('/artel:sync-phases <TICKET_ID>-<PHASE_NUM>', fix)
+        self.assertIn('/artel-sync-phases <TICKET_ID>-<PHASE_NUM>', fix)
         self.assertNotIn('--raw', fix)
 
 
@@ -220,18 +220,18 @@ class TestDocs(unittest.TestCase):
 
     def test_reference_invocation_quotes_the_frontmatter_hint(self):
         for name in ('knowledge', 'tasks'):
-            hint = argument_hint('skills/' + name + '/SKILL.md')
+            hint = argument_hint('skills/artel-' + name + '/SKILL.md')
             line = invocation_line(name)
             self.assertIsNotNone(line, REFERENCE + ' has no Invocation line for ' + name)
-            self.assertIn('/artel:' + name + ' ' + hint, line)
+            self.assertIn('/artel-' + name + ' ' + hint, line)
 
     def test_reference_router_invocation_names_the_skill(self):
-        self.assertIn('/artel:using-artel', invocation_line('using-artel') or '')
+        self.assertIn('/artel-using-artel', invocation_line('using-artel') or '')
 
     def test_guide_quickstart_routes_to_both_front_doors(self):
         text = read(GUIDE)
-        self.assertIn('/artel:knowledge', text)
-        self.assertIn('/artel:tasks', text)
+        self.assertIn('/artel-knowledge', text)
+        self.assertIn('/artel-tasks', text)
         self.assertIn('## Turn one: the router', text)
 
     def test_config_doc_names_the_front_doors_under_the_knowledge_key(self):
@@ -265,10 +265,10 @@ class TestRouterDebugging(unittest.TestCase):
 
     def test_routing_row(self):
         self.assertIn('| a bug, test failure or unexpected behaviour traced to its cause and '
-                      'fixed | `/artel:debugging [symptom]` |', self.doc)
+                      'fixed | `/artel-debugging [symptom]` |', self.doc)
 
     def test_precedence_over_generic_debugging_skills(self):
-        self.assertIn('`/artel:debugging` wins over generic debugging skills', self.doc)
+        self.assertIn('`/artel-debugging` wins over generic debugging skills', self.doc)
         self.assertIn('`superpowers:systematic-debugging`', self.doc)
 
     def test_red_flag(self):

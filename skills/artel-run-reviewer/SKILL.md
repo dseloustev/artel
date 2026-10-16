@@ -1,0 +1,118 @@
+---
+name: artel-run-reviewer
+description: "Review changes for a ticket — the phase/ticket review, or one task's diff right after its implementer returned"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [--task \"<task title>\" --report <path> --package <path> | --plan] [--local] [--model <provider/model[#variant]>]"
+---
+
+## Ticket Resolution
+
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+
+`--local` flag: record nothing in the kartoteka task queue — the fix tasks the agent writes
+stay in the tasklist file alone, as `${ARTEL_ROOT}/docs/task-queue.md` §1 row 1
+prescribes. It may appear in any position; strip it before reading `$0` and the mode
+flags, and remember that it was passed. An orchestrator invoked with `--local` passes it on.
+
+`--model <provider/model[#variant]>`: dispatch the agent on this concrete model. It may appear
+in any position; strip it before reading `$0` and the mode flags. Any other value is an
+invocation error — report it and stop. A dispatch refused for that model (not available, or not
+allowed on this host) is re-dispatched once without it. When one was given, every mode's
+`subagent` call — ticket, task and plan — carries `model` set to the `--model` value; no flag →
+resolve the mode's site with `python3 ${ARTEL_ROOT}/scripts/models.py resolve --site
+<the mode's site>` (task → `reviewer.task`, ticket → `reviewer.phase`, plan → `reviewer.plan`)
+and pass it when non-null; a null model → no `model` on the call. The orchestrator passes the
+flag for re-reviews (resolved from `reviewer.reReview`) to scale the review to its scope
+(`${ARTEL_ROOT}/docs/autonomous-run.md` §16.4).
+
+## Execute
+
+### Ticket mode (default)
+
+**Spec store.** Before dispatching, read the ticket's storage decision:
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
+§2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
+`run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
+dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
+`**Spec store:** files (<reason>)`. An agent's `STORE_UNAVAILABLE` return goes back to your caller
+unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
+§4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
+
+Use the `subagent` tool with the `artel-reviewer` agent, `model` set to the `--model` value when one was given, else the resolved `reviewer.phase`, left out when neither, description `"Review changes for <TICKET_ID>"`, and a prompt that passes `TICKET_ID`, `TICKET_NUM`, and `PHASE_NUM` (or "all phases"). The `artel-reviewer` agent already knows the input artifacts, priority taxonomy (Blocking / Important / Nice-to-have), the machine-readable `review/findings.json` lens output, and the `## Code Review Fixes` tasklist write-back format for ticket mode.
+
+### Task mode (`--task`)
+
+The per-task gate of `${ARTEL_ROOT}/docs/autonomous-run.md` §16 — an orchestrator
+invokes it after one implementer completion whose task runs on the `full` route. All three flags are
+required; a missing one is an invocation error — report it and stop, never fall back to the
+ticket review:
+
+- `--task "<task title>"` — the task exactly as titled in the phase-aware tasklist; on a
+  task-format tasklist, its heading's text after `### ` (`Task 2.3: Show the purchase success
+  dialog`)
+- `--report <path>` — the implementer's report, `.artel/run/<TICKET_ID>/reports/NNN-<slug>.md`
+- `--package <path>` — the diff package `scripts/review_package.py diff` wrote
+
+Use the `subagent` tool with the `artel-reviewer` agent, `model` set to the `--model` value when
+one was given, else the resolved `reviewer.task`, left out when neither, description `"Review task for <TICKET_ID>: <task title>"`, and a prompt that
+states **Mode: task** and passes `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` plus the three values
+verbatim. The agent's task mode knows the rest: read the task text from the tasklist, judge
+the package against it and the report, write `NNN-<slug>-review.md` beside the report, and
+append Blocking / Important findings under `## Code Review Fixes`.
+
+### Plan review (`--plan`)
+
+The agent half of gate 4.2 `PLAN_REVIEWED` in `feature-development`: the tasklist graded before
+the approval pause, after the parser's mechanical check. `--plan` takes no value; with `--task`,
+`--report` or `--package` it is an invocation error — report it and stop. `--local` may
+accompany it and changes nothing: plan review records nothing in the queue.
+
+Resolve the spec store exactly as ticket mode's **Spec store.** paragraph says. Then use the
+`subagent` tool with the `artel-reviewer` agent, `model` set to the `--model` value when one was
+given, else the resolved `reviewer.plan`, left out when neither, description `"Review plan for <TICKET_ID>"`, and a prompt that states **Mode: plan**
+and passes `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` (or "all phases") and the **Spec store:**
+field. The agent's plan review knows the rest: read the PRD, vision, plan and the phase-aware
+tasklist, grade the eight points, write `.artel/run/<TICKET_ID>/plan-review.md` with its
+`**Plan-review round:**` line, and return one line. Plan review appends no
+`## Code Review Fixes` task, so skip `## Record the fix tasks` below.
+
+## Record the fix tasks
+
+When the agent returns, it has appended its Blocking / Important findings under
+`## Code Review Fixes` in the phase-aware tasklist — `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md`
+when a phase is set, `<specs.dir>/<TICKET_ID>/tasklist.md` otherwise — beneath a `### <source>`
+heading of its own. Record that batch in the task queue now, before the caller dispatches any
+implementer for it (`${ARTEL_ROOT}/docs/task-queue.md` §2, fix-writer rule):
+
+1. The agent reports appending no task → skip this section. When its summary gives no count,
+   run the section anyway; it is idempotent.
+2. Decide the path per task-queue.md §1. `--local` was passed, `knowledge.adapter` is `none` or
+   absent, `knowledge.project` is unset, or the kartoteka task tools are absent → skip this
+   section: the file carries the tasks, exactly as before fix rows existed.
+3. On the queue path run. Files path first, kartoteka path (`docs/spec-storage.md` §4.2)
+   second:
+
+       python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>
+       set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <the phase-aware tasklist> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>
+
+   Exit `0` → for each entry of `data.sections`, in order:
+   `task_create(project=<project>, ticket_key=<TICKET_ID>, title=…, description=…, status=…)`
+   the section row, then each of its `children` the same way with `parent_id` set to the
+   section row's `task_id`. Skip `data.iterations`: iteration rows are the orchestrator's
+   re-mirror. A child emitted `backlog` that comes back `done` → report
+   `fix task #<id> is done in the queue but open in the file: <title>`. Surface every
+   `data.warnings` line. Exit `2`, or a `Rejected:` line naming `kartoteka project add` →
+   report it and stop recording; the tasks are in the file, which is enough.
+
+`<project>` is `knowledge.project` from `.artel/config.json`; `<TICKET_ID>` is the canonical
+key, without the phase suffix.
+
+## Report
+
+Wait for the agent to finish and relay its summary. In task mode the summary is the verdict
+line (`Approved` / `Needs fixes`), the count of `## Code Review Fixes` tasks it appended, and
+the review file's path — not the findings themselves; the caller reads the tasklist, and the
+detail is in the file. In plan review relay the agent's one line verbatim —
+`Plan review round <k>: <c> Critical, <i> Important, <m> Minor — <path>` — and nothing else. In
+ticket and task mode add one line: `Task queue: recorded <n> fix rows` or
+`Task queue: not used (<the §1 reason>)`.

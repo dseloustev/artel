@@ -332,7 +332,7 @@ class Coordinator:
                 '{}-a{}'.format(task, attempt))
 
     def worker_root(self, task, attempt):
-        return (self.repo / '.claude' / 'worktrees' / 'parallel' / self.ticket /
+        return (self.repo / '.opencode' / 'worktrees' / 'parallel' / self.ticket /
                 self.run_id / '{}-a{}'.format(task, attempt))
 
     def artifact_root(self, task, attempt):

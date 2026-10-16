@@ -17,25 +17,24 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'hooks'))
 import kartoteka_http as kh  # noqa: E402
 
-# The spec-trail agents: `issue-scout` reads no spec document and writes none, the
-# `seat`'s store contract lives in its procedure, `tail.md`, not in an agent section,
-# and `collaborative-reviewer` is the standalone GitHub utility's worker
+# The spec-trail agents: `issue-scout` reads no spec document and writes none, and
+# `collaborative-reviewer` is the standalone GitHub utility's worker
 # (tests/test_spec_store_conversion_docs.py, OUTSIDE_TRAIL).
 AGENTS = sorted(p.stem for p in (ROOT / 'agents').glob('*.md')
-                if p.name != 'README.md' and p.stem != 'issue-scout' and p.stem != 'seat'
-                and p.stem != 'collaborative-reviewer')
+                if p.name != 'README.md' and p.stem != 'artel-issue-scout'
+                and p.stem != 'artel-collaborative-reviewer')
 
 STOCK = ('Evidence text (`review/findings.json`, `verify/`, `runtime/*.md`) and `.active_ticket` '
          'stay files on both paths. On the kartoteka path, images under the trail (`design/`, '
          '`runtime/`, any `*.png|jpg|jpeg|gif|webp`) are stored in kartoteka. To view one, run '
-         '`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py image fetch <logical path>` and '
+         '`python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and '
          'Read the path it prints. Save a new image to its logical path as usual; your '
          'orchestrator sweeps it in (spec-storage.md §4.6).')
 OLD_STOCK = 'Evidence (`review/findings.json`, `verify/`, `runtime/`, `design/`)'
 FIGMA_STEP_7 = ('On the kartoteka path `design-analysis.md` is stored (spec-storage.md §4.1). '
-                'The `figma-analysis` skill sweeps the `design/` screenshots into kartoteka after '
+                'The `artel-figma-analysis` skill sweeps the `design/` screenshots into kartoteka after '
                 "you return, and the document's links to them are unchanged.")
-SWEEP = ('python3 ${{CLAUDE_PLUGIN_ROOT}}/scripts/spec_store.py image sync <TICKET_ID> '
+SWEEP = ('python3 ${{ARTEL_ROOT}}/scripts/spec_store.py image sync <TICKET_ID> '
          '--author artel:{}')
 JOURNAL = 'image-sync: <n> left local — <first error line>'
 NOTHING_STAGED = '`git diff --cached --quiet`'
@@ -54,7 +53,8 @@ def read(rel):
 
 
 def skill(name):
-    return read('skills/{}/SKILL.md'.format(name))
+    """The skill's SKILL.md — `name` is the route name; its folder carries the `artel-` prefix."""
+    return read('skills/artel-{}/SKILL.md'.format(name))
 
 
 def flat(text):
@@ -80,7 +80,7 @@ class TestAgents(unittest.TestCase):
                 self.assertNotIn(OLD_STOCK, flat(text))
 
     def test_figma_analyst_hands_its_screenshots_to_the_sweep(self):
-        step = flat(between(read('agents/figma-analyst.md'),
+        step = flat(between(read('agents/artel-figma-analyst.md'),
                             '### 7. Write the artifact + evidence', '\n## '))
         self.assertIn(flat(FIGMA_STEP_7), step)
         self.assertNotIn('screenshots stay files on both paths', step)
@@ -90,7 +90,7 @@ class TestCheckpointProcedure(unittest.TestCase):
     """The run's one checkpoint procedure -- feature-development's tail.md since 0.25.0."""
 
     def setUp(self):
-        self.text = read('skills/feature-development/tail.md')
+        self.text = read('skills/artel-feature-development/tail.md')
         self.start = skill('feature-development')
 
     def part(self, start, end):

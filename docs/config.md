@@ -20,10 +20,10 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   `sensitive_guard` hook enforces (categories of globs with mode floors,
   [autonomous-run.md](autonomous-run.md) §10). When present it replaces the plugin's shipped
   default policy (`hooks/sensitive-paths.json`) wholesale. Committed, like the config; the
-  `setup` skill offers to scaffold it from the shipped defaults.
+  `artel-setup` skill offers to scaffold it from the shipped defaults.
 - `.artel/templates/issue-draft-<type>.md` (`<type>` is `task`, `bug` or `epic`) and
   `.artel/templates/issue-draft.md` — optional host overrides of the description templates the
-  `issue-draft` skill renders (`skills/issue-draft/assets/templates/<type>.template.md` in the
+  `artel-issue-draft` skill renders (`skills/artel-issue-draft/assets/templates/<type>.template.md` in the
   plugin). A per-type file replaces that type's shipped template wholesale; the single
   `issue-draft.md` replaces all three where no per-type file exists. Presence is the switch,
   as with the sensitive-paths policy, and there is no config key. An override keeps the
@@ -38,7 +38,7 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   mirror of root docs (`AGENTS.md`, `CHANGELOG.md`) and the spec trail (`<specs.dir>/<TICKET_ID>/`,
   `<specs.dir>/.active_ticket`), used to declutter or archive the working tree and bring it back
   later. Not committed; add it to the host `.gitignore`, same as `.artel/run/`.
-- `.artel/worktree.json` — only inside a ticket worktree under `.claude/worktrees/`: the manifest
+- `.artel/worktree.json` — only inside a ticket worktree under `.opencode/worktrees/`: the manifest
   `scripts/worktree.py move-in` writes (ticket, branch, main checkout, what was copied). Hand-back
   leaves its copy at `.artel/run/<TICKET_ID>/worktree.json` with a `handBack` marker — `pending`
   until it finishes, then `done`. Not committed.
@@ -47,7 +47,7 @@ In a ticket worktree ([worktrees.md](worktrees.md)) the committed or ignored fil
 copies of the main checkout's, `.artel/context/` is a symlink to the main checkout's store, and
 `.artel/run/<TICKET_ID>/` is the ticket's own run state, moved there. Which *other* ignored files
 a worktree receives is set by `.worktreeinclude` at the repo root (gitignore syntax; without it,
-`/.claude/` and `/.mcp.json`) — Claude Code's file, not an artel key.
+`/.opencode/`, `/opencode.json` and `/opencode.jsonc`) — the host's file, not an artel key.
 
 Nothing host-writable is ever written into the plugin install or cache directory. The plugin
 ships read-only skills, agents and hooks; everything a run produces lands in the host repo.
@@ -183,10 +183,10 @@ second capture group; `phaseSuffix` only switches the feature on and off.
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `tracker.adapter` | string | `"none"` | `"none"` \| `"github-issues"` \| `"jira-mcp"` | Ticket fetch at pipeline start, status comments, PR↔ticket linking, `issue-draft`'s markup-dialect selection and its live ticket reads (`issue-scout`) |
-| `tracker.mcpToolPrefix` | string | `""` | Required when `adapter` is `"jira-mcp"`. Full MCP tool prefix including trailing separator, e.g. `"mcp__tracker__"`. | The `jira-mcp` adapter's tool addressing, `issue-scout`'s `jira_get_issue` included |
+| `tracker.mcpToolPrefix` | string | `""` | Required when `adapter` is `"jira-mcp"`. Full MCP tool prefix including trailing separator, e.g. `"tracker_"`. | The `jira-mcp` adapter's tool addressing, `issue-scout`'s `jira_get_issue` included |
 
 - **`none`** — artel never talks to a tracker. The ticket description is a local file the operator
-  writes (or the `generate-idea` skill produces) at `<specs.dir>/<TICKET_ID>/idea.md`. Steps that
+  writes (or the `artel-generate-idea` skill produces) at `<specs.dir>/<TICKET_ID>/idea.md`. Steps that
   would comment back or transition a ticket report `skipped (no tracker)`.
 - **`github-issues`** — the ticket number is the issue number in the host repo; issues are read
   and commented through the `gh` CLI, which must be installed and authenticated. This is
@@ -203,7 +203,7 @@ second capture group; `phaseSuffix` only switches the feature on and off.
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `vcs.adapter` | string | `"github-cli"` | `"github-cli"` \| `"bitbucket-mcp"` | PR creation and update, PR description publishing, PR-comment handling |
-| `vcs.mcpToolPrefix` | string | `""` | Required when `adapter` is `"bitbucket-mcp"`, e.g. `"mcp__vcs__"`. | The `bitbucket-mcp` adapter's tool addressing |
+| `vcs.mcpToolPrefix` | string | `""` | Required when `adapter` is `"bitbucket-mcp"`, e.g. `"vcs_"`. | The `bitbucket-mcp` adapter's tool addressing |
 
 - **`github-cli`** — the hosting platform's API is reached through the `gh` CLI, which must be
   installed and authenticated.
@@ -269,8 +269,7 @@ generated test code.
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `review.perTask` | boolean | `false` | `true` raises every iteration task to the `full` route ([autonomous-run.md](autonomous-run.md) §16) — every task is then `full`, so every task also runs on `opus`. A review of its diff runs right after its implementer returns — the `reviewer` agent in task mode, Blocking / Important findings written under `## Code Review Fixes`, one fix round, no per-task re-review. `false` leaves each task on its own route — declared by the planner, raised to `full` by a sensitive path, a HITL tag on a task that reaches outside the spec trail, more than five files or an earlier deviation on its files — so `full` tasks are reviewed either way. Adds one reviewer seat per `full` task; the phase review still runs. | `feature-development`, gate 5 (`tail.md`) |
-| `seat.enabled` | boolean | `false` | `true` runs the post-approval tail one layer down on the `seat` agent (`sonnet`), every pause relayed to the main thread ([autonomous-run.md](autonomous-run.md) §18). Claude Code only; inert on OpenCode; a `--step` run never seats. `false` runs the tail inline. | `feature-development`, step 6 |
+| `review.perTask` | boolean | `false` | `true` raises every iteration task to the `full` route ([autonomous-run.md](autonomous-run.md) §16) — every task is then `full`, so every task's model resolves from `implementer.full`. A review of its diff runs right after its implementer returns — the `artel-reviewer` agent in task mode, Blocking / Important findings written under `## Code Review Fixes`, one fix round, no per-task re-review. `false` leaves each task on its own route — declared by the planner, raised to `full` by a sensitive path, a HITL tag on a task that reaches outside the spec trail, more than five files or an earlier deviation on its files — so `full` tasks are reviewed either way. Adds one reviewer seat per `full` task; the phase review still runs. | `feature-development`, gate 5 (`tail.md`) |
 
 The phase review (`run-reviewer` after every task in the phase is done) is not configurable
 here — it always runs. `review.perTask` only decides whether every task is also gated on its
@@ -290,9 +289,7 @@ is created — parallel mode is never silently pretended to be enabled
 ([opencode-parallel.md](opencode-parallel.md) §12).
 
 `parallel.seats` is **worker concurrency** — how many pinned worker sessions the coordinator
-runs at once — and it is **not `seat.enabled`**: the seat
-([autonomous-run.md](autonomous-run.md) §18) is a Claude Code tail layer and has nothing to do
-with this key, and OpenCode runs the tail inline. The parallel coordinator loop
+runs at once — and OpenCode runs the tail inline. The parallel coordinator loop
 ([opencode-parallel.md](opencode-parallel.md) §13.11) reads this key at the gate and stops
 before any claim or worktree when it is invalid or the capability gate refuses. What the
 loop was validated against, and what remains unproven:
@@ -300,15 +297,14 @@ loop was validated against, and what remains unproven:
 
 ### `models` — the OpenCode dispatch models
 
-The generated OpenCode build resolves every dispatch it covers from this block, through
-`scripts/models.py`; Claude Code ignores it — aliases, frontmatter and `--model` are unchanged
+Every dispatch artel covers resolves its model from this block through `scripts/models.py`
 ([agents.md](agents.md) `## Models`). A site left unset passes no model, and the dispatch
 inherits the caller's model. Unlike the rest of the config (reading rule 4),
 the resolver reads this block at call time: a mid-run edit is picked up by the next resolve.
 
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
-| `models.opencode` | object | `{}` | The OpenCode build's dispatch sites; every site below is optional. A `models.claude-code` section is ignored, as any unknown key (reading rule 2). | The generated OpenCode build, via `scripts/models.py` |
+| `models.opencode` | object | `{}` | The dispatch sites; every site below is optional. Any other key under `models` is ignored, as any unknown key (reading rule 2). | `scripts/models.py` |
 | `models.opencode.implementer.light` | string | `null` | An iteration task whose effective route is `light`. | `scripts/models.py`, site `implementer.light` |
 | `models.opencode.implementer.full` | string | `null` | An iteration task whose effective route is `full`. | `scripts/models.py`, site `implementer.full` |
 | `models.opencode.implementer.fix` | string | `null` | A fix list, first round. | `scripts/models.py`, site `implementer.fix` |
@@ -316,10 +312,24 @@ the resolver reads this block at call time: a mid-run edit is picked up by the n
 | `models.opencode.reviewer.task` | string | `null` | A task review (`full` tasks only). | `scripts/models.py`, site `reviewer.task` |
 | `models.opencode.reviewer.phase` | string | `null` | A ticket / phase review, round 1. | `scripts/models.py`, site `reviewer.phase` |
 | `models.opencode.reviewer.reReview` | string | `null` | A re-review after a fix round. An unset `reReview` leaves ticket mode's `reviewer.phase` in effect. | `scripts/models.py`, site `reviewer.reReview` |
-| `models.opencode.reviewer.plan` | string | `null` | Plan mode (gate 4.2). | `scripts/models.py`, site `reviewer.plan` |
+| `models.opencode.reviewer.plan` | string | `null` | Plan review (gate 4.2). | `scripts/models.py`, site `reviewer.plan` |
 | `models.opencode.reviewer.deepReview` | string | `null` | `deep-review`'s standalone whole-branch review. | `scripts/models.py`, site `reviewer.deepReview` |
+| `models.opencode.planner.default` | string | `null` | The shared fallback for every planning dispatch: a `planner.<kind>` site that is unset resolves this one. An unset `default` leaves the dispatch inheriting the caller's model. | `scripts/models.py`, site `planner.default` |
+| `models.opencode.planner.plan` | string | `null` | Drafting the architecture / implementation plan (`planner`; the `full` head of `feature-development`). | `scripts/models.py`, site `planner.plan` |
+| `models.opencode.planner.tasklist` | string | `null` | Breaking the plan into tasks and drafting the tasklist (`task-planner`, `tasklist-writer`). | `scripts/models.py`, site `planner.tasklist` |
+| `models.opencode.planner.research` | string | `null` | Research and context gathering for a ticket (`researcher`, `issue-scout`, `figma-analyst`). | `scripts/models.py`, site `planner.research` |
+| `models.opencode.planner.analysis` | string | `null` | Requirements and framing documents (`analyst`'s PRD, `vision-writer`'s vision). | `scripts/models.py`, site `planner.analysis` |
 | `models.opencode.pr-description` | string | `null` | The PR-description dispatch — `tech-writer` writing `<specs.dir>/<TICKET_ID>/pr-description.md` (`pr-description`, and `pr-create` through it). | `scripts/models.py`, site `pr-description` |
-| `models.opencode.agents.<name>` | string | `null` | Every other agent dispatch, by agent name (`[a-z0-9-]+`). An entry for `implementer` or `reviewer` is ignored — those resolve by their own sites. | `scripts/models.py`, site `agents.<name>` |
+| `models.opencode.agents.<name>` | string | `null` | Every other agent dispatch, by agent name (`[a-z0-9-]+`). An entry for a name that has a site of its own — `implementer`, `reviewer`, or any analytical agent (`planner`, `task-planner`, `tasklist-writer`, `researcher`, `analyst`, `vision-writer`, `figma-analyst`, `issue-scout`) — is ignored; those resolve by that site. | `scripts/models.py`, site `agents.<name>` |
+
+The `planner` family is the one place a site falls back inside the block rather than to the
+caller's model: `planner.<kind>` resolves the kind's own value, and an unset kind resolves
+`planner.default`. So `"planner": {"default": "tokenguard/gpt-6.1-sol"}` puts all of the
+planning work on one model, and naming a kind on top of it carves out the exceptions. The
+other sites take only their own value. The resolver applies the fallback, so a dispatch makes
+one call whatever the kind — unlike `implementer.stepUp` and `reviewer.reReview`, whose
+first-round rules the calling skill applies by passing no `--model`
+([agents.md](agents.md) `## Models`).
 
 Every value is a concrete `provider/model` with an optional `#variant`: exactly one `/`, no
 whitespace, non-empty halves, at most one `#` after the model half with a non-empty variant —
@@ -396,8 +406,8 @@ connected the stage skips silently and the pipeline continues.
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `specs.dir` | string | `"specs/.current"` | Repo-relative path, no leading `/`, no `..` segments | Every artifact read and write |
-| `specs.releases` | string | `"specs/releases"` | Repo-relative path, no leading `/`, no `..` segments. Sits alongside `specs.dir`, not inside it — release scope spans multiple tickets. | Release-scope QA/validation runs (`R-<RELEASE_ID>` identifiers) — `qa` and `validator` agents |
-| `specs.onUnavailable` | string | `"abort"` | `"abort"` \| `"local"`. The headless answer when kartoteka is this project's spec store and cannot be reached: stop, or work locally and let `/artel:migrate-specs` move the documents in later. Interactive runs always ask instead. | Headless runs of every skill that resolves the spec store ([spec-storage.md](spec-storage.md) §5.4) |
+| `specs.releases` | string | `"specs/releases"` | Repo-relative path, no leading `/`, no `..` segments. Sits alongside `specs.dir`, not inside it — release scope spans multiple tickets. | Release-scope QA/validation runs (`R-<RELEASE_ID>` identifiers) — `qa` and `artel-validator` agents |
+| `specs.onUnavailable` | string | `"abort"` | `"abort"` \| `"local"`. The headless answer when kartoteka is this project's spec store and cannot be reached: stop, or work locally and let `/artel-migrate-specs` move the documents in later. Interactive runs always ask instead. | Headless runs of every skill that resolves the spec store ([spec-storage.md](spec-storage.md) §5.4) |
 
 The trail is `<specs.dir>/<TICKET_ID>/` for ticket-wide artifacts, `<specs.dir>/<TICKET_ID>/phase-<N>/`
 for phase-scoped ones, and `<specs.dir>/.active_ticket` for the in-flight identifier.
@@ -421,7 +431,7 @@ evidence text ([spec-storage.md](spec-storage.md)).
   ([spec-storage.md](spec-storage.md)): spec documents are written there and nowhere else,
   and `<specs.dir>` keeps only `.active_ticket` and gate evidence text. When kartoteka cannot be
   reached, a run asks before saving anything locally (headless: `specs.onUnavailable`), and
-  `/artel:migrate-specs` moves local trails in. The `PostToolUse` mirror hook still posts
+  `/artel-migrate-specs` moves local trails in. The `tool.execute.after` mirror hook still posts
   files written on the files path — `--local`, or a run the user allowed to work locally —
   best-effort as before: it never blocks and never retries.
 
@@ -475,26 +485,25 @@ by the variable's name before any header exists, and a token is never sent over 
 such a `baseUrl` is a proxy's upstream port reached directly; use the `https://` origin. Both
 send nothing.
 
-The MCP session takes the same variable through the client's own expansion:
-`claude mcp add --transport http kartoteka <baseUrl>/mcp --header "Authorization: Bearer ktk_…"`
-stores the literal in Claude Code's config, while an `.mcp.json` entry with
-`"headers": {"Authorization": "Bearer ${KARTOTEKA_TOKEN}"}` reads the export at session start,
-so one variable feeds both the hook and the session. `tokenEnv` itself is read by the hook and
+The MCP session takes the same variable through the client's own expansion: a remote server
+under `mcp.servers` in `opencode.json` carries
+`"headers": {"Authorization": "Bearer {env:KARTOTEKA_TOKEN}"}`, reads the export at session
+start, and so shares one variable with the hook — the full entry is
+[opencode.md](opencode.md#kartoteka-behind-a-token). `tokenEnv` itself is read by the hook and
 the `using-artel` host status only; nothing in the read half or the task queue consults it —
-those go over MCP, whose token is wired where the server is (`docs/opencode.md` for OpenCode's
-`{env:…}` form).
+those go over MCP, whose token is wired where the server is.
 
 #### The read half
 
 `knowledge.adapter` gates three things, not one. Beyond the mirror above, it declares that this
 project's agents may **consult** kartoteka before working: the `analyst` before its interview,
-the `researcher` during its scan, and `issue-draft` before it drafts, through the `issue-scout` agent — the
+the `researcher` during its scan, and `issue-draft` before it drafts, through the `artel-issue-scout` agent — the
 full contract is `docs/knowledge-consultation.md`. The third is the task queue —
 `#### The task queue` below.
 
 Reading goes over kartoteka's **MCP tools** (`search_knowledge`, `related`, `index_status`),
 not over `baseUrl`. There is no MCP URL in this config: the host wires the kartoteka MCP server
-into its own session — with its bearer token, `--header` or `${KARTOTEKA_TOKEN}`, when the
+into its own session — with its bearer header in the server's `headers`, when the
 daemon has `[auth]` on — and `knowledge.adapter` says whether this project wants it used. So the
 config declares intent and the session supplies capability, and the two can disagree:
 
@@ -509,7 +518,7 @@ config declares intent and the session supplies capability, and the two can disa
 The fourth row is the working configuration; the fifth is the one worth knowing about, because
 it is how a correct `.artel/config.json` still produces no citations — the MCP server is not
 wired into the session, or is wired without the token a daemon with `[auth]` on requires, so
-Claude Code never connects. The agent says so in its own output rather than leaving you to
+the session never connects. The agent says so in its own output rather than leaving you to
 guess.
 
 The third row is why the adapter still matters when the tools are present: kartoteka's daemon
@@ -552,13 +561,13 @@ The same key admits two skills a person invokes from the conversation rather tha
 [`tasks`](skills-reference.md#tasks) (write: `task_list`, `task_create`, `task_update`). Both
 resolve the table above without its `--local` row — a person invoking them has asked for
 kartoteka — and both **refuse** rather than degrade: adapter `none` stops with a pointer to
-`/artel:setup`, absent tools stop with the "configured but not available" message. There is no
+`/artel-setup`, absent tools stop with the "configured but not available" message. There is no
 override flag, for the third row's reason. `issue-draft` is a third skill a person invokes from
 the conversation and consults the same key, but it is the exception to both of those rules: it
 takes `--local` and resolves the table above in full, and where these two refuse, it degrades — kartoteka is reported off and the scout's other sources
 still run — because a person asked it for a draft, not for the index.
-The `using_artel` `SessionStart` hook reads the key too, only to tell the injected router
-whether those two routes are live.
+The `using_artel` `session.hook("context")` hook reads the key too, only to tell the injected
+router whether those two routes are live.
 
 ### `runtime` — optional runtime and automation commands
 
@@ -580,7 +589,7 @@ An absent or empty command means the corresponding skill reports `not configured
 `RUNTIME_OK` gate only when the run's diff (changed files vs the default branch plus the working
 tree) matches at least one glob, recording `RUNTIME_OK: skipped (no runtime surface)` otherwise.
 When absent with `runtime.run` configured, the gate always runs. It has no effect on manual
-`/artel:run-app` invocations.
+`/artel-run-app` invocations.
 
 ## A filled example
 
@@ -596,7 +605,7 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
   },
   "tracker": {
     "adapter": "jira-mcp",
-    "mcpToolPrefix": "mcp__tracker__"
+    "mcpToolPrefix": "tracker_"
   },
   "vcs": {
     "adapter": "github-cli",
@@ -632,9 +641,16 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
         "plan": "tokenguard/opus-5.5",
         "deepReview": "tokenguard/fable-5"
       },
+      "planner": {
+        "default": "tokenguard/deepseek-flash",
+        "plan": "tokenguard/gpt-6.1-sol",
+        "tasklist": "tokenguard/gpt-6.1-sol",
+        "analysis": "tokenguard/gpt-6.1-sol",
+        "research": "tokenguard/gemini-3-pro"
+      },
       "pr-description": "tokenguard/sonnet-5",
       "agents": {
-        "analyst": "tokenguard/opus-5.5"
+        "qa": "tokenguard/sonnet-5"
       }
     }
   },
@@ -683,10 +699,10 @@ any `provider/model` the OpenCode host serves works.
 There is no bundled fallback file — absence is a defined state, not an error.
 
 - **The entry point** (`feature-development`) finds no `.artel/config.json` and invokes
-  the `setup` skill (`/artel:setup`), which interviews for ticket grammar, tracker, VCS, verify
+  the `artel-setup` skill (`/artel-setup`), which interviews for ticket grammar, tracker, VCS, verify
   commands and languages (plus optional extras), writes `.artel/config.json`, and returns
   control so the requested run continues. The interview happens once per repo; afterwards the
-  file is edited by hand, or revised via `/artel:setup`.
+  file is edited by hand, or revised via `/artel-setup`.
 - **À-la-carte stage skills** never interview. They run against the defaults above and note in
   their report that no config was found, so a single stage invocation is never blocked by a
   missing file.

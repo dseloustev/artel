@@ -1242,5 +1242,16 @@ class TestRecordReportFile(unittest.TestCase):
         self.assertEqual(list(self.checklist.parent.glob('review-checklist.md.*')), [])
 
 
+class TestWorkerNaming(unittest.TestCase):
+    """The skill names its worker with the installed `artel-` prefix, like every dispatch."""
+
+    def test_the_worker_carries_the_prefix(self):
+        skill = (Path(__file__).resolve().parent.parent
+                 / 'skills' / 'artel-collaborative-review' / 'SKILL.md')
+        text = skill.read_text(encoding='utf-8')
+        self.assertIn('the `artel-collaborative-reviewer` agent', text)
+        self.assertNotIn('the `collaborative-reviewer` agent', text)
+
+
 if __name__ == '__main__':
     unittest.main()

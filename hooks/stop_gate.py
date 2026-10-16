@@ -2,7 +2,7 @@
 """Stop gate for autonomous orchestrator runs.
 
 Blocks the session from ending while an autonomous run is active and incomplete.
-Contract: ${CLAUDE_PLUGIN_ROOT}/docs/autonomous-run.md (sections 2 and 8).
+Contract: docs/autonomous-run.md (sections 2 and 8).
 
 Allow when any of:
   - no active ticket / no run-state.json / run_active false  (interactive session)

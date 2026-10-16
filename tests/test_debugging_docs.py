@@ -1,5 +1,5 @@
 """The debugging discipline: one contract (docs/debugging.md) and the places that follow it --
-the inner loop, the implementer, the fix-row writers, the reviewer and the /artel:debugging
+the inner loop, the implementer, the fix-row writers, the reviewer and the /artel-debugging
 skill -- plus the third-party notice for the text the contract adapts.
 
 Not a behaviour test: these are prompts, and there is no code path to exercise. Same guard as
@@ -15,12 +15,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 CONTRACT = 'docs/debugging.md'
 NOTICES = 'THIRD_PARTY_NOTICES.md'
-INNER_LOOP = 'skills/inner-loop/SKILL.md'
-IMPLEMENTER = 'agents/implementer.md'
-REVIEWER = 'agents/reviewer.md'
-DEEP_REVIEW = 'skills/deep-review/SKILL.md'
-TASKS = 'skills/tasks/SKILL.md'
-SKILL = 'skills/debugging/SKILL.md'
+INNER_LOOP = 'skills/artel-inner-loop/SKILL.md'
+IMPLEMENTER = 'agents/artel-implementer.md'
+REVIEWER = 'agents/artel-reviewer.md'
+DEEP_REVIEW = 'skills/artel-deep-review/SKILL.md'
+TASKS = 'skills/artel-tasks/SKILL.md'
+SKILL = 'skills/artel-debugging/SKILL.md'
 
 
 def read(rel):
@@ -74,7 +74,7 @@ class TestContract(unittest.TestCase):
         for phrase in ('an interface change', 'a design reversal', 'scope growth',
                        'Three failed fixes are structural too', '§2 **Major**',
                        '[deviation-protocol.md](deviation-protocol.md) §4',
-                       '/artel:issue-draft'):
+                       '/artel-issue-draft'):
             self.assertIn(phrase, structural)
 
     def test_secrets_rule_names_kartoteka_documents(self):
@@ -84,8 +84,8 @@ class TestContract(unittest.TestCase):
 
     def test_where_it_applies(self):
         table = self.section('## 7. Where this applies in artel')
-        for reader in ('skills/inner-loop', 'agents/implementer.md', 'agents/reviewer.md',
-                       '/artel:debugging'):
+        for reader in ('skills/artel-inner-loop', 'agents/artel-implementer.md', 'agents/artel-reviewer.md',
+                       '/artel-debugging'):
             self.assertIn(reader, table)
 
     def test_no_placeholders(self):
@@ -115,7 +115,7 @@ class TestInnerLoop(unittest.TestCase):
     def test_test_red_is_debugged(self):
         for phrase in ('red stage test → read its keys and tail in full', 'ONE hypothesis',
                        '**A red `test` stage is debugged, not patched**',
-                       '${CLAUDE_PLUGIN_ROOT}/docs/debugging.md'):
+                       '${ARTEL_ROOT}/docs/debugging.md'):
             self.assertIn(phrase, self.doc)
 
     def test_structural_cause_stops_at_once(self):
@@ -140,7 +140,7 @@ class TestImplementer(unittest.TestCase):
         for phrase in ('verify/repro-<code>-<source>-<N>.json',
                        'verify/repro-<code>-<source>-<N>.txt',
                        'a `skipped` stage is never red evidence', '.artel/run/repro/',
-                       '${CLAUDE_PLUGIN_ROOT}/docs/debugging.md'):
+                       '${ARTEL_ROOT}/docs/debugging.md'):
             self.assertIn(phrase, self.doc)
 
     def test_red_evidence_needs_a_red_test_stage(self):
@@ -170,7 +170,7 @@ class TestFixWriters(unittest.TestCase):
         doc = flat(read(REVIEWER))
         self.assertIn('`**Task N (Critical): …**`', doc)
         self.assertIn('the `behavior` marker applied as in ticket mode', doc)
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/debugging.md', doc)
+        self.assertIn('${ARTEL_ROOT}/docs/debugging.md', doc)
 
     def test_deep_review_keeps_the_marker_on_renumbering(self):
         self.assertIn('a `(behavior)` marker stays in place', flat(read(DEEP_REVIEW)))
@@ -209,30 +209,30 @@ class TestSkill(unittest.TestCase):
         self.doc = flat(self.raw)
 
     def test_frontmatter(self):
-        self.assertTrue(self.raw.startswith('---\nname: debugging\n'))
+        self.assertTrue(self.raw.startswith('---\nname: artel-debugging\n'))
         frontmatter = self.raw.split('---', 2)[1]
         description = re.search(r'(?m)^description: (.*)$', frontmatter).group(1)
         self.assertIn('artel-configured repo', description)
         self.assertLessEqual(len(description), 1024)
         self.assertNotRegex(frontmatter, r'(?m)^model:')
-        self.assertNotRegex(frontmatter, r'(?m)^disable-model-invocation:')
+        self.assertNotIn('opencode/autoinvoke: false', frontmatter)
 
     def test_reads_the_contract_first(self):
-        self.assertIn('**The discipline is `${CLAUDE_PLUGIN_ROOT}/docs/debugging.md`', self.doc)
+        self.assertIn('**The discipline is `${ARTEL_ROOT}/docs/debugging.md`', self.doc)
 
     def test_reproduces_through_the_gate(self):
-        for phrase in ('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify.py task --files',
+        for phrase in ('python3 ${ARTEL_ROOT}/scripts/verify.py task --files',
                        'No config →', 'a `skipped` stage is never red evidence'):
             self.assertIn(phrase, self.doc)
 
     def test_knowledge_search_is_conditional(self):
-        for phrase in ('With `knowledge.adapter: "kartoteka"`', '`Skill: knowledge`',
+        for phrase in ('With `knowledge.adapter: "kartoteka"`', 'the `artel-knowledge` skill',
                        'With the adapter off or absent, skip this step and say nothing about it'):
             self.assertIn(phrase, self.doc)
 
     def test_structural_hands_off_to_issue_draft(self):
-        for phrase in ('/artel:issue-draft <the report> --type bug',
-                       '/artel:issue-draft <the report> --type task', '`AskUserQuestion`'):
+        for phrase in ('/artel-issue-draft <the report> --type bug',
+                       '/artel-issue-draft <the report> --type task', 'the `question` tool'):
             self.assertIn(phrase, self.doc)
 
     def test_footprint(self):
@@ -258,7 +258,7 @@ class TestReleaseDocs(unittest.TestCase):
         self.assertIn('### debugging', doc)
         entry = doc.split('### debugging', 1)[1].split('### ', 1)[0]
         for field in ('**Purpose:**',
-                      '**Invocation:** `/artel:debugging [symptom | failing test | error text]'
+                      '**Invocation:** `/artel-debugging [symptom | failing test | error text]'
                       ' or <ticket-id> --diagnose [--local]`',
                       '**Reads:**', '**Writes:**', '**Pauses:**', '**Notes:**'):
             self.assertIn(field, entry)

@@ -199,7 +199,7 @@ class TestImageRules(unittest.TestCase):
     def test_the_guard_section_quotes_the_read_hint(self):
         scope = section(self.text, '## 6. The guard')
         self.assertIn(guard.READ_HINT.format(path='<path>'), scope)
-        self.assertIn('and on `Read`', flat(scope))
+        self.assertIn('and on `read`', flat(scope))
         self.assertIn('Writing an image is always allowed', flat(scope))
 
     def test_migration_classifies_images_like_documents(self):
@@ -235,7 +235,7 @@ class TestConfig(unittest.TestCase):
 
 
 class TestMigrateSpecsSkill(unittest.TestCase):
-    SKILL = ROOT / 'skills' / 'migrate-specs' / 'SKILL.md'
+    SKILL = ROOT / 'skills' / 'artel-migrate-specs' / 'SKILL.md'
 
     def setUp(self):
         self.text = self.SKILL.read_text(encoding='utf-8')
@@ -262,7 +262,7 @@ class TestMigrateSpecsSkill(unittest.TestCase):
             self.assertIn(kept, self.text)
 
     def test_routed_and_referenced(self):
-        self.assertIn('/artel:migrate-specs', (ROOT / 'skills/using-artel/SKILL.md').read_text())
+        self.assertIn('/artel-migrate-specs', (ROOT / 'skills/artel-using-artel/SKILL.md').read_text())
         self.assertIn('\n### migrate-specs\n', (ROOT / 'docs/skills-reference.md').read_text())
 
     def test_no_prompt_runs_apply_headless_and_only_deletes_pending(self):
@@ -276,7 +276,7 @@ class TestMigrateSpecsSkill(unittest.TestCase):
 class TestMigrateSpecsImages(unittest.TestCase):
     """spec-images §8 and §10.3: image items in the migrate-specs report and its
     conflict prompt, spelled as scripts/spec_store.py prints them."""
-    SKILL = ROOT / 'skills' / 'migrate-specs' / 'SKILL.md'
+    SKILL = ROOT / 'skills' / 'artel-migrate-specs' / 'SKILL.md'
 
     def setUp(self):
         self.text = self.SKILL.read_text(encoding='utf-8')
@@ -316,7 +316,7 @@ class TestMigrateSpecsImages(unittest.TestCase):
 class TestMigrationByHeaderDocs(unittest.TestCase):
     def setUp(self):
         self.storage = DOC.read_text(encoding='utf-8')
-        self.skill = (ROOT / 'skills' / 'migrate-specs' / 'SKILL.md').read_text(encoding='utf-8')
+        self.skill = (ROOT / 'skills' / 'artel-migrate-specs' / 'SKILL.md').read_text(encoding='utf-8')
 
     def test_the_class_table_names_mergeable_and_the_header_base(self):
         self.assertIn('| `mergeable` |', self.storage)

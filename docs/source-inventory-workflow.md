@@ -1,5 +1,8 @@
 # Source inventory — workflow skills, agents & gates (task execution)
 
+> **Port history.** This inventory records the Claude Code setup artel was ported from and is
+> kept for provenance — not as current state.
+
 *Compiled 2026-08-01 from the sibling checkout `../adguard-wallet/.claude/`.*
 
 Everything here **participates in working on a task**: orchestrating the ticket→PR pipeline,

@@ -3,7 +3,7 @@ the real engine on a real repository, and the baseline hand-off scenarios go thr
 the actual CLI.
 
 Behavioral where it can be -- the fixture builds a tiny repo, `prepare` and `check`
-are executed exactly as `skills/deep-review/SKILL.md` documents them (the pinned
+are executed exactly as `skills/artel-deep-review/SKILL.md` documents them (the pinned
 target under `.artel/run/`, the machine report beside it, the report in the specs
 dir, the kartoteka shape piped with `pipefail`), and the four pressure scenarios of
 the hand-off baseline are driven through the engine: a non-current target, a
@@ -12,7 +12,7 @@ accepted audit. Prose pins cover only what has no code path: the step order, the
 dispatch templates' **Spec store:** line, the retry rule, and the single-home
 contract doc.
 
-Contract: skills/deep-review/SKILL.md, agents/reviewer.md, docs/deep-review.md,
+Contract: skills/artel-deep-review/SKILL.md, agents/artel-reviewer.md, docs/deep-review.md,
 scripts/deep_review.py.
 """
 import json
@@ -34,8 +34,8 @@ MANIFEST = '.artel/run/PROJ-1/deep-review/target.json'
 MACHINE = '.artel/run/PROJ-1/deep-review/machine.json'
 REPORT = 'specs/.current/PROJ-1/deep-review.md'
 
-SKILL = 'skills/deep-review/SKILL.md'
-REVIEWER = 'agents/reviewer.md'
+SKILL = 'skills/artel-deep-review/SKILL.md'
+REVIEWER = 'agents/artel-reviewer.md'
 CONTRACT = 'docs/deep-review.md'
 
 TASK_DR001 = (
@@ -439,15 +439,15 @@ class TestProtocolWiring(unittest.TestCase):
                        'git diff <MERGE_BASE> <HEAD>',
                        'git diff <BASE> <HEAD>',
                        '.artel/run/<TICKET_ID>/deep-review/machine.json',
-                       '${CLAUDE_PLUGIN_ROOT}/docs/deep-review.md'):
+                       '${ARTEL_ROOT}/docs/deep-review.md'):
             with self.subTest(phrase):
                 self.assertIn(phrase, self.flat)
 
     def test_the_kartoteka_check_pipes_the_stored_report_with_pipefail(self):
         self.assertIn(
-            'set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get '
+            'set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get '
             '<specs.dir>/<TICKET_ID>/deep-review.md | python3 '
-            '${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check', self.flat)
+            '${ARTEL_ROOT}/scripts/deep_review.py check', self.flat)
         self.assertIn('--report -', self.flat)
 
     def test_the_counts_come_from_the_validated_envelope(self):
@@ -572,7 +572,7 @@ class TestContractDoc(unittest.TestCase):
 
 
 class TestOpenCodeBuild(unittest.TestCase):
-    """The generated OpenCode skill keeps the new contract and the model transform."""
+    """The baked install copy keeps the checker contract."""
 
     @classmethod
     def setUpClass(cls):
@@ -581,6 +581,10 @@ class TestOpenCodeBuild(unittest.TestCase):
         cls.root = tmp / 'artel'
         cls.out = tmp / 'dist'
         cls.root.mkdir()
+        # The installer's own flow: the canonical trees copied under the install root,
+        # then the builder bakes that copy in place.
+        for tree in ('skills', 'agents', 'docs'):
+            shutil.copytree(ROOT / tree, cls.root / tree)
         proc = subprocess.run(
             [sys.executable, str(ROOT / 'scripts' / 'build_opencode.py'),
              '--root', str(cls.root), '--out', str(cls.out)],
@@ -593,14 +597,19 @@ class TestOpenCodeBuild(unittest.TestCase):
     def tearDownClass(cls):
         cls._tmp.cleanup()
 
-    def test_the_generated_skill_carries_the_checker_and_the_resolved_model(self):
-        text = flat((self.out / 'skills' / 'artel-deep-review' / 'SKILL.md')
+    def test_the_baked_skill_carries_the_checker(self):
+        text = flat((self.root / 'skills' / 'artel-deep-review' / 'SKILL.md')
                     .read_text(encoding='utf-8'))
         self.assertIn('/scripts/deep_review.py check', text)
         self.assertIn('/scripts/deep_review.py prepare', text)
-        self.assertIn('/scripts/models.py resolve --site reviewer.deepReview', text)
         self.assertIn('/docs/deep-review.md', text)
-        self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', text)
+        self.assertNotIn('${ARTEL_ROOT}', text)
+
+    def test_the_baked_skill_resolves_the_deep_review_model_site(self):
+        """The installed artifact is the only thing that pins the resolver instruction."""
+        text = flat((self.root / 'skills' / 'artel-deep-review' / 'SKILL.md')
+                    .read_text(encoding='utf-8'))
+        self.assertIn('/scripts/models.py resolve --site reviewer.deepReview', text)
 
 
 if __name__ == '__main__':

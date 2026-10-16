@@ -1,4 +1,4 @@
-"""PostToolUse(Edit|Write|MultiEdit): fast verify on the edited file; feedback, never block."""
+"""tool.execute.after (edit|write|patch): fast verify on the edited file; feedback, never block."""
 import json
 import sys
 from pathlib import Path

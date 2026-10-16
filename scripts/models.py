@@ -8,9 +8,17 @@ else from this module.
 
 Site vocabulary: `implementer.light`, `implementer.full`, `implementer.fix`,
 `implementer.stepUp`, `reviewer.task`, `reviewer.phase`, `reviewer.reReview`,
-`reviewer.plan`, `reviewer.deepReview`, `pr-description`, `agents.<name>`
-(`[a-z0-9-]+`; `implementer` and `reviewer` are reserved under `agents` -- those
-two resolve by their own fixed sites instead).
+`reviewer.plan`, `reviewer.deepReview`, `planner.default`, `planner.plan`,
+`planner.tasklist`, `planner.research`, `planner.analysis`, `pr-description`,
+`agents.<name>` (`[a-z0-9-]+`; the names with a fixed site of their own --
+`implementer`, `reviewer`, and the analytical agents `planner`, `task-planner`,
+`tasklist-writer`, `researcher`, `analyst`, `vision-writer`, `figma-analyst`,
+`issue-scout` -- are reserved under `agents` and resolve by that site instead).
+
+A `planner.<kind>` site resolves the kind's own value, and falls back to the
+family's `planner.default` when the kind is unset; an unset `planner.default`
+resolves null like any other unset site. The other sites take only their own
+value.
 
 A configured value is a non-empty string `provider/model` with an optional
 `#variant`: exactly one `/`, no whitespace, non-empty halves, at most one `#`
@@ -33,10 +41,18 @@ VALUE_RE = re.compile(r'[^\s/#]+/[^\s/#]+(#[^\s#/]+)?')
 SITES = frozenset({
     'implementer.light', 'implementer.full', 'implementer.fix', 'implementer.stepUp',
     'reviewer.task', 'reviewer.phase', 'reviewer.reReview', 'reviewer.plan',
-    'reviewer.deepReview', 'pr-description',
+    'reviewer.deepReview',
+    'planner.default', 'planner.plan', 'planner.tasklist', 'planner.research',
+    'planner.analysis',
+    'pr-description',
 })
 AGENT_SITE = re.compile(r'agents\.([a-z0-9-]+)')
-RESERVED_AGENTS = frozenset({'implementer', 'reviewer'})
+RESERVED_AGENTS = frozenset({
+    'implementer', 'reviewer',
+    'planner', 'task-planner', 'tasklist-writer', 'researcher', 'analyst',
+    'vision-writer', 'figma-analyst', 'issue-scout',
+})
+PLANNER_FAMILY = ('planner', 'default')
 
 
 def value_ok(value):
@@ -96,12 +112,36 @@ def read_models(repo, fail):
     return opencode or {}
 
 
+def walk(block, key):
+    """(value, problem) for the key tuple `key` walked through `block`.
+
+    `problem` is an invalid_config message for a non-object intermediate, or
+    None. A missing leaf is (None, None).
+    """
+    node = block
+    path = []
+    value = None
+    for part in key:
+        path.append(part)
+        if node is None:
+            return None, None
+        value = node.get(part)
+        if part != key[-1]:
+            if value is not None and not isinstance(value, dict):
+                return None, 'models.opencode.{} is not an object: {!r}'.format(
+                    '.'.join(path), value)
+            node = value
+    return value, None
+
+
 def resolve_site(block, site):
     """(model, problem) for `site` against `block` (read_models' result).
 
     `problem` is an invalid_config message, or None when the site simply has
     no value. Only the resolved site's value is validated -- unused sibling
-    values in the block never reach here.
+    values in the block never reach here. A `planner.<kind>` site that is
+    unset resolves the family's `planner.default` instead, so the problem
+    names whichever of the two keys held the rejected value.
     """
     key = site_key(site)
     if key[0] == 'agents':
@@ -113,18 +153,14 @@ def resolve_site(block, site):
             return None, None
         value = node.get(name)
     else:
-        node = block
-        path = []
-        for part in key:
-            path.append(part)
-            if node is None:
-                return None, None
-            value = node.get(part)
-            if part != key[-1]:
-                if value is not None and not isinstance(value, dict):
-                    return None, 'models.opencode.{} is not an object: {!r}'.format(
-                        '.'.join(path), value)
-                node = value
+        value, problem = walk(block, key)
+        if problem is not None:
+            return None, problem
+        if value is None and key[0] == 'planner' and key != PLANNER_FAMILY:
+            key = PLANNER_FAMILY
+            value, problem = walk(block, key)
+            if problem is not None:
+                return None, problem
     if value is None:
         return None, None
     if not value_ok(value):

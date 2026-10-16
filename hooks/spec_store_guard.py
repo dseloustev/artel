@@ -1,6 +1,6 @@
-"""PreToolUse(Edit|Write|MultiEdit): with kartoteka as the spec store, a spec
+"""tool.execute.before (edit|write|patch): with kartoteka as the spec store, a spec
 document is never written to disk without the user's permission.
-PreToolUse(Read): with a fresh kartoteka decision, a Read of an image the sweep
+tool.execute.before (read): with a fresh kartoteka decision, a Read of an image the sweep
 already moved into kartoteka is denied with the command that fetches it -- a
 hint, not enforcement.
 

@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-REVIEWER = 'agents/reviewer.md'
+REVIEWER = 'agents/artel-reviewer.md'
 SCRIPT = 'scripts/validate_findings.py'
 
 

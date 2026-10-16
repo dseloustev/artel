@@ -53,7 +53,7 @@ def make_worker_root(space):
     git(main, 'add', '.')
     git(main, 'commit', '-q', '-m', 'init')
     base = git(main, 'rev-parse', 'HEAD')
-    coord = main / '.claude' / 'worktrees' / WORKER_TICKET
+    coord = main / '.opencode' / 'worktrees' / WORKER_TICKET
     git(main, 'worktree', 'add', '-q', '-b', 'feature/PROJ-123', str(coord))
     config = coord / '.artel' / 'config.json'
     config.parent.mkdir(parents=True, exist_ok=True)
@@ -62,7 +62,7 @@ def make_worker_root(space):
     parallel_state.acquire_ticket(str(coord), WORKER_TICKET, {
         'schema': 1, 'ticket': WORKER_TICKET, 'run_id': WORKER_RUN_ID,
         'phase': WORKER_PHASE, 'coordinator_id': 'ses_stop-gate-fixture'})
-    root = (main / '.claude' / 'worktrees' / 'parallel tasks' / WORKER_TICKET /
+    root = (main / '.opencode' / 'worktrees' / 'parallel tasks' / WORKER_TICKET /
             WORKER_RUN_ID / '3.1-a1')
     artifact = root / '.artel' / 'run' / 'parallel' / '3.1-a1'
     task_worktree.create_worker(str(coord), {

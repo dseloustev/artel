@@ -28,14 +28,14 @@ import sys
 import uuid
 from pathlib import Path
 
-WORKTREES_DIR = Path('.claude') / 'worktrees'
+WORKTREES_DIR = Path('.opencode') / 'worktrees'
 ARTEL_DIR = Path('.artel')
 RUN_DIR = ARTEL_DIR / 'run'
 HOOKS_STATE = RUN_DIR / '.hooks'
 CONTEXT = ARTEL_DIR / 'context'
 MANIFEST = ARTEL_DIR / 'worktree.json'
 MARKER_NAME = 'worktree.json'  # hand-back's recovery marker, under .artel/run/<TICKET>/
-DEFAULT_INCLUDE = ('/.claude/', '/.mcp.json')
+DEFAULT_INCLUDE = ('/.opencode/', '/opencode.json', '/opencode.jsonc')
 HOOK_STATE_PREFIXES = ('baseline-', 'stopblocks-')
 MOVE_TAG = 'artel move-to-worktree {}'
 BACK_TAG = 'artel return-from-worktree {}'
@@ -181,8 +181,8 @@ def artel_files(checkout):
 
 
 def host_files(checkout, include_file):
-    """Files .worktreeinclude selects (default: /.claude/ and /.mcp.json), relative to
-    checkout, outside .artel/ and .claude/worktrees/."""
+    """Files .worktreeinclude selects (default: /.opencode/, /opencode.json and
+    /opencode.jsonc), relative to checkout, outside .artel/ and .opencode/worktrees/."""
     if include_file.is_file():
         rules = ['--exclude-from={}'.format(include_file)]
     else:
@@ -222,7 +222,7 @@ def write_json(path, data):
 # --- move-in ------------------------------------------------------------------------------
 
 def ensure_excluded(root, name):
-    """Keep .claude/worktrees/ out of `git status` without touching tracked files."""
+    """Keep .opencode/worktrees/ out of `git status` without touching tracked files."""
     probe = (WORKTREES_DIR / name).as_posix()
     if git('check-ignore', '-q', probe, cwd=root, check=False).returncode == 0:
         return

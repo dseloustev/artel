@@ -8,7 +8,7 @@ in a manifest, and `check` validates the reviewer's machine report and
 offered. This suite pins the boundary with real temporary repositories and
 hand-derived fixtures.
 
-Contract: skills/deep-review/SKILL.md, agents/reviewer.md.
+Contract: skills/artel-deep-review/SKILL.md, agents/artel-reviewer.md.
 """
 import json
 import subprocess

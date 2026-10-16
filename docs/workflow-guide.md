@@ -16,9 +16,9 @@ are [hooks/README.md](../hooks/README.md); the deterministic gate scripts are de
 `hooks/sensitive-paths.json` (host override: `.artel/sensitive-paths.json`). Schemas, caps,
 enums, and glob lists are cited, never restated — follow the link when you need the exact shape.
 
-Every command below is written as a slash command (`/artel:feature-development PROJ-XXXX`).
-Agents driving these programmatically use the equivalent `Skill` tool call
-(`skill: "artel:feature-development"`, `args: "PROJ-XXXX"`) — identical effect. `PROJ-XXXX` is a
+Every command below is written as a slash command (`/artel-feature-development PROJ-XXXX`).
+Agents driving these programmatically use the equivalent `skill` tool call
+(`skill: "artel-feature-development"`, `args: "PROJ-XXXX"`) — identical effect. `PROJ-XXXX` is a
 placeholder ticket id under the **default** ticket grammar (`ticket.projectKey`/`ticket.pattern`,
 config.md — your project's own key and accepted forms come from `.artel/config.json`); `-<N>` is
 a phase suffix.
@@ -27,8 +27,8 @@ a phase suffix.
 
 Everything project-specific — ticket grammar, tracker, VCS host, verify commands, languages,
 runtime commands — comes from `.artel/config.json` in the host repo (config.md). No config yet?
-Run [`/artel:setup`](skills-reference.md#setup), or just start
-`/artel:feature-development` — it invokes the interview itself when the file
+Run [`/artel-setup`](skills-reference.md#setup), or just start
+`/artel-feature-development` — it invokes the interview itself when the file
 is missing. Unconfigured gates degrade to `skipped`, never to fake green: an empty
 `verify.commands` skips the quality gate, an absent `runtime.run` skips the runtime gate,
 `design.figma: false` skips design analysis.
@@ -39,17 +39,17 @@ With `knowledge.adapter: "kartoteka"`, kartoteka is the spec store: every spec d
 `idea.md` through `pr-description.md` — is written to and read from kartoteka's artifact store,
 and nothing stays under `<specs.dir>` except `.active_ticket` and gate evidence text. Nothing about
 the documents changes: same names, same templates, same statuses. Read them on kartoteka's
-dashboard (`/ticket`, `/artifact`) or with `/artel:knowledge <ticket> --artifacts`. The contract
+dashboard (`/ticket`, `/artifact`) or with `/artel-knowledge <ticket> --artifacts`. The contract
 is [spec-storage.md](spec-storage.md).
 
 - **kartoteka unreachable at the start of a run** → you are asked: Retry, Work locally for this
-  run, or Abort. Working locally keeps the documents as files; `/artel:migrate-specs` moves them
+  run, or Abort. Working locally keeps the documents as files; `/artel-migrate-specs` moves them
   in later.
 - **kartoteka unreachable mid-run** → the run pauses (`store-unavailable`). If a document was
   just produced, you are asked whether to keep it locally until kartoteka is back; resuming
   uploads it and removes the local copy.
 - **Headless** → `specs.onUnavailable` answers: `"abort"` (default) or `"local"`.
-- **Existing local trails** → `/artel:migrate-specs --all` (or per ticket). Missing and newer
+- **Existing local trails** → `/artel-migrate-specs --all` (or per ticket). Missing and newer
   documents are uploaded, stale copies never overwrite newer stored versions, conflicts show a
   diff and ask, and local copies are deleted only after kartoteka verifiably holds them — with
   `git rm`, in one optional commit.
@@ -61,7 +61,7 @@ is [spec-storage.md](spec-storage.md).
   - Agents view one with `spec_store.py image fetch <logical path>`.
   - A failed sweep never pauses a run. It is journaled as `image-sync: <n> left local — <first error line>`,
     and those images stay local until the next sweep.
-  - Committed images from older trails move in with `/artel:migrate-specs`.
+  - Committed images from older trails move in with `/artel-migrate-specs`.
 
   The contract is [spec-storage.md](spec-storage.md) §4.6 and §5.6.
 - A **write refused with "kartoteka is this project's spec store"** is `spec_store_guard.py`
@@ -71,13 +71,14 @@ is [spec-storage.md](spec-storage.md).
 
 Once the config exists, every session starts with the
 [`using-artel`](skills-reference.md#using-artel) router in context: the `using_artel`
-`SessionStart` hook ([hooks/README.md](../hooks/README.md)) injects the Quickstart below as a
-routing rule — check whether the request is ticket, feature, queue or knowledge work, and if
-so invoke the matching `/artel:` skill before answering — plus the status lines (config
-present, `knowledge.adapter`, `knowledge.tokenEnv` when the adapter is `kartoteka`, the active ticket, whether the `ast-index` CLI is on PATH). When
+`session.hook("context")` hook ([hooks/README.md](../hooks/README.md)) injects the Quickstart
+below as a routing rule — check whether the request is ticket, feature, queue or knowledge
+work, and if so invoke the matching `artel-<name>` skill before answering — plus the status
+lines (config present, `knowledge.adapter`, `knowledge.tokenEnv` when the adapter is
+`kartoteka`, the active ticket, whether the `ast-index` CLI is on PATH). When
 it is, code navigation — find a class, its usages, the project's structure — routes to the
-`ast-index` plugin's `/ast-index:ast-index` before any grep. It re-injects after `/clear` and after
-compaction, so a long run keeps it. Two things it deliberately does not do: fire inside
+`ast-index` plugin's `/ast-index:ast-index` before any grep. It re-injects after compaction, so a
+long run keeps it. Two things it deliberately does not do: fire inside
 dispatched agents (`<SUBAGENT-STOP>`), and wrap an entry point in generic brainstorming or
 plan-writing skills — `feature-development` carries its own interview, on every head. Without a
 config nothing is injected.
@@ -86,32 +87,32 @@ config nothing is injected.
 
 | I want to… | Run |
 |---|---|
-| Import a ticket from the tracker (idea file only) | `/artel:generate-idea PROJ-XXXX` (`tracker.adapter` ≠ `"none"`) |
-| Analyze the ticket's Figma mockups (flow, screen mapping) | `/artel:figma-analysis PROJ-XXXX [figma-url]` (needs `design.figma: true`) |
-| Work a ticket end to end (ticket → PR), one approval pause; the work is sized and the head picked for you | `/artel:feature-development PROJ-XXXX` |
-| Same, choosing the head yourself | `/artel:feature-development PROJ-XXXX --head=full` (PRD → plan → tasklist) · `--head=lean` (a work list, no PRD or plan) · `--head=bug` (diagnose first) |
-| Get from ticket to an approved plan or work list, nothing more | `/artel:feature-development PROJ-XXXX --dry-run` |
-| Same, fully unattended (low-risk only) | `claude -p "/artel:feature-development PROJ-XXXX --mode=yolo" --output-format stream-json --verbose` |
-| Same, supervising every gate | `/artel:feature-development PROJ-XXXX --step` |
-| A small change to an existing flow: a work list, then implement → review → runtime → PR | `/artel:feature-development PROJ-XXXX` — sized `bounded`; `--head=lean` forces it |
-| A bug: reproduce it and find the cause before anything is planned | `/artel:feature-development PROJ-XXXX` — sized `bug`; `--head=bug` forces it |
-| A question (can we, is it feasible, which of these) | `/artel:feature-development PROJ-XXXX` — sized `spike`: the researcher answers in `spike.md` and the run stops |
-| Run the next phase of a phased ticket | `/artel:feature-development PROJ-XXXX-<N>` |
-| Just the PRD interview | `/artel:analysis PROJ-XXXX` |
-| Just research + plan | `/artel:researcher PROJ-XXXX` then `/artel:planner PROJ-XXXX` |
+| Import a ticket from the tracker (idea file only) | `/artel-generate-idea PROJ-XXXX` (`tracker.adapter` ≠ `"none"`) |
+| Analyze the ticket's Figma mockups (flow, screen mapping) | `/artel-figma-analysis PROJ-XXXX [figma-url]` (needs `design.figma: true`) |
+| Work a ticket end to end (ticket → PR), one approval pause; the work is sized and the head picked for you | `/artel-feature-development PROJ-XXXX` |
+| Same, choosing the head yourself | `/artel-feature-development PROJ-XXXX --head=full` (PRD → plan → tasklist) · `--head=lean` (a work list, no PRD or plan) · `--head=bug` (diagnose first) |
+| Get from ticket to an approved plan or work list, nothing more | `/artel-feature-development PROJ-XXXX --dry-run` |
+| Same, fully unattended (low-risk only) | `opencode run "/artel-feature-development PROJ-XXXX --mode=yolo"` |
+| Same, supervising every gate | `/artel-feature-development PROJ-XXXX --step` |
+| A small change to an existing flow: a work list, then implement → review → runtime → PR | `/artel-feature-development PROJ-XXXX` — sized `bounded`; `--head=lean` forces it |
+| A bug: reproduce it and find the cause before anything is planned | `/artel-feature-development PROJ-XXXX` — sized `bug`; `--head=bug` forces it |
+| A question (can we, is it feasible, which of these) | `/artel-feature-development PROJ-XXXX` — sized `spike`: the researcher answers in `spike.md` and the run stops |
+| Run the next phase of a phased ticket | `/artel-feature-development PROJ-XXXX-<N>` |
+| Just the PRD interview | `/artel-analysis PROJ-XXXX` |
+| Just research + plan | `/artel-researcher PROJ-XXXX` then `/artel-planner PROJ-XXXX` |
 | Check a plan for hallucinated references | `python3 <plugin-root>/scripts/plan_check.py --plan specs/.current/PROJ-XXXX/plan.md --strict` (kartoteka path: `set -o pipefail; python3 <plugin-root>/scripts/spec_store.py get specs/.current/PROJ-XXXX/plan.md | python3 <plugin-root>/scripts/plan_check.py --plan - --strict`) |
-| Just the tasklist | `/artel:tasklist PROJ-XXXX` (from plan) or `/artel:generate-tasklist PROJ-XXXX` (from the idea, with the vision when there is one) |
+| Just the tasklist | `/artel-tasklist PROJ-XXXX` (from plan) or `/artel-generate-tasklist PROJ-XXXX` (from the idea, with the vision when there is one) |
 | Parse a tasklist into task-queue rows (JSON; mirrors nothing) | `python3 <plugin-root>/scripts/tasklist_tasks.py --tasklist specs/.current/PROJ-XXXX/tasklist.md --ticket-key PROJ-XXXX` (kartoteka path: `set -o pipefail; python3 <plugin-root>/scripts/spec_store.py get specs/.current/PROJ-XXXX/tasklist.md | python3 <plugin-root>/scripts/tasklist_tasks.py --tasklist - --ticket-key PROJ-XXXX`) |
-| Implement the next open task | `/artel:implementer PROJ-XXXX` |
-| Review / runtime-check / QA and gate-status (à la carte, not pipeline stages) | `/artel:run-reviewer PROJ-XXXX` · `/artel:run-app --gate` · `/artel:qa PROJ-XXXX` · `/artel:validate PROJ-XXXX` |
-| PR description / open the PR | `/artel:pr-description PROJ-XXXX` · `/artel:pr-create PROJ-XXXX` |
+| Implement the next open task | `/artel-implementer PROJ-XXXX` |
+| Review / runtime-check / QA and gate-status (à la carte, not pipeline stages) | `/artel-run-reviewer PROJ-XXXX` · `/artel-run-app --gate` · `/artel-qa PROJ-XXXX` · `/artel-validate PROJ-XXXX` |
+| PR description / open the PR | `/artel-pr-description PROJ-XXXX` · `/artel-pr-create PROJ-XXXX` |
 | Resume an interrupted run | re-invoke the same entry-point command — resume is automatic |
-| Ask the archive: what was decided about X, what is filed under a ticket, is the index fresh | `/artel:knowledge <query>` · `/artel:knowledge PROJ-XXXX` · `/artel:knowledge status` (needs `knowledge.adapter: "kartoteka"`) |
-| See or operate the ticket's task queue: list, add, done, block, release | `/artel:tasks list PROJ-XXXX` · `/artel:tasks add PROJ-XXXX "<title>" --iteration N` or `--fix CRF` for a review fix (same requirement) |
+| Ask the archive: what was decided about X, what is filed under a ticket, is the index fresh | `/artel-knowledge <query>` · `/artel-knowledge PROJ-XXXX` · `/artel-knowledge status` (needs `knowledge.adapter: "kartoteka"`) |
+| See or operate the ticket's task queue: list, add, done, block, release | `/artel-tasks list PROJ-XXXX` · `/artel-tasks add PROJ-XXXX "<title>" --iteration N` or `--fix CRF` for a review fix (same requirement) |
 
 (`<plugin-root>` is the plugin's install directory — inside a skill it is
-`${CLAUDE_PLUGIN_ROOT}`; from your own shell, the path `/plugin` shows for the installed artel
-plugin.)
+`${ARTEL_ROOT}`; from your own shell it is `$ARTEL_ROOT`, defaulting to
+`~/.config/opencode/artel/`.)
 
 One entry point drives everything.
 [`feature-development`](skills-reference.md#feature-development) imports the ticket, sizes the
@@ -187,7 +188,7 @@ itself); **`add-automation`** / **`remove-automation`** (each commits exactly th
 paths; `remove-automation` also pushes when an upstream exists). Everything else writes only
 files: `init-branch` may create a branch (only when asked) but never commits; `move-to-worktree` /
 `return-from-worktree` (and `init-branch`'s worktree option) move uncommitted work between the
-main checkout and `.claude/worktrees/` through `git stash` and switch the main checkout's branch,
+main checkout and `.opencode/worktrees/` through `git stash` and switch the main checkout's branch,
 but never commit, push or delete a branch; `merge-conflicts` stages and stops;
 `implementer` changes source but leaves committing to the orchestrator — one commit per completed
 cycle, and never a push of its own.
@@ -230,9 +231,10 @@ names and their globs are in the policy file; the classifier procedure is
 
 ### The hooks that enforce the contract
 
-Seven hooks — registered across `SessionStart`, `PreToolUse`, `PostToolUse`, and `Stop` — turn
-the contract from a promise into enforcement ([hooks/README.md](../hooks/README.md)); the eighth
-is the session router ([Turn one](#turn-one-the-router)). In a ticket worktree every hook works
+Seven hooks — bound to the bridge's `session.created`, `tool.execute.before`, `tool.execute.after`
+and `session.execution.succeeded` events — turn the contract from a promise into enforcement
+([hooks/README.md](../hooks/README.md)); the eighth is the session router
+([Turn one](#turn-one-the-router)). In a ticket worktree every hook works
 on that worktree, not the main checkout ([worktrees.md](worktrees.md) §7):
 
 - **Run stop gate** (`stop_gate.py`, `autonomous-run.md §8`) — blocks a session from ending
@@ -285,7 +287,7 @@ environment error (bad toolchain/invocation — **never** edit app code in respo
 
 ## End-to-end walkthrough
 
-Here is one real-shaped run of `/artel:feature-development PROJ-XXXX` in the default `plan-gate`
+Here is one real-shaped run of `/artel-feature-development PROJ-XXXX` in the default `plan-gate`
 mode, gate by gate, on a ticket sized `architectural`. The pipeline splits into a shared start,
 a chatty head (which asks freely), one approval pause, and a silent autonomous tail. The lean
 head, the bug head and the spike outcome replace the head only — see
@@ -331,8 +333,8 @@ it to `architectural` until the run is armed (`autonomous-run.md §17`).
   in `.artel/run/PROJ-XXXX/open-questions.md` with a default (`autonomous-run.md §3`), not a
   question to you. You get `research.md` and `plan.md`.
 - *Gate 3.5 — `PLAN_GROUNDED`.* The orchestrator runs
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path:
-  `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_check.py --plan - --strict`) to catch
+  `python3 ${ARTEL_ROOT}/scripts/plan_check.py --plan <plan-path> --strict` (kartoteka path:
+  `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <plan-path> | python3 ${ARTEL_ROOT}/scripts/plan_check.py --plan - --strict`) to catch
   hallucinated file/symbol references. Exit 0 proceeds; exit 1 bounces the findings back to
   `planner` to fix and regenerate (bounded — a third failure stops and asks); exit 2 is an
   environment error, a stop-and-ask pointing at setup, never a bounce.
@@ -340,7 +342,7 @@ it to `architectural` until the run is armed (`autonomous-run.md §17`).
   small checkbox tasks and tags any that need a human `[HITL: …]`. You get `tasklist.md` marked
   status `TASKLIST_READY`. (For a phase run, `sync-phases` extracts `phase-<N>/tasks.md` here.)
 
-**THE ONE PAUSE.** In a single `AskUserQuestion`, the orchestrator presents: the plan summary,
+**THE ONE PAUSE.** In a single `question` tool call, the orchestrator presents: the plan summary,
 the task list with its `[HITL: …]` tags called out, every still-open `open-questions.md` entry
 with its proposed default pre-selected as the "(Recommended)" option, and a note that approval
 also authorizes the run's task and checkpoint commits, and the checkpoint pushes, to `origin`. You **Approve** or
@@ -381,9 +383,8 @@ start, and each phase closes with the `verify.commands` gate + a checkpoint comm
   (`autonomous-run.md §16`) — has its diff reviewed before the next task starts: findings land
   under `## Code Review Fixes`, recorded in the task queue on the queue path, for one fix round,
   then the phase review owns whatever is left. The journal says which route each task took and
-  why, and which model it ran on — an iteration task's model follows its route (`light` →
-  `sonnet`, `full` → `opus`). The orchestrator seat is opt-in — `seat.enabled` defaults to
-  `false` (autonomous-run.md §18).
+  why, and which model it ran on — an iteration task's model follows its route
+  (`implementer.light` / `implementer.full`).
 - *Gate 6 — index.* Optional host index-refresh hook
   ([orchestrator-common.md](orchestrator-common.md) §1); silently absent when the host has not
   wired one up. Refreshing is the only part that is a host hook — how the stages above and
@@ -391,8 +392,9 @@ start, and each phase closes with the `verify.commands` gate + a checkpoint comm
 - *Gate 7 — review.* [`run-reviewer`](skills-reference.md#run-reviewer) writes `review.md`;
   Blocking / Important findings route to an implementer fix round, then a re-review, with capped
   review rounds (`autonomous-run.md §5`). The reviewer's model follows its scope — the round-1
-  ticket/phase review on `opus`, a task review and a re-review on `sonnet`, `deep-review`'s
-  whole-branch review on `fable` (`autonomous-run.md §16.4`).
+  ticket/phase review resolves `reviewer.phase`, a task review `reviewer.task` and a re-review
+  `reviewer.reReview`, `deep-review`'s whole-branch review `reviewer.deepReview`
+  (`autonomous-run.md §16.4`).
 - *Gate 8 — runtime.* [`run-app`](skills-reference.md#run-app) `--gate` launches the configured
   `runtime.run` command and observes for a `RUNTIME_OK` verdict. No `runtime.run` configured →
   `skipped (not configured)`; `runtime.surface` set and no changed file matches →
@@ -478,7 +480,7 @@ A run interrupted inside a head resumes on the head `sizing.json` recorded.
 
 ### Variant: `--dry-run` (ticket → work plan)
 
-`/artel:feature-development PROJ-XXXX --dry-run` runs the head to the end of its approval —
+`/artel-feature-development PROJ-XXXX --dry-run` runs the head to the end of its approval —
 whichever head the size picked — then **stops**: it prints the resolved mode + reasons and the
 intended external actions, writes **no** `run-state.json`, and never arms. Use it to get from a
 ticket all the way to a drafted plan and tasklist, or a work list, presented for approval, with
@@ -486,23 +488,23 @@ zero risk of the autonomous tail starting.
 
 ### Variant: `--mode=yolo` + headless
 
-`claude -p "/artel:feature-development PROJ-XXXX --mode=yolo" --output-format stream-json
---verbose` runs fully unattended (`autonomous-run.md §12`). In `yolo` the approval pause and the
+`opencode run "/artel-feature-development PROJ-XXXX --mode=yolo"` runs fully unattended
+(`autonomous-run.md §12`). In `yolo` the approval pause and the
 PR-gate pause are skipped — open questions proceed on their defaults, folded in silently, and
 the opened PR is the human checkpoint. That holds on every head: a lean or a bug run in `yolo`
 opens its PR unattended as well. The guardrail pauses still fire, but because
-`AskUserQuestion` does not exist under `-p`: a **deviation escalation** auto-takes the
+the `question` tool does not exist under `opencode run`: a **deviation escalation** auto-takes the
 implementer's recommended option (journaled as `→ auto-resolved`), while **HITL tags** and
 **cap escalations** are *never* auto-resolved — the run journals the entry, sets the
 `pause_reason`, and stops for you to resume interactively. Headless requires a curated
-`permissions.allow` in the host's Claude Code settings (never `--dangerously-skip-permissions`);
+`permission` allowlist in the host's `opencode.json` (never a bypass flag);
 a stall on a missing permission is the guardrail working — the fix is a deliberate allowlist
 extension, not a bypass. Artifacts and the journal survive a crash, so re-invoking the same
 command resumes.
 
 ### Variant: `--step` (legacy supervision)
 
-`/artel:feature-development PROJ-XXXX --step` (alias `--mode=full-gates`) restores per-gate
+`/artel-feature-development PROJ-XXXX --step` (alias `--mode=full-gates`) restores per-gate
 supervision: confirmations between major phases and per-task implementer approval
 (`autonomous-run.md §6`). No `run-state.json` is written and the Stop gate and sensitive guard
 stay **disarmed** — you are the gate. This is the required mode when the risk floor forces
@@ -515,28 +517,28 @@ what to run next. Run all of these from the host repo root.
 
 1. **Idea from the tracker.** *Pre:* `tracker.adapter` is `"github-issues"` (authenticated `gh`)
    or `"jira-mcp"` (connected MCP, `tracker.mcpToolPrefix` set). *Run:*
-   `/artel:generate-idea PROJ-XXXX`. *Produces:* `<specs.dir>/PROJ-XXXX/idea.md`; sets
+   `/artel-generate-idea PROJ-XXXX`. *Produces:* `<specs.dir>/PROJ-XXXX/idea.md`; sets
    `.active_ticket`. With `tracker.adapter: "none"` it gathers the description from an argument
-   or from you instead. *Next:* `/artel:analysis PROJ-XXXX`, or hand the whole thing to
-   `/artel:feature-development PROJ-XXXX`. See
+   or from you instead. *Next:* `/artel-analysis PROJ-XXXX`, or hand the whole thing to
+   `/artel-feature-development PROJ-XXXX`. See
    [generate-idea](skills-reference.md#generate-idea).
 
 2. **PRD only.** *Pre:* `idea.md` exists (or a description file). *Run:*
-   `/artel:analysis PROJ-XXXX`. *Produces:* `prd.md` (status `PRD_READY`) after the interview
-   batches. *Next:* `/artel:generate-vision PROJ-XXXX`. See
+   `/artel-analysis PROJ-XXXX`. *Produces:* `prd.md` (status `PRD_READY`) after the interview
+   batches. *Next:* `/artel-generate-vision PROJ-XXXX`. See
    [analysis](skills-reference.md#analysis).
 
 3. **Vision only.** *Pre:* `idea.md` exists; `prd.md` recommended (it warns and drafts from the
-   idea alone if absent). *Run:* `/artel:generate-vision PROJ-XXXX`. *Produces:* `vision.md`
+   idea alone if absent). *Run:* `/artel-generate-vision PROJ-XXXX`. *Produces:* `vision.md`
    (status `VISION_READY`) after one Approve/Request-changes checkpoint. *Next:*
-   `/artel:researcher PROJ-XXXX` or `/artel:generate-tasklist PROJ-XXXX`. See
+   `/artel-researcher PROJ-XXXX` or `/artel-generate-tasklist PROJ-XXXX`. See
    [generate-vision](skills-reference.md#generate-vision).
 
 4. **Research + plan.** *Pre:* `prd.md` (and ideally `vision.md`) exist. *Run:*
-   `/artel:researcher PROJ-XXXX` then `/artel:planner PROJ-XXXX`. *Produces:* `research.md`,
+   `/artel-researcher PROJ-XXXX` then `/artel-planner PROJ-XXXX`. *Produces:* `research.md`,
    then `plan.md` (status `PLAN_DRAFTED`/`PLAN_APPROVED`); unresolved questions go to
    `.artel/run/PROJ-XXXX/open-questions.md`, neither skill pauses. *Next:* ground the plan
-   (recipe 5), then `/artel:tasklist PROJ-XXXX`. See
+   (recipe 5), then `/artel-tasklist PROJ-XXXX`. See
    [researcher](skills-reference.md#researcher) and [planner](skills-reference.md#planner).
 
 5. **Plan grounding check.** *Pre:* `plan.md` exists. *Run:*
@@ -544,67 +546,67 @@ what to run next. Run all of these from the host repo root.
    --strict` (kartoteka path: `set -o pipefail; python3 <plugin-root>/scripts/spec_store.py get specs/.current/PROJ-XXXX/plan.md |
    python3 <plugin-root>/scripts/plan_check.py --plan - --strict`). *Produces:* a JSON envelope — exit 0 (all anchors resolve), exit 1
    (`data.unresolved` lists hallucinated refs), exit 2 (environment error). *Next:* on exit 1,
-   feed the unresolved list back to `/artel:planner PROJ-XXXX` (declare intended new files as
+   feed the unresolved list back to `/artel-planner PROJ-XXXX` (declare intended new files as
    `new:`), regenerate, re-check.
 
-6. **Tasklist.** *Pre:* full PRD/plan chain (`/artel:tasklist`) **or** just `idea.md`, with
-   `vision.md` when there is one (`/artel:generate-tasklist`). *Run:* `/artel:tasklist PROJ-XXXX`
-   from a plan, or `/artel:generate-tasklist PROJ-XXXX` from the idea. *Produces:* `tasklist.md`
-   (status `TASKLIST_READY`) with HITL tags. *Next:* `/artel:implementer PROJ-XXXX`, or arm a
-   run with `/artel:feature-development PROJ-XXXX` — a tasklist with open tasks sizes the run
+6. **Tasklist.** *Pre:* full PRD/plan chain (`/artel-tasklist`) **or** just `idea.md`, with
+   `vision.md` when there is one (`/artel-generate-tasklist`). *Run:* `/artel-tasklist PROJ-XXXX`
+   from a plan, or `/artel-generate-tasklist PROJ-XXXX` from the idea. *Produces:* `tasklist.md`
+   (status `TASKLIST_READY`) with HITL tags. *Next:* `/artel-implementer PROJ-XXXX`, or arm a
+   run with `/artel-feature-development PROJ-XXXX` — a tasklist with open tasks sizes the run
    `bounded` unless a PRD or a plan exists. See [tasklist](skills-reference.md#tasklist) and
    [generate-tasklist](skills-reference.md#generate-tasklist).
 
 7. **Phased tickets.** *Pre:* a multi-phase `tasklist.md`. *Extract:*
-   `/artel:sync-phases PROJ-XXXX` creates the next incomplete phase's `phase-<N>/tasks.md` and
-   updates `**Current Phase:** N`. *Run phase N:* `/artel:feature-development PROJ-XXXX-<N>`
+   `/artel-sync-phases PROJ-XXXX` creates the next incomplete phase's `phase-<N>/tasks.md` and
+   updates `**Current Phase:** N`. *Run phase N:* `/artel-feature-development PROJ-XXXX-<N>`
    — the orchestrator auto-extracts at start and, once the
    phase's gates pass, **writes back** completion into `tasklist.md`. *Manual write-back:*
-   `/artel:sync-phases PROJ-XXXX`. A ticket-wide `/artel:feature-development PROJ-XXXX`
+   `/artel-sync-phases PROJ-XXXX`. A ticket-wide `/artel-feature-development PROJ-XXXX`
    traverses all remaining phases in one run, checkpoint-committing and
    pushing at each phase boundary (`autonomous-run.md §14–15`); the explicit `-<N>` form still
    runs a single phase. See [sync-phases](skills-reference.md#sync-phases).
 
 8. **Implement one task.** *Pre:* a `tasklist.md`/`phase-<N>/tasks.md` with an open `- [ ]`
-   task. *Run:* `/artel:implementer PROJ-XXXX`. *Produces:* the source change, the checkbox
+   task. *Run:* `/artel-implementer PROJ-XXXX`. *Produces:* the source change, the checkbox
    flipped — every step of the task's block, when the tasklist is in the task grammar; the task
    taken is the first whose dependencies are done — and a deviation record if it diverged; returns `HITL: <reason>` instead of
    implementing a HITL-tagged task. *Next:* re-run to take the next task, or
-   `/artel:run-reviewer PROJ-XXXX`. See [implementer](skills-reference.md#implementer).
+   `/artel-run-reviewer PROJ-XXXX`. See [implementer](skills-reference.md#implementer).
 
 9. **Review loop.** *Pre:* implemented changes on the branch. *Run:*
-   `/artel:run-reviewer PROJ-XXXX`. *Produces:* `review.md` with `**Review round:** N` and, in
+   `/artel-run-reviewer PROJ-XXXX`. *Produces:* `review.md` with `**Review round:** N` and, in
    ticket mode, a `## Code Review Fixes` write-back to the tasklist, recorded as fix rows in the
-   task queue when kartoteka is on (`/artel:tasks list` shows them). *Next:* implement the fix
+   task queue when kartoteka is on (`/artel-tasks list` shows them). *Next:* implement the fix
    tasks, then re-run (capped review rounds — `autonomous-run.md §5`). See
    [run-reviewer](skills-reference.md#run-reviewer).
 
 10. **Runtime gate alone.** *Pre:* `runtime.run` configured; a buildable app. *Run:*
-    `/artel:run-app --gate`. *Produces:* a GREEN/RED verdict in `runtime/observation.md`
+    `/artel-run-app --gate`. *Produces:* a GREEN/RED verdict in `runtime/observation.md`
     (relaunches fresh for a clean baseline, stops the app after). *Next:* on RED from app code,
     fix and re-run; a stale green is not trusted — re-run if the observation predates your last
     relevant change. See [run-app](skills-reference.md#run-app).
 
-11. **QA.** *Pre:* implemented, reviewed changes. *Run:* `/artel:qa PROJ-XXXX`. *Produces:*
+11. **QA.** *Pre:* implemented, reviewed changes. *Run:* `/artel-qa PROJ-XXXX`. *Produces:*
     `qa.md` with a verdict (generated, never paused on). *Next:* on a negative verdict, one
     implementer fix round then re-run. See [qa](skills-reference.md#qa). Not a pipeline stage
     since 0.18.0 — the reviewer's `## PRD acceptance criteria` table is the pipeline's record.
 
 12. **Validate (gate status).** *Pre:* a ticket with artifacts. *Run:*
-    `/artel:validate PROJ-XXXX`. *Produces:* a read-only report of which gates are green/red
+    `/artel-validate PROJ-XXXX`. *Produces:* a read-only report of which gates are green/red
     (`PRD_READY`, `PLAN_APPROVED`, `TASKLIST_READY`, `REVIEW_OK`, `RUNTIME_OK`, `CHECKPOINT_OK`, …); writes
     nothing. *Next:* address whatever is red. See [validate](skills-reference.md#validate). Not a
     pipeline stage since 0.18.0 — the orchestrator's completion gate confirms the same facts.
 
 13. **PR description.** *Pre:* work on a feature branch, diffable against the base. *Run:*
-    `/artel:pr-description PROJ-XXXX`. *Produces:* `pr-description.md`, styled from recent
+    `/artel-pr-description PROJ-XXXX`. *Produces:* `pr-description.md`, styled from recent
     merged PRs (fetched via `vcs.adapter`); prompt-free, and it *always* regenerates (the branch
-    diff is the input). *Next:* review it, then `/artel:pr-create PROJ-XXXX`. See
+    diff is the input). *Next:* review it, then `/artel-pr-create PROJ-XXXX`. See
     [pr-description](skills-reference.md#pr-description).
 
 14. **PR create (standalone — it commits).** *Pre:* the branch is ready and you intend to push;
     the configured `vcs.adapter` (`gh` CLI or Bitbucket MCP) is authenticated. *Run:*
-    `/artel:pr-create PROJ-XXXX`. *Produces:* a commit + push (only when the tree is dirty), the
+    `/artel-pr-create PROJ-XXXX`. *Produces:* a commit + push (only when the tree is dirty), the
     PR, and a tracker comment with the URL — or `pr-pending.md` on an identity/auth failure. It
     is **idempotent** (a clean tree skips the commit; an existing open PR is only re-commented)
     but it *is* the step that writes to remotes — **read its report carefully** to see exactly
@@ -619,19 +621,19 @@ what to run next. Run all of these from the host repo root.
     unnecessary (it always regenerates). *Next:* re-run the affected gate.
 
 16. **Parallel tickets in worktrees.** *Pre:* a ticket to start, or one already on its branch in
-    the main checkout. *Run:* `/artel:init-branch PROJ-XXXX` and answer **Move to
-    `.claude/worktrees/PROJ-XXXX`** — or `/artel:move-to-worktree PROJ-XXXX` for a ticket already
-    on its branch. *Produces:* the ticket's branch in `.claude/worktrees/PROJ-XXXX` with its
+    the main checkout. *Run:* `/artel-init-branch PROJ-XXXX` and answer **Move to
+    `.opencode/worktrees/PROJ-XXXX`** — or `/artel-move-to-worktree PROJ-XXXX` for a ticket already
+    on its branch. *Produces:* the ticket's branch in `.opencode/worktrees/PROJ-XXXX` with its
     uncommitted work, artel config and run state; this session continues there, and the main
     checkout is free for a new session on another ticket. *Next:* work the ticket as usual; when
-    it is done, `/artel:return-from-worktree PROJ-XXXX` hands the branch back to the main
+    it is done, `/artel-return-from-worktree PROJ-XXXX` hands the branch back to the main
     checkout (which must have no uncommitted changes) and removes the worktree, keeping the
     branch. What moves and what doesn't: [worktrees.md](worktrees.md). See
     [move-to-worktree](skills-reference.md#move-to-worktree) and
     [return-from-worktree](skills-reference.md#return-from-worktree).
 
 17. **Walk a PR file by file.** *Pre:* a GitHub PR URL or number, and GitHub CLI access to the
-    repository. *Run:* `/artel:collaborative-review <pr-url-or-number>`. *Produces:* a saved
+    repository. *Run:* `/artel-collaborative-review <pr-url-or-number>`. *Produces:* a saved
     checklist under `.artel/run/collaborative-review/<owner>/<repo>/pr-<N>/review-checklist.md`
     and a one-file-at-a-time walkthrough — each file presented with its role, changed excerpt,
     why, assessment and direct diff link, with the report's clickable link and unresolved
@@ -647,7 +649,7 @@ what to run next. Run all of these from the host repo root.
 | Symptom | What it means | What to do |
 |---|---|---|
 | A worktree move or hand-back reports **`conflict`** | The uncommitted work was stashed but did not apply where it was going; the stash is kept ([worktrees.md](worktrees.md) §6) | Resolve the conflicts in the path the report names, then `git stash drop` the stash entry it names. Nothing was lost. An **`error`** that names a `stash` means the same work is kept there: `git stash apply <stash>` restores it |
-| Edit **denied** naming a sensitive-paths category and floor | The sensitive-path guard is armed and the path's floor outranks the effective mode, or `TASKLIST_READY` isn't confirmed yet (hooks/README.md, `autonomous-run.md §10`) | Re-run at or above the required mode, or use `--step` for a `full-gates` floor. Never lower the floor. |
+| `edit` **denied** naming a sensitive-paths category and floor | The sensitive-path guard is armed and the path's floor outranks the effective mode, or `TASKLIST_READY` isn't confirmed yet (hooks/README.md, `autonomous-run.md §10`) | Re-run at or above the required mode, or use `--step` for a `full-gates` floor. Never lower the floor. |
 | Session won't end: **"run incomplete"** block | Run stop gate: `run-state.json` is `run_active: true`, `completed: false`, `pause_reason: null` (`autonomous-run.md §8`) | Let the run finish, or if it legitimately paused, have the orchestrator set the matching `pause_reason` (hand-edit `.artel/run/<TICKET_ID>/run-state.json` only as a fallback, when no session is live — same as the abort row). A truly finished run should already have `completed: true`. |
 | Run stops with a **consolidated findings report** | A capped loop hit its bound (task gate/review/runtime/checkpoint gate, or the global correction budget — `autonomous-run.md §5`) | Read the consolidated findings, give guidance, and resume. Counters reset only on that user-guided resume; for the review loop specifically, deleting `review.md` resets its round counter. |
 | Checkpoint gate **red on `new_keys` only** while an older finding is still there | The gate compares against the baseline recorded at arm time ([gates.md](gates.md) §1): red means a finding the branch introduced; `baseline_red` stages are pre-existing and journaled by name | Fix the `new_keys`. A baseline that is genuinely stale (an upstream merge mid-run) is re-recorded by hand — `verify.py checkpoint --record-baseline --ticket <T>` — knowing it snapshots the tree as it is |
@@ -655,7 +657,7 @@ what to run next. Run all of these from the host repo root.
 | Guard/Stop hooks seem **inert** on an old run | `run-state.json`'s `started_at` is older than the wall-clock budget (`WALL_CLOCK_HOURS`, `autonomous-run.md §2`) and is treated as stale | Resume by re-invoking the same entry-point command; the orchestrator rewrites `started_at` and re-arms (re-deriving the mode fields — never trusting stale ones). |
 | Need to **abort** a run cleanly | You want to stop for good, not pause | Tell the running orchestrator to abort — it writes `run-state.json` with `pause_reason: "user-abort"`, `run_active: false` (`autonomous-run.md §2`), and the Stop gate then allows the session to end. Hand-edit `.artel/run/<TICKET_ID>/run-state.json` yourself only as a fallback, when no session is live to ask. |
 | Fast-verify Stop gate **keeps blocking** on findings you can't clear right now | Findings introduced this session stay red (hooks/README.md) | Fix them (preferred), or use the escape hatch: delete `.artel/run/.hooks/baseline-<session_id>.json` so the next Stop re-baselines and passes. |
-| Headless run **stalled on a permission** | A tool call isn't in `permissions.allow`; the guardrail refused to self-widen (`autonomous-run.md §12`) | Extend the allowlist in the host's Claude Code settings **deliberately** (a reviewed edit, approved interactively), then resume. Never `--dangerously-skip-permissions`. |
+| Headless run **stalled on a permission** | A tool call isn't in the host's `permission` allowlist; the guardrail refused to self-widen (`autonomous-run.md §12`) | Extend the allowlist in the host's `opencode.json` **deliberately** (a reviewed edit, approved interactively), then resume. Never a bypass flag. |
 | Checkpoint stops: **push rejected / on default branch** | The `autonomous-run.md §14` branch guard or a non-fast-forward push — checkpoints never force-push and never commit to the default branch | Reconcile the branch manually (pull/rebase, or switch to a feature branch), then resume the run. |
 | The run picked a **head you did not want** | Sizing is a judgement over the ticket, and it goes heavier when in doubt (`autonomous-run.md §17`) | Say so at the head's first question, or re-run with `--head=full`, `--head=lean` or `--head=bug`. Only that flag lowers a size; once the run is armed the flag is ignored. |
-| Every gate reports **skipped** | The config's defaults are inert — empty `verify.commands`, no `runtime.run`, `design.figma: false` (config.md) | Configure the gates you want armed via `/artel:setup` or by editing `.artel/config.json`. Skipped is honest, not green. |
+| Every gate reports **skipped** | The config's defaults are inert — empty `verify.commands`, no `runtime.run`, `design.figma: false` (config.md) | Configure the gates you want armed via `/artel-setup` or by editing `.artel/config.json`. Skipped is honest, not green. |

@@ -3,16 +3,16 @@
 How artel agents consult the host project's institutional knowledge index
 before doing their own work.
 
-Referenced by `agents/analyst.md`, `agents/researcher.md` and `agents/issue-scout.md` — the
-last on behalf of `skills/issue-draft/SKILL.md`, which resolves the gate — and from the
-conversation by `skills/knowledge/SKILL.md`. `knowledge` and `issue-scout` each declare in their
+Referenced by `agents/artel-analyst.md`, `agents/artel-researcher.md` and `agents/artel-issue-scout.md` — the
+last on behalf of `skills/artel-issue-draft/SKILL.md`, which resolves the gate — and from the
+conversation by `skills/artel-knowledge/SKILL.md`. `knowledge` and `issue-scout` each declare in their
 own body where they deviate (what a tool error does to the run, that neither records anything
 under `<specs.dir>`, and for the scout its budget and its paraphrase rule, §3 and §5 below).
 Spelled here once because all of them need the identical rules, and §5 is one
 where copies drifting apart is unsafe rather than untidy.
 
 **This file is read-only toward kartoteka.** Nothing here writes. artel's spec
-trail reaches kartoteka through the `PostToolUse` hook
+trail reaches kartoteka through the `tool.execute.after` hook
 (`hooks/knowledge_mirror.py`) on the files path, or is written there directly on the
 kartoteka path (`docs/spec-storage.md`); its task queue is the other write direction and
 is `docs/task-queue.md`. Consultation itself writes nothing.
@@ -50,9 +50,9 @@ when the host has wired the kartoteka MCP server into this session, and absent
 otherwise.
 
 A daemon with `[auth]` on — kartoteka 0.32.0, every hosted one — that the session
-registered without its bearer token is row 5 as well: Claude Code cannot connect,
-so the tools are absent. The fix is host-side wiring, `--header` on the MCP
-registration (`docs/config.md`, `knowledge.tokenEnv`), not anything this contract
+registered without its bearer token is row 5 as well: the session cannot connect,
+so the tools are absent. The fix is host-side wiring — the bearer header on the MCP
+registration (`docs/config.md`, `knowledge.tokenEnv`) — not anything this contract
 reads. A token revoked mid-session turns every later call into a tool error,
 which each consumer handles as it declares.
 
@@ -123,7 +123,7 @@ four times**.
 
 The bound is about focus, not speed. An agent that runs twenty searches pastes noise into a document a human has to read.
 
-`agents/issue-scout.md` declares a larger budget — `index_status` 1 · `related` ≤ 5 ·
+`agents/artel-issue-scout.md` declares a larger budget — `index_status` 1 · `related` ≤ 5 ·
 `search_knowledge` ≤ 10 — because it stands in for the author's own lookups for a whole draft,
 and `issue-draft` caps what reaches the document at six facts.
 

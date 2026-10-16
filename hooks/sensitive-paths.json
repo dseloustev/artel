@@ -18,7 +18,9 @@
       "name": "gate-config",
       "floor": "full-gates",
       "globs": [
-        ".claude/*",
+        "opencode.json",
+        "opencode.jsonc",
+        ".opencode/*",
         ".artel/config.json",
         ".artel/sensitive-paths.json"
       ]

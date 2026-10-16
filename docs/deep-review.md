@@ -7,8 +7,8 @@ artifacts — the ticket's `deep-review.md` and a machine report — and `script
 pins the target they are judged against and validates them before any fix is offered. This
 document is the single home of that contract: the pinned manifest, the machine report's schema,
 the report's exact metadata, finding IDs and task format, and the verification and completeness
-rules. The steps live in [skills/deep-review/SKILL.md](../skills/deep-review/SKILL.md); the
-writer's rules in [agents/reviewer.md](../agents/reviewer.md); the mechanical half in
+rules. The steps live in [skills/artel-deep-review/SKILL.md](../skills/artel-deep-review/SKILL.md); the
+writer's rules in [agents/artel-reviewer.md](../agents/artel-reviewer.md); the mechanical half in
 `scripts/deep_review.py`.
 
 `<specs.dir>` is the host's configured `specs.dir` ([config.md](config.md)); the target manifest
@@ -20,7 +20,7 @@ itself is the spec document `<specs.dir>/<TICKET_ID>/deep-review.md` on the file
 ## 1. The pinned target
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py prepare \
+python3 ${ARTEL_ROOT}/scripts/deep_review.py prepare \
   --ticket <TICKET_ID> --specs-dir <specs.dir> [--branch <BRANCH_NAME>] [--base <BASE>] \
   --output .artel/run/<TICKET_ID>/deep-review/target.json
 ```
@@ -290,7 +290,7 @@ exits `1`, and the skill displays the gaps instead of offering fixes.
 Files path:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check \
+python3 ${ARTEL_ROOT}/scripts/deep_review.py check \
   --target .artel/run/<TICKET_ID>/deep-review/target.json \
   --findings .artel/run/<TICKET_ID>/deep-review/machine.json \
   --report <specs.dir>/<TICKET_ID>/deep-review.md \
@@ -300,7 +300,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check \
 Kartoteka path — the stored document goes by pipe, never through a file:
 
 ```bash
-set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/deep-review.md | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/deep_review.py check \
+set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <specs.dir>/<TICKET_ID>/deep-review.md | python3 ${ARTEL_ROOT}/scripts/deep_review.py check \
   --target .artel/run/<TICKET_ID>/deep-review/target.json \
   --findings .artel/run/<TICKET_ID>/deep-review/machine.json \
   --report - --summary '<the completion line>'

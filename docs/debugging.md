@@ -4,8 +4,8 @@
 notice is in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).*
 
 The discipline artel applies whenever something behaves wrongly: find the cause, then fix it
-once. Three readers follow it — the `/artel:debugging` skill in a person's session, the
-`implementer` agent inside a run, and the `reviewer` when it checks a fix round (§7).
+once. Three readers follow it — the `/artel-debugging` skill in a person's session, the
+`artel-implementer` agent inside a run, and the `reviewer` when it checks a fix round (§7).
 
 ## 1. The rule
 
@@ -83,7 +83,7 @@ Inside a run the evidence is on disk, so a reviewer can check it without trustin
 wording.
 
 - **Hypotheses.** A task whose `test` stage went red lists each iteration's hypothesis in its
-  report file (`agents/implementer.md`, Step 6):
+  report file (`agents/artel-implementer.md`, Step 6):
 
   ```markdown
   ## Verify iterations
@@ -92,7 +92,7 @@ wording.
   | 2 | test | `total()` sums before the discount because `apply()` runs after it | confirmed — fixed at `cart.py:41` |
   ```
 
-- **The reproduction.** A behavioural fix-section row (`agents/implementer.md`, Step 3) keeps its
+- **The reproduction.** A behavioural fix-section row (`agents/artel-implementer.md`, Step 3) keeps its
   red evidence in the ticket's `verify/` directory as `repro-<code>-<source>-<N>`: `<code>` the
   section's code in lower case (`crf`, `rtf`, `vf`), `<source>` the nearest `###` heading above
   the row inside its section (`tasklist` when there is none), `<N>` the row's 1-based position
@@ -125,9 +125,9 @@ These are `deviation-protocol.md` §2 **Major**. Where you are decides the hando
 - **Inside a run** — halt before the change and return a `DEVIATION` report
   ([deviation-protocol.md](deviation-protocol.md) §4) that names the cause and says why fixing it
   properly is structural. The orchestrator asks the person.
-- **In `/artel:debugging`** — report the cause, explain what makes the proper fix structural,
-  leave the code as it is, and offer `/artel:issue-draft` to turn the report into a ticket.
-- **In diagnose mode** (`/artel:debugging <ticket> --diagnose`) — record the cause in the
+- **In `/artel-debugging`** — report the cause, explain what makes the proper fix structural,
+  leave the code as it is, and offer `/artel-issue-draft` to turn the report into a ticket.
+- **In diagnose mode** (`/artel-debugging <ticket> --diagnose`) — record the cause in the
   ticket's `diagnosis.md` with status `DIAGNOSED_STRUCTURAL` and say which condition holds. No
   ticket is drafted: the ticket exists, and its orchestrator moves it to the full pipeline.
 
@@ -170,12 +170,12 @@ holds:
 
 | Reader | When | Follows |
 |---|---|---|
-| `skills/inner-loop` (the implementer's task gate) | a red `test` stage | §2.3 — one hypothesis per iteration; §3 — the hypothesis table; §4 — a structural cause is a Major deviation |
-| `agents/implementer.md` | a behavioural fix-section row | §2, §3 (the reproduction), §4, §6 |
-| `agents/reviewer.md` | re-reviewing a fix round | §3 — a `behavior` row closed without red-first evidence is Important |
-| `/artel:debugging` | a person's bug, outside a run | §1–§6 |
-| `/artel:debugging --diagnose` | the bug head (`heads/bug.md` of `feature-development`), before any work list | §2.1–§2.3, §3, §4, §5, §6 — and stops before §2.4 |
-| `/artel:debugging` | a red-gate halt (`tail.md`, "Debug it here first"), at the person's choice | §1–§6; the orchestrator journals the fix and re-runs the gate |
+| `skills/artel-inner-loop` (the implementer's task gate) | a red `test` stage | §2.3 — one hypothesis per iteration; §3 — the hypothesis table; §4 — a structural cause is a Major deviation |
+| `agents/artel-implementer.md` | a behavioural fix-section row | §2, §3 (the reproduction), §4, §6 |
+| `agents/artel-reviewer.md` | re-reviewing a fix round | §3 — a `behavior` row closed without red-first evidence is Important |
+| `/artel-debugging` | a person's bug, outside a run | §1–§6 |
+| `/artel-debugging --diagnose` | the bug head (`heads/bug.md` of `feature-development`), before any work list | §2.1–§2.3, §3, §4, §5, §6 — and stops before §2.4 |
+| `/artel-debugging` | a red-gate halt (`tail.md`, "Debug it here first"), at the person's choice | §1–§6; the orchestrator journals the fix and re-runs the gate |
 
 Diagnose mode ends in a document instead of a fix: `diagnosis.md` in the ticket's spec trail,
 its status `DIAGNOSED` (a confirmed cause with a local fix), `DIAGNOSED_STRUCTURAL` (a confirmed

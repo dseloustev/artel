@@ -1290,7 +1290,7 @@ class TestAdmit(CliCase):
 
 class WorktreeCase(CliCase):
     def worker_root(self, task=TASK, attempt=1):
-        return (self.repo / '.claude' / 'worktrees' / 'parallel' / TICKET / RUN_ID /
+        return (self.repo / '.opencode' / 'worktrees' / 'parallel' / TICKET / RUN_ID /
                 '{}-a{}'.format(task, attempt))
 
     def artifact_root(self, task=TASK, attempt=1):
@@ -1787,12 +1787,12 @@ class TestCoordinatorDocs(unittest.TestCase):
         self.assertIn('correction_reservations', flat)
         self.assertIn('preserved', flat)
 
-    def test_the_parallel_contract_separates_seats_from_the_seat(self):
+    def test_the_parallel_contract_defines_worker_concurrency_inline(self):
         text = (ROOT / 'docs' / 'opencode-parallel.md').read_text(encoding='utf-8')
         self.assertIn('`parallel.seats`', text)
-        self.assertIn('`seat.enabled`', text)
+        self.assertNotIn('seat.enabled', text)
         flat = ' '.join(text.split())
-        self.assertIn('not `seat.enabled`', flat)
+        self.assertIn('worker concurrency', flat)
         self.assertIn('runs the tail inline', flat)
 
     def test_the_loop_contract_names_drain_pauses_and_the_quiescent_finish(self):
@@ -1807,7 +1807,7 @@ class TestCoordinatorDocs(unittest.TestCase):
     def test_config_documents_seats_as_worker_concurrency(self):
         flat = ' '.join((ROOT / 'docs' / 'config.md').read_text(encoding='utf-8').split())
         self.assertIn('worker concurrency', flat)
-        self.assertIn('not `seat.enabled`', flat)
+        self.assertNotIn('seat.enabled', flat)
 
     def test_the_opencode_host_doc_mentions_the_parallel_procedure(self):
         flat = ' '.join((ROOT / 'docs' / 'opencode.md').read_text(encoding='utf-8').split())

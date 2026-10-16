@@ -1,4 +1,4 @@
-"""SessionStart(startup|clear|compact): inject the `using-artel` router skill plus a
+"""session.hook("context"): inject the `artel-using-artel` router skill plus a
 short host status into the session. Inert without .artel/config.json. Fails open —
 a session must never fail to start because of a convenience."""
 import json
@@ -11,12 +11,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 import hook_common as h  # noqa: E402
 import spec_decision as sd  # noqa: E402
 
-SKILL_PATH = h.PLUGIN_ROOT / 'skills' / 'using-artel' / 'SKILL.md'
+SKILL_PATH = h.PLUGIN_ROOT / 'skills' / 'artel-using-artel' / 'SKILL.md'
 
 HEADER = ('<EXTREMELY_IMPORTANT>\n'
-          'This repository is configured for artel. Below is your `artel:using-artel` skill '
+          'This repository is configured for artel. Below is your `artel-using-artel` skill '
           '— how to route ticket, feature, queue and knowledge requests. For every other '
-          'skill, use the `Skill` tool.')
+          'skill, use the `skill` tool.')
 FOOTER = '</EXTREMELY_IMPORTANT>'
 
 
@@ -60,7 +60,7 @@ def spec_store_status(config):
     adapter = (config.get('knowledge') or {}).get('adapter') or 'none'
     if adapter != 'kartoteka':
         return 'spec store: files (knowledge.adapter is {})'.format(adapter)
-    line = 'spec store: kartoteka (move local trails in with /artel:migrate-specs)'
+    line = 'spec store: kartoteka (move local trails in with /artel-migrate-specs)'
     ticket = sd.canonical_ticket(active_ticket_pointer(config) or '', config)
     decision = sd.load(ticket) if ticket else None
     if decision and sd.is_fresh(decision):
@@ -77,7 +77,7 @@ def spec_store_status(config):
 def read_config():
     """(config, parseable). hook_common.load_config() swallows a JSON error and returns {},
     which would let a syntax error masquerade as `knowledge.adapter: none` and send the user
-    to /artel:setup for a problem /artel:setup would not show them."""
+    to /artel-setup for a problem /artel-setup would not show them."""
     try:
         return json.loads(h.CONFIG_PATH.read_text(encoding='utf-8')), True
     except Exception:
@@ -125,8 +125,9 @@ def token_status(knowledge):
     Read before any edit for the same reason the project is: since kartoteka
     0.32.0 a daemon with [auth] on refuses every write without a bearer token,
     and the mirror log only says so after an edit has already gone unmirrored.
-    The same PATH caveat as ast-index applies -- this is the environment Claude
-    Code was launched with, not the Bash tool's shell profile."""
+    The same PATH caveat as ast-index applies -- this is the environment the
+    OpenCode server was launched with, not the shell profile the `shell` tool's
+    commands see."""
     token_env = (knowledge.get('tokenEnv') or '').strip()
     if not token_env:
         return 'knowledge.tokenEnv: none (fine only while the daemon has [auth] off)'

@@ -14,16 +14,16 @@ def body(name):
 
 class SetHomeDocsCase(unittest.TestCase):
     def setUp(self):
-        self.text = body('set-home')
+        self.text = body('artel-set-home')
 
     def test_frontmatter_names_the_skill(self):
-        self.assertTrue(self.text.startswith('---\nname: set-home\n'))
+        self.assertTrue(self.text.startswith('---\nname: artel-set-home\n'))
 
     def test_takes_a_repo_url_argument(self):
         self.assertIn('argument-hint: "<repo-url>"', self.text)
 
     def test_refreshes_origin_head(self):
-        # pr-create and agents/reviewer.md resolve the default branch through
+        # pr-create and agents/artel-reviewer.md resolve the default branch through
         # refs/remotes/origin/HEAD, which is stale garbage after the remote swap.
         self.assertIn('git remote set-head origin -a', self.text)
 
@@ -46,7 +46,7 @@ class SetHomeDocsCase(unittest.TestCase):
         self.assertIn('no** `origin`', self.text)
 
     def test_confirms_before_touching_remotes(self):
-        self.assertIn('AskUserQuestion', self.text)
+        self.assertIn('the `question` tool', self.text)
 
     def test_never_force_pushes_or_deletes_a_remote(self):
         # Assert the prohibition is stated, not that the string is absent -- the skill has to
@@ -60,10 +60,10 @@ class SetHomeDocsCase(unittest.TestCase):
 
 class MigratePrsDocsCase(unittest.TestCase):
     def setUp(self):
-        self.text = body('migrate-prs')
+        self.text = body('artel-migrate-prs')
 
     def test_frontmatter_names_the_skill(self):
-        self.assertTrue(self.text.startswith('---\nname: migrate-prs\n'))
+        self.assertTrue(self.text.startswith('---\nname: artel-migrate-prs\n'))
 
     def test_is_idempotent_via_an_existing_pr_check(self):
         self.assertIn('gh pr list --head', self.text)

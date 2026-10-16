@@ -6,14 +6,15 @@
 #
 # Layout (details: docs/opencode.md):
 #   ~/.config/opencode/artel/               full plugin copy (hooks, scripts, docs,
-#                                           skills, agents, bridge plugin)
+#                                           skills, agents, bridge plugin) — baked in place
 #   ~/.config/opencode/plugins/*.ts         the bridge plugin and its sibling modules
 #                                           (the parallel worker-session adapter)
-#   ~/.config/opencode/skills/artel-*/      generated skills: SKILL.md, and beside it the
+#   ~/.config/opencode/skills/artel-*/      the baked skills: SKILL.md, and beside it the
 #                                           skill's other Markdown files (the head and tail
 #                                           files of artel-feature-development, templates)
-#   ~/.config/opencode/agents/artel-*.md    generated agents
-#   ~/.config/opencode/commands/artel-*.md  generated command wrappers
+#   ~/.config/opencode/agents/artel-*.md    the baked agents
+#   ~/.config/opencode/commands/artel-*.md  generated command wrappers (the build's only
+#                                           output)
 #   ~/.config/opencode/.artel-install-manifest
 #                                           every path the last install placed
 #
@@ -58,7 +59,7 @@ if [ "${1:-}" = "--remove" ]; then
   exit 0
 fi
 
-if [ ! -f "$SRC/.claude-plugin/plugin.json" ] || [ ! -f "$SRC/opencode/plugin/artel.ts" ]; then
+if [ ! -f "$SRC/VERSION" ] || [ ! -f "$SRC/opencode/plugin/artel.ts" ]; then
   echo "artel: $SRC does not look like the artel checkout" >&2
   exit 1
 fi
@@ -90,19 +91,21 @@ mkdir -p "$DEST/plugin"
 cp "$SRC/opencode/plugin/"*.ts "$DEST/plugin/"
 rm -rf "$DEST/hooks/__pycache__" "$DEST/scripts/__pycache__"
 
-# 2. Generate the OpenCode artifacts (into $DEST/opencode/dist).
+# 2. Bake the install copy and generate the command wrappers (into $DEST/opencode/dist).
 python3 "$DEST/scripts/build_opencode.py" --root "$DEST"
 
-# 3. Place them into OpenCode's flat discovery directories, recording each one.
-#    A skill is recorded as its directory: that one entry covers every file the
-#    generator put in it, so a refresh or --remove takes the head and tail files too.
-#    The `[ -e ]` guards make an empty glob a no-op instead of a `set -e` abort.
+# 3. Place the artifacts into OpenCode's flat discovery directories, recording each one.
+#    Skills and agents come from the baked install copy — the source tree is the artifact —
+#    and the command wrappers from the build's dist. A skill is recorded as its directory:
+#    that one entry covers every file it carries (a head file, a template), so a refresh or
+#    --remove takes them too. The `[ -e ]` guards make an empty glob a no-op instead of a
+#    `set -e` abort.
 TMP_MANIFEST="$MANIFEST.tmp"
 : > "$TMP_MANIFEST"
 record() { printf '%s\n' "$1" >> "$TMP_MANIFEST"; }
 
 SKILLS=0
-for dir in "$DEST/opencode/dist/skills/"*/; do
+for dir in "$DEST/skills/"artel-*/; do
   [ -d "$dir" ] || continue
   name="$(basename "$dir")"
   rm -rf "$OC/skills/$name"
@@ -112,7 +115,7 @@ for dir in "$DEST/opencode/dist/skills/"*/; do
 done
 
 AGENTS=0
-for file in "$DEST/opencode/dist/agents/"*.md; do
+for file in "$DEST/agents/"artel-*.md; do
   [ -f "$file" ] || continue
   name="$(basename "$file")"
   cp "$file" "$OC/agents/$name"

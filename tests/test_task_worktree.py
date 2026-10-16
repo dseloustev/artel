@@ -1,7 +1,7 @@
 """scripts/task_worktree.py: one owned, detached task worktree per parallel worker.
 
 Contract: docs/opencode-parallel.md §3-§5 (worker location, assignment, result) and §13.4
-(the repository-common ticket lock), docs/worktrees.md §1 (the `.claude/worktrees` area) and
+(the repository-common ticket lock), docs/worktrees.md §1 (the `.opencode/worktrees` area) and
 the approved task-5 lifecycle handoff.
 
 Every test builds a real Git repository with the coordinator already in a linked worktree, a
@@ -96,7 +96,7 @@ class RepoCase(unittest.TestCase):
         git(self.main, 'add', '.')
         git(self.main, 'commit', '-q', '-m', 'init')
         self.base = git(self.main, 'rev-parse', 'HEAD')
-        self.coord = self.main / '.claude' / 'worktrees' / 'PROJ-123'
+        self.coord = self.main / '.opencode' / 'worktrees' / 'PROJ-123'
         git(self.main, 'worktree', 'add', '-q', '-b', COORD_BRANCH, str(self.coord))
         self.write_config()
         parallel_state.acquire_ticket(
@@ -128,7 +128,7 @@ class RepoCase(unittest.TestCase):
         return path
 
     def worker_root(self, task=TASK, attempt=ATTEMPT, run_id=RUN_ID):
-        return (self.main / '.claude' / 'worktrees' / 'parallel tasks' / TICKET / run_id /
+        return (self.main / '.opencode' / 'worktrees' / 'parallel tasks' / TICKET / run_id /
                 '{}-a{}'.format(task, attempt))
 
     def artifact_root(self, task=TASK, attempt=ATTEMPT, run_id=RUN_ID):
@@ -350,13 +350,13 @@ class TestCreate(RepoCase):
         self.assertEqual(git(self.worker_root(), 'rev-parse', 'HEAD'), self.base)
 
     def test_the_worktrees_area_is_excluded_from_the_main_checkout_status(self):
-        self.assertIn('.claude/', git(self.main, 'status', '--porcelain',
+        self.assertIn('.opencode/', git(self.main, 'status', '--porcelain',
                                      '--untracked-files=all'))
         self.create()
         status = git(self.main, 'status', '--porcelain', '--untracked-files=all')
-        self.assertNotIn('.claude/', status)
+        self.assertNotIn('.opencode/', status)
         self.assertEqual(git(self.main, 'check-ignore', '--quiet',
-                             '.claude/worktrees/parallel tasks/{}'.format(TICKET)) or '',
+                             '.opencode/worktrees/parallel tasks/{}'.format(TICKET)) or '',
                          '')
 
     def test_an_unknown_assignment_key_is_refused(self):
@@ -428,7 +428,7 @@ class TestCreate(RepoCase):
         self.assertTrue(self.worker_root().is_dir())
 
     def test_an_interrupted_registration_is_repaired_without_pruning_others(self):
-        other = self.main / '.claude' / 'worktrees' / 'expired-registration'
+        other = self.main / '.opencode' / 'worktrees' / 'expired-registration'
         git(self.main, 'worktree', 'add', '-q', '--detach', str(other), self.base)
         shutil.rmtree(str(other))
         root = self.worker_root()

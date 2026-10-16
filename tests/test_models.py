@@ -42,15 +42,22 @@ class TestResolve(ResolverCase):
                                  'stepUp': 'p/step-up'},
                  'reviewer': {'task': 'p/task', 'phase': 'p/phase', 'reReview': 'p/review',
                               'plan': 'p/plan', 'deepReview': 'p/deep'},
+                 'planner': {'default': 'p/planner-default', 'plan': 'p/planner-plan',
+                             'tasklist': 'p/planner-tasklist', 'research': 'p/planner-research',
+                             'analysis': 'p/planner-analysis'},
                  'pr-description': 'p/pr-description'}
-        self.write_config({'models': {'opencode': dict(sites, agents={'analyst': 'p/analyst'})}})
+        self.write_config({'models': {'opencode': dict(sites, agents={'qa': 'p/qa'})}})
         expected = {'implementer.light': 'p/light', 'implementer.full': 'p/full',
                     'implementer.fix': 'p/fix', 'implementer.stepUp': 'p/step-up',
                     'reviewer.task': 'p/task', 'reviewer.phase': 'p/phase',
                     'reviewer.reReview': 'p/review', 'reviewer.plan': 'p/plan',
                     'reviewer.deepReview': 'p/deep',
+                    'planner.default': 'p/planner-default', 'planner.plan': 'p/planner-plan',
+                    'planner.tasklist': 'p/planner-tasklist',
+                    'planner.research': 'p/planner-research',
+                    'planner.analysis': 'p/planner-analysis',
                     'pr-description': 'p/pr-description',
-                    'agents.analyst': 'p/analyst'}
+                    'agents.qa': 'p/qa'}
         for site, model in expected.items():
             code, out = self.resolve(site)
             self.assertEqual(code, 0, site)
@@ -103,7 +110,7 @@ class TestResolve(ResolverCase):
         self.assertIn('unknown site: reviewer.review', out['error']['message'])
 
     def test_a_site_with_a_trailing_newline_is_invalid_argument(self):
-        code, out = run_cli('resolve', '--site', 'agents.analyst\n', '--repo', self.repo.name)
+        code, out = run_cli('resolve', '--site', 'agents.qa\n', '--repo', self.repo.name)
         self.assertEqual(code, 2)
         self.assertEqual(out['error']['kind'], 'invalid_argument')
         self.assertIn('unknown site', out['error']['message'])
@@ -225,6 +232,108 @@ class TestCollaborativeReviewerSite(ResolverCase):
         code, out = self.resolve('agents.collaborative-reviewer')
         self.assertEqual(code, 2)
         self.assertEqual(out['error']['kind'], 'invalid_config')
+
+
+class TestPlannerFamily(ResolverCase):
+    """`planner.<kind>` resolves the kind, then the family's `default`, then null."""
+
+    def test_each_kind_resolves_its_own_value(self):
+        self.write_config({'models': {'opencode': {'planner': {
+            'default': 'p/default', 'plan': 'p/plan', 'tasklist': 'p/tasklist',
+            'research': 'p/research', 'analysis': 'p/analysis'}}}})
+        for kind in ('plan', 'tasklist', 'research', 'analysis'):
+            code, out = self.resolve('planner.' + kind)
+            self.assertEqual(code, 0, kind)
+            self.assertEqual(out['data'], {'site': 'planner.' + kind, 'model': 'p/' + kind})
+
+    def test_the_default_site_resolves_directly(self):
+        self.write_config({'models': {'opencode': {'planner': {'default': 'p/default'}}}})
+        code, out = self.resolve('planner.default')
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data'], {'site': 'planner.default', 'model': 'p/default'})
+
+    def test_an_unset_kind_falls_back_to_the_family_default(self):
+        self.write_config({'models': {'opencode': {'planner': {'default': 'p/default'}}}})
+        code, out = self.resolve('planner.plan')
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data'], {'site': 'planner.plan', 'model': 'p/default'})
+
+    def test_a_kind_beats_the_family_default(self):
+        self.write_config({'models': {'opencode': {'planner': {
+            'default': 'p/default', 'plan': 'p/plan'}}}})
+        code, out = self.resolve('planner.plan')
+        self.assertEqual((code, out['data']['model']), (0, 'p/plan'))
+
+    def test_an_unset_kind_without_a_default_is_null(self):
+        self.write_config({'models': {'opencode': {'planner': {'research': 'p/research'}}}})
+        code, out = self.resolve('planner.plan')
+        self.assertEqual(code, 0)
+        self.assertIsNone(out['data']['model'])
+
+    def test_no_planner_block_is_null(self):
+        self.write_config({'models': {'opencode': {'reviewer': {'task': 'p/task'}}}})
+        code, out = self.resolve('planner.plan')
+        self.assertEqual((code, out['data']['model']), (0, None))
+
+    def test_a_malformed_kind_is_invalid_config(self):
+        self.write_config({'models': {'opencode': {'planner': {'plan': 'sonnet'}}}})
+        code, out = self.resolve('planner.plan')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_config')
+        self.assertIn('models.opencode.planner.plan', out['error']['message'])
+
+    def test_a_malformed_default_reached_as_the_fallback_is_invalid_config(self):
+        self.write_config({'models': {'opencode': {'planner': {'default': 'sonnet'}}}})
+        code, out = self.resolve('planner.plan')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_config')
+        self.assertIn('models.opencode.planner.default', out['error']['message'])
+
+    def test_a_malformed_default_a_kind_overrides_is_never_read(self):
+        self.write_config({'models': {'opencode': {'planner': {
+            'default': 'sonnet', 'plan': 'p/plan'}}}})
+        code, out = self.resolve('planner.plan')
+        self.assertEqual((code, out['data']['model']), (0, 'p/plan'))
+
+    def test_a_non_object_planner_block_is_invalid_config(self):
+        self.write_config({'models': {'opencode': {'planner': 'p/plan'}}})
+        code, out = self.resolve('planner.plan')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_config')
+        self.assertIn('models.opencode.planner', out['error']['message'])
+
+    def test_a_bare_planner_site_is_invalid_argument(self):
+        code, out = self.resolve('planner')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_argument')
+        self.assertIn('unknown site: planner', out['error']['message'])
+
+    def test_an_unknown_kind_is_invalid_argument(self):
+        code, out = self.resolve('planner.forecast')
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'invalid_argument')
+        self.assertIn('unknown site: planner.forecast', out['error']['message'])
+
+
+class TestPlanningAgentNames(ResolverCase):
+    """The analytical agents resolve by their own `planner.<kind>` sites, so their
+    `agents.<name>` entries are reserved and ignored, as implementer/reviewer are."""
+
+    NAMES = ('planner', 'task-planner', 'tasklist-writer', 'researcher', 'analyst',
+             'vision-writer', 'figma-analyst', 'issue-scout')
+
+    def test_reserved_planning_agent_names_are_ignored(self):
+        self.write_config({'models': {'opencode': {'agents': {
+            name: 'p/x' for name in self.NAMES}}}})
+        for name in self.NAMES:
+            code, out = self.resolve('agents.' + name)
+            self.assertEqual(code, 0, name)
+            self.assertIsNone(out['data']['model'], name)
+
+    def test_an_unreserved_agent_name_still_resolves(self):
+        self.write_config({'models': {'opencode': {'agents': {'qa': 'p/qa'}}}})
+        code, out = self.resolve('agents.qa')
+        self.assertEqual((code, out['data']['model']), (0, 'p/qa'))
 
 
 class TestValueForm(unittest.TestCase):

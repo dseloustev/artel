@@ -12,10 +12,11 @@ Companion docs: [workflow-guide.md](workflow-guide.md) (what each step should do
 
 ## 1. Prerequisites
 
-- **Claude Code** with plugin support (`/plugin` works).
+- **OpenCode 2.x** installed — `opencode --version` works; the bridge plugin requires the 2.x
+  plugin API.
 - **`python3` on PATH** — the hooks and gate scripts require it.
 - **Flutter SDK** — `flutter --version` and `dart --version` work in the same shell you launch
-  Claude Code from (the hooks inherit that PATH).
+  OpenCode from (the hooks inherit that PATH).
 - **A Flutter project in a git repo.** A scratch one is best:
 
   ```bash
@@ -35,20 +36,25 @@ Companion docs: [workflow-guide.md](workflow-guide.md) (what each step should do
 
 ## 2. Install from the local checkout
 
-In the Flutter project's Claude Code session:
+From the artel checkout:
 
-```
-/plugin marketplace add <path-to-this-artel-checkout>
-/plugin install artel@artel
+```bash
+scripts/install-opencode.sh
 ```
 
-**Expected:** install succeeds; typing `/artel:` offers the namespaced skills
-(`/artel:feature-development`, `/artel:setup`, `/artel:analysis`, …). If the
-skills don't appear, restart the session once — hooks and skills register at session start.
+This copies the plugin to `~/.config/opencode/artel/` and places the skills, agents and command
+wrappers into OpenCode's discovery directories (layout: [opencode.md](opencode.md)). Restart
+OpenCode, then open it in the Flutter project.
+
+**Expected:** the installer reports `artel: installed <n> skills, <n> agents, <n> commands`;
+typing `/artel-` in the project's session offers the skills
+(`/artel-feature-development`, `/artel-setup`, `/artel-analysis`, …). If the skills don't
+appear, restart the session once — skills and agents register at session start — and re-run the
+installer if they still don't.
 
 ## 3. Configure for Flutter
 
-Run `/artel:setup` and answer the interview, or write `.artel/config.json` yourself. A known-good
+Run `/artel-setup` and answer the interview, or write `.artel/config.json` yourself. A known-good
 Flutter configuration for a local-only test (no tracker, GitHub for PRs):
 
 ```json
@@ -133,8 +139,8 @@ Write a small description file, e.g. `ticket.md`:
 Then seed the ticket and run the PRD interview:
 
 ```
-/artel:generate-idea FLT-1 ticket.md
-/artel:analysis FLT-1
+/artel-generate-idea FLT-1 ticket.md
+/artel-analysis FLT-1
 ```
 
 **Expected:** `generate-idea` (under `tracker.adapter: "none"`) builds
@@ -148,7 +154,7 @@ changes.
 ### 4.2 Dry run of the full pipeline
 
 ```
-/artel:feature-development FLT-1 --dry-run
+/artel-feature-development FLT-1 --dry-run
 ```
 
 **Expected:** the chatty head runs (PRD already exists → skipped; vision checkpoint; silent
@@ -160,10 +166,10 @@ may exist). Plan and tasklist sit under `specs/.current/FLT-1/`.
 ### 4.3 Hooks: fast verify + stop gate
 
 Introduce an analyzer error in `lib/main.dart` (e.g. an unused variable with a typo'd type) via
-a normal edit request to Claude.
+a normal edit request to the agent.
 
-**Expected:** after the edit, the PostToolUse hook surfaces the analyzer findings in-session.
-Ask Claude to end the turn / finish up — the verify stop gate should **block completion**,
+**Expected:** after the edit, the `tool.execute.after` hook surfaces the analyzer findings in-session.
+Ask the agent to end the turn / finish up — the verify stop gate should **block completion**,
 naming the findings introduced this session (pre-existing findings are baselined and never
 block). Fix the error → the next stop passes. State appears under `.artel/run/.hooks/`
 (`baseline-<session>.json`, `stopblocks-<session>.json`); deleting the baseline file is the
@@ -172,8 +178,8 @@ documented escape hatch.
 ### 4.4 The lean head end to end
 
 ```
-/artel:init-branch FLT-1
-/artel:feature-development FLT-1 --head=lean
+/artel-init-branch FLT-1
+/artel-feature-development FLT-1 --head=lean
 ```
 
 **Expected:** `init-branch` (an optional convenience — the pipeline runs on any feature branch)
@@ -201,7 +207,7 @@ session-end attempt is blocked by the run stop gate.
 Reset the scratch repo (or make a second ticket `FLT-2` with a new description) and:
 
 ```
-/artel:feature-development FLT-2 ticket2.md
+/artel-feature-development FLT-2 ticket2.md
 ```
 
 (No manual `generate-idea` this time — passing the description file lets gate 0 seed `idea.md`
@@ -218,8 +224,7 @@ completion entry).
 
 ### 4.6 The gate scripts standalone
 
-From the host repo root (find the plugin root via `/plugin` — the installed path under
-`~/.claude/plugins/`):
+From the host repo root (the plugin root is the install directory, `~/.config/opencode/artel/`):
 
 ```bash
 python3 <plugin-root>/scripts/verify.py --fast --files lib/main.dart
@@ -235,11 +240,11 @@ substitutes the paths into `verify.fast`'s `{files}` token.
 
 | Check | Where |
 |---|---|
-| Skills appear under the `artel:` namespace | `/artel:` completion |
+| Skills appear under the `artel-` prefix | `/artel-` completion |
 | Config + `.gitignore` entries written once, by `setup` | `.artel/config.json`, `.gitignore` |
 | Spec trail only under `specs/.current/<TICKET>/` | 4.1–4.5 |
 | Run state only under `.artel/run/` (gitignored) | 4.2, 4.4, 4.5 |
-| Nothing written into the plugin install/cache directory | `~/.claude/plugins/` unchanged |
+| Nothing written into the plugin install/cache directory | `~/.config/opencode/artel/` unchanged |
 | Unconfigured gates report `skipped`, never green | runtime + design in every report |
 | Dry run never writes `run-state.json` | 4.2 |
 | Verify stop gate blocks only findings you introduced | 4.3 |
@@ -248,9 +253,10 @@ substitutes the paths into `verify.fast`'s `{files}` token.
 
 ## 6. Cleanup
 
-```
-/plugin uninstall artel@artel
-/plugin marketplace remove artel
+From the artel checkout:
+
+```bash
+scripts/install-opencode.sh --remove
 ```
 
 Then delete the scratch project, or keep it — `.artel/config.json` is inert without the plugin.
@@ -259,12 +265,12 @@ Then delete the scratch project, or keep it — `.artel/config.json` is inert wi
 
 | Symptom | Likely cause / fix |
 |---|---|
-| `/artel:*` skills missing after install | Restart the Claude Code session; confirm `/plugin` lists artel as installed. |
-| Hooks silent in 4.3 | Hooks are inert until `.artel/config.json` exists and `verify.fast` is non-empty; also check `python3` is on the PATH Claude Code runs with. |
-| `verify.py` exits `2` with `command_not_found`/`spawn_failed` | `flutter`/`dart` not on the hook shell's PATH — launch Claude Code from a shell where they resolve. |
+| `/artel-*` skills missing after install | Restart the OpenCode session; re-run `scripts/install-opencode.sh` if they still do not appear. |
+| Hooks silent in 4.3 | Hooks are inert until `.artel/config.json` exists and `verify.fast` is non-empty; also check `python3` is on the PATH OpenCode runs with. |
+| `verify.py` exits `2` with `command_not_found`/`spawn_failed` | `flutter`/`dart` not on the hook shell's PATH — launch OpenCode from a shell where they resolve. |
 | Checkpoint stops on "push rejected / no origin" | Expected without a remote — add a scratch `origin` or accept the stop-and-ask. |
 | Runtime gate hangs | You configured a non-terminating `runtime.run` (e.g. `flutter run`) — use a build-and-exit command; see §3. |
 | Every gate `skipped` | That's the inert default config — arm gates via `verify.commands` etc. (config.md). |
 
-Findings that look like plugin defects (rather than environment issues) belong in
-[porting-plan.md](porting-plan.md) Phase 6 notes or a GitHub issue on the artel repo.
+Findings that look like plugin defects (rather than environment issues) belong in a GitHub
+issue on the artel repo.

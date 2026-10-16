@@ -1,0 +1,175 @@
+---
+name: artel-researcher
+description: "Gather technical context and create a research document for the ticket — or, with --question, answer the ticket's feasibility question"
+argument-hint: "[ticket-id] or [ticket-id]-[phase] [--question] [--local]"
+---
+
+## Ticket Resolution
+
+Parse `$0` into `TICKET_ID`, `TICKET_NUM`, `PHASE_NUM` per `${ARTEL_ROOT}/docs/orchestrator-common.md` §2 and `${ARTEL_ROOT}/docs/ticket-parsing.md` §§1–2. If `$0` is empty, read the first non-empty line of `<specs.dir>/.active_ticket`; if no identifier is available, error with "Error: No ticket specified. Provide a ticket ID as a parameter or set it in <specs.dir>/.active_ticket" and terminate.
+
+**Path resolution and the refuse-and-ask rule live in `${ARTEL_ROOT}/docs/ticket-parsing.md` §4–§5.** The `researcher` subagent already understands them — this skill does not duplicate path tables.
+
+`--local` flag: skip the institutional-knowledge consultation for this run and research
+from the codebase alone. The agent cannot see your arguments, so it learns this from the
+**Knowledge consultation** field of the Context block — set it from whether `--local`
+appeared in the invocation, in the Phase 1 prompt **and** again in the Phase 3 resume
+message, since the resume is where the consultation actually happens.
+Default is to consult; see `${ARTEL_ROOT}/docs/knowledge-consultation.md` §1
+for how it resolves against `knowledge.adapter` and tool availability.
+
+`--question` flag: **question mode** — the ticket asks a feasibility question instead of
+describing a change. The agent answers it into `<specs.dir>/<TICKET_ID>/spike.md`; the
+differences from a research run are under "Question mode" below. `feature-development` invokes
+it for a ticket it sized as a spike, and it runs à la carte as well. The agent cannot see your
+arguments: it learns the mode from the **Mode** field of the Context block, in the Phase 1
+prompt **and** in the Phase 3 re-dispatch message.
+
+## Execute
+
+This skill uses a **two-phase execution model**:
+
+1. **Phase 1:** Subagent reads context, extracts questions, and returns them.
+2. **Phase 2:** Collect open questions — no user interaction; unresolved ones go to `open-questions.md` with proposed defaults.
+3. **Phase 3:** Resume subagent with answers to conduct research and write output.
+
+### Phase 1: Extract Questions
+
+**Spec store.** Before dispatching, read the ticket's storage decision:
+`python3 ${ARTEL_ROOT}/scripts/spec_store.py decision <TICKET_ID>`. `fresh: true` → use
+its `store` and `reason`. Anything else → resolve per `${ARTEL_ROOT}/docs/spec-storage.md`
+§2.1, which may ask the user — except while `.artel/run/<TICKET_ID>/run-state.json` has
+`run_active: true`: then return `STORE_UNAVAILABLE: <record>` to your caller and stop. Every
+dispatch prompt in this skill carries the result verbatim, as `**Spec store:** kartoteka` or
+`**Spec store:** files (<reason>)`. An agent's `STORE_UNAVAILABLE` return goes back to your caller
+unchanged. This skill's own reads, existence checks and writes of spec documents follow §4.1 and
+§4.2 — an existence check is `spec_store.py exists <path>` (exit 0 present, 3 absent).
+
+Resolve the dispatch's model per the dispatch procedure in `${ARTEL_ROOT}/docs/agents.md` `## Models` (site `planner.research`).
+
+Use the `subagent` tool with:
+- the `artel-researcher` agent
+- `description`: `"Extract questions for <TICKET_ID>"`
+- `prompt`: pass the parsed values plus the following instructions:
+
+```
+You are preparing to research ticket <TICKET_ID>{phase ? ", Phase <PHASE_NUM>" : ""}.
+
+## Context
+
+- **Ticket ID:** <TICKET_ID>
+- **Ticket Number:** <TICKET_NUM>
+- **Phase:** <PHASE_NUM> (or "all phases" when ticket-wide)
+- **Knowledge consultation:** <"local-only (--local was passed)" | "enabled">
+- **Mode:** <"question (--question was passed)" | "research">
+
+## Instructions — Question Extraction Only
+
+DO NOT conduct research yet. Your job in this phase is to read context and return questions.
+
+1. Determine the research output path per `${ARTEL_ROOT}/docs/ticket-parsing.md` §4 (phase-scoped → `phase-<PHASE_NUM>/research.md`; ticket-wide → `research.md`).
+2. Apply the **refuse-and-ask rule** in §5: if `PHASE_NUM` is null but `phase-*/` subfolders already exist for this ticket, do not proceed — return a refusal message naming the discovered phases.
+3. Read the PRD at the corresponding scope (phase-scoped → `phase-<PHASE_NUM>/prd.md` with ticket-wide `prd.md` as read-only fallback; ticket-wide → `prd.md`).
+4. Read context: `<specs.dir>/<TICKET_ID>/idea.md` and `vision.md` (focus on Phase/Iteration <PHASE_NUM> when phase is set). For phase runs, also `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/tasks.md` if it exists.
+5. Find the "Open Questions" section in the PRD.
+6. Formulate additional clarifying questions about implementation details, constraints, or preferences.
+
+## Return Format
+
+Return:
+1. The research output path you resolved per `${ARTEL_ROOT}/docs/ticket-parsing.md` §4, or your refusal message.
+2. A numbered list of ALL questions for the user. Include:
+   - Open questions from the PRD (if any)
+   - Your own clarifying questions
+
+If there are truly no questions, return "NO_QUESTIONS" in place of the list.
+
+Return control after listing the questions.
+```
+
+**Important:** a re-dispatch is always a fresh `subagent` call — there is no resume-by-id, so
+the agent re-reads its context files; every continuation prompt carries the resolved output path,
+the ticket and phase and the **Spec store:** decision.
+
+### Phase 2: Collect questions (no user interaction)
+
+Outside question mode this skill never asks the user (`${ARTEL_ROOT}/docs/autonomous-run.md` §3).
+
+- **NO_QUESTIONS** → proceed to Phase 3 with `answers = "No additional questions — proceed with research"`.
+- **Refusal** → report it to the caller and stop.
+- **Questions** → for each, have the agent (in the Phase 3 re-dispatch message) append an entry to
+  `.artel/run/<TICKET_ID>/open-questions.md` in the §3 format (`from: researcher`) with a proposed
+  default, then proceed with research **using the proposed defaults**. The questions are bundled at the
+  approval pause by the orchestrator.
+
+### Phase 3: Re-dispatch for Research
+
+Use the `subagent` tool with the `artel-researcher` agent (a fresh dispatch — it re-reads its
+context files, which are its state; model per the dispatch procedure,
+`${ARTEL_ROOT}/docs/agents.md` `## Models`, site `planner.research`):
+- `prompt`:
+
+```
+Ticket <TICKET_ID>{phase ? ", Phase <PHASE_NUM>" : ""} — **Spec store:** <the decision>.
+
+Answers/defaults to proceed on:
+[user's answers when the caller supplied them; otherwise: "No user answers available — for every open
+question, append an entry to .artel/run/<TICKET_ID>/open-questions.md (format:
+${ARTEL_ROOT}/docs/autonomous-run.md §3, from: researcher) with your proposed default, then proceed on the
+defaults."]
+
+## Context
+
+- **Knowledge consultation:** <"local-only (--local was passed)" | "enabled">
+- **Mode:** <"question (--question was passed)" | "research">
+
+## Research Steps — Proceed Now
+
+1. Incorporate the user's answers into your understanding.
+2. Scan the codebase for components, endpoints, contracts, patterns, limitations, and risks. Scope to the active phase when one is set.
+3. Alongside that scan, consult the institutional record per your agent definition's Step 2 and `${ARTEL_ROOT}/docs/knowledge-consultation.md`: resolve the gate (§1) — the **Knowledge consultation** field above is its `--local` input — then `index_status()`, `related(<project>, <canonical ticket key>)` and up to four `search_knowledge` queries scoped to `<project>` (`knowledge.project`) (§§2–3).
+4. Document at <output-path>:
+   - existing endpoints and contracts
+   - layers and dependencies
+   - patterns used
+   - limitations and risks
+   - resolved questions (with user answers)
+   - prior decisions — what the record held, or that nothing was filed, or that the gate said not to consult and why; never omitted when the adapter is on (agent definition, Step 3)
+   - new technical questions discovered during research
+   - (phase runs only) a Phase Scope section at the top
+5. Do not change code; only gather information.
+
+## Important Rules
+
+- **Phase scope:** when working on a specific phase, focus research on that phase's requirements.
+- **Context files:** always read idea and vision files for background.
+- **No code changes:** research only — do not modify code.
+- **Never overwrite** the ticket-wide `research.md` from a phase-scoped run.
+```
+
+### Question mode (`--question`)
+
+The three phases run as above, with these differences. The agent's own rules for the mode are
+the "Question mode" section of its definition.
+
+- **Ticket-wide.** A phase suffix in `$0` is ignored with the notice
+  `Note: phase argument ignored — a spike answers the ticket's question.`
+- **Phase 1.** No PRD is read or required: the question is the ticket's own, in
+  `<specs.dir>/<TICKET_ID>/idea.md`. The agent returns the question restated in one sentence
+  and only what the ticket leaves open about the question itself, each with a proposed answer,
+  or `NO_QUESTIONS`.
+- **Phase 2.** A spike has no approval pause to bundle questions at, so this is the one mode in
+  which this skill asks: present the returned questions via the `question` tool — at most four,
+  the agent's proposed answer as the first option of each. `NO_QUESTIONS`, or a headless run,
+  proceeds on the proposed answers. Nothing is written to `open-questions.md`.
+- **Phase 3.** The agent answers the question instead of documenting the code: the same scan
+  and the same consultation of the institutional record, aimed at the question, written to
+  `<specs.dir>/<TICKET_ID>/spike.md` with the answer first. `research.md` is not written. An
+  existing `spike.md` is replaced — on the kartoteka path the earlier version stays in its
+  history; `feature-development` checks for an answered spike before it invokes this mode.
+
+### Completion
+
+When the subagent returns after researching, display a summary of the research document to the user.
+In question mode, display the answer and end with the agent's own last line,
+`Spike answered: <one-line answer> — <specs.dir>/<TICKET_ID>/spike.md`.

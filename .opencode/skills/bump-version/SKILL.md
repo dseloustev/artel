@@ -1,6 +1,6 @@
 ---
 name: bump-version
-description: "Cut a release of artel itself: pick the next semver from the CHANGELOG's Unreleased section (or an explicit argument), bump .claude-plugin/plugin.json, roll [Unreleased] into a dated release section, commit as chore(release), and tag. Use when releasing artel, bumping its version, or cutting a new plugin version."
+description: "Cut a release of artel itself: pick the next semver from the CHANGELOG's Unreleased section (or an explicit argument), bump the root VERSION file, roll [Unreleased] into a dated release section, commit as chore(release), and tag. Use when releasing artel, bumping its version, or cutting a new plugin version."
 metadata:
   opencode/autoinvoke: false
 ---
@@ -8,7 +8,7 @@ metadata:
 ## Overview
 
 `bump-version` performs **this repository's own release chore**. It is repo-local by design: its
-logic is specific to artel's two version carriers — `.claude-plugin/plugin.json` and
+logic is specific to artel's two version carriers — the root `VERSION` file and
 `CHANGELOG.md` — and it is not part of the shipped plugin. It never runs against a host project.
 
 It is a **worker that runs inline** — plain `git` and file edits, no agent delegation. Because it
@@ -25,8 +25,8 @@ Run the steps in order. Each later step assumes the previous one succeeded.
 
 All four checks are **fatal** — report what failed and stop, changing nothing:
 
-1. **Right repo.** `.claude-plugin/plugin.json` and `CHANGELOG.md` exist at the repo root. If not,
-   this is not the artel checkout.
+1. **Right repo.** `VERSION` and `CHANGELOG.md` exist at the repo root. If not, this is not the
+   artel checkout.
 2. **Clean tree.** `git status --porcelain` is empty. A release commit must contain only the bump;
    never stash, never commit someone else's work-in-progress alongside it. If the tree is dirty,
    list what is uncommitted and let the user decide.
@@ -39,9 +39,9 @@ All four checks are **fatal** — report what failed and stop, changing nothing:
 
 ### Step 2: Read the current state
 
-1. `CURRENT_VERSION` — the `version` field of `.claude-plugin/plugin.json`. This is the **only**
-   file in the repo carrying a version: `.claude-plugin/marketplace.json` has no `version` field,
-   so there is nothing to keep in sync there. Do not add one.
+1. `CURRENT_VERSION` — the contents of the root `VERSION` file: the bare semver on one line. This
+   is the **only** file in the repo carrying a version, so there is nothing to keep in sync
+   elsewhere. Do not add another.
 2. `UNRELEASED_BODY` — everything in `CHANGELOG.md` between the `## [Unreleased]` heading and the
    next `## [` heading (or end of file). Note which `### ` subsections it contains
    (`Added`, `Changed`, `Fixed`, `Removed`, …).
@@ -77,9 +77,8 @@ Finally, verify `git tag -l "v<NEW_VERSION>"` is empty. An existing tag for that
 
 ### Step 4: Write the two files
 
-1. **`.claude-plugin/plugin.json`** — replace the `version` value with `NEW_VERSION`. A targeted
-   edit of that one field: preserve the file's key order, indentation, and trailing newline. Do not
-   reformat the JSON.
+1. **`VERSION`** — replace its contents with `NEW_VERSION` and a single trailing newline. Nothing
+   else belongs in the file: no `v` prefix, no quotes, no second line.
 2. **`CHANGELOG.md`** — retitle the existing `## [Unreleased]` heading to
    `## [<NEW_VERSION>] - <DATE>`, and insert a fresh `## [Unreleased]` heading above it, followed
    by a blank line and no placeholder subsections.
@@ -92,12 +91,12 @@ Finally, verify `git tag -l "v<NEW_VERSION>"` is empty. An existing tag for that
 
 ### Step 5: Verify, then commit
 
-1. Re-read both files. Confirm `plugin.json`'s `version` is `NEW_VERSION`, that `CHANGELOG.md` now
+1. Re-read both files. Confirm `VERSION` holds `NEW_VERSION`, that `CHANGELOG.md` now
    has exactly one `## [<NEW_VERSION>] - <DATE>` heading and one empty `## [Unreleased]` above it,
    and that no other content moved.
 2. Show the user `git diff`.
 3. Stage exactly the two files and commit them together:
-   `git add .claude-plugin/plugin.json CHANGELOG.md` then
+   `git add VERSION CHANGELOG.md` then
    `git commit -m "chore(release): v<NEW_VERSION>"`.
    Name the paths explicitly rather than using `git add -A` or `git commit -a` — the tree was clean
    at Step 1, so the two are equivalent today, but an explicit stage keeps that true if a later
@@ -142,8 +141,8 @@ Print a concise summary:
   that pause is read-only; everything after it is mechanical.
 - **The CHANGELOG is the source of truth for the bump size.** The inference reads what is actually
   written in `[Unreleased]` — it does not re-derive the release's significance from `git log`.
-- **Two carriers, no more.** `plugin.json` and `CHANGELOG.md`. If a third file ever starts carrying
-  the version, this skill is where that gets added — and `marketplace.json` deliberately is not one.
+- **Two carriers, no more.** `VERSION` and `CHANGELOG.md`. If a third file ever starts carrying the
+  version, this skill is where that gets added.
 - **Fail loudly, change nothing.** Every preflight failure and every validation failure stops the
   skill before the first write. There is no partial release.
 - **Not idempotent — do not re-run blindly.** A second run on an unchanged tree stops at Step 2's

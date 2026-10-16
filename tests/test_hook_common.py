@@ -199,15 +199,15 @@ def make_repo(path):
 
 
 class TestEnterSessionRoot(unittest.TestCase):
-    """hooks.json starts every hook in $CLAUDE_PROJECT_DIR (the main checkout); a session
-    that entered a linked worktree must be gated there instead."""
+    """The bridge starts every hook in the checkout the session belongs to (the main
+    checkout); a session that entered a linked worktree must be gated there instead."""
 
     def setUp(self):
         self._old_cwd = os.getcwd()
         self._tmp = tempfile.TemporaryDirectory()
         base = Path(os.path.realpath(self._tmp.name))
         self.main = make_repo(base / 'main')
-        self.worktree = self.main / '.claude' / 'worktrees' / 'T-1'
+        self.worktree = self.main / '.opencode' / 'worktrees' / 'T-1'
         git(self.main, 'worktree', 'add', '-q', '-b', 'feature/T-1', str(self.worktree))
         self.other = make_repo(base / 'other')
         os.chdir(self.main)

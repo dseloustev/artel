@@ -1,5 +1,9 @@
 # Porting plan
 
+> **Port history.** This document records the Claude Code port that produced artel and is kept
+> for provenance — not as current state. Artel is an OpenCode plugin now: see
+> [opencode.md](opencode.md) and the decision log in [design.md](design.md).
+
 *Status: draft v0.1 · 2026-07-27*
 
 Source material lives in the originating project's `.claude/` directory (assumed available as a
@@ -52,7 +56,7 @@ The rules everything else obeys, plus the config mechanism they will reference.
       dropped it (Dart/Flutter-specific, no `run-app` to point at yet) — when `run-app` lands,
       decide whether `implementer` (agent + skill) should regain a generic `runtime.run` /
       `/artel:run-app` on-demand reference. Resolved in the run-app port: restored as a one-line
-      optional hint in `skills/implementer/SKILL.md`'s dispatch prompt (`/artel:run-app` via
+      optional hint in `skills/artel-implementer/SKILL.md`'s dispatch prompt (`/artel:run-app` via
       `runtime.run`, explicitly not the `RUNTIME_OK` gate).
 - [x] Port ops & utility skills: `init-branch`, `merge-conflicts`, `save-context`,
       `restore-context` (store path → artel), `agents-md-generator`. Follow-up from Task 7: the

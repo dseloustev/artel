@@ -1,6 +1,6 @@
-"""PreToolUse(Bash|mcp__.*): deny writes aimed at a VCS or tracker platform other than the one
-.artel/config.json declares. Always armed -- unlike sensitive_guard.py, which arms only during
-an autonomous run.
+"""tool.execute.before (shell | platform-named tools): deny writes aimed at a VCS or tracker
+platform other than the one .artel/config.json declares. Always armed -- unlike
+sensitive_guard.py, which arms only during an autonomous run.
 
 Contract: docs/config.md (the `guard` section) and
 docs/superpowers/specs/2026-09-16-vcs-platform-migration-design.md section 2.
@@ -318,9 +318,8 @@ def _calls(tool, tool_input):
             found.append(('github', domain, klass, label))
         return found
     # Any non-Bash tool is classified by the platform its NAME carries -- no `mcp__` prefix
-    # test. That prefix is a Claude Code convention (where hooks.json's matcher already scopes
-    # what arrives); OpenCode names MCP tools without it, and requiring it left the Bitbucket
-    # MCP surface unguarded on that host.
+    # test. Legacy `mcp__`-prefixed names are tolerated, and OpenCode names MCP tools without
+    # the prefix; requiring it left the Bitbucket MCP surface unguarded on that host.
     platform = _mcp_platform(tool)
     if platform is None:
         return []

@@ -89,7 +89,7 @@ class WorkerCase(unittest.TestCase):
         git(self.main, 'add', '.')
         git(self.main, 'commit', '-q', '-m', 'init')
         self.base = git(self.main, 'rev-parse', 'HEAD')
-        self.coord = self.main / '.claude' / 'worktrees' / TICKET
+        self.coord = self.main / '.opencode' / 'worktrees' / TICKET
         git(self.main, 'worktree', 'add', '-q', '-b', COORD_BRANCH, str(self.coord))
         self.write_config(self.coord)
         parallel_state.acquire_ticket(str(self.coord), TICKET, {
@@ -110,7 +110,7 @@ class WorkerCase(unittest.TestCase):
         return path
 
     def worker_root(self, task=TASK, attempt=1, run_id=RUN_ID):
-        return (self.main / '.claude' / 'worktrees' / 'parallel tasks' / TICKET / run_id /
+        return (self.main / '.opencode' / 'worktrees' / 'parallel tasks' / TICKET / run_id /
                 '{}-a{}'.format(task, attempt))
 
     def artifact_root(self, task=TASK, attempt=1, run_id=RUN_ID):

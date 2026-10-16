@@ -28,12 +28,12 @@ LIVE_FILES = tuple(sorted(
 CONFIG = 'docs/config.md'
 CONSULTATION = 'docs/knowledge-consultation.md'
 QUEUE = 'docs/task-queue.md'
-SETUP = 'skills/setup/SKILL.md'
+SETUP = 'skills/artel-setup/SKILL.md'
 HOOKS_README = 'hooks/README.md'
 OPENCODE = 'docs/opencode.md'
 REQUIREMENTS = 'docs/kartoteka-requirements.md'
-KNOWLEDGE_SKILL = 'skills/knowledge/SKILL.md'
-TASKS_SKILL = 'skills/tasks/SKILL.md'
+KNOWLEDGE_SKILL = 'skills/artel-knowledge/SKILL.md'
+TASKS_SKILL = 'skills/artel-tasks/SKILL.md'
 
 # The one record line for "adapter on, project missing", inherited byte for
 # byte by the reading contracts, the same way the tools-absent reason is.
@@ -168,11 +168,11 @@ class TestTokenEnv(unittest.TestCase):
                          'the default and the filled example each spell the key once')
 
     def test_config_wires_the_mcp_session_with_the_same_variable(self):
-        # Claude Code expands ${VAR} inside .mcp.json headers; the hook reads
-        # the variable directly. One export serves both.
+        # OpenCode expands {env:VAR} inside the MCP server's headers; the hook
+        # reads the variable directly. One export serves both.
         text = read(CONFIG)
-        self.assertIn('--header', text)
-        self.assertIn('${' + self.VARIABLE + '}', text)
+        self.assertIn('mcp.servers', text)
+        self.assertIn('{env:' + self.VARIABLE + '}', text)
 
     def test_opencode_names_its_own_expansion_syntax(self):
         self.assertIn('{env:' + self.VARIABLE + '}', read(OPENCODE))
@@ -187,17 +187,20 @@ class TestTokenEnv(unittest.TestCase):
         self.assertIn('knowledge.tokenEnv', text)
         self.assertIn(self.VARIABLE, text)
         self.assertIn('never the value', text)
-        self.assertIn('--header', text)
+        # The wiring it names is OpenCode's — the server's `headers` in `opencode.json`,
+        # never the `claude mcp add` flag. The phrase is flattened because it wraps.
+        self.assertIn("the server's `headers` in `opencode.json`", ' '.join(text.split()))
+        self.assertNotIn('--header', text)
 
     def test_the_read_contracts_explain_an_auth_on_daemon_as_tools_absent(self):
-        # Without the header Claude Code cannot connect, so the session sees
+        # Without the bearer header the session cannot connect, so it sees
         # no tools: row 5 of both gating tables, with a fix that is host-side
         # wiring rather than an artel setting.
         for rel in (CONSULTATION, QUEUE):
             with self.subTest(rel):
                 text = read(rel)
                 self.assertIn('[auth]', text)
-                self.assertIn('--header', text)
+                self.assertIn('knowledge.tokenEnv', text)
 
     def test_the_requirements_record_that_kartoteka_shipped_it(self):
         text = read(REQUIREMENTS)

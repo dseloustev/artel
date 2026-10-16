@@ -74,8 +74,8 @@ class TestBridgeSource(unittest.TestCase):
                         self.source.index('MUTATION_TOOLS.has(event.tool)'))
 
     def test_binding_is_not_limited_to_the_mcp_prefix(self):
-        # `mcp__` is a Claude Code convention; OpenCode names MCP tools without it, so a
-        # prefix test would leave Bitbucket MCP writes unguarded here.
+        # The ABI tolerates legacy `mcp__`-prefixed names; OpenCode names MCP tools without
+        # the prefix, so a prefix test would leave Bitbucket MCP writes unguarded here.
         self.assertNotIn('startsWith("mcp__")', self.source)
         self.assertIn('PLATFORM_TOKENS', self.source)
         for token in ('"bitbucket"', '"github"', '"jira"'):
@@ -84,7 +84,7 @@ class TestBridgeSource(unittest.TestCase):
         self.assertLess(self.source.index('isPlatformTool(event.tool)'),
                         self.source.index('MUTATION_TOOLS.has(event.tool)'))
 
-    def test_payload_carries_claude_code_tool_casing(self):
+    def test_payload_carries_the_abi_tool_casing(self):
         # hooks/vcs_guard.py matches `tool == 'Bash'` exactly; OpenCode's tool is `shell`.
         self.assertIn('"Bash"', self.source)
         self.assertIn('"Write"', self.source)
@@ -105,8 +105,8 @@ class TestBridgeSource(unittest.TestCase):
         self.assertIn('result.content', self.source)
         self.assertIn('artel_findings', self.source)
 
-    def test_after_hook_order_matches_hooks_json(self):
-        # hooks.json runs fast_verify_post_edit.py before knowledge_mirror.py.
+    def test_after_hook_order_verifies_before_mirroring(self):
+        # The verify gate must run before the side-effect mirror.
         self.assertLess(self.source.index('runHook("fast_verify_post_edit.py"'),
                         self.source.index('runHook("knowledge_mirror.py"'))
 
@@ -171,7 +171,7 @@ class TestWorkerRole(unittest.TestCase):
         self.assertIn('marker.role !== "worker"', check)
         self.assertIn('setup.status !== "complete"', check)
         self.assertIn('path.resolve(workerRoot) !== path.resolve(directory)', check)
-        self.assertIn('.claude', check)
+        self.assertIn('.opencode', check)
         self.assertIn('worktrees', check)
 
     def test_the_router_is_skipped_for_worker_locations(self):
@@ -286,6 +286,32 @@ class TestPerInstanceFactory(unittest.TestCase):
         self.assertIn('options: { root?: string } = {}', factory)
         self.assertNotIn('export function set', self.source)
         self.assertNotIn('module.exports', self.source)
+
+
+class TestHookReplyShape(unittest.TestCase):
+    """hooks/README.md's ABI list is what the bridge answers: the retained
+    `hookSpecificOutput.hookEventName` is documented, and the hooks that emit it keep their
+    historical event names."""
+
+    EVENTS = {
+        'hooks/sensitive_guard.py': 'PreToolUse',
+        'hooks/spec_store_guard.py': 'PreToolUse',
+        'hooks/vcs_guard.py': 'PreToolUse',
+        'hooks/fast_verify_post_edit.py': 'PostToolUse',
+        'hooks/using_artel.py': 'SessionStart',
+    }
+
+    def test_the_readme_documents_the_field(self):
+        readme = (ROOT / 'hooks' / 'README.md').read_text(encoding='utf-8')
+        self.assertIn('hookSpecificOutput.hookEventName', readme)
+        for event in ('`PreToolUse`', '`PostToolUse`', '`SessionStart`'):
+            self.assertIn(event, readme)
+
+    def test_the_hooks_keep_their_historical_event_names(self):
+        for rel, event in self.EVENTS.items():
+            with self.subTest(rel=rel):
+                text = (ROOT / rel).read_text(encoding='utf-8')
+                self.assertIn("'hookEventName': '{}'".format(event), text)
 
 
 if __name__ == '__main__':

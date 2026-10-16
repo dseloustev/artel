@@ -6,22 +6,24 @@ Several sessions can work on one host repo at once when each ticket lives in its
 worktree: its own branch, its own uncommitted files, generated code and `.artel/run/` state.
 Artel moves a ticket's work into a worktree and hands it back when the task is done. This doc is
 the contract the two skills and `init-branch` follow; the mechanics live in
-`${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py`.
+`${ARTEL_ROOT}/scripts/worktree.py`.
 
 | Operation | Entry points |
 |---|---|
-| Move a ticket's work into a worktree | `/artel:init-branch` (asks), `/artel:move-to-worktree` (asks) |
-| Hand the branch back to the main checkout | `/artel:return-from-worktree` (asks) |
+| Move a ticket's work into a worktree | `/artel-init-branch` (asks), `/artel-move-to-worktree` (asks) |
+| Hand the branch back to the main checkout | `/artel-return-from-worktree` (asks) |
 
 ## 1. The model
 
-- **Location:** `.claude/worktrees/<name>`, where `<name>` is `<TICKET_ID>`, or
-  `<TICKET_ID>-<PHASE_NUM>` when the run carries a phase. Claude Code enters paths there without
-  a permission prompt, and a session already inside a worktree can switch only to paths there.
-  When the host does not ignore that directory, the script adds `/.claude/worktrees/` to
-  `.git/info/exclude` — local to the clone, never committed.
-- **The session moves.** After the move, the current session continues inside the worktree
-  (`EnterWorktree`). Other work goes to a new session in the main checkout.
+- **Location:** `.opencode/worktrees/<name>`, where `<name>` is `<TICKET_ID>`, or
+  `<TICKET_ID>-<PHASE_NUM>` when the run carries a phase. One directory per ticket under the
+  host's own `.opencode/` tree, so parallel sessions do not collide and the host's config paths
+  (`opencode.json`, `.opencode/`) never move with a worktree. When the host does not ignore
+  that directory, the script adds `/.opencode/worktrees/` to `.git/info/exclude` — local to
+  the clone, never committed.
+- **The session moves.** After the move, the session continues inside the worktree: there is
+  no tool that switches into it, so the skill prints `cd <path> && opencode` and stops. Other
+  work goes to a new session in the main checkout.
 - **Hand-back** returns the branch — with its uncommitted work — to the main checkout and
   removes the worktree. It never merges, never deletes the branch, never uses `--force`.
 - **Main checkout** is the first entry of `git worktree list`. `move-in` runs from there.
@@ -41,15 +43,15 @@ the contract the two skills and `init-branch` follow; the mechanics live in
 | Other ignored files | per `.worktreeinclude` (§3) | not copied back; differences reported as `envChanged` |
 | Dependencies, generated code, build output | never copied — `setup.commands` rebuilds them | same, in the main checkout |
 
-A file the task branch tracks is never overwritten by a copy. `.claude/worktrees/` is never
+A file the task branch tracks is never overwritten by a copy. `.opencode/worktrees/` is never
 copied. A stash is dropped only after it applied cleanly.
 
 ## 3. `.worktreeinclude`
 
-The same file Claude Code reads for `claude -w`: gitignore syntax, at the repo root. A path is
-copied when the main checkout ignores it **and** a pattern matches it. Without the file, the
-patterns are `/.claude/` and `/.mcp.json`. The file selects host files only — artel's own
-`.artel/` is handled per §2 regardless.
+Gitignore syntax, at the repo root. A path is copied when the main checkout ignores it **and** a
+pattern matches it. Without the file, the patterns are `/.opencode/`, `/opencode.json` and
+`/opencode.jsonc`. The file selects host files only — artel's own `.artel/` is handled per §2
+regardless.
 
 ## 4. Move-in procedure
 
@@ -71,13 +73,12 @@ Skills follow these steps; `init-branch` supplies the branch arguments from its 
 3. **Run** from the main checkout:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py move-in --ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <branch> [--create-from <ref> [--track]]
+   python3 ${ARTEL_ROOT}/scripts/worktree.py move-in --ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <branch> [--create-from <ref> [--track]]
    ```
 
 4. **Act on `status`** (§6). Only `ok` continues.
-5. **Enter** the worktree: `EnterWorktree` with `path` set to the report's `path`.
-   **OpenCode** has no `EnterWorktree`: print `cd <path> && opencode` and stop — the rest of the
-   work happens in that new session.
+5. **Enter** the worktree: there is no tool that switches the running session into it — print
+   `cd <path> && opencode` and stop. The rest of the work happens in that new session.
 6. Everything after this point runs inside the worktree.
 
 ## 5. Hand-back procedure
@@ -90,17 +91,15 @@ Skills follow these steps; `init-branch` supplies the branch arguments from its 
 2. **Check** — changes nothing:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name> --check
+   python3 ${ARTEL_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name> --check
    ```
 
 3. **Ask.** Confirm once (header `Hand back`), naming the branch the main checkout switches to,
    how many uncommitted files move, and that the worktree is removed. No answer, no hand-back.
 
-4. **Leave** the worktree when the session is inside it: `ExitWorktree` with
-   `action: "keep"`. If it reports that no worktree session is active (the session was started
-   inside the worktree), stop without changes and tell the user to run
-   `/artel:return-from-worktree <TICKET_ID>` from a session in the main checkout. **OpenCode:**
-   the same message.
+4. **Leave** the worktree when the session is inside it: there is no tool that leaves it, so
+   stop without changes and tell the user to run `/artel-return-from-worktree <TICKET_ID>` from
+   a session in the main checkout.
 5. **Run** the same command without `--check` — the session is back in the main checkout.
 6. **Act on `status`** (§6).
 
@@ -120,14 +119,49 @@ An interrupted hand-back leaves `.artel/run/<TICKET_ID>/worktree.json` with
 `"handBack": "pending"` in the main checkout; running hand-back again finishes it.
 
 Refusals worth knowing: move-in from inside a worktree; a branch checked out in another
-worktree; `.claude/worktrees/<name>` existing but not a worktree of that branch. Hand-back with
+worktree; `.opencode/worktrees/<name>` existing but not a worktree of that branch. Hand-back with
 uncommitted changes in the main checkout — they may belong to another session — or with the
 worktree on a detached HEAD.
 
 ## 7. Hooks
 
-Artel's hooks start in `$CLAUDE_PROJECT_DIR`, which stays on the main checkout after
-`EnterWorktree`. `hook_common.read_hook_input()` moves each hook into the linked worktree named
+Artel's hooks start in the directory the session runs in — the main checkout, after a move
+into a worktree. `hook_common.read_hook_input()` moves each hook into the linked worktree named
 by the payload's `cwd` when it belongs to the same repository, so the gates check the worktree
 the session actually edits ([hooks/README.md](../hooks/README.md)). A worktree without
 `.artel/config.json` leaves the hooks inert.
+
+## 8. Upgrading from the pre-OpenCode layout
+
+Worktrees made by the Claude Code build of artel live under the previous host's config
+directory — `.claude`, in its `worktrees/` subdirectory — and the current `worktree.py` does
+not recognise them: it resolves only `.opencode/worktrees/<name>` and **refuses rather than
+deleting a directory it does not know** (§6). Two ways forward, in order of preference:
+
+1. **Finish the hand-back before upgrading.** With the previous version still installed, run
+   its hand-back skill from the main checkout. It moves the branch, the uncommitted work and
+   `.artel/run/<TICKET_ID>/` back, and removes the worktree — the upgrade then starts clean.
+2. **Relocate the worktree, manifest and all.** The worktree's `.artel/worktree.json` — written
+   by move-in and read by hand-back — is what makes the move safe: it names the ticket, the
+   branch and the main checkout's branch.
+
+   ```bash
+   OLD_HOST_DIR=.claude   # the previous host's config directory
+   git worktree move "$OLD_HOST_DIR"/worktrees/<name> .opencode/worktrees/<name>
+   python3 ${ARTEL_ROOT}/scripts/worktree.py hand-back --ticket <TICKET_ID> --name <name>
+   ```
+
+   Before the move, make sure `.opencode/worktrees/` is ignored — add
+   `/.opencode/worktrees/` to `.git/info/exclude` or the host's `.gitignore` — or hand-back's
+   clean-main-checkout check reads the relocated tree as uncommitted work and refuses. A stale
+   exclude line naming the old worktrees directory is inert and may stay.
+
+Never hand a legacy worktree back with plain Git (`git worktree remove`, a manual directory
+delete): it moves tracked commits but not the ignored `.artel/run/` state, the context store
+or the `.worktreeinclude` files the hand-back exists to carry.
+
+**`.worktreeinclude` implications.** The default patterns moved with the host: the old
+defaults (`/.claude`, `/.mcp.json`) select nothing on OpenCode, whose host files are
+`/.opencode/`, `/opencode.json` and `/opencode.jsonc` (§3). A host that wrote a
+`.worktreeinclude` for the old defaults keeps the old selection until it updates the file;
+`.artel/` handling is unchanged either way.

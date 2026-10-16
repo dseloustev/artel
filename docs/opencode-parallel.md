@@ -735,7 +735,7 @@ re-checked on every call and cannot launch while a conflicting task is unresolve
 `scripts/task_worktree.py` owns one detached worktree per task and the proof cleanup needs.
 `create_worker(repo, assignment)` requires the repository-common lock of §13.4 to be held by
 the assignment's run (read-only; it never acquires or reclaims), places the worker root
-strictly inside the main checkout's `.claude/worktrees/` area and no other worktree, and adds
+strictly inside the main checkout's `.opencode/worktrees/` area and no other worktree, and adds
 a linked worktree detached at `assignment.base_commit`. The coordinator's branch, index, stash
 and `.artel/run/` are never moved, stashed or switched.
 
@@ -796,7 +796,7 @@ directory scan can never authorize deleting content it did not see.
 ### 13.8 Serialized integration and recovery
 
 `scripts/parallel_integration.py` owns the one integration transaction that mutates the ticket
-branch, extending the `## Task commits` contract of the `feature-development` skill to the
+branch, extending the `## Task commits` contract of the `artel-feature-development` skill to the
 parallel path: one commit per completed worker cycle, the same staging discipline, the same
 conventional subject-only message, no push. Its public interface is
 
@@ -1125,13 +1125,12 @@ fresh observation, and a hand-made action is not re-verified against the queue o
 ### 13.11 The inline coordinator loop
 
 The loop is one opt-in procedure, inline in the current OpenCode session — never an outer
-`seat`, never a subagent-driven branch, and never a second scheduler in TypeScript or in prose.
-`parallel.seats` is worker concurrency; it is not `seat.enabled`, which stays inert on
-OpenCode, and the generated `feature-development` runs the tail inline. `parallel.seats`
+orchestrator, never a subagent-driven branch, and never a second scheduler in TypeScript or in prose.
+`parallel.seats` is worker concurrency; `artel-feature-development` runs the tail inline. `parallel.seats`
 absent or `1` keeps the serial procedure exactly as it is; the parallel path is never silently
-pretended to be enabled. The generated procedure lives at
-`skills/feature-development/parallel.md`: the shared start lists it, and the OpenCode build's
-generated tail carries the opt-in gate that reads it.
+pretended to be enabled. The canonical procedure lives at
+`skills/artel-feature-development/parallel.md`: the shared start lists it, and the canonical
+tail carries the opt-in gate that reads it.
 
     preflight/lock/reconcile -> claim/admit -> launch/observe -> review/integrate/publish -> repeat
 
@@ -1146,7 +1145,7 @@ generated tail carries the opt-in gate that reads it.
    before any worktree, session or prompt. `drain` stops new admission until the integration
    and publication complete.
 3. **Launch/observe.** One pinned assignment per task: a lifecycle worktree, a concrete
-   resolved model (never an inherit, never a Claude Code alias), then the
+   resolved model (never an inherit, never a model tier alias), then the
    `artel_parallel_startWorker` adapter. Status comes from `artel_parallel_workerStatus` —
    durable state, never the volatile event stream — and an `interrupted` outcome overrides a
    contradictory succeeded result. The review is coordinator-owned at that worker's exact
@@ -1278,7 +1277,7 @@ global `artel` disabled for the location only). The run drove the documented coo
 reviewer sessions (`tokenguard/glm-5.3`) produced the task-review verdicts. This is
 **script-assisted CLI coordination** with native sessions for the adapter and the reviews —
 not the generated inline coordinator procedure (§13.11), which no model drove here, and not
-the artel `run-reviewer` skill.
+the `artel-run-reviewer` skill.
 
 Recorded at `seats: 2`: two workers ran concurrently (both in `session/active` at once, and
 the event stream shows both `session.execution.started` before either `succeeded`), each

@@ -14,7 +14,8 @@ SKILLS = ROOT / 'skills'
 
 
 def body(name):
-    return (SKILLS / name / 'SKILL.md').read_text(encoding='utf-8')
+    """The skill's SKILL.md — `name` is the route name; its folder carries the `artel-` prefix."""
+    return (SKILLS / ('artel-' + name) / 'SKILL.md').read_text(encoding='utf-8')
 
 
 class SaveContextCase(unittest.TestCase):

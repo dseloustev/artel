@@ -8,7 +8,7 @@ the head that size calls for and then one tail ([autonomous-run.md](autonomous-r
 invokes stage skills and agents and keeps state in `<specs.dir>/.active_ticket` plus the ticket's
 artifact tree under `<specs.dir>/<TICKET_ID>/` (see [ticket-parsing.md](ticket-parsing.md)) — an
 orchestrator never writes code itself. This is the contract every workflow skill in the plugin obeys:
-resolve context, invoke the matching agent via the `Agent` tool, report — never inline the
+resolve context, invoke the matching agent via the `subagent` tool, report — never inline the
 agent's work (see [design.md](design.md), "the skill–orchestrator contract").
 
 ---
@@ -28,15 +28,15 @@ Orchestrators:
   commit never pushes on its own — plus a planning/work-list checkpoint at arm time and a phase-end
   checkpoint once a phase's `verify.commands` gate ([config.md](config.md)) passes. These are the
   only direct git mutations orchestrators perform; everything else external — opening or updating a
-  pull request — goes through the `pr-create` skill and the configured `vcs.adapter`
+  pull request — goes through the `artel-pr-create` skill and the configured `vcs.adapter`
   ([config.md](config.md)).
 - Ensure the ticket directory `<specs.dir>/<TICKET_ID>/` exists — on the kartoteka path that
   directory holds only evidence text.
 - Check which artifacts already exist under it and skip gates that are already satisfied
   (skip-if-exists — [autonomous-run.md](autonomous-run.md) §9). On the kartoteka path one
-  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py list <TICKET_ID>` answers it
+  `python3 ${ARTEL_ROOT}/scripts/spec_store.py list <TICKET_ID>` answers it
   ([spec-storage.md](spec-storage.md) §4.1).
-- Invoke stage skills via the `Skill` tool and agents via the `Agent` tool, passing the resolved
+- Invoke stage skills via the `skill` tool and agents via the `subagent` tool, passing the resolved
   identifier so the phase is preserved.
 - **Index refresh** (optional): if the host project maintains a code-symbol index, refreshing it
   after implementation is an optional host hook, not an `.artel/config.json` key — the plugin
@@ -48,7 +48,7 @@ Orchestrators:
   and that contract needs no host hook at all.
 - **Knowledge consultation** (optional): when `knowledge.adapter` is `kartoteka`
   ([config.md](config.md)) and the kartoteka MCP tools are present in the session, the `analyst`
-  and `researcher` agents consult the institutional-knowledge index before doing their own work.
+  and `artel-researcher` agents consult the institutional-knowledge index before doing their own work.
   Unlike the index refresh above this one *is* an `.artel/config.json` key, because a daemon may
   serve several projects, `knowledge.project` names this one on every call, and an undeclared
   index must not be consulted. `analysis` and `researcher` accept

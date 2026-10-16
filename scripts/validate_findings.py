@@ -26,7 +26,7 @@ Exit codes: 0 every finding anchors, 1 at least one does not, 2 usage or input e
 
 Best-effort by design, like the review it serves: a diff shape this parser does not
 recognise leaves its file absent, and its findings are reported rather than trusted.
-Contract: agents/reviewer.md, `## Evidence and anchoring`.
+Contract: agents/artel-reviewer.md, `## Evidence and anchoring`.
 """
 import argparse
 import ast

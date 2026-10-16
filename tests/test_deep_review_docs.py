@@ -11,8 +11,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-SKILL = 'skills/deep-review/SKILL.md'
-REVIEWER = 'agents/reviewer.md'
+SKILL = 'skills/artel-deep-review/SKILL.md'
+REVIEWER = 'agents/artel-reviewer.md'
 CONFIG = 'docs/config.md'
 HOOK = 'hooks/kartoteka_http.py'  # MIRRORED's home; knowledge_mirror.py imports it
 REFERENCE = 'docs/skills-reference.md'
@@ -39,9 +39,16 @@ class TestSkill(unittest.TestCase):
         self.assertIn('--local', hints[0])
 
     def test_dispatches_one_reviewer_to_the_ticket_document(self):
-        self.assertIn('subagent_type: "reviewer"', self.text)
-        self.assertNotIn('subagent_type: "review-forecaster"', self.text)
+        self.assertIn('the `artel-reviewer` agent', self.text)
+        self.assertNotIn('artel-review-forecaster', self.text)
         self.assertIn('<specs.dir>/<TICKET_ID>/' + OUTPUT_FILE, self.text)
+
+    def test_the_orchestrator_names_the_prefixed_agent(self):
+        """Wording only — the dispatch site was always correct: the agent is `artel-reviewer`,
+        never a bare `reviewer`."""
+        flat = ' '.join(self.text.split())
+        self.assertIn('It dispatches the `artel-reviewer` agent once', flat)
+        self.assertNotIn('the `reviewer` agent', self.text)
 
     def test_has_no_forecast_machinery(self):
         for phrase in RETIRED_FORECAST:
@@ -64,9 +71,9 @@ class TestSkill(unittest.TestCase):
                 self.assertIn(block, self.text)
 
     def test_hands_off_through_the_review_fix_contract(self):
-        self.assertIn('AskUserQuestion', self.text)
+        self.assertIn('the `question` tool', self.text)
         self.assertIn('## Code Review Fixes', self.text)
-        self.assertIn('Skill: implementer', self.text)
+        self.assertIn('invoke the `artel-implementer` skill', self.text)
         self.assertNotIn('EnterPlanMode', self.text)
 
     def test_no_retired_file_is_named(self):
@@ -158,8 +165,8 @@ class TestRetiredNames(unittest.TestCase):
 
     def test_crew_doc_and_router_know_the_skill(self):
         self.assertNotIn('review-forecaster', read('docs/agents.md'))
-        self.assertIn('/artel:deep-review <ticket> [branch] [pr-link] [--local]',
-                      read('skills/using-artel/SKILL.md'))
+        self.assertIn('/artel-deep-review <ticket> [branch] [pr-link] [--local]',
+                      read('skills/artel-using-artel/SKILL.md'))
 
     def test_reviewer_no_longer_calls_it_a_dual_pass(self):
         self.assertNotIn('dual pass', read(REVIEWER))
@@ -177,8 +184,8 @@ class TestApplyRecordsTheFixes(unittest.TestCase):
 
     def test_the_mirror_runs_before_the_first_implementer(self):
         self.assertNotIn('Do **not** run the tasklist mirror', self.step)
-        mirror = self.step.index('python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py')
-        self.assertLess(mirror, self.step.index('Skill: implementer'))
+        mirror = self.step.index('python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py')
+        self.assertLess(mirror, self.step.index('invoke the `artel-implementer` skill'))
         self.assertIn('data.sections', self.step)
 
     def test_the_batch_opens_with_a_dated_source_heading(self):

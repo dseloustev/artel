@@ -3,11 +3,11 @@
 How artel's execution agents take work from the host project's kartoteka task
 queue, and what they do when it is not there.
 
-Referenced by `agents/implementer.md`, `skills/implementer/SKILL.md`,
-`skills/generate-tasklist/SKILL.md`, `skills/tasklist/SKILL.md`,
-`skills/feature-development/SKILL.md` with its head files and `tail.md`,
-`skills/run-reviewer/SKILL.md`, `skills/deep-review/SKILL.md` and
-`skills/tasks/SKILL.md`. Spelled here
+Referenced by `agents/artel-implementer.md`, `skills/artel-implementer/SKILL.md`,
+`skills/artel-generate-tasklist/SKILL.md`, `skills/artel-tasklist/SKILL.md`,
+`skills/artel-feature-development/SKILL.md` with its head files and `tail.md`,
+`skills/artel-run-reviewer/SKILL.md`, `skills/artel-deep-review/SKILL.md` and
+`skills/artel-tasks/SKILL.md`. Spelled here
 once because they need identical rules and two copies drifting apart hands the
 same task to two agents.
 
@@ -49,12 +49,12 @@ is considered, exactly as in `docs/knowledge-consultation.md` §1.
 **Where `--local` is available.** The flag exists on the orchestrators that carry
 it — `feature-development`, `analysis`, `researcher`, `deep-review` — and on the
 skills that write or keep rows on an orchestrator's behalf: `tasklist`, `generate-tasklist` and
-`run-reviewer`, and `skills/implementer/SKILL.md`, which receives it from its caller
+`run-reviewer`, and `skills/artel-implementer/SKILL.md`, which receives it from its caller
 rather than from the user. `feature-development` takes it on every head. An
 orchestrator holding the flag passes it to each of those it invokes — to the
 implementer skill on every dispatch, fix rounds included — and the implementer skill sets
 the **Task queue:** field of the agent's dispatch to
-`local-only (--local was passed)`; `agents/implementer.md` reads that field rather
+`local-only (--local was passed)`; `agents/artel-implementer.md` reads that field rather
 than parsing a flag of its own. Without the flag, rows 2-4 alone decide.
 
 **One precondition is resolved before the table, not in it.** With the adapter
@@ -83,9 +83,9 @@ tools are `task_create`, `task_update`, `task_list` and `task_ready`; they are
 present when the host has wired the kartoteka MCP server into this session.
 
 A daemon with `[auth]` on — kartoteka 0.32.0, every hosted one — that the session
-registered without its bearer token is row 4 as well: Claude Code cannot connect,
-so the tools are absent. The fix is host-side wiring, `--header` on the MCP
-registration (`docs/config.md`, `knowledge.tokenEnv`), not anything this contract
+registered without its bearer token is row 4 as well: the session cannot connect,
+so the tools are absent. The fix is host-side wiring — the bearer header on the MCP
+registration (`docs/config.md`, `knowledge.tokenEnv`) — not anything this contract
 reads. A token revoked mid-run answers every later call with an error: that is the
 fifth case, fall back and record it as spelled there.
 
@@ -96,8 +96,8 @@ only once the plan is approved when the tasklist is task-format (below) — by
 `feature-development` on entry to implementation, whichever head ran, and by every
 writer of a fix section right after its append (§6).
 
-1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist <path> --ticket-key <TICKET_KEY>`
-   (kartoteka path: `set -o pipefail; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/spec_store.py get <path> | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_KEY>`)
+1. `python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <path> --ticket-key <TICKET_KEY>`
+   (kartoteka path: `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <path> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_KEY>`)
    Exit `0` → continue. Exit `2` → report `error.kind` and `error.message`, mirror
    nothing, continue the run on the fallback path.
 2. For each entry of `data.iterations`, in order:
@@ -229,7 +229,7 @@ If `task_ready` hands it one from another phase, return that task with
 `task_update(task_id, status="ready")` — which clears the holder — and report
 that the queue offered work from another phase, most often an earlier one this
 run is not authorised to finish, rather than crossing the boundary
-`agents/implementer.md`'s `## Phase support` rule forbids.
+`agents/artel-implementer.md`'s `## Phase support` rule forbids.
 
 **A wrong-phase claim is the one exception to releasing a held task `blocked`.**
 Every other exit that is not a completion goes to `blocked`, because the task
@@ -271,7 +271,7 @@ creates one that way; §6, "Why never offer them", says why.
 
 **No holder.** Only a `task_ready` claim sets a row's holder, so an
 `in_progress` fix row names none: `actor` stays empty and `updated_at` says when
-the work started. `/artel:tasks list` shows it that way rather than inventing one.
+the work started. `/artel-tasks list` shows it that way rather than inventing one.
 
 **A HITL fix task is never claimable,** so the reason above for keeping a HITL
 iteration task claimable — a child never completed deadlocks promotion — does not
@@ -350,7 +350,7 @@ per checkbox, and `task_ready` never hands one out.
 **Why record them.** They are where the longest-running part of a review cycle
 happens. On a host run on 2026-09-18 a deep review appended 21 tasks under
 `## Code Review Fixes`, and the implementer completed nine of them over several
-hours while `/artel:tasks list` reported the queue drained. The queue is where
+hours while `/artel-tasks list` reported the queue drained. The queue is where
 people look to see what an agent is doing, and that work never became searchable
 history either.
 
@@ -368,9 +368,9 @@ file stays their source of truth on every path.
 `VF:`, `FV:`) is `backlog` while any child is open, `done` when its last child is
 `done`, and `backlog` again the moment a writer appends to its section. The
 implementer that marks the last child `done` marks the parent `done` in the same
-exit (§3, `close`); `/artel:tasks done` does the same; every writer in the table
+exit (§3, `close`); `/artel-tasks done` does the same; every writer in the table
 below (`run-reviewer`, `deep-review`, the runtime gate, the checkpoint,
-`/artel:tasks add --fix`) sets an existing parent back to `backlog` when its
+`/artel-tasks add --fix`) sets an existing parent back to `backlog` when its
 re-mirror creates a new child under it — `task_create` is idempotent and returns
 the stored parent row with its status, so `task_update(parent, status="backlog")`
 follows whenever that status is `done`. Before 0.18.0 parents were permanent
@@ -394,11 +394,11 @@ middle segment, the way an iteration's `### ` section is:
 | `deep-review` Step 6 | `### deep-review-<YYYY-MM-DD>` |
 | runtime gate — gate 8 (`tail.md`) | `### runtime-r<n>`, n the retry this round is — `### runtime-p<N>-r<n>` on a phase-scoped run |
 | phase checkpoint — `tail.md` `## Checkpoint commits & pushes` | `### checkpoint-r<k>`, k the verify round — `### checkpoint-p<N>-r<k>` on a phase-scoped run |
-| `/artel:tasks add --fix` | `### manual-<YYYY-MM-DD>` — `### manual-p<N>-<YYYY-MM-DD>` in a phase file |
+| `/artel-tasks add --fix` | `### manual-<YYYY-MM-DD>` — `### manual-p<N>-<YYYY-MM-DD>` in a phase file |
 
 Dates come from `date +%F`, never from memory. A writer starting a batch never
 reuses a heading already in the section: it appends `-2`, then `-3`, …
-(`review-r1-2`). The one exception is `/artel:tasks add --fix`, whose additions
+(`review-r1-2`). The one exception is `/artel-tasks add --fix`, whose additions
 on one day are one batch. A box's source is the nearest `###` heading above it
 in its section, whatever that heading says — a fix task written before 0.15.0
 under a `### Blocking` or `### Tasks` takes that heading as its source. A box with
@@ -413,7 +413,7 @@ prefix again. Priority goes in the task text (`**Task N (Blocking): …**`) or u
 `####` heading, which the parser ignores as a source.
 
 The checkbox text is the title's third segment **verbatim**, bold markers
-included, because `/artel:tasks done` flips the box whose text is everything after
+included, because `/artel-tasks done` flips the box whose text is everything after
 the title's second ` · `. Lines nested under a checkbox — its body, its
 acceptance criteria, an indented sub-step — go to the row's description, never
 its title. A title runs to 500 characters at most: the script cuts a longer one

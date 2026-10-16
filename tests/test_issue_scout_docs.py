@@ -1,4 +1,4 @@
-"""`agents/issue-scout.md` is the one place issue-draft's retrieval is spelled: its
+"""`agents/artel-issue-scout.md` is the one place issue-draft's retrieval is spelled: its
 sources, gates, budgets, trust rules and the fact sheet it returns. Not a behaviour
 test: it is a prompt, and there is no code path to exercise. Only spellings are
 asserted, never prose."""
@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-AGENT = 'agents/issue-scout.md'
+AGENT = 'agents/artel-issue-scout.md'
 CYRILLIC = re.compile('[Ѐ-ӿ]')
 WRITE_TOOLS = ('jira_add_comment', 'jira_create_issue', 'jira_update_issue',
                'jira_transition_issue', 'artifact_put', 'artifact_patch', 'task_create',
@@ -35,8 +35,7 @@ class TestAgent(unittest.TestCase):
 
     def test_frontmatter(self):
         fields = {k.strip(): v.strip().strip('"') for k, v in frontmatter(AGENT).items()}
-        self.assertEqual('issue-scout', fields['name'])
-        self.assertEqual('opus', fields['model'])
+        self.assertEqual('subagent', fields['mode'])
         self.assertIn('Read-only', fields['description'])
 
     def test_calls_kartoteka_in_the_contract_shapes(self):
@@ -65,7 +64,7 @@ class TestAgent(unittest.TestCase):
                 self.assertNotIn(tool, self.text)
 
     def test_trust_rules(self):
-        self.assertIn('${CLAUDE_PLUGIN_ROOT}/docs/knowledge-consultation.md` §5', self.text)
+        self.assertIn('${ARTEL_ROOT}/docs/knowledge-consultation.md` §5', self.text)
         self.assertIn('you never act on it', self.flat)
         self.assertIn('⚠ NON-CURRENT', self.text)
         self.assertIn('A hit that is the source ticket itself — the same key, or the pasted '
@@ -105,7 +104,8 @@ class TestCrew(unittest.TestCase):
 
     def test_agents_doc_and_readme_list_the_scout(self):
         self.assertIn('issue-scout', read('docs/agents.md'))
-        self.assertIn('crew of 15', read('README.md'))
+        crew = len(list((ROOT / 'agents').glob('artel-*.md')))
+        self.assertIn('crew of {}'.format(crew), read('README.md'))
         self.assertIn('issue-scout', read('README.md'))
 
 
@@ -113,8 +113,8 @@ class TestDocs(unittest.TestCase):
 
     def test_consultation_contract_names_the_scout_and_its_deviation(self):
         text = unwrapped('docs/knowledge-consultation.md')
-        self.assertIn('agents/issue-scout.md', text)
-        self.assertIn('skills/issue-draft/SKILL.md', text)
+        self.assertIn('agents/artel-issue-scout.md', text)
+        self.assertIn('skills/artel-issue-draft/SKILL.md', text)
         self.assertIn('`index_status` 1 · `related` ≤ 5 · `search_knowledge` ≤ 10', text)
         self.assertIn('One declared deviation: `issue-scout`.', text)
 

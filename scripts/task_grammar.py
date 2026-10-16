@@ -14,7 +14,6 @@ from pathlib import Path
 
 # A task listing more files than this is routed `full` (docs/task-grammar.md §7).
 ROUTE_FULL_FILES = 5
-MODEL_BY_ROUTE = {'light': 'sonnet', 'full': 'opus'}
 # The reason the approval fold-back writes on a route the person changed at the pause
 # (`Route: light — set at approval`): such a route is final over the static floors.
 APPROVAL_REASON = 'set at approval'
@@ -547,11 +546,11 @@ def _route_for(task, rules, deviation_files=(), per_task=False, trail=None):
         reasons.append('review.perTask')
     return {'task': task['number'], 'title': 'Task {}: {}'.format(task['number'], task['title']),
             'route_declared': info['route'], 'route_effective': effective,
-            'route_reasons': reasons, 'model': MODEL_BY_ROUTE[effective]}
+            'route_reasons': reasons}
 
 
 def next_route(iterations, rules, deviation_files=(), per_task=False, trail=None):
-    """The first ready task's route and model (docs/task-grammar.md §8), or None."""
+    """The first ready task's route (docs/task-grammar.md §8), or None."""
     ready = ready_now(iterations)
     if not ready:
         return None
@@ -562,7 +561,7 @@ def next_route(iterations, rules, deviation_files=(), per_task=False, trail=None
 
 
 def pinned_route(iterations, rules, number, deviation_files=(), per_task=False, trail=None):
-    """The named task's route and model (§8), or None when no task carries that number.
+    """The named task's route (§8), or None when no task carries that number.
 
     The parallel coordinator's `route --task N.M` selector: it answers exactly the
     pinned task and never falls back to another one. Readiness is not consulted —

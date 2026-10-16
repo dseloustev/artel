@@ -1,9 +1,9 @@
-# OpenCode host
+# OpenCode plugin
 
-Artel runs on **OpenCode 2.x** as a generated build: the canonical Claude Code sources are
-transformed by `scripts/build_opencode.py` and wired in by the TypeScript bridge
-(`opencode/plugin/artel.ts`). This doc is the operator guide for that host; everything else in
-`docs/` applies to both hosts.
+Artel is an **OpenCode plugin**: `skills/`, `agents/`, the Python hooks and the bridge plugin
+in `opencode/plugin/artel.ts` are what OpenCode reads; only the command wrappers are generated
+from them. There is no second host. This doc is the plugin's install and architecture guide;
+the workflow itself is [workflow-guide.md](workflow-guide.md).
 
 ## Install
 
@@ -14,16 +14,16 @@ scripts/install-opencode.sh           # install / refresh
 scripts/install-opencode.sh --remove  # uninstall
 ```
 
-This copies the plugin to `~/.config/opencode/artel/`, generates the OpenCode artifacts,
-and places them into OpenCode's discovery directories:
+This copies the plugin to `~/.config/opencode/artel/`, bakes it, and places its artifacts into
+OpenCode's discovery directories:
 
 | Location | Contents |
 |---|---|
-| `~/.config/opencode/skills/artel-<name>/` | every artel skill, prefixed: its `SKILL.md`, and beside it the skill's other Markdown files (the head and tail files of `artel-feature-development`, templates, references) |
+| `~/.config/opencode/skills/artel-<name>/` | every artel skill: its `SKILL.md`, and beside it the skill's other Markdown files (the head and tail files of `artel-feature-development`, templates, references) |
 | `~/.config/opencode/commands/artel-<name>.md` | `/artel-<name>` command wrappers |
-| `~/.config/opencode/agents/artel-<name>.md` | the agent crew, prefixed |
+| `~/.config/opencode/agents/artel-<name>.md` | the agent crew |
 | `~/.config/opencode/plugins/artel.ts` | the bridge plugin (beside `parallel.ts`, the worker-session adapter module it registers) |
-| `~/.config/opencode/artel/` | full plugin copy (hooks, scripts, docs) |
+| `~/.config/opencode/artel/` | full plugin copy (hooks, scripts, docs, skills, agents) |
 | `~/.config/opencode/.artel-install-manifest` | every path the last install placed |
 
 Restart OpenCode after installing. Paths are baked at install time — re-run the installer
@@ -34,58 +34,57 @@ implementations); the installer warns on an older CLI.
 
 A refresh and `--remove` delete exactly what the manifest records — skills retired upstream
 are pruned, and a skill of your own that happens to be named `artel-…` is left alone. The
-manifest records each generated skill's directory, so every file inside it goes with it. An
+manifest records each installed skill's directory, so every file inside it goes with it. An
 install predating the manifest has none to read, so `--remove` falls back to sweeping every
 `artel-*` artifact in those directories and says so before it does.
 
-## How it works
+## Architecture
 
-**Generator.** OpenCode has no plugin namespace, so every artifact is `artel-`-prefixed.
-Each generated skill/agent body keeps the canonical (Claude Code dialect) text with a
-prepended `<OPENCODE-HOST-NOTES>` glossary translating it to the v2 host:
+**The source tree is the artifact.** OpenCode discovers skills, agents and commands from flat
+config directories with no plugin namespace, so the installed name is the canonical name:
+`skills/artel-<name>/SKILL.md`, `agents/artel-<name>.md`. Nothing is translated on the way in —
+the Markdown in this repository is the Markdown OpenCode reads, and the installer places the
+skills and agents from the baked copies of `skills/` and `agents/` themselves.
 
-- `Skill:` → the `skill` tool (skills are `artel-<name>`).
-- agent dispatch → the `subagent` tool with the `artel-<name>` agent.
-- `SendMessage` → a fresh `subagent` dispatch; there is no resume-by-id, the agent re-reads
-  its context files.
-- `$0`/`$1`/`$ARGUMENTS` → the arguments the skill was invoked with.
-- `AskUserQuestion` → the `question` tool.
-- plan mode → present the plan and wait for approval (OpenCode has no plan-mode tool).
-- the v2 tool names: `Read`/`Edit`/`Write`/`Grep`/`Bash` → `read`/`edit`/`write`/`grep`/`shell`.
+Two things happen at install time (`scripts/build_opencode.py`, run by the installer):
 
-`disable-model-invocation: true` becomes `metadata.opencode/autoinvoke: false`, so a
-manual-only skill stays registered and loadable by id but leaves the model's skill list.
-`${CLAUDE_PLUGIN_ROOT}` is baked to the install root; `/artel:<name>` references become
-`artel-<name>`. A skill's other Markdown files — `feature-development`'s `heads/*.md` and
-`tail.md`, templates, references — are generated next to its `SKILL.md`, baked the same way
-but with no frontmatter and no glossary: their reader already has the glossary through
-`SKILL.md`. A pointer into a skill's directory (`${CLAUDE_PLUGIN_ROOT}/skills/<name>/<file>`)
-resolves to the generated copy under
-`~/.config/opencode/artel/opencode/dist/skills/artel-<name>/`, never to the Claude-dialect
-source. Every skill also gets a `/artel-<name>` command wrapper: its body loads the skill and
-passes `$ARGUMENTS`, and its `description` carries the skill's `argument-hint` (for example
-`· args: [ticket-id]`), so the TUI command list shows what arguments the skill expects before
-you invoke it.
+1. **Baking.** Every `*.md` under the install copy's `skills/`, `agents/` and `docs/` has the
+   braced install-root token `${ARTEL_ROOT}` replaced with the install root, in place in the
+   installed copy and never in the checkout — a `--root` that is the source checkout is refused
+   before the first write. Baking matches the braced form only; this doc
+   names the token `$ARTEL_ROOT`, without braces, so the bake cannot rewrite its own
+   explanation. Python files are never rewritten: a hook docstring's token is a source-level
+   pointer to a contract file, and nothing expands it. A pointer into a skill's directory
+   resolves to that skill's installed copy under
+   `~/.config/opencode/artel/skills/artel-<name>/`.
+2. **Command wrappers.** Each skill gets a `/artel-<name>` wrapper under the build's
+   `commands/` — the build's only output, so `dist` holds command wrappers and nothing else.
+   Its body loads the skill and passes the arguments; its `description` carries
+   the skill's `argument-hint` (for example `· args: [ticket-id]`), so the TUI command list
+   shows what arguments the skill expects before you invoke it.
 
-**Parallel procedure.** The generated `feature-development` tail carries the OpenCode-only
+**Parallel procedure.** The canonical `artel-feature-development` tail carries the
 opt-in gate: when `parallel.seats` is greater than `1`, the inline coordinator loop at
 `skills/artel-feature-development/parallel.md` replaces the serial gates for that run
 ([opencode-parallel.md](opencode-parallel.md) §13.11); absent or `1` keeps the serial tail
-exactly as it is, and the canonical sources stay serial — the gate is one build transform, not
-a Claude Code branch.
+exactly as it is. The gate is baked in place with the rest of the canonical skill.
 
-**Bridge plugin.** `opencode/plugin/artel.ts` adapts OpenCode 2.x's plugin API onto the
-unchanged Python hooks (`hooks/README.md` documents their stdin/stdout contracts):
+A manual-only skill declares `metadata.opencode/autoinvoke: false`, so it stays registered and
+loadable by id but leaves the model's skill list.
+
+**Bridge plugin.** `opencode/plugin/artel.ts` adapts OpenCode 2.x's plugin API onto the Python
+hooks, whose stdin/stdout contracts are artel's own internal hook ABI
+([hooks/README.md](../hooks/README.md)):
 
 | OpenCode v2 | artel hook | Behavior |
 |---|---|---|
-| `tool.hook("execute.before")` (edit/write/patch) | `sensitive_guard.py`, then `spec_store_guard.py` | deny → the tool call errors naming the guard (`hooks.json`'s order) |
+| `tool.hook("execute.before")` (edit/write/patch) | `sensitive_guard.py`, then `spec_store_guard.py` | deny → the tool call errors naming the guard (this order) |
 | `tool.hook("execute.before")` (read) | `spec_store_guard.py` | deny → the read errors with the `image fetch` hint (spec-storage.md §6) |
 | `tool.hook("execute.before")` (shell, platform-named tools) | `vcs_guard.py` | deny → the tool call errors |
-| `tool.hook("execute.after")` (edit/write/patch) | `fast_verify_post_edit.py`, then `knowledge_mirror.py` | findings are appended to the tool result (`hooks.json`'s order; v2 has no failure channel here) |
+| `tool.hook("execute.after")` (edit/write/patch) | `fast_verify_post_edit.py`, then `knowledge_mirror.py` | findings are appended to the tool result (this order; v2 has no failure channel here) |
 | `session.hook("context")` | `using_artel.py` | router + host status prepended to the first user message in memory |
 | `session.created` | `session_baseline.py` | baseline captured; child sessions skip |
-| `session.execution.succeeded` | `stop_gate.py`, `verify_stop_gate.py` | block → `ctx.session.prompt` re-prompts the run; pass-through warnings go to the console |
+| `session.execution.succeeded` | `stop_gate.py`, `verify_stop_gate.py` | block → `ctx.session.prompt` re-prompts the run; the hooks' own caps (5 and 2 consecutive) remain the loop bound, under a bridge-side fail-safe of 10 consecutive blocks that resets on any clean stop; pass-through warnings go to the console |
 | `session.compaction.ended` | — | router cache invalidated so host status refreshes |
 | `session.deleted` | — | caches dropped |
 
@@ -97,28 +96,25 @@ The event stream is server-wide, so the bridge filters session events to session
 (the session is read once via `ctx.session.get` and cached) — and never baselines or
 stop-gates another checkout's sessions.
 
-An MCP tool reaches these hooks as `<server>_<tool>` — one underscore, no `mcp__` prefix; each
-half is sanitized to `[A-Za-z0-9_-]`, anything else becoming `_`, so a server `aiguard` with a
-tool `bitbucket_create_pr` arrives as `aiguard_bitbucket_create_pr`. That is what the table's
-`platform-named tools` means: the `bitbucket`/`github`/`jira` token `vcs_guard.py` classifies
-by is read from the combined string, and it is found when either half carries it. (Checked
-2026-10-02 against OpenCode 2.0.21's registry source and a live 2.0.19 session's recorded tool
-names.)
+**Dispatch and models.** A skill reaches an agent through the `subagent` tool — a fresh
+dispatch, never a resume-by-id, so a re-dispatched agent re-reads its context files. Each
+dispatch carries the model its site resolves from `models.opencode` in the host's
+`.artel/config.json` through `scripts/models.py`: per-dispatch models are resolved from
+`models.opencode` and passed on the `subagent` call, and unset → the child inherits the
+caller's model — except in the `planner` family, where an unset `planner.<kind>` resolves
+`planner.default` first. The site table is [agents.md](agents.md) `## Models`.
 
-## Differences from Claude Code
+**Questions.** A sketch attached to a question's option goes into the question text as a
+fenced block — a flow, structure or chart sketch is a `mermaid` block, which the OpenChamber
+client renders inline.
 
-| Aspect | Claude Code | OpenCode |
-|---|---|---|
-| Stop gate | blocks the Stop event outright | the completed turn is visible; `session.execution.succeeded` re-prompts the model to continue (the hooks' own block caps — 5 and 2 consecutive — remain the loop bound, under a bridge-side fail-safe of 10 consecutive blocks that resets on any clean stop) |
-| Router injection | SessionStart hook context, before the first prompt | `session.hook("context")` prepends it to the first user message on every model step (sessions only come into being with their first prompt, so there is no pre-prompt moment) |
-| Two-phase skills (`researcher`, `planner`, …) | `SendMessage` resumes the agent by id | a fresh `subagent` dispatch; the agent re-reads its context files |
-| Agent model tiers | `opus`/`sonnet` frontmatter, plus a per-dispatch `model` for the route helper, the reviewer's scope and the step-up rounds ([agents.md](agents.md) `## Models`) | frontmatter tiers dropped; per-dispatch models are resolved from `models.opencode` in the host's `.artel/config.json` (via `scripts/models.py`) and passed to the `subagent` tool; unset → the child inherits the caller's model |
-| Orchestrator seat | `seat.enabled: true` runs the post-approval tail one layer down on the `seat` agent (`sonnet`), every pause relayed to the main thread ([autonomous-run.md](autonomous-run.md) §18) | `seat.enabled` is inert — the generated `feature-development` runs the tail inline (no seat dispatch); `parallel.seats` is the parallel coordinator's worker concurrency instead ([opencode-parallel.md](opencode-parallel.md) §13.11) |
-| `inner-loop` model-invocation guard | `disable-model-invocation: true` | `metadata.opencode/autoinvoke: false`: hidden from the model's skill list, still loadable by id |
-| A sketch on a question's option (`analysis`, `generate-vision`) | the option's `preview` field | the `question` tool has no such field: the sketch goes into the question text as a fenced block; a flow, structure or chart sketch is a `mermaid` block, which the OpenChamber client renders inline |
-| Knowledge-mirror context | injected after edits | side effect only (the mirror still runs) |
-| Invocation | `/artel:<name>` | `/artel-<name>` (command) or the `artel-<name>` skill |
-| MCP tool names | `mcp__<server>__<tool>` | `<server>_<tool>`, both halves sanitized, no `mcp__` prefix |
+**MCP tool names.** An MCP tool reaches these hooks as `<server>_<tool>` — one underscore, no
+`mcp__` prefix; each half is sanitized to `[A-Za-z0-9_-]`, anything else becoming `_`, so a
+server `aiguard` with a tool `bitbucket_create_pr` arrives as `aiguard_bitbucket_create_pr`.
+That is what the table's `platform-named tools` means: the `bitbucket`/`github`/`jira` token
+`vcs_guard.py` classifies by is read from the combined string, and it is found when either
+half carries it. (Checked 2026-10-02 against OpenCode 2.0.21's registry source and a live
+2.0.19 session's recorded tool names.)
 
 ## kartoteka behind a token
 
@@ -142,10 +138,9 @@ hook reads —
 
 ## Headless runs
 
-`docs/autonomous-run.md` §12's headless guidance is Claude Code-specific. On OpenCode,
-`opencode run "…"` drives a session from the CLI, and OpenCode's `permission` config
-(the `opencode.json` equivalent of a curated allowlist) gates unattended tools — never a
-bypass flag. The same run-state, journal and stop-gate machinery applies unchanged.
+`docs/autonomous-run.md` §12 is the headless run book. `opencode run "…"` drives a session
+from the CLI, and OpenCode's `permission` config in `opencode.json` gates unattended tools —
+never a bypass flag. The same run-state, journal and stop-gate machinery applies unchanged.
 
 One caveat: `opencode run` ends on the session's terminal execution event and waits for idle;
 a stop-gate re-prompt sent after that terminal is not reliably awaited, so a blocked run
@@ -161,7 +156,7 @@ and the TUI load plugins before any session and capture it.
 
 ## Verifying an install
 
-The E2E smoke this port was verified with, distilled to a maintainer checklist.
+The E2E smoke this plugin was verified with, distilled to a maintainer checklist.
 Scratch repo with a minimal config (adapters `none`, a deliberately failing fast verify):
 
 ```bash
@@ -185,7 +180,7 @@ Five probes — each an `opencode run "<prompt>"` from that repo:
 | Plugin load + session lifecycle | `Reply with exactly: ok` | the plugin loads with no schema error; the reply is `ok`; a `baseline-<session>.json` appears under `.artel/run/.hooks/` |
 | Router | `In one line: which skill do you route a ticket feature request to?` | names the router (`artel-feature-development`) |
 | Sensitive guard | arm a run (`.active_ticket` = `SMOKE-1` + `.artel/run/SMOKE-1/run-state.json`, `run_active: true`), then `Create the file .env.local containing hello` | write denied naming the guard; `.env.local` absent |
-| Fast verify + stop gate | un-arm, dirty `README.md`, `Append 'x' to README.md, then reply done.` | findings surface in the tool result; a `stopblocks-<session>.json` counter appears; at cap 2 the stop passes with a warning |
+| Fast verify + stop gate | un-arm; leave `README.md` clean at session start — the run's edit dirties it; `Append 'x' to README.md, then reply done.` | findings surface in the tool result; a `stopblocks-<session>.json` counter appears; at cap 2 the stop passes with a warning |
 | Skill surface | `List the artel-* skills you can load, names only` | `artel-feature-development` is visible; `artel-inner-loop` is hidden from the model's list but loadable by id |
 
 When a probe fails: rerun with `--print-logs --log-level DEBUG`. Plugin load errors appear
@@ -194,8 +189,13 @@ function" = a v1 bridge or a malformed export). The SQLite transcripts
 (`~/.local/share/opencode/opencode.db`) show whether an injection persisted or was delivered
 in-memory only.
 
-Verified against OpenCode **2.0.19** (plugin SDK 2.0.21). Re-run this smoke after upgrading
+Verified against OpenCode **2.0.29** (2026-10-15). Re-run this smoke after upgrading
 OpenCode.
+
+The probes run isolated: install and every `opencode run` with `XDG_CONFIG_HOME` pointed at a
+throwaway config home, plus `--standalone` on each run — a bare `scripts/install-opencode.sh`
+derives its source root from the script's own location and installs this checkout over the real
+`~/.config/opencode/`.
 
 ## Troubleshooting
 

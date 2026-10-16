@@ -17,7 +17,7 @@ def flat(text):
 
 class TestPrTitleLanguage(unittest.TestCase):
     def test_pr_create_composes_the_title_in_english(self):
-        text = flat(read('skills/pr-create/SKILL.md'))
+        text = flat(read('skills/artel-pr-create/SKILL.md'))
         self.assertIn('**PR title.** Always English, whatever `language.pr` says', text)
         self.assertIn('<TICKET_ID>: <tracker summary translated to English>', text)
         self.assertEqual(text.count('tracker summary translated to English'), 4,
@@ -25,7 +25,7 @@ class TestPrTitleLanguage(unittest.TestCase):
         self.assertNotIn('--title "<TICKET_ID>: <tracker summary>"', text)
 
     def test_pr_description_leaves_the_title_to_pr_create(self):
-        text = flat(read('skills/pr-description/SKILL.md'))
+        text = flat(read('skills/artel-pr-description/SKILL.md'))
         self.assertIn("**Title.** The PR title is not this document's: `pr-create` composes it",
                       text)
         self.assertIn('always in English — never `<language.pr>`', text)
@@ -41,7 +41,7 @@ class TestPrTitleLanguage(unittest.TestCase):
                       flat(text))
 
     def test_no_contract_still_quotes_the_old_scope(self):
-        for rel in ('docs/config.md', 'skills/issue-draft/SKILL.md'):
+        for rel in ('docs/config.md', 'skills/artel-issue-draft/SKILL.md'):
             with self.subTest(rel):
                 self.assertNotIn('PR title and body', read(rel))
 

@@ -76,9 +76,10 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   already exist (`idea.md`, `prd.md`, `vision.md`, `plan.md`, `tasklist.md`, `spike.md`,
   `diagnosis.md`) — they size the run, and skip-if-exists governs each gate;
   `.artel/run/<TICKET_ID>/sizing.json` and `open-questions.md`; `run-state.json` /
-  `run-journal.md` on resume. The skill is five files: `SKILL.md` (the shared start, sizing,
+  `run-journal.md` on resume. The skill is six files: `SKILL.md` (the shared start, sizing,
   arming), one head — `heads/full.md`, `heads/lean.md` or `heads/bug.md`, read after sizing —
-  and `tail.md`, read once the run is armed.
+  and `tail.md`, read once the run is armed; on OpenCode, `parallel.md` — the opt-in parallel
+  coordinator loop, read when the host's `parallel.seats` is greater than `1`.
 - **Writes:** `<specs.dir>/.active_ticket`, `.artel/run/<TICKET_ID>/sizing.json`, `run-state.json`,
   `run-journal.md`, `runtime-observation.md` (the runtime-retry counter — run bookkeeping,
   distinct from `run-app`'s `runtime/observation.md` evidence in the spec trail), the

@@ -508,6 +508,14 @@ repository-wide lock, `<git-common-dir>/artel/parallel/<TICKET_ID>.json`
 cannot both claim for one ticket; the lock is released only for the matching completed,
 quiescent run.
 
+**The parallel claim order runs through `scripts/parallel.py`.** The coordinator's claim
+intent, the recorded returned row and the reconciliation are the CLI's `claim prepare`,
+`claim record` and `claim reconcile` commands ([opencode-parallel.md](opencode-parallel.md)
+§13.10); each persists its manifest mutation under the run's exact lock and expected revision
+before the next step, and the queue's own `task_ready`/`task_update` calls stay the
+coordinator's, through the configured queue adapter. The returned row — never the requested
+task id — decides the task, and a row that is not this run's stops admission for diagnosis.
+
 **A parallel run's queue completion is the last publication step.** The coordinator's
 `scripts/parallel_publication.py` marks the run's own recorded row done only after the cycle's
 code commit, its required tasklist/notes publication and the worker-evidence collection are

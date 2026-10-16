@@ -1311,17 +1311,18 @@ class TestRunContract(unittest.TestCase):
 
 
 class TestWholeSkill(unittest.TestCase):
-    """Plan 2, Task 11: the five files of the merged skill, read as one — every pointer
+    """Plan 2, Task 11: the files of the merged skill, read as one — every pointer
     resolves, every gate is held once, and nothing of the two-orchestrator wording is left."""
 
-    FILES = ('SKILL.md', 'heads/full.md', 'heads/lean.md', 'heads/bug.md', 'tail.md')
+    FILES = ('SKILL.md', 'heads/full.md', 'heads/lean.md', 'heads/bug.md', 'tail.md',
+             'parallel.md')
     GATES = ['0', '0.5', '1', '2', '3', '3.5', '4', '4.2', '4.5', 'B1', 'B2',
              '5', '6', '7', '8', '10', '10.5', '10.7']
 
     def setUp(self):
         self.texts = {name: raw(FD + name) for name in self.FILES}
 
-    def test_the_directory_holds_exactly_the_five_files(self):
+    def test_the_directory_holds_exactly_the_expected_files(self):
         found = sorted(path.relative_to(ROOT / FD).as_posix()
                        for path in (ROOT / FD).rglob('*') if path.is_file())
         self.assertEqual(found, sorted(self.FILES))

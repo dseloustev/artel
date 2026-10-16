@@ -1415,3 +1415,21 @@ move to the decision log.
   proof; treating a native session success or a worker result as task publication. Evidence:
   the scratch proof and its event captures under `.artel/run/repro/opencode-parallel-proof/`
   (not committed).
+- **2026-10-16 — The parallel coordinator is one explicit CLI and one generated OpenCode
+  loop.** `scripts/parallel.py` dispatches every coordinator operation to the reviewed helpers
+  with an explicit argparse command and one JSON request; there is no evaluated function name,
+  no second scheduler in TypeScript or prose, and no direct manifest/WAL edit in the generated
+  instructions. Mutations resolve the run's canonical path from the explicit coordinator
+  checkout, read the manifest fresh, require the repository-common lock to match the exact run
+  and `expected_revision` to match the disk, and persist through `parallel_state.write_manifest`
+  — so a stale caller copy or a foreign revision fails before any Git/setup effect. `publication
+  record` persists the returned publication into the transaction's reserved `publication` field
+  first, through the reviewed owned writer, then writes the promoted manifest revision-checked;
+  a lost manifest write recovers by a fresh `promote`. The OpenCode build adds the opt-in gate
+  through one transform on the canonical tail (which stays serial) plus the generated
+  `skills/artel-feature-development/parallel.md`; `parallel.seats` is worker concurrency and is
+  not `seat.enabled`. Disclosed interface boundaries, for the controller/reviewer: the CLI
+  reuses the reviewed private readiness and lock readers (no public wrapper exists and Task 10
+  must not fork or modify Task 8's reviewed module), and uses `recover_cycle` as the
+  ownership- and drain-checked writer for the transaction record. Evidence:
+  `tests/test_parallel_cli.py`, `tests/test_build_opencode.py`.

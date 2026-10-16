@@ -210,6 +210,14 @@ What a mirror run emits (`data.format` is `"tasks"`):
 - **`data.ready_now`.** The tasks claimable now, as `{task, title}` pairs: in the first
   iteration that has a task not done, every task not done whose dependencies are all done.
   Computed from the checkboxes, so the tasklist stays the source of truth for promotion.
+- **Current-iteration limits.** `ready_now` and `waves` are dependency facts; the parallel
+  coordinator's admission overlays durable publication on them and admits **only the current
+  unfinished iteration** — the first one with an incomplete task — so a later iteration's
+  ready task waits even when its dependencies are done, and a dependent is ready only after
+  its dependency is integrated and durably published
+  ([opencode-parallel.md](opencode-parallel.md) §13.6, §13.11). The coordinator never works
+  ahead into another iteration and never launches from a mirror row: `scripts/parallel.py
+  admit` answers from the parsed task grammar.
 - **Concurrency metadata.** A task's optional `Concurrency: exclusive — <reason>` (§2.7)
   reaches the row as `concurrency` and `exclusive_reason`; it changes neither `data.waves` nor
   `data.ready_now`, which stay dependency facts — admission is the coordinator's decision

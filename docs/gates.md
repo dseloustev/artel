@@ -30,6 +30,15 @@ attempt-scoped and worker-local: the envelopes go to the assignment's
 the checkpoint baseline (`verify-baseline.json`) — the whole-tree gate, the baseline and the
 task review belong to the coordinator. The task gate itself is unchanged (§1, §4).
 
+**Parallel runs keep the same gates, serialized.** A parallel coordinator runs the task gate
+in each worker's own tree and the whole-tree gates only after the run is quiescent: the
+integrated tree meets the task gate before the cycle commit
+([opencode-parallel.md](opencode-parallel.md) §13.8), and the whole-branch review, the runtime
+gate and the checkpoint run once no task is active or `integrating` and every completion is
+durably published (§13.11). Review, runtime and checkpoint fix lists stay serial — concurrency
+never multiplies a run-wide correction cap — and only the coordinator asks the person
+([autonomous-run.md](autonomous-run.md) §5).
+
 **A task's `Test:` files join its task gate.** The implementer adds every file the task's
 `Test:` field lists ([task-grammar.md](task-grammar.md) §2) to `--files`, whether or not the
 task touched it, so a task that breaks behaviour a

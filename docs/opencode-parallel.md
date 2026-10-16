@@ -6,11 +6,14 @@ Sub-project 2c runs one worker session per task on the OpenCode host. This file 
 contract the native capability gate froze: it fixes the session interfaces the adapter
 uses, the worker's role, permissions and location, the assignment and result `schema: 1`, the
 task states and their transitions, integration ownership, the concurrency metadata, and what
-happens when a capability is missing. It records a contract, not shipped behavior: the
-schema, run-state and claim helpers exist (`scripts/parallel_contract.py`,
-`scripts/parallel_state.py`, `scripts/parallel_queue.py`), no coordinator, scheduler or
-worker adapter drives them yet, and `parallel.seats` absent or `1` keeps the serial
-procedure exactly as it is (a boolean is not an integer and fails configuration
+happens when a capability is missing. The contract is shipped behavior: the contract, state,
+claim, scheduler, worktree, integration and publication helpers exist
+(`scripts/parallel_contract.py`, `scripts/parallel_state.py`, `scripts/parallel_queue.py`,
+`scripts/parallel_scheduler.py`, `scripts/task_worktree.py`,
+`scripts/parallel_integration.py`, `scripts/parallel_publication.py`), the worker-session
+adapter is registered by the bridge (`opencode/plugin/parallel.ts`), the coordinator drives
+them through `scripts/parallel.py` (§13.10-§13.11), and `parallel.seats` absent or `1` keeps
+the serial procedure exactly as it is (a boolean is not an integer and fails configuration
 validation).
 
 Proven against **OpenCode 2.0.29** only. The names below are the installed v2 HTTP API and
@@ -933,6 +936,103 @@ the planning prerequisites: a receipt must name an action `next_publication_acti
 for the current fresh observation, and the trusted coordinator plans fresh before every
 effect. A hand-made action with plausible identity fields is not checked against the queue row
 or the store content there.
+
+### 13.10 The coordinator CLI
+
+`scripts/parallel.py` is the coordinator's one entry point into the helpers above. It is an
+explicit argparse dispatcher over a JSON request — one command per operation, each routing to
+exactly one helper function. It never evaluates a function name or arbitrary code, never
+duplicates a reducer's policy and never talks to the store, the queue, a session or a tracker;
+those stay the configured coordinator's calls, through its own tools.
+
+    python3 scripts/parallel.py <command...> --request <JSON-file|->
+
+Request keys are the selected helper's argument names plus the explicit run context a
+mutation needs: the coordinator checkout (`repo`), the run identity (`ticket`, `run_id`) and
+`expected_revision` for manifest writes. The commands:
+
+| Command | Request | Effect |
+|---|---|---|
+| `config` | `{repo}` | Reads `<repo>/.artel/config.json` and resolves `parallel.seats`; absent or `1` is the serial default. |
+| `preflight` | `{repo, capabilities}` | Consumes the adapter's read-only capability report and verifies the coordinator's branch, cleanliness and reflog before any claim or worktree. Read-only. |
+| `owner acquire` / `owner release` | `{repo, ticket, owner}` | The repository-common ticket lock; release only for the matching completed, quiescent run. |
+| `run create` / `run inspect` / `run transition` | `{repo, ticket, phase, run_id, seats, graph_digest}` / `{repo, ticket, run_id}` / `{repo, ticket, run_id, expected_revision, task, expected, target, fields?}` | The run manifest; `inspect` is a pure read. |
+| `claim prepare` / `claim record` / `claim reconcile` | `{repo, ticket, run_id, expected_revision, intent_id?, row?, rows?}` | The claim intent before the queue call, the recorded returned row, and reconciliation against fresh rows. |
+| `admit` | `{repo, ticket, run_id, tasklist, case_sensitive?}` | The pure admission selector over the parsed tasklist; only the current unfinished iteration is admitted. |
+| `worktree create` / `worktree inspect` / `worktree cleanup` | `{repo, assignment[, publication]}` | The per-task worker worktree lifecycle. |
+| `integration prepare` / `integration apply` / `integration commit` / `integration recover` | `{repo, assignment, result}` / `{repo, assignment, prepared}` / `{repo, transaction, subject}` / `{repo, transaction}` | The serialized integration transaction. |
+| `publication next` / `publication record` | `{repo, ticket, run_id, task, observed}` / `{repo, transaction, task, action_id, receipt}` | The publication plan and one durable intent/receipt. |
+
+Every command answers with the deterministic-script envelope — `{ok, verb, elapsed_ms,
+data}` or `{ok, verb, elapsed_ms, error: {kind, message}}` — and exits `0` on success, exit `1`
+for a blocked outcome (state, ownership, admission, capability, ordering or evidence), and
+exit `2` for invalid input or an environment failure. The exit code is a classification of
+the refusal kind, never a new decision: a `start`, `resume`, `drain` or stop action is data the
+coordinator acts on, not an error.
+
+**Authoritative mutations.** Reads are side-effect-free. Every manifest write resolves the
+run's canonical path from the explicit coordinator checkout and reads the manifest fresh: a
+caller-supplied copy is never trusted for an effect. The request names the exact run, the
+repository-common lock must match it (`not_owned`, `ambiguous_owner`, `foreign_owner`), and
+`expected_revision` must equal the revision on disk (`stale_revision`) before any reducer runs
+— a stale caller or a foreign revision fails before a Git or setup effect, and a refusal leaves
+the bytes exactly as they were. `publication record` reads the durable integration record and
+requires the caller's copy to be exactly it: a stale caller is `stale_publication`, never a
+silent clobber of a newer record. It then persists the returned publication record into the
+transaction's reserved `publication` field **first** — through the reviewed, ownership- and
+drain-checked writer — and only then writes the promoted manifest, revision-checked, when the
+reducer changed it. A lost manifest write is recovered by the next fresh `promote`, not by
+repeating an external effect.
+
+**Caller trust.** A request's pure planning inputs (the tasklist, the observed bundle, a row)
+are caller-supplied; its effects are not. `record_publication` still trusts the coordinator's
+fresh observation, and a hand-made action is not re-verified against the queue or the store.
+
+### 13.11 The inline coordinator loop
+
+The loop is one opt-in procedure, inline in the current OpenCode session — never an outer
+`seat`, never a subagent-driven branch, and never a second scheduler in TypeScript or in prose.
+`parallel.seats` is worker concurrency; it is not `seat.enabled`, which stays inert on
+OpenCode, and the generated `feature-development` runs the tail inline. `parallel.seats`
+absent or `1` keeps the serial procedure exactly as it is; the parallel path is never silently
+pretended to be enabled. The generated procedure lives at
+`skills/feature-development/parallel.md`: the shared start lists it, and the OpenCode build's
+generated tail carries the opt-in gate that reads it.
+
+    preflight/lock/reconcile -> claim/admit -> launch/observe -> review/integrate/publish -> repeat
+
+1. **Preflight, lock, reconcile.** The capability report, the coordinator branch/cleanliness/
+   reflog preflight, `owner acquire`, then `run create` or `run inspect` — and a full
+   reconciliation of claims, integration records, native sessions, refs and publications
+   before any new launch.
+2. **Claim/admit.** `admit` answers `start`, `resume`, `claim_capacity` and `drain` fresh
+   after every durable transition. `start` authorizes bounded claims through the queue's
+   atomic operation; the returned row decides the task. A task that lands `reserved` is
+   launched only when a fresh `resume` lists it, and `run transition` must persist `preparing`
+   before any worktree, session or prompt. `drain` stops new admission until the integration
+   and publication complete.
+3. **Launch/observe.** One pinned assignment per task: a lifecycle worktree, a concrete
+   resolved model (never an inherit, never a Claude Code alias), then the
+   `artel_parallel_startWorker` adapter. Status comes from `artel_parallel_workerStatus` —
+   durable state, never the volatile event stream — and an `interrupted` outcome overrides a
+   contradictory succeeded result. The review is coordinator-owned at that worker's exact
+   diff, root and attempt; fix lists stay serial and every fix round counts against the same
+   run-wide caps.
+4. **Integrate/publish.** Persisting `prepared -> integrating` is the durable admission latch:
+   siblings still returning reach safe return, a `prepared` or `reserved` sibling parks, and
+   nothing is relaunched, blocked or cancelled to make room. Then the transport commit in the
+   worker, `cherry-pick --no-commit` on a completely clean coordinator, the files-path
+   tick/notes after a successful apply, one normal final commit, and the §13.9 publication
+   loop until the task is durably `published` and dependents may move.
+5. **Pauses, drain, cancel.** A HITL pause, a deviation escalation, a failure or an exhausted
+   budget stops new admission, lets unaffected workers reach safe return, retains every
+   reservation, worktree, ref, record and the ticket ownership, and lets only the coordinator
+   ask the person. Stop/cancel follows the real transitions (`cancelled` with a recorded
+   decision, `artel_parallel_interruptWorker` for a running session) — never an invented key.
+6. **Finish.** The final whole-tree review, runtime gate and checkpoint run only when the run
+   is quiescent: no task active or `integrating`, every required publication durable. `owner release`
+   happens only for the matching, completed, quiescent run; a pause retains the lock
+   and the recovery state.
 
 ## 14. Proof record
 

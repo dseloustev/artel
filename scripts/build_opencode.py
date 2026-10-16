@@ -402,6 +402,20 @@ The dispatch resolves its model from the host config before every call: resolve 
 `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/models.py resolve --site agents.collaborative-reviewer`
 and set it on the `subagent` call when non-null; a `null` model passes no `model`, and a
 resolver exit `2` (e.g. `invalid_config`) is reported and stops the run — it is not an inherit."""),
+
+    # Task 10: OpenCode has no seat, and the parallel coordinator loop is an OpenCode-only
+    # opt-in. The canonical tail stays serial (and keeps this exact sentence for this
+    # transform); the generated tail swaps the seat branch for the parallel gate.
+    ('feature-development', 'tail.md', """\
+With `seat.enabled` it is instead the `seat`
+agent's procedure, dispatched once per step 6 — its `AskUserQuestion` pauses then mean the relay
+of autonomous-run.md §18.2.""", """\
+OpenCode runs this tail inline. **Parallel mode is opt-in:** when the host's `parallel.seats` is
+greater than `1`, this serial procedure is replaced for the whole armed run by the inline
+coordinator loop at `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/parallel.md` — read it now
+and follow it; its preflight runs before any claim or worktree, and a refused configuration or
+capability stops parallel mode before effects. `parallel.seats` absent or `1` keeps this serial
+procedure exactly as it is."""),
 ]
 
 

@@ -11,7 +11,7 @@ fits it to one approval, then runs the tail to a pull request. Contract:
 multi-phase traversal the current `<TICKET_ID>-<N>`) to every sub-skill. Skip any gate whose
 artifact already exists (resume); re-read artifacts after every sub-skill/agent return.
 
-This file is the shared start. The rest of the skill is four files beside it, each read when the
+This file is the shared start. The rest of the skill is the files beside it, each read when the
 run reaches it — never all at once:
 
 | File | Holds | Read |
@@ -20,6 +20,7 @@ run reaches it — never all at once:
 | `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/heads/lean.md` | the ladder and the work-list confirmation | step 4, for a `bounded` size |
 | `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/heads/bug.md` | the diagnosis, then the work list | step 4, for a `bug` size |
 | `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/tail.md` | phase traversal, gates 5–10.7, the completion gate, the PR close-out, the final report, the checkpoint procedure | step 5, once the run is armed — inline runs only; a seated run never reads it here (it is the seat's procedure) |
+| `${CLAUDE_PLUGIN_ROOT}/skills/feature-development/parallel.md` | the OpenCode-only opt-in parallel coordinator loop (preflight/lock/reconcile → claim/admit → launch/observe → review/integrate/publish → quiescent finish) | on OpenCode, when the host's `parallel.seats` is greater than `1` — the generated tail gates it; absent or `1` runs the serial tail exactly as it is |
 
 Read exactly one head file per run, after sizing, and another only when a head hands the ticket
 on (a raise, or the bug head's **Treat it as a bounded change**). On resume of an armed run, an

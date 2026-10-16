@@ -289,6 +289,13 @@ worker session. An unsupported OpenCode capability fails preflight before any cl
 is created — parallel mode is never silently pretended to be enabled
 ([opencode-parallel.md](opencode-parallel.md) §12).
 
+`parallel.seats` is **worker concurrency** — how many pinned worker sessions the coordinator
+runs at once — and it is **not `seat.enabled`**: the seat
+([autonomous-run.md](autonomous-run.md) §18) is a Claude Code tail layer and has nothing to do
+with this key, and OpenCode runs the tail inline. The parallel coordinator loop
+([opencode-parallel.md](opencode-parallel.md) §13.11) reads this key at the gate and stops
+before any claim or worktree when it is invalid or the capability gate refuses.
+
 ### `models` — the OpenCode dispatch models
 
 The generated OpenCode build resolves every dispatch it covers from this block, through

@@ -687,5 +687,84 @@ class TestOperatorDoc(unittest.TestCase):
             self.assertIn(phrase, doc, phrase)
 
 
+class TestParallelProcedureBuild(BuildBase):
+    """Task 10: the generated `feature-development` carries the opt-in parallel gate and the
+    OpenCode coordinator procedure, while the canonical sources stay serial and every existing
+    transform anchor survives."""
+
+    SKILL = 'artel-feature-development'
+
+    def part(self, rel):
+        return (self.out / 'skills' / self.SKILL / rel).read_text(encoding='utf-8')
+
+    def flat(self, rel):
+        return ' '.join(self.part(rel).split())
+
+    def test_the_generated_tail_replaces_the_seat_branch_with_the_parallel_gate(self):
+        tail = self.part('tail.md')
+        self.assertNotIn('seat.enabled', tail)
+        self.assertIn('parallel.seats', tail)
+        here = str((self.out / 'skills' / self.SKILL).resolve())
+        self.assertIn('`' + here + '/parallel.md`', tail)
+        # the serial procedure itself is preserved for the default
+        self.assertIn('## Gates', tail)
+        self.assertIn('| 10.7 | `PHASE_CHECKPOINT` |', tail)
+
+    def test_the_canonical_sources_stay_serial_and_keep_their_anchors(self):
+        tail = (ROOT / 'skills' / 'feature-development' / 'tail.md').read_text(encoding='utf-8')
+        self.assertIn('With `seat.enabled` it is instead the `seat`', tail)
+        self.assertNotIn('parallel.seats', tail)
+        self.assertEqual(build_opencode.missing_transforms(ROOT), [])
+        for folder, rel, src, _ in build_opencode.TRANSFORMS:
+            if (folder, rel) == ('feature-development', 'tail.md'):
+                self.assertIn(src, tail)
+
+    def test_the_procedure_is_generated_beside_the_skill_and_baked(self):
+        text = self.part('parallel.md')
+        self.assertTrue(text.startswith('# The parallel coordinator procedure'))
+        self.assertNotIn('${CLAUDE_PLUGIN_ROOT}', text)
+        self.assertNotRegex(text, r'/artel:[a-z0-9-]')
+        self.assertNotIn(GLOSSARY_MARKER, text)
+
+    def test_the_procedure_is_opt_in_and_uses_the_cli(self):
+        flat = self.flat('parallel.md')
+        for phrase in ('`parallel.seats`', 'not `seat.enabled`', 'scripts/parallel.py',
+                       '--request', '`config`', '`preflight`', '`owner acquire`',
+                       '`run create`', '`claim prepare`', '`admit`', '`worktree create`',
+                       '`integration prepare`', '`publication next`', 'exit `1`', 'exit `2`'):
+            self.assertIn(phrase, flat, phrase)
+
+    def test_the_procedure_refuses_unsupported_parallel_mode_before_effects(self):
+        flat = self.flat('parallel.md')
+        for phrase in ('artel_parallel_workerCapabilities',
+                       'refuse parallel mode before any claim or worktree',
+                       'invalid configuration'):
+            self.assertIn(phrase, flat, phrase)
+
+    def test_the_procedure_pins_assignments_and_keeps_the_loop_rules(self):
+        flat = self.flat('parallel.md')
+        for phrase in ('pinned assignment', 'current unfinished iteration',
+                       'launch a task from `start`', 'fresh `resume`',
+                       'persist `preparing`', '`integrating`', 'exclusive',
+                       'MAX_TOTAL_CORRECTION_ROUNDS', 'serial',
+                       'only the coordinator', '`question`',
+                       'artel_parallel_startWorker', 'artel_parallel_workerStatus',
+                       'artel_parallel_interruptWorker', '`models.py resolve`'):
+            self.assertIn(phrase, flat, phrase)
+
+    def test_the_procedure_finishes_quiescent_and_releases_ownership(self):
+        flat = self.flat('parallel.md')
+        for phrase in ('quiescent', 'active or `integrating`',
+                       '`owner release`', 'completed'):
+            self.assertIn(phrase, flat, phrase)
+
+    def test_no_generated_procedure_uses_ad_hoc_python(self):
+        skill = self.out / 'skills' / self.SKILL
+        for path in sorted(skill.rglob('*.md')):
+            text = path.read_text(encoding='utf-8')
+            self.assertNotIn('python3 -c', text, path)
+            self.assertNotIn('python -c', text, path)
+
+
 if __name__ == '__main__':
     unittest.main()

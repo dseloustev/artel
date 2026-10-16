@@ -735,6 +735,11 @@ agent (frontmatter `sonnet`) whose procedure is `skills/feature-development/tail
 The interview, the approval pause and arming stay on the main thread. OpenCode runs the tail
 inline (no seat dispatch). One dispatch per run; a resume dispatches a fresh seat.
 
+`seat.enabled` is unrelated to `parallel.seats` (config.md): the seat is this one Claude Code
+tail layer, while `parallel.seats` is the OpenCode parallel coordinator's worker concurrency
+([opencode-parallel.md](opencode-parallel.md) §13.11). A parallel run needs no seat and never
+reads `seat.enabled`; a seat dispatch never turns parallel mode on.
+
 ### 18.1 Returns
 
 - `COMPLETED` — the final report plus the rulings list (deviations, route decisions, relayed

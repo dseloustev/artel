@@ -1433,3 +1433,27 @@ move to the decision log.
   must not fork or modify Task 8's reviewed module), and uses `recover_cycle` as the
   ownership- and drain-checked writer for the transaction record. Evidence:
   `tests/test_parallel_cli.py`, `tests/test_build_opencode.py`.
+- **2026-10-16 — Parallel lock release and the run-wide budget are mechanically checked.**
+  Task 10 fix round 1 (review `task-10-review.md`, Important 1–3). `owner release` no longer
+  trusts the caller's `completed`/`quiescent` bytes: the CLI reads the exact run's manifest
+  (every task durably published, no latched reconciliation stop, no unfinished owned claim) and
+  the matching ticket-top-level `run-state.json` (`completed: true`) before the token proof
+  removes the lock, and refuses `premature_release`/`missing_manifest`/`corrupt_manifest`/
+  `manifest_mismatch`/`missing_run_state`/`corrupt_run_state`/`run_state_mismatch` with every
+  byte and the lock preserved. `publication record` runs the repository-common lock match
+  unconditionally before its reducer on every path — including the pure promote whose
+  publication is unchanged — so the documented owner-before-reducer guarantee holds where
+  `recover_cycle` is skipped. The run-wide correction budget gets its durable home: a small
+  stdlib `scripts/parallel_budget.py` behind the CLI's `budget inspect|reserve` reserves each
+  fix round from the EXISTING `counters.correction_rounds` in the coordinator's
+  `run-state.json` (no second ledger, no manifest key, no worker payload field), with a stable
+  `<kind>:<scope>:a<attempt>:r<ordinal>` identity, atomic temp-sibling writes under an
+  exclusive transient `<run-state>.lock` (`fcntl.flock`, never taken over), an idempotent
+  replay for the same identity, a per-scope cap and the shared `MAX_TOTAL_CORRECTION_ROUNDS = 8`
+  refused before any write, and no reset/decrement/recredit verb. The canonical scopes are the
+  workflow defaults — `MAX_TASK_REVIEW_ROUNDS = 1` per worker task review, `MAX_REVIEW_ROUNDS =
+  3` per ticket/phase `review.md`, `MAX_RUNTIME_RETRIES = 1`, `MAX_CHECKPOINT_VERIFY_ROUNDS =
+  2` — never a fabricated global 3 over iteration tasks. Rejected: caller-asserted completion,
+  a separate budget ledger or manifest field, an optimistic fallback when the run state is
+  missing, and resetting the counter for another run id. Evidence:
+  `tests/test_parallel_budget.py`, `tests/test_parallel_cli.py`.

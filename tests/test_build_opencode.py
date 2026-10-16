@@ -752,6 +752,18 @@ class TestParallelProcedureBuild(BuildBase):
                        'artel_parallel_interruptWorker', '`models.py resolve`'):
             self.assertIn(phrase, flat, phrase)
 
+    def test_the_procedure_reserves_every_fix_round_from_the_durable_budget(self):
+        flat = self.flat('parallel.md')
+        for phrase in ('`budget inspect`', '`budget reserve`',
+                       'reserves its round from the run-wide budget',
+                       '`run-state.json`', 'correction_rounds',
+                       'MAX_TOTAL_CORRECTION_ROUNDS', 'MAX_TASK_REVIEW_ROUNDS',
+                       'MAX_REVIEW_ROUNDS', 'MAX_RUNTIME_RETRIES',
+                       'MAX_CHECKPOINT_VERIFY_ROUNDS', 'never start from zero',
+                       'stale_revision', 'budget_exhausted', 'scope_cap',
+                       'no reset, decrement or recredit'):
+            self.assertIn(phrase, flat, phrase)
+
     def test_the_procedure_finishes_quiescent_and_releases_ownership(self):
         flat = self.flat('parallel.md')
         for phrase in ('quiescent', 'active or `integrating`',

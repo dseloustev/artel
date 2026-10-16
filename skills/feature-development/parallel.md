@@ -65,7 +65,9 @@ Nothing below runs before this section passes, in this order:
    - `artel_parallel_workerStatus` for every launch this run's journals record;
    - `publication next` for every `integrating` task, then the publication loop (§6) until it
      promotes or refuses;
-   - `worktree inspect` for every recorded assignment.
+   - `worktree inspect` for every recorded assignment;
+   - `budget inspect` once, so the run-wide correction budget is known before any fix
+     dispatch (§4) — never start from zero.
    Launch nothing new while any of these is unresolved. The launch journals resolve under the
    worker marker's repository main checkout (`<main>/.artel/run/…`), while the run manifest and
    the integration records resolve under this explicit coordinator checkout — when the
@@ -152,10 +154,27 @@ an accepted review.
   Resolve the reviewer model from the host config before the dispatch; never a Claude alias.
 - Fix lists stay **serial** — one fix dispatch at a time, in the worker's own tree, inside the
   transported paths; a new path is a new attempt, not an unreviewed commit.
-- Central budgets: the correction/deviation/review caps are run-wide and are **not** multiplied
-  by concurrency. Count every fix round from every worker against the same
-  `MAX_TOTAL_CORRECTION_ROUNDS` (and the review rounds against `MAX_REVIEW_ROUNDS`); at the cap,
-  stop admission and escalate.
+- **Central budgets are durable.** Every fix dispatch in this loop — a task review's
+  `## Code Review Fixes` round, a ticket/phase review's fix round, a runtime fix, a checkpoint
+  `## Verify Fixes` round — reserves its round from the run-wide budget **before** the
+  dispatch: `budget inspect` fresh, reconcile the canonical artifact round (the task review's
+  journal entry, `review.md`'s `**Review round:**`, `runtime-observation.md`, the checkpoint
+  entry) against the recorded reservations, then `budget reserve` with the true
+  `kind`/`scope`/`attempt`/`ordinal` and the revision you just read. The budget is the existing
+  `counters.correction_rounds` in the coordinator's
+  `.artel/run/<TICKET_ID>/run-state.json` — never a second ledger, never a manifest key, never
+  a worker payload field. On resume, never start from zero: inspect and reconcile first. A
+  `stale_revision` means re-inspect and retry; `budget_exhausted` or `scope_cap` means stop
+  admission and escalate — no fix dispatch happens without a durable reservation. A
+  reserved-but-undispatched round stays charged until the same identity resumes, and there is
+  no reset, decrement or recredit.
+- The caps are the canonical ones, and concurrency never multiplies them:
+  `MAX_TOTAL_CORRECTION_ROUNDS = 8` is shared by every task, review, runtime and checkpoint fix
+  round; `MAX_TASK_REVIEW_ROUNDS = 1` is per worker task review (its journal `task review`
+  entry); `MAX_REVIEW_ROUNDS = 3` is per ticket/phase `review.md` artifact — not the sum of
+  every worker's initial review; `MAX_RUNTIME_RETRIES = 1`; `MAX_CHECKPOINT_VERIFY_ROUNDS = 2`.
+  Only an actual fix dispatch is charged — never the initial plan review or a worker's own
+  execution.
 - Workers never commit, push, edit the tasklist, touch the queue or run state, write shared
   completion artifacts or ask the person. Only the coordinator asks questions (the `question`
   tool), and only the coordinator updates shared artifacts.
@@ -254,7 +273,10 @@ receipts all recorded), and the publication latch is clear. Only then:
    docs stage and the checkpoint — over the integrated branch. Their fix lists are serial.
 2. Write the final report and update the run state exactly as the tail says.
 3. Release ownership with `owner release` **only** for this matching, completed, quiescent run
-   (`completed: true`, `quiescent: true`). A pause, an unfinished run or any unresolved
+   (`completed: true`, `quiescent: true`). The CLI re-checks it for you: it reads the exact
+   run's manifest (every task `published`, no latched stop, no unfinished owned claim) and the
+   matching `run-state.json` (`completed: true`) and refuses `premature_release` otherwise — a
+   forged flag cannot release an unfinished run. A pause, an unfinished run or any unresolved
    `integrating`/publication state keeps the lock.
 
 Do not release, move or reconfigure anything else: no global installs, no service restarts, no

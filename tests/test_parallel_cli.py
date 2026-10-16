@@ -77,7 +77,11 @@ class CliCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.space = Path(os.path.realpath(self._tmp.name))
-        self.repo = self.space / 'repo'
+        self.make_repo()
+
+    def make_repo(self, name='repo'):
+        """A fresh checkout on the feature branch (re-callable for per-state fixtures)."""
+        self.repo = self.space / name
         git(self.space, 'init', '-q', str(self.repo))
         for key, value in (('user.email', 'test@example.com'), ('user.name', 'Test'),
                            ('commit.gpgsign', 'false')):
@@ -90,6 +94,7 @@ class CliCase(unittest.TestCase):
         git(self.repo, 'branch', '-m', 'main')
         git(self.repo, 'checkout', '-q', '-b', BRANCH)
         self.write_config()
+        return self.repo
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -111,6 +116,29 @@ class CliCase(unittest.TestCase):
     def manifest_path(self, run_id=RUN_ID):
         return (self.repo / '.artel' / 'run' / TICKET / 'parallel' / run_id /
                 'manifest.json')
+
+    def lock_path(self):
+        common = git(self.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')
+        return Path(common) / 'artel' / 'parallel' / (TICKET + '.json')
+
+    def run_state_path(self, ticket=TICKET):
+        return self.repo / '.artel' / 'run' / ticket / 'run-state.json'
+
+    def write_run_state(self, completed=True, ticket=None, run_active=False, extra=None):
+        """The run-state lives at the ticket-top-level directory; its `ticket` field carries
+        the phase suffix (docs/autonomous-run.md §2)."""
+        value = {'ticket': ticket or '{}-{}'.format(TICKET, PHASE), 'run_active': run_active,
+                 'completed': completed, 'pause_reason': None,
+                 'started_at': '2026-10-16T00:00:00Z',
+                 'counters': {'verify': 0, 'review_rounds': 0, 'escalations': 0,
+                              'correction_rounds': 0},
+                 'effective_mode': 'yolo', 'gates_confirmed': ['TASKLIST_READY'],
+                 'deviation_files': []}
+        value.update(extra or {})
+        path = self.run_state_path(TICKET)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(value, indent=2) + '\n', encoding='utf-8')
+        return path
 
     def record_path(self, task=TASK, attempt=1, run_id=RUN_ID):
         return (self.repo / '.artel' / 'run' / TICKET / 'parallel' / run_id /
@@ -189,6 +217,38 @@ class CliCase(unittest.TestCase):
         if fields is not None:
             request['fields'] = fields
         return self.ok('run', 'transition', request=request)
+
+    WALK = ('preparing', 'running', 'verifying/reviewing', 'prepared', 'integrating',
+            'published')
+    SIDE_PATHS = {'blocked': ('reserved', 'blocked'),
+                  'failed': ('reserved', 'preparing', 'failed'),
+                  'cancelled': ('reserved', 'cancelled')}
+
+    def walk(self, task=TASK, to='published'):
+        """Walk one task from admission to `to` through the real CLI transitions."""
+        revision = self.read_json(self.manifest_path())['revision']
+        if to == 'reserved':
+            steps = ('reserved',)
+        elif to in self.WALK:
+            steps = ('reserved',) + self.WALK[:self.WALK.index(to) + 1]
+        else:
+            steps = self.SIDE_PATHS[to]
+        expected = None
+        for target in steps:
+            fields = {'decision': {'reason': 'fixture'}} if target in (
+                'blocked', 'failed', 'cancelled') else None
+            self.transition(task, expected, target, revision, fields=fields)
+            expected = target
+            revision += 1
+        return revision
+
+    def published_run(self, task=TASK):
+        """The lock record plus a fully published manifest and a completed run-state."""
+        record = self.acquire()
+        self.create_run()
+        self.walk(task)
+        self.write_run_state(completed=True)
+        return record, self.read_json(self.manifest_path())
 
 
 # ============================================================================================
@@ -338,16 +398,18 @@ class TestPreflight(CliCase):
         self.assertFalse((Path(common) / 'artel').exists())
         self.assertFalse(self.manifest_path().exists())
 
+    def test_a_non_repository_is_an_environment_failure(self):
+        plain = self.space / 'plain'
+        plain.mkdir()
+        self.assertEqual(self.kind(2, 'preflight', request={
+            'repo': str(plain), 'capabilities': CAPABILITIES}), 'not_a_repository')
+
 
 # ============================================================================================
 # ownership
 # ============================================================================================
 
 class TestOwner(CliCase):
-    def lock_path(self):
-        common = git(self.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')
-        return Path(common) / 'artel' / 'parallel' / (TICKET + '.json')
-
     def test_acquire_writes_the_repository_common_lock(self):
         record = self.acquire()
         self.assertTrue(self.lock_path().is_file())
@@ -369,7 +431,7 @@ class TestOwner(CliCase):
         self.assertEqual(self.read_json(self.lock_path())['run_id'], RUN_ID)
 
     def test_release_needs_the_matching_completed_quiescent_run(self):
-        record = self.acquire()
+        record, _ = self.published_run()
         request = {'repo': str(self.repo), 'ticket': TICKET,
                    'owner': {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
                              'token': record['token'], 'completed': True, 'quiescent': False}}
@@ -382,12 +444,175 @@ class TestOwner(CliCase):
         self.assertFalse(self.lock_path().exists())
 
     def test_a_foreign_token_never_releases(self):
-        record = self.acquire()
+        record, _ = self.published_run()
         request = {'repo': str(self.repo), 'ticket': TICKET,
                    'owner': {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
                              'token': 'f' * 32, 'completed': True, 'quiescent': True}}
         self.assertEqual(self.kind(1, 'owner', 'release', request=request), 'foreign_owner')
         self.assertEqual(self.read_json(self.lock_path())['token'], record['token'])
+
+
+class TestReleaseSafety(CliCase):
+    """Important 1: the caller's `completed`/`quiescent` bytes are never proof — the
+    authoritative manifest must be quiescent and the run-state completed for the exact run."""
+
+    def owner(self, token, completed=True, quiescent=True):
+        return {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+                'token': token, 'completed': completed, 'quiescent': quiescent}
+
+    def release(self, token, **kwargs):
+        request = {'repo': str(self.repo), 'ticket': TICKET,
+                   'owner': self.owner(token, **kwargs)}
+        return self.cli('owner', 'release', request=request)
+
+    def release_kind(self, token, code=1, **kwargs):
+        proc, envelope = self.release(token, **kwargs)
+        self.assertEqual(proc.returncode, code, envelope)
+        self.assertFalse(envelope['ok'], envelope)
+        return envelope['error']['kind']
+
+    def test_forged_completion_flags_cannot_release_an_unfinished_run(self):
+        states = ('reserved', 'running', 'verifying/reviewing', 'prepared', 'integrating',
+                  'blocked', 'failed', 'cancelled')
+        for state in states:
+            with self.subTest(state=state):
+                self.make_repo('repo-{}'.format(state.replace('/', '-')))
+                record = self.acquire()
+                self.create_run()
+                self.walk(TASK, to=state)
+                self.write_run_state(completed=True)  # the serial completion is forged too
+                kind = self.release_kind(record['token'])
+                self.assertEqual(kind, 'premature_release')
+                self.assertTrue(self.lock_path().is_file(), 'the lock was released')
+
+    def test_an_unfinished_owned_claim_blocks_release(self):
+        record = self.acquire()
+        self.create_run()
+        self.ok('claim', 'prepare', request={'repo': str(self.repo), 'ticket': TICKET,
+                                             'run_id': RUN_ID, 'expected_revision': 1})
+        self.write_run_state(completed=True)
+        self.assertEqual(self.release_kind(record['token']), 'premature_release')
+        self.assertTrue(self.lock_path().is_file())
+
+    def test_a_mapped_claim_blocks_release_until_its_task_is_published(self):
+        record = self.acquire()
+        self.create_run()
+        intent = self.ok('claim', 'prepare', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 1})['intent']
+        self.ok('claim', 'record', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 2, 'intent_id': intent['intent_id'],
+            'row': {'task_id': 41, 'title': 'I2 · 3.1 · work', 'status': 'in_progress',
+                    'actor': intent['actor'], 'phase': PHASE, 'task': TASK}})
+        self.walk(TASK, to='published')
+        self.write_run_state(completed=True)
+        # the claim's row is completed at publication, so the published task releases it
+        receipt = self.ok('owner', 'release', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'owner': self.owner(record['token'])})
+        self.assertTrue(receipt['released'])
+        self.assertFalse(self.lock_path().exists())
+
+    def test_a_mapped_claim_for_an_unpublished_task_blocks_release(self):
+        record = self.acquire()
+        self.create_run()
+        intent = self.ok('claim', 'prepare', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 1})['intent']
+        self.ok('claim', 'record', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 2, 'intent_id': intent['intent_id'],
+            'row': {'task_id': 41, 'title': 'I2 · 3.1 · work', 'status': 'in_progress',
+                    'actor': intent['actor'], 'phase': PHASE, 'task': TASK}})
+        self.write_run_state(completed=True)
+        self.assertEqual(self.release_kind(record['token']), 'premature_release')
+        self.assertTrue(self.lock_path().is_file())
+
+    def test_a_stopped_run_blocks_release(self):
+        record = self.acquire()
+        self.create_run()
+        intent = self.ok('claim', 'prepare', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 1})['intent']
+        self.ok('claim', 'record', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+            'expected_revision': 2, 'intent_id': intent['intent_id'],
+            'row': {'task_id': 41, 'title': 'I2 · 3.1 · work', 'status': 'in_progress',
+                    'actor': 'artel@someone-else#1:1', 'phase': PHASE, 'task': TASK}})
+        self.walk(TASK, to='published')
+        self.write_run_state(completed=True)
+        self.assertEqual(self.release_kind(record['token']), 'premature_release')
+        self.assertTrue(self.lock_path().is_file())
+
+    def test_a_missing_corrupt_or_empty_manifest_blocks_release(self):
+        record = self.acquire()
+        self.assertEqual(self.release_kind(record['token']), 'missing_manifest')
+        self.assertTrue(self.lock_path().is_file())
+        self.create_run()
+        self.manifest_path().write_text('{not json', encoding='utf-8')
+        self.assertEqual(self.release_kind(record['token'], code=2), 'corrupt_manifest')
+        self.manifest_path().write_text('', encoding='utf-8')
+        self.assertEqual(self.release_kind(record['token'], code=2), 'corrupt_manifest')
+        self.assertTrue(self.lock_path().is_file())
+
+    def test_a_foreign_manifest_blocks_release(self):
+        record = self.acquire()
+        self.create_run()
+        manifest = self.read_json(self.manifest_path())
+        manifest['run_id'] = OTHER_RUN
+        self.manifest_path().write_text(json.dumps(manifest, indent=2) + '\n',
+                                        encoding='utf-8')
+        self.assertEqual(self.release_kind(record['token']), 'manifest_mismatch')
+        self.assertTrue(self.lock_path().is_file())
+
+    def test_a_missing_corrupt_or_unfinished_run_state_blocks_release(self):
+        record = self.acquire()
+        self.create_run()
+        self.walk(TASK, to='published')
+        self.assertEqual(self.release_kind(record['token']), 'missing_run_state')
+        self.assertTrue(self.lock_path().is_file())
+        self.run_state_path().write_text('{not json', encoding='utf-8')
+        self.assertEqual(self.release_kind(record['token'], code=2), 'corrupt_run_state')
+        self.write_run_state(completed=False)
+        self.assertEqual(self.release_kind(record['token']), 'premature_release')
+        self.write_run_state(completed=True, ticket='OTHER-9')
+        self.assertEqual(self.release_kind(record['token']), 'run_state_mismatch')
+        self.write_run_state(completed=True, extra={'pause_reason': 'cap-escalation'})
+        self.assertEqual(self.release_kind(record['token']), 'premature_release')
+        self.assertTrue(self.lock_path().is_file())
+
+    def test_a_completed_quiescent_matching_run_releases(self):
+        record, manifest = self.published_run()
+        self.assertEqual(manifest['tasks'][TASK]['state'], 'published')
+        receipt = self.ok('owner', 'release', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'owner': self.owner(record['token'])})
+        self.assertTrue(receipt['released'])
+        self.assertFalse(self.lock_path().exists())
+
+
+class TestReleaseFromLinkedCheckout(CliCase):
+    """The lock is repository-common; the manifest and run-state resolve under the explicit
+    coordinator checkout, which may itself be a linked worktree."""
+
+    def test_a_linked_coordinator_releases_its_own_completed_run(self):
+        git(self.repo, 'checkout', '-q', 'main')
+        linked = self.space / 'linked'
+        git(self.repo, 'worktree', 'add', '-q', str(linked), BRANCH)
+        main = self.repo
+        self.repo = linked
+        self.write_config()
+        record = self.acquire()
+        self.create_run()
+        self.walk(TASK, to='published')
+        self.write_run_state(completed=True)
+        self.assertTrue((linked / '.artel' / 'run' / TICKET / 'run-state.json').is_file())
+        self.assertFalse((main / '.artel' / 'run').exists())
+        receipt = self.ok('owner', 'release', request={
+            'repo': str(self.repo), 'ticket': TICKET,
+            'owner': {'schema': 1, 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+                      'token': record['token'], 'completed': True, 'quiescent': True}})
+        self.assertTrue(receipt['released'])
+        self.assertFalse(self.lock_path().exists())
 
 
 # ============================================================================================
@@ -1000,6 +1225,140 @@ class PublicationCase(WorktreeCase):
             'observed': self.observed(transaction, disposition='interrupted')}),
             'worker_not_succeeded')
 
+    def complete_record(self):
+        """A complete durable publication with the manifest still integrating.
+
+        The last required receipt's manifest write is blocked by a real read-only-directory
+        barrier, so the durable state is exactly the one a crashed coordinator leaves.
+        """
+        _, transaction = self.integrate()
+        collect = self.next_actions(transaction)[0]
+        self.record(transaction, collect, 'planned', None)
+        evidence = self.collect(collect)
+        transaction = self.read_json(self.record_path())
+        receipt = {'schema': 1, 'publication': transaction['publication'], 'action': collect,
+                   'state': 'applied', 'evidence': evidence}
+        run_dir = self.manifest_path().parent
+        original = run_dir.stat().st_mode
+        os.chmod(str(run_dir), stat.S_IRUSR | stat.S_IXUSR)
+        try:
+            proc, envelope = self.cli('publication', 'record', request={
+                'repo': str(self.repo), 'transaction': transaction, 'task': TASK,
+                'action_id': collect['action_id'], 'receipt': receipt})
+            self.assertEqual(proc.returncode, 2, envelope)
+        finally:
+            os.chmod(str(run_dir), original)
+        stored = self.read_json(self.record_path())
+        self.assertTrue(stored['publication']['complete'])
+        self.assertEqual(self.read_json(self.manifest_path())['tasks'][TASK]['state'],
+                         'integrating')
+        return evidence
+
+    def promote_action(self, evidence):
+        transaction = self.read_json(self.record_path())
+        promote = self.next_actions(transaction, collected=evidence['entries'])[0]
+        self.assertEqual(promote['kind'], 'promote')
+        return transaction, promote
+
+    def promote_request(self, transaction, promote):
+        return {'repo': str(self.repo), 'transaction': transaction, 'task': TASK,
+                'action_id': promote['action_id'],
+                'receipt': {'schema': 1, 'publication': transaction['publication'],
+                            'action': promote, 'state': 'observed', 'evidence': None}}
+
+    def test_a_missing_foreign_or_ambiguous_lock_refuses_the_pure_promote(self):
+        evidence = self.complete_record()
+        transaction, promote = self.promote_action(evidence)
+        request = self.promote_request(transaction, promote)
+        head = git(self.repo, 'rev-parse', 'HEAD')
+        record_before = self.record_path().read_bytes()
+        manifest_before = self.manifest_path().read_bytes()
+        saved = self.lock_path().read_bytes()
+
+        self.lock_path().unlink()
+        self.assertEqual(self.kind(1, 'publication', 'record', request=request), 'not_owned')
+        self.assertEqual(self.record_path().read_bytes(), record_before)
+        self.assertEqual(self.manifest_path().read_bytes(), manifest_before)
+        self.assertEqual(git(self.repo, 'rev-parse', 'HEAD'), head)
+
+        self.lock_path().write_text(json.dumps(
+            {'schema': 1, 'ticket': TICKET, 'run_id': OTHER_RUN, 'phase': PHASE,
+             'token': 'f' * 32, 'acquired_at': '2026-01-01T00:00:00Z'}), encoding='utf-8')
+        self.assertEqual(self.kind(1, 'publication', 'record', request=request),
+                         'foreign_owner')
+        self.assertEqual(self.record_path().read_bytes(), record_before)
+        self.assertEqual(self.manifest_path().read_bytes(), manifest_before)
+
+        self.lock_path().write_text('{not json', encoding='utf-8')
+        self.assertEqual(self.kind(1, 'publication', 'record', request=request),
+                         'ambiguous_owner')
+        self.assertEqual(self.record_path().read_bytes(), record_before)
+        self.assertEqual(self.manifest_path().read_bytes(), manifest_before)
+
+        # the real owner promotes exactly once, record first then manifest
+        self.lock_path().write_bytes(saved)
+        published = self.record(transaction, promote, 'observed', None)
+        self.assertEqual(published['manifest']['tasks'][TASK]['state'], 'published')
+        self.assertEqual(self.read_json(self.manifest_path())['tasks'][TASK]['state'],
+                         'published')
+        self.assertEqual(git(self.repo, 'rev-parse', 'HEAD'), head)
+
+    def test_a_corrupt_integration_record_is_a_typed_refusal(self):
+        _, transaction = self.integrate()
+        collect = self.next_actions(transaction)[0]
+        self.record_path().write_text('{not json', encoding='utf-8')
+        request = {'repo': str(self.repo), 'transaction': transaction, 'task': TASK,
+                   'action_id': collect['action_id'],
+                   'receipt': {'schema': 1, 'publication': None, 'action': collect,
+                               'state': 'planned', 'evidence': None}}
+        self.assertEqual(self.kind(2, 'publication', 'record', request=request),
+                         'corrupt_record')
+
+
+# ============================================================================================
+# the budget commands: routing, envelopes and malformed input
+# ============================================================================================
+
+class TestBudgetCli(CliCase):
+    def test_the_budget_commands_route_with_the_envelope(self):
+        self.write_run_state(run_active=True)
+        proc, envelope = self.cli('budget', 'inspect', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'phase': PHASE})
+        self.assertEqual(proc.returncode, 0, envelope)
+        self.assertEqual(envelope['verb'], 'parallel-budget-inspect')
+        self.assertEqual(envelope['data']['cap'], 8)
+        reserved = self.ok('budget', 'reserve', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'kind': 'review', 'scope': '2.1', 'attempt': 1, 'ordinal': 1,
+            'expected_revision': 0})
+        self.assertFalse(reserved['replayed'])
+        proc, envelope = self.cli('budget', 'reserve', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'kind': 'review', 'scope': '2.1', 'attempt': 1, 'ordinal': 1,
+            'expected_revision': 1})
+        self.assertEqual(proc.returncode, 0, envelope)
+        self.assertEqual(envelope['verb'], 'parallel-budget-reserve')
+        self.assertTrue(envelope['data']['replayed'])
+
+    def test_budget_malformed_input_is_refused(self):
+        self.write_run_state()
+        self.assertEqual(self.kind(2, 'budget', 'inspect', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'phase': PHASE, 'extra': 1}),
+            'invalid_request')
+        self.assertEqual(self.kind(2, 'budget', 'reserve', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'kind': 'review', 'scope': '2.1', 'attempt': 1}), 'invalid_request')
+        self.assertEqual(self.kind(2, 'budget', 'reserve', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+            'kind': 'review', 'scope': '2.1', 'attempt': '1', 'ordinal': 1,
+            'expected_revision': 0}), 'invalid_request')
+        self.assertEqual(self.kind(2, 'budget', 'reset', request={}), 'invalid_argument')
+
+    def test_budget_inspect_on_a_missing_run_state_fails_closed(self):
+        self.assertEqual(self.kind(1, 'budget', 'inspect', request={
+            'repo': str(self.repo), 'ticket': TICKET, 'phase': PHASE}),
+            'missing_run_state')
+
 
 # ============================================================================================
 # the operator contract in the docs
@@ -1013,8 +1372,25 @@ class TestCoordinatorDocs(unittest.TestCase):
                        '`run transition`', '`claim prepare`', '`claim record`',
                        '`claim reconcile`', '`admit`', '`worktree create`',
                        '`integration prepare`', '`publication next`', '`publication record`',
+                       '`budget inspect`', '`budget reserve`',
                        'exit `1`', 'exit `2`', 'never evaluates', 'revision'):
             self.assertIn(phrase, text, phrase)
+
+    def test_the_contract_documents_the_durable_correction_budget(self):
+        text = (ROOT / 'docs' / 'opencode-parallel.md').read_text(encoding='utf-8')
+        for phrase in ('scripts/parallel_budget.py', 'budget inspect', 'budget reserve',
+                       'correction_rounds', 'correction_reservations', 'stable key',
+                       'expected_revision', 'stale_revision', 'budget_exhausted',
+                       'scope_cap', 'run-state.json', 'no reset',
+                       'MAX_TOTAL_CORRECTION_ROUNDS', 'MAX_TASK_REVIEW_ROUNDS',
+                       'MAX_REVIEW_ROUNDS'):
+            self.assertIn(phrase, text, phrase)
+
+    def test_autonomous_run_documents_the_reservation_metadata(self):
+        flat = ' '.join((ROOT / 'docs' / 'autonomous-run.md').read_text(
+            encoding='utf-8').split())
+        self.assertIn('correction_reservations', flat)
+        self.assertIn('preserved', flat)
 
     def test_the_parallel_contract_separates_seats_from_the_seat(self):
         text = (ROOT / 'docs' / 'opencode-parallel.md').read_text(encoding='utf-8')

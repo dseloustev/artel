@@ -36,8 +36,9 @@ integrated tree meets the task gate before the cycle commit
 ([opencode-parallel.md](opencode-parallel.md) §13.8), and the whole-branch review, the runtime
 gate and the checkpoint run once no task is active or `integrating` and every completion is
 durably published (§13.11). Review, runtime and checkpoint fix lists stay serial — concurrency
-never multiplies a run-wide correction cap — and only the coordinator asks the person
-([autonomous-run.md](autonomous-run.md) §5).
+never multiplies a run-wide correction cap, and every fix round is reserved from the existing
+`counters.correction_rounds` budget before its dispatch (§13.12) — and only the coordinator
+asks the person ([autonomous-run.md](autonomous-run.md) §5).
 
 **A task's `Test:` files join its task gate.** The implementer adds every file the task's
 `Test:` field lists ([task-grammar.md](task-grammar.md) §2) to `--files`, whether or not the

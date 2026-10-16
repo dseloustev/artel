@@ -35,11 +35,15 @@ Commands and requests (docs/opencode-parallel.md §13.10):
     integration recover  {repo, transaction}
     publication next     {repo, ticket, run_id, task, observed}
     publication record   {repo, transaction, task, action_id, receipt}
+    budget inspect       {repo, ticket, phase}
+    budget reserve       {repo, ticket, run_id, phase, kind, scope, attempt, ordinal,
+                          expected_revision}
 
 Reads are side-effect-free: `config` and `admit` read the host config and the tasklist,
 `preflight` consumes the adapter's read-only capability report plus the coordinator's branch,
-cleanliness and reflog state, `run inspect`, `worktree inspect`, `publication next` read durable
-state and never write. Every mutation is authoritative and guarded:
+cleanliness and reflog state, `run inspect`, `worktree inspect`, `publication next` and
+`budget inspect` read durable state and never write. Every mutation is authoritative and
+guarded:
 
 * Manifest writes resolve the run's canonical path from the explicit coordinator checkout and
   read the manifest fresh -- a caller-supplied copy is never trusted for an effect. The
@@ -57,7 +61,15 @@ state and never write. Every mutation is authoritative and guarded:
   lost manifest write is recovered by the next fresh `promote` instead of repeating an external
   effect.
 * `worktree`, `integration` and `owner` mutations call their helpers directly; those helpers
-  own their own read-only ownership checks and perform nothing before they pass.
+  own their own read-only ownership checks and perform nothing before they pass. `owner
+  release` is additionally gated by the CLI itself: the exact run's manifest must prove
+  quiescence (every task published, no latched stop, no unfinished owned claim) and the
+  matching run state must say `completed: true` before the token proof removes the lock --
+  the caller's own `completed`/`quiescent` bytes are an assertion, never the proof.
+* `budget reserve` charges the run-wide correction budget (`counters.correction_rounds` in the
+  coordinator's `run-state.json`, `MAX_TOTAL_CORRECTION_ROUNDS = 8`) for one stable round
+  identity before a fix dispatch, atomically and idempotently; `budget inspect` reads it. The
+  budget module is the only writer, and it never creates, resets or decrements the ledger.
 
 The coordinator readiness predicates (`preflight`'s branch/cleanliness/reflog checks) and the
 ticket-lock read have exactly one reviewed implementation in `parallel_integration` and
@@ -78,6 +90,7 @@ if str(SCRIPTS) not in sys.path:
 sys.path.insert(0, str(SCRIPTS.parent / 'hooks'))
 
 import doc_header  # noqa: E402
+import parallel_budget  # noqa: E402
 import parallel_contract  # noqa: E402
 import parallel_integration  # noqa: E402
 import parallel_launch  # noqa: E402
@@ -102,6 +115,7 @@ INVALID_KINDS = frozenset({
 })
 
 HELPER_ERRORS = (
+    parallel_budget.BudgetError,
     parallel_contract.ContractError, parallel_state.StateError, parallel_queue.QueueError,
     parallel_scheduler.SchedulerError, parallel_integration.IntegrationError,
     parallel_publication.PublicationError, task_worktree.WorktreeError,
@@ -163,6 +177,7 @@ def _parser():
     leaf(('worktree', 'create', 'inspect', 'cleanup'), 'per-task worker worktrees')
     leaf(('integration', 'prepare', 'apply', 'commit', 'recover'), 'the integration transaction')
     leaf(('publication', 'next', 'record'), 'restartable completion publication')
+    leaf(('budget', 'inspect', 'reserve'), 'the run-wide correction budget')
     return parser
 
 
@@ -321,8 +336,8 @@ def cmd_preflight(request, _stdin_used):
     report = parallel_launch.capability_report(request['capabilities'])
     if not report['ok']:
         _fail(report['kind'] or 'unsupported_api', '; '.join(report['reasons']))
-    head, branch = parallel_integration._coordinator_preflight(repo)
     root = parallel_integration._top_level(repo)
+    head, branch = parallel_integration._coordinator_preflight(repo)
     parallel_integration._require_clean_coordinator(root)
     return {'schema': SCHEMA, 'ok': True, 'head': head, 'branch': branch,
             'capabilities': report}
@@ -334,10 +349,80 @@ def cmd_owner_acquire(request, _stdin_used):
                                          request['owner'])
 
 
+def _release_identity(owner):
+    """The release request's run identity and token proof, or `invalid_request`."""
+    if not isinstance(owner, dict):
+        _fail('invalid_request', '`owner` is not an object: {!r}'.format(owner))
+    run_id = owner.get('run_id')
+    if not isinstance(run_id, str) or not run_id:
+        _fail('invalid_request', '`owner.run_id` is not a non-empty string: {!r}'.format(
+            run_id))
+    phase = owner.get('phase')
+    if phase is not None and (isinstance(phase, bool) or not isinstance(phase, int)
+                              or phase < 1):
+        _fail('invalid_request', '`owner.phase` is not an integer >= 1 or null: {!r}'.format(
+            phase))
+    token = owner.get('token')
+    if not isinstance(token, str) or not token:
+        _fail('invalid_request', '`owner.token` is not a non-empty string: {!r}'.format(token))
+    return run_id, phase, token
+
+
+def _require_quiescent(manifest):
+    """The exact run's manifest must prove quiescence before its lock can be released.
+
+    A caller's `completed`/`quiescent` bytes are an assertion, never the proof: every task
+    must be durably published, no reconciliation stop may be latched, and no claim the run
+    still owns may be unfinished. Nothing is reset, published or discarded to make this pass.
+    """
+    if manifest['stop'] is not None:
+        _fail('premature_release', 'the run stopped admission for reconciliation ({}); the '
+                                   'lock is retained'.format(
+                                       manifest['stop'].get('reason') or 'no reason recorded'))
+    unfinished = sorted(task for task, record in manifest['tasks'].items()
+                        if record['state'] != 'published')
+    if unfinished:
+        _fail('premature_release', 'the run is not quiescent: {} not published; the lock is '
+                                   'retained'.format(', '.join(unfinished)))
+    claims = []
+    for intent in manifest['claims']['intents']:
+        if intent['state'] == 'pending':
+            claims.append(intent['intent_id'])
+        elif intent['state'] == 'mapped':
+            task = intent['row'].get('task') if isinstance(intent['row'], dict) else None
+            record = manifest['tasks'].get(task)
+            if record is None or record['state'] != 'published':
+                claims.append(intent['intent_id'])
+    if claims:
+        _fail('premature_release', 'the run still holds an unfinished claim ({}); the lock is '
+                                   'retained'.format(', '.join(claims)))
+
+
 def cmd_owner_release(request, _stdin_used):
     _keys(request, ('repo', 'ticket', 'owner'))
-    return parallel_state.release_ticket(_text(request, 'repo'), _text(request, 'ticket'),
-                                         request['owner'])
+    repo = _text(request, 'repo')
+    ticket = _text(request, 'ticket')
+    owner = request['owner']
+    run_id, phase, token = _release_identity(owner)
+    stored = _require_owner(repo, ticket, run_id, phase)
+    if stored['token'] != token:
+        _fail('foreign_owner', 'the ticket {} is held under another token; only the acquiring '
+                               'run releases it'.format(ticket))
+    manifest = _read_manifest(repo, ticket, run_id)
+    if manifest['ticket'] != ticket or manifest['run_id'] != run_id \
+            or manifest['phase'] != phase:
+        _fail('manifest_mismatch', 'the run manifest is not this run\'s: {!r}'.format(
+            {name: manifest[name] for name in ('ticket', 'run_id', 'phase')}))
+    _require_quiescent(manifest)
+    _path, state = parallel_budget.read_run_state(repo, ticket, phase)
+    if state.get('completed') is not True:
+        _fail('premature_release', 'the run state says completed={!r}; the final gates and the '
+                                   'completion update come before release; the lock is '
+                                   'retained'.format(state.get('completed')))
+    if state.get('pause_reason') is not None:
+        _fail('premature_release', 'the run is paused ({!r}); a pause retains ownership and '
+                                   'recovery state'.format(state.get('pause_reason')))
+    return parallel_state.release_ticket(repo, ticket, owner)
 
 
 def cmd_run_create(request, _stdin_used):
@@ -555,6 +640,7 @@ def cmd_publication_record(request, _stdin_used):
                 for name in ('ticket', 'task', 'run_id', 'attempt', 'transaction_id')}
     identity['task'] = task
     durable = _read_record(repo, identity)
+    _require_owner(repo, durable['ticket'], durable['run_id'], durable['phase'])
     if durable.get('publication') != receipt.get('publication'):
         _fail('stale_publication', 'the receipt was planned against publication {!r}, not the '
                                    'durable {!r}; re-plan from the fresh record'.format(
@@ -580,6 +666,22 @@ def cmd_publication_record(request, _stdin_used):
             'transaction': stored}
 
 
+def cmd_budget_inspect(request, _stdin_used):
+    _keys(request, ('repo', 'ticket', 'phase'))
+    return parallel_budget.inspect(_text(request, 'repo'), _text(request, 'ticket'),
+                                   _phase(request, 'phase'))
+
+
+def cmd_budget_reserve(request, _stdin_used):
+    _keys(request, ('repo', 'ticket', 'run_id', 'phase', 'kind', 'scope', 'attempt',
+                    'ordinal', 'expected_revision'))
+    return parallel_budget.reserve(
+        _text(request, 'repo'), _text(request, 'ticket'), _text(request, 'run_id'),
+        _phase(request, 'phase'), _text(request, 'kind'), _text(request, 'scope'),
+        _integer(request, 'attempt', 1), _integer(request, 'ordinal', 1),
+        _integer(request, 'expected_revision', 0))
+
+
 DISPATCH = {
     ('config',): cmd_config,
     ('preflight',): cmd_preflight,
@@ -601,6 +703,8 @@ DISPATCH = {
     ('integration', 'recover'): cmd_integration_recover,
     ('publication', 'next'): cmd_publication_next,
     ('publication', 'record'): cmd_publication_record,
+    ('budget', 'inspect'): cmd_budget_inspect,
+    ('budget', 'reserve'): cmd_budget_reserve,
 }
 
 

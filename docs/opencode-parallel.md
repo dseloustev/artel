@@ -955,13 +955,14 @@ mutation needs: the coordinator checkout (`repo`), the run identity (`ticket`, `
 |---|---|---|
 | `config` | `{repo}` | Reads `<repo>/.artel/config.json` and resolves `parallel.seats`; absent or `1` is the serial default. |
 | `preflight` | `{repo, capabilities}` | Consumes the adapter's read-only capability report and verifies the coordinator's branch, cleanliness and reflog before any claim or worktree. Read-only. |
-| `owner acquire` / `owner release` | `{repo, ticket, owner}` | The repository-common ticket lock; release only for the matching completed, quiescent run. |
+| `owner acquire` / `owner release` | `{repo, ticket, owner}` | The repository-common ticket lock; release requires the exact run's manifest quiescent (every task published, no latched stop, no unfinished owned claim) and its run state `completed: true` and unpaused, then the matching token. |
 | `run create` / `run inspect` / `run transition` | `{repo, ticket, phase, run_id, seats, graph_digest}` / `{repo, ticket, run_id}` / `{repo, ticket, run_id, expected_revision, task, expected, target, fields?}` | The run manifest; `inspect` is a pure read. |
 | `claim prepare` / `claim record` / `claim reconcile` | `{repo, ticket, run_id, expected_revision, intent_id?, row?, rows?}` | The claim intent before the queue call, the recorded returned row, and reconciliation against fresh rows. |
 | `admit` | `{repo, ticket, run_id, tasklist, case_sensitive?}` | The pure admission selector over the parsed tasklist; only the current unfinished iteration is admitted. |
 | `worktree create` / `worktree inspect` / `worktree cleanup` | `{repo, assignment[, publication]}` | The per-task worker worktree lifecycle. |
 | `integration prepare` / `integration apply` / `integration commit` / `integration recover` | `{repo, assignment, result}` / `{repo, assignment, prepared}` / `{repo, transaction, subject}` / `{repo, transaction}` | The serialized integration transaction. |
 | `publication next` / `publication record` | `{repo, ticket, run_id, task, observed}` / `{repo, transaction, task, action_id, receipt}` | The publication plan and one durable intent/receipt. |
+| `budget inspect` / `budget reserve` | `{repo, ticket, phase}` / `{repo, ticket, run_id, phase, kind, scope, attempt, ordinal, expected_revision}` | The run-wide correction budget (§13.12). |
 
 Every command answers with the deterministic-script envelope — `{ok, verb, elapsed_ms,
 data}` or `{ok, verb, elapsed_ms, error: {kind, message}}` — and exits `0` on success, exit `1`
@@ -982,7 +983,13 @@ silent clobber of a newer record. It then persists the returned publication reco
 transaction's reserved `publication` field **first** — through the reviewed, ownership- and
 drain-checked writer — and only then writes the promoted manifest, revision-checked, when the
 reducer changed it. A lost manifest write is recovered by the next fresh `promote`, not by
-repeating an external effect.
+repeating an external effect. `publication record` also runs the same lock match
+unconditionally before its reducer, on every path — including the pure promote whose
+publication is unchanged. `owner release` is gated by the CLI itself: the exact run's manifest
+must prove quiescence (every task published, no latched stop, no unfinished owned claim) and
+the matching run state must say `completed: true` without a pause before the token proof
+removes the lock — the caller's own `completed`/`quiescent` bytes are an assertion, never the
+proof.
 
 **Caller trust.** A request's pure planning inputs (the tasklist, the observed bundle, a row)
 are caller-supplied; its effects are not. `record_publication` still trusts the coordinator's
@@ -1016,8 +1023,8 @@ generated tail carries the opt-in gate that reads it.
    `artel_parallel_startWorker` adapter. Status comes from `artel_parallel_workerStatus` —
    durable state, never the volatile event stream — and an `interrupted` outcome overrides a
    contradictory succeeded result. The review is coordinator-owned at that worker's exact
-   diff, root and attempt; fix lists stay serial and every fix round counts against the same
-   run-wide caps.
+   diff, root and attempt; fix lists stay serial and every fix round is reserved from the
+   run-wide budget before its dispatch (§13.12), never counted from zero after a resume.
 4. **Integrate/publish.** Persisting `prepared -> integrating` is the durable admission latch:
    siblings still returning reach safe return, a `prepared` or `reserved` sibling parks, and
    nothing is relaunched, blocked or cancelled to make room. Then the transport commit in the
@@ -1031,8 +1038,54 @@ generated tail carries the opt-in gate that reads it.
    decision, `artel_parallel_interruptWorker` for a running session) — never an invented key.
 6. **Finish.** The final whole-tree review, runtime gate and checkpoint run only when the run
    is quiescent: no task active or `integrating`, every required publication durable. `owner release`
-   happens only for the matching, completed, quiescent run; a pause retains the lock
-   and the recovery state.
+   happens only for the matching, completed, quiescent run — the CLI re-checks the exact run's
+   manifest quiescence and its run state's `completed` flag before the token proof removes the
+   lock; a pause retains the lock and the recovery state.
+
+### 13.12 The run-wide correction budget
+
+Every correction round the parallel loop dispatches is reserved from the **existing**
+authoritative budget: `counters.correction_rounds` in the coordinator's
+`<repo>/.artel/run/<TICKET_ID>/run-state.json` ([autonomous-run.md](autonomous-run.md) §2, §5).
+There is no second ledger, no manifest key and no worker payload field;
+`scripts/parallel_budget.py` is the only writer, reached through the CLI:
+
+- `budget inspect` — `{repo, ticket, phase}`: the current `correction_rounds`, the run-wide cap
+  (`MAX_TOTAL_CORRECTION_ROUNDS = 8`), the remaining rounds, the reservation `revision`, every
+  recorded reservation and the canonical per-scope caps the coordinator reconciles against.
+  Read-only; a missing, unreadable, non-matching or not-armed run state refuses
+  `missing_run_state`, `corrupt_run_state`, `run_state_mismatch` or `run_not_active` and is
+  never created, reset or overwritten.
+- `budget reserve` — `{repo, ticket, run_id, phase, kind, scope, attempt, ordinal,
+  expected_revision}`: one durable reservation before a fix dispatch. The **stable key** is
+  `<kind>:<scope>:a<attempt>:r<ordinal>` — the fix-list source (`review`, `runtime`,
+  `checkpoint`), the gate scope (a task number, `ticket` or `phase-<N>`), the worker attempt
+  and the true round ordinal of that scope's canonical artifact; a task and attempt alone never
+  identify a round. The exact same identity and key replays for free (`replayed: true`), a new
+  identity or round charges the counter once, `expected_revision` is the write guard
+  (`stale_revision` before any write), the per-scope cap refuses a fabricated extra round
+  (`scope_cap`) and the run-wide cap refuses any new round once the counter reaches 8
+  (`budget_exhausted`) — both before the write, with every byte preserved. There is no reset,
+  decrement or recredit verb.
+
+The counter and the reservation block (`counters.correction_reservations`,
+`{schema, revision, rounds}`) are written atomically — a temp sibling and `os.replace` — under
+an exclusive transient lock: a separate `<run-state>.lock` file locked with `fcntl.flock`,
+never taken over and released by the kernel on process exit, so a crashed coordinator leaves no
+stale lock. Concurrent reservations serialize without losing an increment, and every unrelated
+run-state field and nonzero counter is preserved. A crash before the write costs nothing; a
+lost reply replays the same reservation for free; a reserved-but-undispatched round
+conservatively stays charged until the same identity resumes.
+
+Only an actual fix dispatch is charged: never the initial plan review or a worker's own
+execution. The scope caps are the canonical workflow defaults ([autonomous-run.md](autonomous-run.md)
+§5) — `MAX_TASK_REVIEW_ROUNDS = 1` per worker task review, `MAX_REVIEW_ROUNDS = 3` per
+ticket/phase `review.md` artifact, `MAX_RUNTIME_RETRIES = 1` and
+`MAX_CHECKPOINT_VERIFY_ROUNDS = 2` — while the run-wide `MAX_TOTAL_CORRECTION_ROUNDS = 8` is
+shared by every scope. On resume the coordinator inspects fresh and reconciles the canonical
+artifact round (the task review's journal entry, `review.md`'s `**Review round:**`,
+`runtime-observation.md`, the checkpoint entry) against the recorded reservations before every
+dispatch; it never starts from zero.
 
 ## 14. Proof record
 

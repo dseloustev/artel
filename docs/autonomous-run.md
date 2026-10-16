@@ -82,7 +82,8 @@ Path: `.artel/run/<TICKET_ID>/run-state.json` (always ticket-top-level, even for
   "completed": false,            // true only after the completion gate passes (§7)
   "pause_reason": null,          // "deviation-escalation" | "hitl-task" | "cap-escalation" | "store-unavailable" | "user-abort"
   "started_at": "2026-08-01T12:00:00Z",   // ISO-8601 UTC, written at run start
-  "counters": { "verify": 0, "review_rounds": 0, "escalations": 0, "correction_rounds": 0 },  // reporting aggregate only (exception: correction_rounds — authoritative here, preserved across resume; §5)
+  "counters": { "verify": 0, "review_rounds": 0, "escalations": 0, "correction_rounds": 0,   // reporting aggregate only (exception: correction_rounds — authoritative here, preserved across resume; §5)
+                "correction_reservations": { "schema": 1, "revision": 0, "rounds": [] } },  // OpenCode parallel only: the reservation block (§5; opencode-parallel.md §13.12)
   "effective_mode": "plan-gate", // "yolo" | "plan-gate" — resolved per §10 (full-gates never arms a run)
   "requested_mode": null,        // the --mode value, or null when not passed
   "requested_local": false,      // true when --local was passed (knowledge-consultation.md §1)
@@ -106,6 +107,13 @@ Transitions:
   by the Stop hook (§8). On resume, the orchestrator rewrites `started_at`.
 
 The `counters` object is a reporting aggregate; authoritative counters live in the loop artifacts (§5).
+
+The OpenCode parallel coordinator adds one narrow key inside `counters` —
+`correction_reservations` (`{schema, revision, rounds}`) — the durable reservation block for
+`correction_rounds` (docs/opencode-parallel.md §13.12). It is written only by
+`scripts/parallel_budget.py`, absent in serial runs, and preserved across resume like the
+counter itself: an existing nonzero `correction_rounds` is adopted, never re-zeroed, and every
+unrelated field is kept.
 
 An **armed run** is one whose file has `run_active: true` and `gates_confirmed` holding
 `TASKLIST_READY`. Re-invoking `feature-development` on it skips the import, sizing and every
@@ -196,6 +204,13 @@ a cap escalation.
 | baseline capture (§14, gates.md §1) | once per run, at a fresh arm — never re-recorded on resume or at a phase boundary | `.artel/run/<TICKET_ID>/verify-baseline.json` |
 | global correction rounds (review + runtime fix rounds) | `MAX_TOTAL_CORRECTION_ROUNDS = 8` | `counters.correction_rounds` in `run-state.json` |
 | global wall-clock | `WALL_CLOCK_HOURS = 3` | `run-state.json` `started_at` |
+
+**OpenCode parallel runs** reserve each fix round from that same `counters.correction_rounds`
+before its dispatch, through `scripts/parallel_budget.py`
+([opencode-parallel.md](opencode-parallel.md) §13.12): the run-wide cap is shared across every
+task, review, runtime and checkpoint scope, and only an actual fix dispatch is charged — never
+the initial plan review or a worker's own execution. A reservation replays for free for its
+exact identity; nothing decrements or resets it.
 
 These are the workflow's built-in defaults, not `.artel/config.json` keys. The runtime-gate row
 only runs at all when `runtime.run` (and `runtime.drive`, for `drive-app`) are configured; absent

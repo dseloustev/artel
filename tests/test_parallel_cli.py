@@ -1322,6 +1322,7 @@ class PublicationCase(WorktreeCase):
 class TestBudgetCli(CliCase):
     def test_the_budget_commands_route_with_the_envelope(self):
         self.write_run_state(run_active=True)
+        self.acquire()  # a reservation is a ticket-owned mutation (review B1)
         proc, envelope = self.cli('budget', 'inspect', request={
             'repo': str(self.repo), 'ticket': TICKET, 'phase': PHASE})
         self.assertEqual(proc.returncode, 0, envelope)
@@ -1339,6 +1340,17 @@ class TestBudgetCli(CliCase):
         self.assertEqual(proc.returncode, 0, envelope)
         self.assertEqual(envelope['verb'], 'parallel-budget-reserve')
         self.assertTrue(envelope['data']['replayed'])
+
+    def test_budget_reserve_requires_the_matching_ticket_lock(self):
+        self.write_run_state(run_active=True)
+        request = {'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID, 'phase': PHASE,
+                   'kind': 'review', 'scope': '2.1', 'attempt': 1, 'ordinal': 1,
+                   'expected_revision': 0}
+        before = self.run_state_path().read_bytes()
+        self.assertEqual(self.kind(1, 'budget', 'reserve', request=request), 'not_owned')
+        self.assertEqual(self.run_state_path().read_bytes(), before)
+        self.acquire()
+        self.assertFalse(self.ok('budget', 'reserve', request=request)['replayed'])
 
     def test_budget_malformed_input_is_refused(self):
         self.write_run_state()

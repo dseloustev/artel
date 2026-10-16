@@ -675,11 +675,20 @@ def cmd_budget_inspect(request, _stdin_used):
 def cmd_budget_reserve(request, _stdin_used):
     _keys(request, ('repo', 'ticket', 'run_id', 'phase', 'kind', 'scope', 'attempt',
                     'ordinal', 'expected_revision'))
-    return parallel_budget.reserve(
-        _text(request, 'repo'), _text(request, 'ticket'), _text(request, 'run_id'),
-        _phase(request, 'phase'), _text(request, 'kind'), _text(request, 'scope'),
-        _integer(request, 'attempt', 1), _integer(request, 'ordinal', 1),
-        _integer(request, 'expected_revision', 0))
+    # Parse and validate the request first, so malformed input keeps its invalid-input
+    # semantics; then the exact run must own the ticket before any helper effect (review B1).
+    repo = _text(request, 'repo')
+    ticket = _text(request, 'ticket')
+    run_id = _text(request, 'run_id')
+    phase = _phase(request, 'phase')
+    kind = _text(request, 'kind')
+    scope = _text(request, 'scope')
+    attempt = _integer(request, 'attempt', 1)
+    ordinal = _integer(request, 'ordinal', 1)
+    expected_revision = _integer(request, 'expected_revision', 0)
+    _require_owner(repo, ticket, run_id, phase)
+    return parallel_budget.reserve(repo, ticket, run_id, phase, kind, scope, attempt, ordinal,
+                                   expected_revision)
 
 
 DISPATCH = {

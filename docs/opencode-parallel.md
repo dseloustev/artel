@@ -1057,7 +1057,11 @@ There is no second ledger, no manifest key and no worker payload field;
   `missing_run_state`, `corrupt_run_state`, `run_state_mismatch` or `run_not_active` and is
   never created, reset or overwritten.
 - `budget reserve` — `{repo, ticket, run_id, phase, kind, scope, attempt, ordinal,
-  expected_revision}`: one durable reservation before a fix dispatch. The **stable key** is
+  expected_revision}`: one durable reservation before a fix dispatch. Like every mutation, it
+  is a ticket-owned operation: the repository-common lock must match the exact run
+  (`not_owned`, `ambiguous_owner`, `foreign_owner`) before the helper runs — the transient
+  `<run-state>.lock` below serializes budget writers only and is not ticket ownership — and a
+  malformed request still fails as invalid input first. The **stable key** is
   `<kind>:<scope>:a<attempt>:r<ordinal>` — the fix-list source (`review`, `runtime`,
   `checkpoint`), the gate scope (a task number, `ticket` or `phase-<N>`), the worker attempt
   and the true round ordinal of that scope's canonical artifact; a task and attempt alone never

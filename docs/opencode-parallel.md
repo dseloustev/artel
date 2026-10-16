@@ -1224,6 +1224,11 @@ sample establishes is that both seat counts close the same boundary with the sam
 Limits, not claims: local file-backed mode only — no remote artifact store or queue adapter
 was exercised live (its deterministic coverage is not a live proof); the CI matrix's 3.11 and
 3.13 full suites were not run; the default globally installed plugin path was not exercised
-(the fixture used the per-instance wrapper); and the generated inline coordinator procedure
-was not driven by a model. Raw evidence:
+(the fixture used the per-instance wrapper); the generated inline coordinator procedure was
+not driven by a model; and the **expensive-setup/codegen host case is NOT PROVEN** — the
+fixture's configured setup is real generation work (a generator plus a baseline test run)
+measured at ~0.3–0.5 s per worker root, which is not an expensive-setup host and cannot show
+per-task worktree setup multiplication when setup cost is significant. The real generator
+measurement stands as measured; the expensive case is not claimed, and the expensive-setup
+criterion is neither waived nor replaced by the cheaper case that was measured. Raw evidence:
 `.artel/run/repro/opencode-parallel-proof/task12/` (host-owned, not committed).

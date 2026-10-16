@@ -186,8 +186,12 @@ move to the decision log.
   the whole-tree review snapshot, every task patching one tasklist, the shared
   `implementation-notes.md`, whole-tree codegen — are resolved by construction rather than by
   serializing around them. Still unproven and not to be claimed: the CI matrix's 3.11/3.13
-  full suites, remote store/queue adapters exercised live, and the default globally installed
-  plugin path (the fixture used a per-instance bridge wrapper).
+  full suites, remote store/queue adapters exercised live, the default globally installed
+  plugin path (the fixture used a per-instance bridge wrapper), and the expensive-setup/
+  codegen host case — the fixture's setup is real generation work measured at ~0.3–0.5 s per
+  worker root, not an expensive-setup host, so per-task worktree setup multiplication at
+  significant setup cost is unmeasured: the expensive-setup criterion is marked NOT PROVEN,
+  not replaced by the cheaper case that was measured.
 - **Follow-up work on a finished ticket.** A lean run on a ticket whose work list has no open
   task stops before arming and says so (0.25.0, `skills/feature-development/heads/lean.md`):
   `generate-tasklist` skips a tasklist that exists, and before the merge such a request was

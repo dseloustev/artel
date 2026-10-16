@@ -202,3 +202,7 @@ decision log.
       the deterministic fake coverage is not a live proof).
 - [ ] The default globally installed plugin path observed end to end (the fixture's
       per-instance bridge wrapper is not a global-install test).
+- [ ] An expensive-setup/codegen host validated (the fixture's setup is real generation work
+      measured at ~0.3–0.5 s per worker root — not an expensive-setup host, so per-task
+      worktree setup multiplication at significant setup cost is unmeasured; NOT PROVEN, not
+      a substitute for the cheaper case that was measured).

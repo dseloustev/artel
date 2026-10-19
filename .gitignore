@@ -17,3 +17,4 @@ opencode/dist/
 # script, never committed. Anchored to the root so a nested config stays visible.
 /opencode.json
 /opencode.jsonc
+/opencode.json.openchamber.backup

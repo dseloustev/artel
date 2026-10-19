@@ -15,10 +15,13 @@ All notable changes to this project are documented here. The format follows
   CI target — it was green at 2,981 tests on the final parallel tree alongside 3.14. Decision:
   [docs/design.md](docs/design.md) (2026-10-19).
 
-- **Parallel workers re-proved on OpenCode 2.0.32.** The worker-session capability gate now
-  pins 2.0.32 (the installed service) after a native re-proof of the adapter transport and
-  worker-role guard; 2.0.29 remains the original proof record. The expensive-setup host, live
-  remote adapters, global-install path and a model-driven coordinator run remain unproven
+- **Parallel workers re-proved on OpenCode 2.0.32, and the coordinator loop driven by a
+  model.** The worker-session capability gate now pins 2.0.32 (the installed service) after a
+  native re-proof of the adapter transport and worker-role guard; 2.0.29 remains the original
+  proof record. The generated inline coordinator procedure was then driven end to end by a
+  model in a scratch `seats: 2` host: two pinned workers, two hooked cycle commits, durable
+  publication, a whole-branch review and a completed, released run. The expensive-setup host,
+  live remote adapters and the default global-install path remain unproven
   ([docs/opencode-parallel.md](docs/opencode-parallel.md)).
 
 ## [0.38.0] - 2026-10-16

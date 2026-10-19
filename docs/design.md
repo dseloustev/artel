@@ -1623,3 +1623,15 @@ move to the decision log.
   and `subagent`. `PROVEN_VERSION` now pins 2.0.32; the original 2.0.29 proof remains
   history. Not waived: the expensive-setup/codegen host, live remote store/queue adapters,
   the default global install and a full model-driven coordinator run.
+- **2026-10-19 — The generated parallel coordinator loop was driven by a model.** A
+  `tokenguard/deepseek-flash` coordinator followed
+  `skills/artel-feature-development/parallel.md` end to end in a scratch host with
+  `parallel.seats: 2`, a file-backed two-task iteration and no queue, through a standalone
+  private server and the current source. It completed both tasks in pinned workers, committed
+  two normal hooked cycles (code plus tasklist tick and notes), published durably, committed a
+  whole-branch `review.md` (Approved), and released a completed run; it corrected one
+  request-shape refusal itself. Fixture limits, not procedure gaps: the host had no
+  `models.opencode`, so the workers were pinned to the concrete installed model rather than
+  resolved from config, and the coordinator created the feature branch and set the repo-local
+  `init.defaultBranch`. Not waived: the default global install, live remote store/queue
+  adapters and the expensive-setup/codegen host.

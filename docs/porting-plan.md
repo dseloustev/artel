@@ -196,8 +196,8 @@ decision log.
 - [x] Coordinator CLI (`scripts/parallel.py`) and the generated opt-in loop
       (`skills/feature-development/parallel.md`, `parallel.seats`), with the run-wide
       correction budget on the existing `counters.correction_rounds`. The check marks the
-      **implementation**; the generated loop has not been driven by a model end to end
-      (NOT PROVEN, opencode-parallel.md §14).
+      **implementation**; the generated loop was driven by a model end to end on 2026-10-19
+      in a scratch standalone install (evidence and limits: opencode-parallel.md §14).
 - [x] Real-host fixture validation of the worker-change → scoped gate → task review →
       transport/apply/one-cycle commit → durable publication boundary, `seats: 2` with a
       pause/resume across a coordinator restart plus a `seats: 1` sample, in local

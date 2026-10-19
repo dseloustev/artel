@@ -1329,7 +1329,8 @@ was exercised live (its deterministic coverage is not a live proof); the 3.11/3.
 runs were retired by the 2026-10-19 testing-policy decision (latest Python only; 3.9 and
 3.14 were green at 2,981 tests); the default globally installed plugin path was not exercised
 (the fixture used the per-instance wrapper); the generated inline coordinator procedure was
-not driven by a model; and the **expensive-setup/codegen host case is NOT PROVEN** — the
+driven by a model on 2026-10-19 in a scratch standalone install (see the proof record below);
+and the **expensive-setup/codegen host case is NOT PROVEN** — the
 fixture's configured setup is real generation work (a generator plus a baseline test run)
 measured at ~0.3–0.5 s per worker root, which is not an expensive-setup host and cannot show
 per-task worktree setup multiplication when setup cost is significant. The real generator
@@ -1351,6 +1352,24 @@ a fresh private server recovered the durable status of sessions created by an ea
 (no event replay); and in a worker session the `artel_parallel_startWorker` and `subagent`
 calls were each denied pre-execution by the worker-role guard with the exact `artel worker
 role` error. Raw evidence: host-owned scratch under the scratch host's `.artel/run/` (not
-committed). Limits: the re-proof exercised the adapter transport and role guard, not a second
-full model-driven coordinator run; the expensive-setup host, live remote adapters and the
-default global-install path remain unproven.
+committed). Limits: the re-proof exercised the adapter transport and role guard; the separate
+model-driven coordinator run below exercised the full loop. The expensive-setup host, live
+remote adapters and the default global-install path remain unproven.
+
+**Model-driven coordinator run (2026-10-19).** The generated inline coordinator procedure
+(`skills/artel-feature-development/parallel.md`) was driven end to end by a model
+(`tokenguard/deepseek-flash`) in a scratch host with `parallel.seats: 2`, a file-backed
+two-task iteration and no queue, through a standalone private server and the current source
+(`ARTEL_ROOT` pointed at a scratch install root; no global install or service restart).
+Recorded: capabilities `ok` on 2.0.32; preflight, ownership, run creation, admission, two
+pinned workers in their lifecycle worktrees, both results validated, two normal hooked cycle
+commits (`085c285` code plus tasklist tick and notes; `2c12ba8` likewise), durable publication
+with both manifest tasks `published`, the tasklist ticked, `implementation-notes.md` and a
+whole-branch `review.md` (verdict Approved) committed, the run state `completed: true`, and
+the ticket lock released. The coordinator corrected one request-shape refusal itself
+(`owner release` initially omitted `completed`/`quiescent`). Fixture limits, not procedure
+gaps: the host had no `models.opencode`, so the workers were pinned to the concrete installed
+model rather than resolved from config, and the coordinator created the feature branch and set
+the repo-local `init.defaultBranch`. Raw evidence: the scratch host's `.artel/run/PROOF-13/`
+and branch `feature/PROOF-13` (not committed). Still unproven: the default globally installed
+plugin path, live remote store/queue adapters and the expensive-setup/codegen host.

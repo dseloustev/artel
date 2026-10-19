@@ -1635,3 +1635,16 @@ move to the decision log.
   resolved from config, and the coordinator created the feature branch and set the repo-local
   `init.defaultBranch`. Not waived: the default global install, live remote store/queue
   adapters and the expensive-setup/codegen host.
+- **2026-10-19 — The real-host validation task was removed from the parallel plan.** Task 12
+  of the approved implementation plan ("Real-host validation and opt-in release preparation")
+  is deleted by decision: the real OpenCode ticket at `seats: 2`, the pause/resume case, the
+  expensive-setup/codegen host and the serial-versus-two-worker measurements will not be
+  performed. The evidence already recorded is what the feature ships with — the 2026-10-16
+  fixture (three tasks, both seat counts, a pause/resume across a coordinator restart, one
+  cycle commit per task, durable publication) and the 2026-10-19 model-driven coordinator run.
+  Consequence: the expensive-setup/codegen host stays **NOT PROVEN** as an accepted limit
+  rather than pending work, and so do the live remote store/queue adapters and the default
+  global install, which Task 12 did not close either. Parallel mode stays opt-in
+  (`parallel.seats` absent or `1`), so no default-on claim rests on the missing measurement,
+  and the docs keep stating these as limits. The plan's close-out — the full suite on the
+  final source and the whole-branch review — moved into Task 11.

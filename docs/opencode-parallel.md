@@ -181,8 +181,12 @@ nothing. `success` requires a native `succeeded` outcome, a valid result whose i
 matches the assignment and a `succeeded` result status: native idle, native success without a
 valid result, and a missing, malformed, escaping or identity-mismatched result are all
 non-successful; an `interrupted` outcome wins over a contradictory success result and is
-reported as `interrupted_over_result`. `interruptWorker` interrupts only the journal's known
-session and reports the durable post-interrupt state; it never resumes or retries.
+reported as `interrupted_over_result`. A launch the journal already records as `interrupted`
+is terminal for its attempt: it stays `interrupted` and non-successful regardless of any later
+native outcome or retained result on that session — the field flags that override too — and a
+vanished session reports `interrupted`, not `missing`. `interruptWorker` interrupts only the
+journal's known session and reports the durable post-interrupt state; it never resumes or
+retries.
 
 **Coordinator-only.** The adapter namespace is coordinator-only twice over: the bridge's
 worker guard denies `subagent`, `question` and every `artel_parallel_*` tool in a worker
@@ -941,8 +945,12 @@ refusing final hook leaves the record and the staged tree as they were (`commit_
 **Recovery — `recover_cycle`.** A final commit may have landed before its receipt was persisted.
 Recovery matches the recorded `pre_head` plus the branch reflog entry whose message is the
 transaction id exactly (also when the coordinator itself is a linked checkout) and returns that
-commit exactly once; `commit_cycle` and `prepare_transport` run the same recognition first, so a
-repeated call never creates a second transport or cycle commit. Missing or unusable reflogs
+commit exactly once. `commit_cycle` runs that recognition first, so repeating it never creates a
+second cycle commit. `prepare_transport` does **not** run it: once the record is `applying`,
+`applied` or `committing`, recovery is stage-aware — run `recover_cycle` first, and never restart
+an advanced transaction through prepare, which rewinds the recorded stage to `prepared` with a
+null `cycle_commit` even when the final commit landed (the coordinator procedure carries the
+same warning). Missing or unusable reflogs
 (`reflogs_unusable`), an expired window (`expired_evidence`), evidence that carries the marker but
 does not match the pre-HEAD (`ambiguous_evidence`) and a matching commit no longer reachable from
 the branch (`unreachable_evidence`) each **refuses rather than re-committing** — the diagnosis is

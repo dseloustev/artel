@@ -611,6 +611,58 @@ class TestLaunchLifecycle(AdapterCase):
                 second, request=self.request(second, permissions=rules)), native2)
         self.assertEqual(caught.exception.kind, 'permissions_mismatch')
 
+    def test_a_duplicate_start_with_a_tighter_ruleset_is_refused(self):
+        allow = [{'action': 'shell', 'resource': '*', 'effect': 'allow'}]
+        deny = [{'action': 'shell', 'resource': '*', 'effect': 'deny'}]
+        assignment, _ = self.create()
+        native = FakeNative()
+        ts_start(self.start_input(
+            assignment, request=self.request(assignment, permissions=allow)), native)
+        with self.assertRaises(parallel_launch.LaunchError) as caught:
+            ts_start(self.start_input(
+                assignment, request=self.request(assignment, permissions=deny)), native)
+        self.assertEqual(caught.exception.kind, 'permissions_mismatch')
+        self.assertEqual(native.kinds().count('create'), 1)
+        self.assertEqual(self.read_journal(assignment)['permissions'], allow)
+
+    def test_a_duplicate_start_with_a_looser_ruleset_is_refused(self):
+        allow = [{'action': 'shell', 'resource': '*', 'effect': 'allow'}]
+        deny = [{'action': 'shell', 'resource': '*', 'effect': 'deny'}]
+        assignment, _ = self.create()
+        native = FakeNative()
+        ts_start(self.start_input(
+            assignment, request=self.request(assignment, permissions=deny)), native)
+        with self.assertRaises(parallel_launch.LaunchError) as caught:
+            ts_start(self.start_input(
+                assignment, request=self.request(assignment, permissions=allow)), native)
+        self.assertEqual(caught.exception.kind, 'permissions_mismatch')
+        self.assertEqual(self.read_journal(assignment)['permissions'], deny)
+
+    def test_a_legacy_journal_without_a_recorded_ruleset_is_refused(self):
+        assignment, _ = self.create()
+        native = FakeNative()
+        ts_start(self.start_input(assignment), native)
+        journal = self.read_journal(assignment)
+        del journal['permissions']
+        self.journal_path(assignment).write_text(json.dumps(journal), encoding='utf-8')
+        with self.assertRaises(parallel_launch.LaunchError) as caught:
+            ts_start(self.start_input(assignment), native)
+        self.assertEqual(caught.exception.kind, 'permissions_mismatch')
+        self.assertEqual(native.kinds().count('create'), 1)
+        self.assertEqual(native.kinds().count('prompt'), 1)
+
+    def test_a_duplicate_start_without_the_recorded_ruleset_is_refused(self):
+        rules = [{'action': 'subagent', 'resource': '*', 'effect': 'deny'}]
+        assignment, _ = self.create()
+        native = FakeNative()
+        ts_start(self.start_input(
+            assignment, request=self.request(assignment, permissions=rules)), native)
+        with self.assertRaises(parallel_launch.LaunchError) as caught:
+            ts_start(self.start_input(assignment), native)
+        self.assertEqual(caught.exception.kind, 'permissions_mismatch')
+        self.assertEqual(native.kinds().count('prompt'), 1)
+        self.assertEqual(self.read_journal(assignment)['permissions'], rules)
+
     def test_a_non_worker_root_is_refused_before_any_effect(self):
         assignment = self.assignment()
         native = FakeNative()
@@ -1016,6 +1068,30 @@ class TestWorkerStatus(AdapterCase):
         self.assertFalse(status['success'])
         self.assertTrue(status['interrupted_over_result'])
         self.assertIsNotNone(status['result'])
+
+    def test_a_durable_interruption_survives_a_later_native_success(self):
+        assignment, native, envelope = self.started()
+        self.write_result(assignment)
+        ts_interrupt({'request': {'assignment': assignment}, 'caller': self.caller()}, native)
+        self.assertEqual(self.read_journal(assignment)['state'], 'interrupted')
+        native.complete(envelope['session_id'], 'succeeded')
+        status = ts_status({'request': {'assignment': assignment}, 'caller': self.caller()}, native)
+        self.assertEqual(status['state'], 'interrupted')
+        self.assertFalse(status['success'])
+        self.assertTrue(status['interrupted_over_result'])
+        self.assertIsNotNone(status['result'])
+
+    def test_a_durably_interrupted_attempt_with_a_vanished_session_stays_interrupted(self):
+        assignment, native, _envelope = self.started()
+        ts_interrupt({'request': {'assignment': assignment}, 'caller': self.caller()}, native)
+        journal = self.read_journal(assignment)
+        journal['session_id'] = 'ses_someone_else'
+        self.journal_path(assignment).write_text(json.dumps(journal), encoding='utf-8')
+        status = ts_status({'request': {'assignment': assignment}, 'caller': self.caller()}, native)
+        self.assertTrue(status['known'])
+        self.assertFalse(status['present'])
+        self.assertEqual(status['state'], 'interrupted')
+        self.assertFalse(status['success'])
 
     def test_a_wrong_session_object_is_refused(self):
         assignment, native, envelope = self.started()

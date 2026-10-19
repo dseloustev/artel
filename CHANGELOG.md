@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Parallel launches pin their permission ruleset and honour a durable interruption.** A
+  duplicate `startWorker` now refuses a changed — tighter or looser — ruleset instead of
+  adopting the existing session with the one it was created under (`permissions_mismatch`);
+  a launch journal that predates the recorded ruleset is refused in both directions rather
+  than mistaken for a launch that pinned none. A journal recorded as `interrupted` stays
+  terminal for its attempt regardless of a later native success or retained result, and a
+  vanished session on such an attempt reports `interrupted`, not `missing`. The frozen
+  contract and the integration module now state that `commit_cycle` recognizes a landed cycle
+  commit and `prepare_transport` does not, so recovery of an advanced transaction goes
+  through `recover_cycle`. Findings W1–W3 of the final whole-branch review.
+
 ## [0.38.1] - 2026-10-19
 
 ### Changed

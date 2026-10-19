@@ -97,8 +97,11 @@ Recovery. A final commit may have landed before its receipt was persisted.
 entry (also when the coordinator itself is linked) and returns the landed commit exactly
 once; a missing, expired, ambiguous or unreachable evidence refuses (`reflogs_unusable`,
 `expired_evidence`, `ambiguous_evidence`, `unreachable_evidence`) and never re-commits.
-`commit_cycle` and `prepare_transport` run the same recognition first, so a repeated call
-never creates a second transport or cycle commit.
+`commit_cycle` runs that recognition first, so repeating it never creates a second cycle
+commit. `prepare_transport` does not: once the record is `applying`, `applied` or
+`committing`, recovery is stage-aware — run `recover_cycle` first and never restart an
+advanced transaction through prepare, which rewinds the recorded stage to `prepared` with a
+null `cycle_commit` even when the final commit landed.
 
 Every failure raises `IntegrationError`, a `ValueError` carrying the `kind` a CLI maps into
 its error envelope; nothing is coerced and nothing is dropped.

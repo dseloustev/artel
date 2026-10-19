@@ -29,8 +29,10 @@ The lifecycle, in order:
    double prompt, never an event replay.
 5. `plan_status`/`interpret_status` recover the durable session state and the validated
    `<artifact_root>/result.json`: a native idle or `succeeded` without a valid,
-   identity-matching result is not completion, and an `interrupted` outcome wins over a
-   contradictory success result.
+   identity-matching result is not completion; an `interrupted` outcome wins over a
+   contradictory success result; and a launch the journal records as `interrupted` is terminal
+   for its attempt -- it stays non-successful regardless of any later native outcome or
+   result, and a vanished session reports `interrupted`, not `missing`.
 6. `plan_interrupt`/`interpret_interrupt` interrupt one known session and report the durable
    post-interrupt state.
 
@@ -405,7 +407,14 @@ def _read_journal(path, assignment):
         _fail('invalid_journal', 'the launch journal at {} is not valid JSON: {}'.format(
             path, exc))
     _object(value, 'the launch journal', 'invalid_journal')
-    _keys(value, JOURNAL_KEYS, 'the launch journal', 'invalid_journal')
+    _keys(value, JOURNAL_KEYS, 'the launch journal', 'invalid_journal',
+          allowed=JOURNAL_KEYS + ('permissions',))
+    if 'permissions' in value:
+        try:
+            _permissions(value['permissions'])
+        except LaunchError as exc:
+            _fail('invalid_journal', 'the launch journal at {} carries an invalid permission '
+                                     'ruleset: {}'.format(path, exc.message))
     if isinstance(value['schema'], bool) or value['schema'] != SCHEMA:
         _fail('invalid_journal', 'the launch journal schema is not {}'.format(SCHEMA))
     if value['state'] not in JOURNAL_STATES:
@@ -419,7 +428,7 @@ def _read_journal(path, assignment):
 
 
 def _write_journal(path, assignment, session_id, agent, model, prompt_sha256, state,
-                   created_at=None):
+                   created_at=None, permissions=None):
     now = _utc_now()
     value = {
         'schema': SCHEMA,
@@ -427,7 +436,7 @@ def _write_journal(path, assignment, session_id, agent, model, prompt_sha256, st
         'run_id': assignment['run_id'], 'attempt': assignment['attempt'],
         'worker_root': assignment['worker_root'], 'artifact_root': assignment['artifact_root'],
         'session_id': session_id, 'agent': agent, 'model': model,
-        'prompt_sha256': prompt_sha256, 'state': state,
+        'prompt_sha256': prompt_sha256, 'state': state, 'permissions': permissions,
         'created_at': created_at or now, 'updated_at': now,
     }
     _atomic_write(path, json.dumps(value, indent=2, sort_keys=True) + '\n')
@@ -442,6 +451,23 @@ def _journal_for(request):
     main = context['repository']['main']
     path = journal_path(main, assignment)
     return assignment, path, _read_journal(path, assignment), context, ref
+
+
+def _check_journal_permissions(journal, request, path):
+    """A duplicate start never adopts a session under a different ruleset than the one the
+    launch pinned (§2): a tightened or loosened ruleset takes the next attempt instead of
+    silently keeping the recorded one.
+
+    A journal without the key predates the recorded ruleset: its pinned rules are unknowable,
+    so it is refused in both directions rather than mistaken for a launch that pinned none.
+    """
+    if 'permissions' not in journal:
+        _fail('permissions_mismatch', 'the launch journal at {} records no permission '
+                                      'ruleset; a retry takes the next attempt'.format(path))
+    if journal['permissions'] != request['permissions']:
+        _fail('permissions_mismatch', 'the launch journal at {} records a different '
+                                      'permission ruleset; a changed ruleset takes the next '
+                                      'attempt'.format(path))
 
 
 def _identity_metadata(assignment):
@@ -602,7 +628,8 @@ def plan_start(request, capabilities, caller, model_facts):
     session_id = derive_session_id(assignment)
     if journal is None:
         digest = _sha256_text(req['prompt']['text'])
-        _write_journal(path, assignment, session_id, req['agent'], ref, digest, 'intent')
+        _write_journal(path, assignment, session_id, req['agent'], ref, digest, 'intent',
+                       permissions=req['permissions'])
         return {'action': 'create', 'session_id': session_id, 'journal': str(path),
                 'create': _create_payload(req, session_id, ref)}
     if journal['session_id'] != session_id \
@@ -610,6 +637,7 @@ def plan_start(request, capabilities, caller, model_facts):
             or journal['prompt_sha256'] != _sha256_text(req['prompt']['text']):
         _fail('invalid_journal', 'the launch journal at {} belongs to a different launch '
                                  '(session, agent, model or prompt changed)'.format(path))
+    _check_journal_permissions(journal, req, path)
     if journal['state'] == 'prompted':
         return {'action': 'adopted', 'session_id': session_id, 'journal': str(path),
                 'envelope': _started_envelope(assignment, journal, adopted=True)}
@@ -626,10 +654,12 @@ def record_session(request, session, caller):
     _fence(context, assignment, _check_caller(_caller(caller)))
     if journal is None or journal['state'] not in ('intent', 'created'):
         _fail('invalid_journal', 'no launch intent to record at {}'.format(path))
+    _check_journal_permissions(journal, req, path)
     _verify_session(session, journal, req['assignment'], ref, agent=req['agent'],
                     permissions=req['permissions'])
     _write_journal(path, assignment, journal['session_id'], req['agent'], ref,
-                   journal['prompt_sha256'], 'created', created_at=journal['created_at'])
+                   journal['prompt_sha256'], 'created', created_at=journal['created_at'],
+                   permissions=journal.get('permissions'))
     return {'action': 'prompt', 'session_id': journal['session_id'],
             'prompt': _prompt_payload(req)}
 
@@ -641,6 +671,7 @@ def record_prompt(request, inbox=None, caller=None):
     _fence(context, assignment, _check_caller(_caller(caller)))
     if journal is None or journal['state'] not in ('intent', 'created'):
         _fail('invalid_journal', 'no launch intent to prompt at {}'.format(path))
+    _check_journal_permissions(journal, req, path)
     if inbox is not None:
         _object(inbox, 'the prompt admission', 'invalid_request')
         if inbox.get('sessionID') not in (None, journal['session_id']):
@@ -648,7 +679,8 @@ def record_prompt(request, inbox=None, caller=None):
                 inbox.get('sessionID'), journal['session_id']))
     journal = _write_journal(path, assignment, journal['session_id'], req['agent'], ref,
                              journal['prompt_sha256'], 'prompted',
-                             created_at=journal['created_at'])
+                             created_at=journal['created_at'],
+                             permissions=journal.get('permissions'))
     return {'action': 'started', 'envelope': _started_envelope(assignment, journal,
                                                                adopted=False)}
 
@@ -660,6 +692,7 @@ def reconcile(request, session, messages, caller):
     _fence(context, assignment, _check_caller(_caller(caller)))
     if journal is None:
         _fail('invalid_journal', 'no launch journal to reconcile at {}'.format(path))
+    _check_journal_permissions(journal, req, path)
     if journal['state'] == 'prompted':
         return {'action': 'adopted', 'session_id': journal['session_id'], 'journal': str(path),
                 'envelope': _started_envelope(assignment, journal, adopted=True)}
@@ -676,11 +709,13 @@ def reconcile(request, session, messages, caller):
                     permissions=req['permissions'])
     journal = _write_journal(path, assignment, journal['session_id'], req['agent'], ref,
                              journal['prompt_sha256'], 'created',
-                             created_at=journal['created_at'])
+                             created_at=journal['created_at'],
+                             permissions=journal.get('permissions'))
     if _prompt_admitted(messages, journal['prompt_sha256']):
         journal = _write_journal(path, assignment, journal['session_id'], req['agent'], ref,
                                  journal['prompt_sha256'], 'prompted',
-                                 created_at=journal['created_at'])
+                                 created_at=journal['created_at'],
+                                 permissions=journal.get('permissions'))
         return {'action': 'adopted', 'session_id': journal['session_id'], 'journal': str(path),
                 'envelope': _started_envelope(assignment, journal, adopted=True)}
     return {'action': 'prompt', 'session_id': journal['session_id'], 'journal': str(path),
@@ -716,9 +751,11 @@ def interpret_status(request, session, messages, caller):
     _fence(context, assignment, _check_caller(_caller(caller)))
     if journal is None:
         return {'envelope': _unknown_envelope()}
+    durably_interrupted = journal['state'] == 'interrupted'
     if session is None:
         envelope = _unknown_envelope()
-        envelope.update({'known': True, 'present': False, 'state': 'missing',
+        envelope.update({'known': True, 'present': False,
+                         'state': 'interrupted' if durably_interrupted else 'missing',
                          'session_id': journal['session_id']})
         return {'envelope': envelope}
     _verify_session(session, journal, req['assignment'], ref)
@@ -726,7 +763,12 @@ def interpret_status(request, session, messages, caller):
     outcome = session.get('outcome')
     time = session.get('time') if isinstance(session.get('time'), dict) else {}
     idle = time.get('idle') is not None
-    if outcome == 'interrupted':
+    if durably_interrupted:
+        # The journal is the durable terminal decision: a later native execution on the
+        # same session never revives an attempt the coordinator already interrupted.
+        state, success = 'interrupted', False
+        over = outcome == 'succeeded' or result is not None
+    elif outcome == 'interrupted':
         state, success, over = 'interrupted', False, result is not None
     elif outcome == 'failed':
         state, success, over = 'failed', False, False
@@ -789,7 +831,8 @@ def interpret_interrupt(request, interrupt, session, caller):
     if interrupt['interrupted']:
         journal = _write_journal(path, assignment, journal['session_id'], journal['agent'], ref,
                                  journal['prompt_sha256'], 'interrupted',
-                                 created_at=journal['created_at'])
+                                 created_at=journal['created_at'],
+                                 permissions=journal.get('permissions'))
     outcome = session.get('outcome') if present else None
     return {'envelope': {
         'schema': SCHEMA, 'known': True, 'present': present,

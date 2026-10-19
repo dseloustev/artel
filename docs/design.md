@@ -183,10 +183,10 @@ move to the decision log.
   other way.
 - **Sub-project 2c: parallel seats.** Shipped behind `parallel.seats` (absent or `1` is the
   serial procedure); the frozen contract is [opencode-parallel.md](opencode-parallel.md),
-  proven against OpenCode 2.0.29 and validated end to end on a real host fixture in local
-  file-backed mode (2026-10-16: worker changes → scoped gate → task review →
-  transport/apply/one-cycle commit → durable publication, `seats: 2` with pause/resume plus a
-  `seats: 1` sample). Per-task worktrees ([worktrees.md](worktrees.md)) replace shared-tree
+  proven against OpenCode 2.0.32 (re-proved 2026-10-19; originally 2.0.29) and validated end
+  to end on a real host fixture in local file-backed mode (2026-10-16: worker changes →
+  scoped gate → task review → transport/apply/one-cycle commit → durable publication,
+  `seats: 2` with pause/resume plus a `seats: 1` sample). Per-task worktrees ([worktrees.md](worktrees.md)) replace shared-tree
   workers, and the 2026-10-13 per-cycle commits replace wave-level commits, so the six
   shared-state collisions the earlier plan listed — the `NNN-` report counter, one actor name,
   the whole-tree review snapshot, every task patching one tasklist, the shared
@@ -1614,3 +1614,12 @@ move to the decision log.
   alongside 3.14, and is not re-run per change. If the floor ever needs enforcement again,
   add a one-off 3.9 run rather than restoring the matrix. Bump the CI pin when a newer
   release is adopted.
+- **2026-10-19 — The parallel capability gate moved to OpenCode 2.0.32.** The installed
+  service upgraded from the proven 2.0.29, and the gate refused parallel mode by design
+  (`unsupported_version`). Rather than downgrade the service, the native gate was re-run on
+  2.0.32: capability report `ok` with the full client surface, two concurrent pinned workers
+  with validated results, an explicit interrupt reported as interrupted, durable status
+  recovery across a fresh server, and the worker-role denial of `artel_parallel_startWorker`
+  and `subagent`. `PROVEN_VERSION` now pins 2.0.32; the original 2.0.29 proof remains
+  history. Not waived: the expensive-setup/codegen host, live remote store/queue adapters,
+  the default global install and a full model-driven coordinator run.

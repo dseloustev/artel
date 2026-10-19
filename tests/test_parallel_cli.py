@@ -51,7 +51,7 @@ MUTATING_VERBS = frozenset({
     ('publication', 'record'), ('budget', 'reserve'),
 })
 CAPABILITIES = {
-    'version': '2.0.29',
+    'version': '2.0.32',
     'api': {'app.version': True, 'model.list': True, 'session.create': True,
             'session.get': True, 'session.prompt': True, 'session.interrupt': True,
             'session.context': True},

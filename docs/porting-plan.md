@@ -187,7 +187,7 @@ decision log.
 
 - [x] Native capability gate against the installed OpenCode service, and the frozen contract
       (assignment/result `schema: 1`, task states, integration ownership, the capability
-      boundary) — OpenCode 2.0.29.
+      boundary) — OpenCode 2.0.32 (re-proved 2026-10-19; originally 2.0.29).
 - [x] Contract/state/queue/scheduler helpers, per-task worktrees, the serialized integration
       transaction and restartable completion publication (`scripts/parallel_*.py`,
       `scripts/task_worktree.py`).

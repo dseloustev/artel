@@ -189,8 +189,8 @@ function" = a v1 bridge or a malformed export). The SQLite transcripts
 (`~/.local/share/opencode/opencode.db`) show whether an injection persisted or was delivered
 in-memory only.
 
-Verified against OpenCode **2.0.29** (2026-10-15). Re-run this smoke after upgrading
-OpenCode.
+Verified against OpenCode **2.0.32** (2026-10-19; originally 2.0.29 on 2026-10-15). Re-run
+this smoke after upgrading OpenCode.
 
 The probes run isolated: install and every `opencode run` with `XDG_CONFIG_HOME` pointed at a
 throwaway config home, plus `--standalone` on each run — a bare `scripts/install-opencode.sh`

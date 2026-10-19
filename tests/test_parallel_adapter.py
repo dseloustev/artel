@@ -144,7 +144,7 @@ class WorkerCase(unittest.TestCase):
         value.update(overrides)
         return value
 
-    def capabilities(self, version='2.0.29', **api_overrides):
+    def capabilities(self, version='2.0.32', **api_overrides):
         api = {key: True for key in parallel_launch.REQUIRED_API}
         api.update(api_overrides)
         return {'version': version, 'api': api}
@@ -374,7 +374,8 @@ class TestAdapterSource(unittest.TestCase):
 
     def test_the_not_found_check_covers_the_native_error_shape(self):
         # The installed client's Session.NotFoundError carries an empty `message` (probed
-        # natively on 2.0.29), so the check must read the tag/name/string forms too.
+        # natively on 2.0.32; originally 2.0.29), so the check must read the tag/name/string
+        # forms too.
         check = self.source[self.source.index('function isNotFound'):]
         check = check[:check.index('\n}')]
         for token in ('_tag', 'name', 'String(error)', 'not.?found'):
@@ -409,7 +410,7 @@ class TestCapabilitiesPolicy(AdapterCase):
     def test_the_proven_version_and_api_are_accepted(self):
         report = parallel_launch.capability_report(self.capabilities())
         self.assertTrue(report['ok'])
-        self.assertEqual(report['version'], '2.0.29')
+        self.assertEqual(report['version'], '2.0.32')
         self.assertEqual(report['reasons'], [])
 
     def test_another_version_is_refused_before_any_effect(self):

@@ -25,7 +25,7 @@ const calls = { get: 0, create: 0, prompt: 0, context: 0, interrupt: 0 }
 const tools = new Map()
 
 const ctx = {
-  app: { version: "2.0.29" },
+  app: { version: "2.0.32" },
   location: { directory: repo },
   model: { list: async () => [] },
   tool: {

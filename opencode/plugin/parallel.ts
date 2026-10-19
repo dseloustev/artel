@@ -3,7 +3,7 @@
  *
  * The thin transport half of the Task 7 adapter (docs/opencode-parallel.md §2): four tools
  * registered by the bridge (`opencode/plugin/artel.ts`), each one a small sequence of
- * installed 2.0.29 plugin-client calls bracketed by the policy half
+ * installed 2.0.32 plugin-client calls bracketed by the policy half
  * (`scripts/parallel_launch.py`), which owns every decision -- request validation, the
  * capability gate, the launch journal, session verification, result recovery and
  * interruption semantics. Nothing here re-implements a schema or a lifecycle rule.
@@ -212,8 +212,9 @@ function unwrap(value: any): any {
 
 function isNotFound(error: any): boolean {
   // The installed plugin client throws `{_tag: "Session.NotFoundError", sessionID}` with an
-  // EMPTY `message` (probed natively on 2.0.29), so the tag/name/string forms are checked
-  // too -- matching only `message` would turn a missing session into a thrown tool error.
+  // EMPTY `message` (probed natively on 2.0.32; originally 2.0.29), so the tag/name/string
+  // forms are checked too -- matching only `message` would turn a missing session into a
+  // thrown tool error.
   const text = [error?.message, error?._tag, error?.tag, error?.name, String(error)]
     .filter((value) => typeof value === "string" && value.length > 0)
     .join(" ")

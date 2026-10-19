@@ -1,6 +1,6 @@
 # OpenCode parallel workers — frozen contract
 
-*Status: v0.2 · 2026-10-16 · proven on OpenCode 2.0.29*
+*Status: v0.2 · 2026-10-19 · proven on OpenCode 2.0.32*
 
 Sub-project 2c runs one worker session per task on the OpenCode host. This file is the
 contract the native capability gate froze: it fixes the session interfaces the adapter
@@ -16,10 +16,10 @@ them through `scripts/parallel.py` (§13.10-§13.11), and `parallel.seats` absen
 the serial procedure exactly as it is (a boolean is not an integer and fails configuration
 validation).
 
-Proven against **OpenCode 2.0.29** only. The names below are the installed v2 HTTP API and
-event stream, retrieved through `opencode api get /openapi.json`; capability coverage is
-exactly the proven version, not every V2 release, so a version change re-runs the gate before
-parallel mode is enabled.
+Proven against **OpenCode 2.0.32** only (re-proved 2026-10-19; the original proof was 2.0.29).
+The names below are the installed v2 HTTP API and event stream, retrieved through
+`opencode api get /openapi.json`; capability coverage is exactly the proven version, not every
+V2 release, so a version change re-runs the gate before parallel mode is enabled.
 
 Validated end to end on a real host fixture (2026-10-16) in local file-backed mode: native
 worker sessions implemented disjoint tasks at `seats: 2`, ran the scoped task gate, passed
@@ -35,10 +35,11 @@ barrier until the observer had recorded `started == {A, B}` and `completed == {}
 event stream; only then were they released. Both made a distinct file edit and ran an
 ordinary task check, and the existing bridge hooks ran in each worker's own root.
 
-Demonstrated natively on 2.0.29: explicit `location`/`agent`/`model` on session create;
-concurrent sessions with per-session event streams; `session.execution.started` and
-`session.execution.succeeded`; interrupt with a durable `interrupted` outcome; durable status
-and message recovery after a deliberately missed event window (the stream has no replay);
+Demonstrated natively on 2.0.32 (re-proved 2026-10-19; originally 2.0.29): explicit
+`location`/`agent`/`model` on session create; concurrent sessions with per-session event
+streams; `session.execution.started` and `session.execution.succeeded`; interrupt with a
+durable `interrupted` outcome; durable status and message recovery after a deliberately
+missed event window (the stream has no replay);
 session permission rules (`deny` blocks, `ask` surfaces a request that a client answers);
 agent switch; session move; child-session inheritance of location and permissions; the
 existing hooks (session baseline, stop gate, fast verify) running per root; and the existing
@@ -148,7 +149,7 @@ its own checkout without touching global state.
 
 **Capabilities.** `workerCapabilities` is read-only and reports the installed version and the
 plugin-client surface the adapter needs. `startWorker` re-checks that report first: anything
-but exactly 2.0.29 with the full surface is refused (`unsupported_version` /
+but exactly 2.0.32 with the full surface is refused (`unsupported_version` /
 `unsupported_api`) before any journal, session or prompt exists. The coordinator's preflight
 consumes this report before its first claim or worker creation (§12).
 
@@ -396,7 +397,7 @@ set in §2). A missing or changed capability stops the parallel path and keeps t
 procedure — parallel mode is never silently pretended to be enabled, and a changed OpenCode
 version re-runs the gate.
 
-Unproven on 2.0.29, and therefore not relied on without re-verification:
+Unproven on 2.0.32, and therefore not relied on without re-verification:
 
 - The bridge's `session.compaction.ended` and `session.deleted` subscriptions were not
   exercised; neither was `session.execution.failed`.
@@ -1335,3 +1336,21 @@ per-task worktree setup multiplication when setup cost is significant. The real 
 measurement stands as measured; the expensive case is not claimed, and the expensive-setup
 criterion is neither waived nor replaced by the cheaper case that was measured. Raw evidence:
 `.artel/run/repro/opencode-parallel-proof/task12/` (host-owned, not committed).
+
+**Capability re-proof on 2.0.32 (2026-10-19).** The installed service upgraded to 2.0.32,
+which the gate refuses by design (`unsupported_version`). The native gate was re-run against
+the installed version with the current source and a scratch install root whose only difference
+was `PROVEN_VERSION = '2.0.32'` — no global install, no service restart and no wrapper in the
+user's environment. Recorded: `workerCapabilities` returned `ok: true` for 2.0.32 with the
+full client surface; two pinned `artel-implementer` workers started in their detached
+worktrees (`ses_67f65af14f5b0cbd38c9128258`, `ses_92d874dc8199dc6db255acb305`), both
+`state: running` at the same time, and both completed with validated `succeeded` results whose
+identity matched their assignments; `interruptWorker` interrupted a third worker
+(`{"interrupted": true}`) and `workerStatus` reported `outcome: interrupted`, `success: false`;
+a fresh private server recovered the durable status of sessions created by an earlier process
+(no event replay); and in a worker session the `artel_parallel_startWorker` and `subagent`
+calls were each denied pre-execution by the worker-role guard with the exact `artel worker
+role` error. Raw evidence: host-owned scratch under the scratch host's `.artel/run/` (not
+committed). Limits: the re-proof exercised the adapter transport and role guard, not a second
+full model-driven coordinator run; the expensive-setup host, live remote adapters and the
+default global-install path remain unproven.

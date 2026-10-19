@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-10-19
+
 ### Changed
 
 - **CI tests the latest Python only.** The matrix collapses to the latest stable interpreter

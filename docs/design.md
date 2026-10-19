@@ -191,13 +191,13 @@ move to the decision log.
   shared-state collisions the earlier plan listed — the `NNN-` report counter, one actor name,
   the whole-tree review snapshot, every task patching one tasklist, the shared
   `implementation-notes.md`, whole-tree codegen — are resolved by construction rather than by
-  serializing around them. Still unproven and not to be claimed: the CI matrix's 3.11/3.13
-  full suites, remote store/queue adapters exercised live, the default globally installed
-  plugin path (the fixture used a per-instance bridge wrapper), and the expensive-setup/
-  codegen host case — the fixture's setup is real generation work measured at ~0.3–0.5 s per
-  worker root, not an expensive-setup host, so per-task worktree setup multiplication at
-  significant setup cost is unmeasured: the expensive-setup criterion is marked NOT PROVEN,
-  not replaced by the cheaper case that was measured.
+  serializing around them. Still unproven and not to be claimed: remote store/queue adapters
+  exercised live, the default globally installed plugin path (the fixture used a per-instance
+  bridge wrapper), and the expensive-setup/codegen host case — the fixture's setup is real
+  generation work measured at ~0.3–0.5 s per worker root, not an expensive-setup host, so
+  per-task worktree setup multiplication at significant setup cost is unmeasured: the
+  expensive-setup criterion is marked NOT PROVEN, not replaced by the cheaper case that was
+  measured.
 - **Follow-up work on a finished ticket.** A lean run on a ticket whose work list has no open
   task stops before arming and says so (0.25.0, `skills/artel-feature-development/heads/lean.md`):
   `generate-tasklist` skips a tasklist that exists, and before the merge such a request was
@@ -1604,3 +1604,13 @@ move to the decision log.
   bridge factory and strict worker/coordinator identity, integration and publication
   barriers. Pre-merge tests and native evidence remain historical; the merged tree requires
   fresh verification. No release, global install or speedup claim follows from this merge.
+- **2026-10-19 — Test on the latest Python only.** CI runs the suite on one interpreter, the
+  latest stable release, currently 3.14 ([.github/workflows/tests.yml](../.github/workflows/tests.yml)).
+  The 3.11/3.13 matrix entries are retired, and the parallel release's "3.11/3.13 suites
+  unproven" limit is closed as a requirement rather than satisfied: the decision is that the
+  already verified versions are enough and future testing follows the newest interpreter.
+  Python 3.9 stays the code-compatibility floor the hooks are written to
+  (`hooks/sensitive_guard.py`); it was green at 2,981 tests on the final parallel tree
+  alongside 3.14, and is not re-run per change. If the floor ever needs enforcement again,
+  add a one-off 3.9 run rather than restoring the matrix. Bump the CI pin when a newer
+  release is adopted.

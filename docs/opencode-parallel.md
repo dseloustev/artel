@@ -1324,8 +1324,9 @@ real but small against that variance, and nothing here is a production benchmark
 sample establishes is that both seat counts close the same boundary with the same artifacts.
 
 Limits, not claims: local file-backed mode only — no remote artifact store or queue adapter
-was exercised live (its deterministic coverage is not a live proof); the CI matrix's 3.11 and
-3.13 full suites were not run; the default globally installed plugin path was not exercised
+was exercised live (its deterministic coverage is not a live proof); the 3.11/3.13 matrix
+runs were retired by the 2026-10-19 testing-policy decision (latest Python only; 3.9 and
+3.14 were green at 2,981 tests); the default globally installed plugin path was not exercised
 (the fixture used the per-instance wrapper); the generated inline coordinator procedure was
 not driven by a model; and the **expensive-setup/codegen host case is NOT PROVEN** — the
 fixture's configured setup is real generation work (a generator plus a baseline test run)

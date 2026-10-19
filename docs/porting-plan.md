@@ -202,8 +202,8 @@ decision log.
       transport/apply/one-cycle commit → durable publication boundary, `seats: 2` with a
       pause/resume across a coordinator restart plus a `seats: 1` sample, in local
       file-backed mode (evidence and limits: opencode-parallel.md §14).
-- [ ] CI-matrix Python 3.11/3.13 full-suite runs on the final source (only 3.9 and 3.14 are
-      installed here; not inferable from those runs).
+- [x] Python 3.11/3.13 full-suite runs — retired by the 2026-10-19 testing-policy decision
+      (latest-Python-only; 3.9 and 3.14 were green at 2,981 tests on the final source).
 - [ ] Remote artifact-store and queue adapters exercised live (the fixture is file-backed;
       the deterministic fake coverage is not a live proof).
 - [ ] The default globally installed plugin path observed end to end (the fixture's

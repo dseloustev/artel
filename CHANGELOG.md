@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **CI tests the latest Python only.** The matrix collapses to the latest stable interpreter
+  (3.14); the 3.11/3.13 entries are retired — closing the 0.38.0 note's "3.11/3.13 suites
+  unproven" limit as a requirement rather than satisfying it — and future testing follows the
+  newest release. Python 3.9 stays the code-compatibility floor but is no longer a per-change
+  CI target — it was green at 2,981 tests on the final parallel tree alongside 3.14. Decision:
+  [docs/design.md](docs/design.md) (2026-10-19).
+
 ## [0.38.0] - 2026-10-16
 
 ### Added

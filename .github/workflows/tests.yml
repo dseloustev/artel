@@ -15,9 +15,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.9 is the floor the hooks are written to (see hooks/sensitive_guard.py);
-        # the newest entry guards against a stdlib deprecation landing unnoticed.
-        python-version: ['3.9', '3.11', '3.13']
+        # Latest stable interpreter only (2026-10-19 decision, docs/design.md).
+        # 3.9 remains the compatibility floor the hooks are written to (see
+        # hooks/sensitive_guard.py); it was verified green once and is not a
+        # per-change CI target. Bump this pin when a newer release is adopted.
+        python-version: ['3.14']
     steps:
       - uses: actions/checkout@v4
 

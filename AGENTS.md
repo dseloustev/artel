@@ -19,7 +19,9 @@ installer) · `tests/` (stdlib unittest suite) · `docs/` (contracts and operato
 
 - Python 3.9+ stdlib-only — no package manager, no dependencies, no build step. The install
   copy is baked and wrapped at install time by `scripts/build_opencode.py`. CI runs the suite
-  on 3.9 / 3.11 / 3.13 ([.github/workflows/tests.yml](.github/workflows/tests.yml)).
+  on the latest stable interpreter only, currently 3.14
+  ([.github/workflows/tests.yml](.github/workflows/tests.yml)); 3.9 stays the code-compatibility
+  floor but is not a per-change CI target (2026-10-19 decision, design.md).
 - Test: `python3 -m unittest discover -s tests -p 'test_*.py'`
 - Release: [.opencode/skills/bump-version/SKILL.md](.opencode/skills/bump-version/SKILL.md) —
   bumps `VERSION` + `CHANGELOG.md`, then tags.

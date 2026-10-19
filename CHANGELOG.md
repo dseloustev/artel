@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.38.2] - 2026-10-19
+
 ### Fixed
 
 - **Parallel launches pin their permission ruleset and honour a durable interruption.** A

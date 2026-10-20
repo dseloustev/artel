@@ -18,6 +18,16 @@ All notable changes to this project are documented here. The format follows
   TypeScript bridge against a scratch host: a run that delivers no `session.created` still
   finds `baseline-<session>.json`.
 
+### Changed
+
+- **A non-image Read no longer starts a hook process.** `spec_store_guard.py` sees every Read
+  and returns immediately unless the name ends in an image extension, but each spawn cost about
+  30 ms. The bridge now makes the same extension test in TypeScript before spawning, so only an
+  image Read runs the guard. `hooks/kartoteka_http.py`'s `IMAGE_TYPES` stays the authority: the
+  bridge's set must cover it, and a test compares them so a missing extension cannot silently
+  drop the `image fetch` hint. Proved with a PATH shim in front of `python3`: a non-image Read
+  spawns nothing, an image Read still runs the guard.
+
 ## [0.39.0] - 2026-10-20
 
 ### Added

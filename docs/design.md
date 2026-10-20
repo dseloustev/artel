@@ -140,10 +140,6 @@ move to the decision log.
   - an MCP `attachment_get` returning image content, once OpenCode support is known;
   - user-supplied images and Jira attachments as sources;
   - phase-relative image links.
-  - **Per-Read hook cost.** Every Read in an artel project now starts `python3`, about 30 ms
-    each: on OpenCode, through the bridge; on Claude Code, through the new `Read` matcher in
-    `hooks.json`. A cheap image-extension check before the hook runs would avoid the cost for
-    non-image Reads. On OpenCode that check goes in TypeScript, before `runHook`.
   - **Guard input parsing.** `spec_store_guard.py` parses its input inline instead of calling
     `hook_common.read_hook_input`, which the `ENTERS_ROOT_DIRECTLY` allowlist in
     `tests/test_hook_common.py` permits. A shared parse primitive in `hook_common` would remove
@@ -1687,3 +1683,12 @@ move to the decision log.
   path stays as the primary capture. Proved end to end through the real TypeScript bridge in
   `tests/test_opencode_bridge.py`: a harness run that delivers no `session.created` still finds
   `baseline-<session>.json`, and the event path still baselines and routes.
+- **2026-10-20 — A non-image Read starts no hook process.** `spec_store_guard.py` sees every
+  Read and returns immediately unless the name ends in an image extension, but the process
+  spawn cost about 30 ms on every Read — the largest fixed per-tool cost in a session. The
+  OpenCode bridge now makes the same extension test in TypeScript before `runHook`, so only an
+  image Read spawns the guard. The Python `IMAGE_TYPES` stays the authority: the bridge's
+  `IMAGE_EXTENSIONS` must cover it, and a test compares the two, because an extension missing
+  from the bridge would silently drop the `image fetch` hint. Proved with a PATH shim in front
+  of `python3`: a non-image Read spawns nothing, an image Read still runs the guard. The
+  Claude Code `Read` matcher the old follow-up named no longer exists.

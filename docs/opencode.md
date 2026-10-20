@@ -79,7 +79,7 @@ hooks, whose stdin/stdout contracts are artel's own internal hook ABI
 | OpenCode v2 | artel hook | Behavior |
 |---|---|---|
 | `tool.hook("execute.before")` (edit/write/patch) | `sensitive_guard.py`, then `spec_store_guard.py` | deny → the tool call errors naming the guard (this order) |
-| `tool.hook("execute.before")` (read) | `spec_store_guard.py` | deny → the read errors with the `image fetch` hint (spec-storage.md §6) |
+| `tool.hook("execute.before")` (read, image names only) | `spec_store_guard.py` | deny → the read errors with the `image fetch` hint (spec-storage.md §6); a non-image read spawns nothing |
 | `tool.hook("execute.before")` (shell, platform-named tools) | `vcs_guard.py` | deny → the tool call errors |
 | `tool.hook("execute.after")` (edit/write/patch) | `fast_verify_post_edit.py`, then `knowledge_mirror.py` | findings are appended to the tool result (this order; v2 has no failure channel here) |
 | `session.hook("context")` | `using_artel.py` | router + host status prepended to the first user message in memory |

@@ -101,7 +101,8 @@ Five layers:
     `Bash` call) are not seen. On `Read` it only hints: under a fresh kartoteka decision, a Read
     of an image path under the trail where no file exists — the sweep moved it into kartoteka —
     is denied with the `spec_store.py image fetch` command that fetches it (spec-storage.md §6).
-    Every other Read passes after a file-extension check.
+    Every other Read passes after a file-extension check — and on the OpenCode bridge that
+    check runs in TypeScript before the spawn, so a non-image Read starts no process.
 - **Session layer** — turn-one routing, no gate:
   - `using_artel.py` (`session.hook("context")`) — injects the
     `using-artel` router skill (frontmatter stripped) plus the host-status lines as

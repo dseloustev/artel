@@ -9,7 +9,10 @@ Companion to tests/test_build_opencode.py: that file covers the generator, this 
 the hand-written bridge.
 """
 import json
+import os
+import re
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -377,6 +380,88 @@ class TestFirstSessionBaseline(unittest.TestCase):
                         created.index('runHook("session_baseline.py"'))
         deleted = source[source.index('event.type === "session.deleted"'):]
         self.assertIn('baselined.delete(sessionID)', deleted)
+
+
+class TestReadHookCost(unittest.TestCase):
+    """A Read that can never produce the spec-store hint does not start `python3`.
+
+    `spec_store_guard.py` sees every Read and returns immediately unless the name ends in an
+    image extension, but the process spawn itself costs about 30 ms. The bridge now makes the
+    same extension test before spawning. The Python set stays the authority: the bridge's set
+    must cover it, or an image read would silently lose the fetch hint.
+
+    Proved with a PATH shim in front of `python3`: the harness records every hook spawn, so
+    the test observes the absence of a process, not an internal branch."""
+
+    HARNESS = ROOT / 'tests' / 'fixtures' / 'bridge_ts_harness.mjs'
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.host = self.root / 'host'
+        self.host.mkdir()
+        (self.host / '.artel').mkdir()
+        (self.host / '.artel' / 'config.json').write_text(json.dumps({
+            'version': 1,
+            'ticket': {'projectKey': 'BASE'},
+            'tracker': {'adapter': 'none'},
+            'vcs': {'adapter': 'none'},
+            'verify': {'commands': [], 'fast': 'sh -c "exit 0"'},
+            'knowledge': {'adapter': 'kartoteka', 'baseUrl': 'http://127.0.0.1:1',
+                          'project': 'base'},
+        }), encoding='utf-8')
+        self.shim = self.root / 'bin'
+        self.shim.mkdir()
+        self.log = self.root / 'hooks.log'
+        fake = self.shim / 'python3'
+        fake.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$ARTEL_HOOK_LOG"\nexit 0\n',
+                        encoding='utf-8')
+        fake.chmod(0o755)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def run_read(self, read_path):
+        env = dict(os.environ)
+        env['PATH'] = str(self.shim) + os.pathsep + env.get('PATH', '')
+        env['ARTEL_HOOK_LOG'] = str(self.log)
+        proc = subprocess.run(
+            ['node', str(self.HARNESS), str(BRIDGE), str(ROOT), str(self.host), 'missed',
+             'ses_read', read_path],
+            capture_output=True, text=True, timeout=180, env=env)
+        self.assertEqual(proc.returncode, 0, proc.stderr or proc.stdout)
+        return json.loads(proc.stdout.strip().splitlines()[-1])
+
+    def spawned(self):
+        if not self.log.exists():
+            return []
+        return [line for line in self.log.read_text(encoding='utf-8').splitlines() if line.strip()]
+
+    def test_a_non_image_read_spawns_no_hook(self):
+        self.run_read('notes.md')
+        self.assertEqual(self.spawned(), [])
+
+    def test_an_image_read_still_runs_the_guard(self):
+        self.run_read('screens/shot.PNG')
+        self.assertTrue(any('spec_store_guard.py' in line for line in self.spawned()),
+                        self.spawned())
+
+    def test_the_bridge_extension_set_covers_the_python_one(self):
+        sys.path.insert(0, str(ROOT / 'hooks'))
+        import kartoteka_http as kh
+        source = BRIDGE.read_text(encoding='utf-8')
+        match = re.search(r'const IMAGE_EXTENSIONS = new Set\(\[(.*?)\]\)', source, re.S)
+        self.assertIsNotNone(match, 'the bridge names its image extensions in IMAGE_EXTENSIONS')
+        bridge_extensions = set(re.findall(r'"(\.[a-z]+)"', match.group(1)))
+        self.assertTrue(set(kh.IMAGE_TYPES) <= bridge_extensions,
+                        'the bridge would skip a read the Python guard still hints: {}'
+                        .format(set(kh.IMAGE_TYPES) - bridge_extensions))
+
+    def test_the_extension_test_precedes_the_spawn(self):
+        source = BRIDGE.read_text(encoding='utf-8')
+        branch = source[source.index('if (event.tool === "read")'):]
+        self.assertIn('IMAGE_EXTENSIONS.has(', branch)
+        self.assertLess(branch.index('IMAGE_EXTENSIONS.has('), branch.index('runHook('))
 
 
 if __name__ == '__main__':

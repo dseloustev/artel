@@ -68,6 +68,11 @@ const MUTATION_TOOLS = new Set(["edit", "write", "patch"])
 const WORKER_DENIED_TOOLS = new Set(["subagent", "question", ...PARALLEL_TOOL_IDS])
 /** Platform tokens hooks/vcs_guard.py classifies a tool name by — no `mcp__` prefix test. */
 const PLATFORM_TOKENS = ["bitbucket", "github", "jira"]
+/** The extensions `hooks/kartoteka_http.py` treats as spec-trail images (`IMAGE_TYPES`). The
+ * read guard can only hint on one of these, so the bridge tests the name itself and skips the
+ * ~30 ms spawn for every other Read. It must cover the Python set — a test compares them —
+ * because an extension missing here silently drops the fetch hint. */
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"])
 /** Bridge-side fail-safe on top of the hooks' own consecutive-block caps (5 and 2). */
 const MAX_STOP_BLOCKS = 10
 /** Marker from using_artel.py's header — proves a message already carries the router. */
@@ -305,6 +310,9 @@ export function createArtelPlugin(options: { root?: string } = {}): Plugin {
       if (event.tool === "read") {
         const filePath = toolPath(event.input)
         if (!filePath) return
+        // spec_store_guard.py returns immediately for anything that is not an image; the
+        // extension test belongs here so a non-image Read starts no process at all.
+        if (!IMAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return
         const hint = await runHook(
           "spec_store_guard.py",
           hookPayload(event.sessionID, directory, "Read", filePath),

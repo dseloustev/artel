@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-10-20
+
 ### Added
 
 - **`deep-review` pins a computed dangerous-change flag.** `deep_review.py prepare` matches the

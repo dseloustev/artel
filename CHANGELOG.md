@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-10-20
+
 ### Removed
 
 - **App automation moved to the host project.** The four automation skills (`run-app`,

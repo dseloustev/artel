@@ -114,11 +114,6 @@ trace in the repository, and several had already gone invisible by the time they
 here (2026-09-06). Anything parked for later belongs here as well as in its spec. Resolved items
 move to the decision log.
 
-- **OpenCode v2-native registration is unevaluated.** v2 can register skills, agents and
-  commands at runtime (`ctx.skill/agent/command.transform`), which would retire the generated
-  snapshot, its staleness and the install manifest. The 2026-10-01 v2 adaptation deliberately
-  kept the generator (fix in place); evaluate the transform path once the v2 API has a release
-  or two behind it.
 - **The VCS guard does not cover `git push` or run an entry-point preflight** (from the
   2026-09-16 platform-migration design). A stale `origin` pointing at the old platform still
   pushes there; `set-home` moves it, but nothing enforces that it was run. Both were considered
@@ -1692,3 +1687,15 @@ move to the decision log.
   from the bridge would silently drop the `image fetch` hint. Proved with a PATH shim in front
   of `python3`: a non-image Read spawns nothing, an image Read still runs the guard. The
   Claude Code `Read` matcher the old follow-up named no longer exists.
+- **2026-10-20 — Runtime skill/agent/command registration is real in 2.0.32, and not adopted.**
+  The 2026-10-01 follow-up is closed by evaluation. `ctx.skill.transform` has `add`,
+  `ctx.command.transform` is add-only, and `ctx.agent.transform` upserts through `update`; the
+  built-ins register their skills, commands and the `plan` agent that way, and the live 2.0.32
+  API lists them with no files on disk. It would retire the 42 flat skill registrations, 14
+  agents, 42 command wrappers and (after one migration release) the 101-entry install
+  manifest — but not the `${ARTEL_ROOT}` bake, which reaches 17 files (5 skill companions + 12
+  docs, 111 references) that a transform never registers. The remaining trade is a
+  deterministic build-time Python generator against runtime TypeScript registration whose
+  failure mode is a disabled plugin — hooks included — so the generator stays. Evidence,
+  counts and the conditions that would reopen it:
+  [comparisons/opencode-runtime-registration-vs-generated-snapshot.md](comparisons/opencode-runtime-registration-vs-generated-snapshot.md).

@@ -166,9 +166,6 @@ move to the decision log.
 - **Worktrees: two extensions are parked** (from the 2026-09-17 worktree design, released in
   0.14.0): a ticket-level lock so two sessions cannot run the same ticket, and a
   `/artel:worktrees` listing (ticket, branch, path, dirty state) once parallel use is common.
-- **No GitHub releases have been published.** Eighteen tags through `v0.13.0`, zero releases;
-  `bump-version` prints the reminder at the end of every release and it has never been acted on.
-  Fine if deliberate — but then it should be a decision here rather than a standing omission.
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
   the plugin (decision of 2026-07-27, below). No record that the review has been requested.
 - **Model selection: what stays parked** (2026-10-02 design,
@@ -1678,3 +1675,10 @@ move to the decision log.
   the tail runs inline on OpenCode. `parallel.seats` is not the seat's successor: that key is
   worker concurrency inside one inline coordinator, not a nested orchestrator. A nested tail
   would be a new design, not a resumed default flip.
+- **2026-10-20 — Releases are tags; GitHub releases stay unpublished.** The standing follow-up
+  asked for this to be a decision rather than an omission. It is one: `bump-version` stops at
+  the tag by its own contract, the CHANGELOG section for a version is its release record, and
+  distribution is install-from-checkout or the plugin cache rather than a release artifact —
+  53 tags through `v0.39.0` have shipped this way. Publishing a GitHub release stays a
+  deliberate manual step, not a release step; if distribution ever moves to a release
+  artifact, publish them from the existing tags in one pass.

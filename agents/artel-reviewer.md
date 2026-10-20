@@ -177,7 +177,10 @@ short:
    confidence), and one finding per report finding with a unique `DR-NNN` id, `kind`
    (`defect`|`audit`), `scope` (`diff`|`repository`), `priority`, `file`, optional `line`,
    `evidence` and `recommendation`. Every anchor must fall in the pinned range — a guessed line
-   is worse than none.
+   is worse than none. A dispatch may carry provided evidence — the VCS host's checks for the
+   pinned head. Record it as a `verification` record (`kind: command` with the exact command,
+   or `kind: evidence`) and cite it in a finding's evidence instead of re-running a command the
+   environment cannot run.
 4. It closes with `## Proposed fixes`: a `### Tasks (Critical)` block and a `### Tasks (Warning)`
    block, each holding its findings' fixes in the ticket-mode task format — one checkbox item per
    actionable finding, `**Task N (Critical): …**` / `**Task N (Warning): …**`, numbered within

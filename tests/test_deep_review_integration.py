@@ -487,6 +487,15 @@ class TestProtocolWiring(unittest.TestCase):
         self.assertLess(validate.index('- `2` —'), validate.index('empty_input'))
         self.assertIn('never re-dispatch the reviewer for it', validate)
 
+    def test_the_pr_fetch_asks_for_the_head_sha_and_the_checks(self):
+        for phrase in ('headRefOid', 'statusCheckRollup'):
+            with self.subTest(phrase):
+                self.assertIn(phrase, self.flat)
+
+    def test_provided_evidence_names_the_pinned_head(self):
+        self.assertIn('Provided evidence', self.flat)
+        self.assertIn('equals the pinned head', self.flat)
+
     def test_the_checker_is_not_semantic_truth(self):
         self.assertIn('never that a finding is true', self.flat)
 

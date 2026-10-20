@@ -81,7 +81,9 @@ and fetch the PR details as before —
 
 **`"github-cli"`** (default) — expects `https://github.com/<owner>/<repo>/pull/<number>` (or a
 bare PR number against the current repo). Extract `owner`, `repo`, `prNumber`. Call
-`gh pr view <prNumber> --repo <owner>/<repo> --json title,body,baseRefName,headRefName`.
+`gh pr view <prNumber> --repo <owner>/<repo> --json title,body,baseRefName,headRefName,headRefOid,statusCheckRollup`.
+Keep its `headRefOid` as `PR_HEAD_SHA` and a one-line count of its passed, failed and pending
+checks as `PR_CHECKS`.
 
 **`"bitbucket-mcp"`** — expects a Bitbucket Server PR URL:
 ```
@@ -97,8 +99,10 @@ terminate:
 Error: Could not parse the PR link for the configured VCS adapter (<vcs.adapter>).
 ```
 
-Store the result as `PR_TITLE` and `PR_DESCRIPTION` for use in subsequent steps, and display
-`Fetched PR #<prId or prNumber>: <PR_TITLE>`.
+Store the result as `PR_TITLE`, `PR_DESCRIPTION`, `PR_HEAD_SHA` and `PR_CHECKS` for use in
+subsequent steps, and display `Fetched PR #<prId or prNumber>: <PR_TITLE>`. An adapter that
+returns no check statuses (`bitbucket-mcp`) leaves `PR_HEAD_SHA` and `PR_CHECKS` unset — the
+run then carries no provided evidence.
 
 **Confirming the claimed target.** The PR's head branch, when returned, is the claimed target:
 with `BRANCH_NAME` unset, adopt it (`BRANCH_NAME = <PR head>`); when `BRANCH_NAME` names a
@@ -233,6 +237,17 @@ Pinned target — review exactly this and nothing else:
 
 Additional ticket context:
 [... same five bullets as above ...]
+```
+
+**Provided evidence** — only when `PR_HEAD_SHA` is set and equals the manifest's `HEAD`: insert
+this block immediately after the PR Compliance block, inside the prompt. When `PR_HEAD_SHA`
+differs from the pinned head, or the adapter returned no check statuses, omit it entirely —
+evidence from another commit is not evidence for this review.
+```
+Provided evidence — the VCS host's checks for the pinned head:
+- Head: <PR_HEAD_SHA> (equals the pinned head)
+- Checks: <n> passed, <m> failed, <k> pending
+Record this as a `verification` record in the machine report; never claim a local run that did not happen.
 ```
 
 Wait for the agent to complete, then confirm the machine report and the report exist — files

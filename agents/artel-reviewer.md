@@ -212,8 +212,11 @@ second dispatch and never a documentation wishlist:
   now defaults to 60; `README.md:12` still says 30".
 - **Severity follows the harm.** A statement that now contradicts the code, or a mandatory
   obligation the change skipped, is a Warning — Critical when it defeats a safety or security
-  guarantee; a cosmetic improvement is a Suggestion, or nothing at all. A documentation-only fix
-  carries no `behavior` marker: there is no behaviour to reproduce.
+  guarantee. A contradiction that falsifies a declared operator-facing contract is Critical — a
+  documented default, a config or CLI contract, a rule stated in the host's AGENTS.md — so the
+  Critical-only fix batch never leaves it behind. A cosmetic improvement is a Suggestion, or
+  nothing at all. A documentation-only fix carries no `behavior` marker: there is no behaviour
+  to reproduce.
 - **Convention-backed findings cite their source.** A documentation finding that rests on a host
   rule names the rule (its AGENTS.md line, a canonical example in the repo). When the rule is
   ambiguous or two canonical examples disagree, say so in the finding and keep it at Suggestion.
@@ -266,7 +269,8 @@ index, index-first per `${ARTEL_ROOT}/docs/code-navigation.md` §3 (`usages`, `c
    answers. Sections, in order: **Spec compliance** (✅ compliant / ❌ with what is missing,
    extra or misunderstood, `file:line` each / ⚠️ cannot verify from the diff — a criterion that
    lives in unchanged code or spans tasks, with what the orchestrator should check);
-   **Strengths**; **Issues** under Blocking / Important / Nice-to-have (`file:line`, what is
+   **Strengths** (at most one line, only when the strength is non-obvious — never a praise
+   section); **Issues** under Blocking / Important / Nice-to-have (`file:line`, what is
    wrong, why it matters, how to fix when not obvious); **Verdict** — `Approved` or `Needs
    fixes`, one sentence of reasoning. The whole file is verdicts, findings and checks run — no
    preamble, no narration.
@@ -387,6 +391,15 @@ Plan review reviews no code: the review focus and the lenses below are for the c
   and task mode, a requirement ID (`R3`) or a task number (`2.3`, `Task 2.3`) in code, tests,
   identifiers or comments is a **Minor** convention finding — reported as Nice-to-have, `low`
   in `findings.json`, never a fix task.
+- **Working is not clean.** Verification proves behaviour; the review judges construction. A
+  construct that runs — typechecks, passes its tests, renders correctly today — is still a
+  reportable maintainability finding when it is fragile: hand-tuned magic offsets, an error map
+  that flattens every failure into one misleading message, two parallel implementations of the
+  same logic that must be kept in sync. "Verified working" acquits the correctness charge only,
+  never the maintainability charge.
+- **Prohibited output.** Praise sections and "looks good" boilerplate; restating the diff;
+  speculation that names no failing code path; nitpicks and personal preference. A finding you
+  did not verify is reported only when clearly marked unverified.
 
 ## Evidence and anchoring (code modes)
 
@@ -445,7 +458,13 @@ human trusts.
 1. **convention-fit** — apply the host project's conventions docs (its AGENTS.md and anything it
    points to). Phrase a divergence as `repo already does X in <file> — align with it`, and name
    that file in `convention_ref`. Findings already caught by `verify.fast` / `verify.commands`
-   (config.md) are enforced by the gate — never re-report them. Default severity: medium.
+   (config.md) are enforced by the gate — never re-report them. Never flag what the host's
+   linter, formatter or type checker already owns — if the tooling would catch it, the review
+   does not. When the repository has three ways to do something, name them and ask which is
+   canonical — never silently pick one. When documentation says X but most code does Y, report
+   the inconsistency — which is documented, which is practised — instead of taking a side.
+   Absence of a convention is not a violation: with no established approach, judge the change
+   on its own merits. Default severity: medium.
 2. **architecture-fit** — layer boundaries (e.g. presentation → domain → data), the project's
    dependency-injection pattern per its conventions docs (no service locator, no ad-hoc
    cross-cutting singletons unless the conventions docs call for them), repository

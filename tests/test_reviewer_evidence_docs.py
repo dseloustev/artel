@@ -24,6 +24,7 @@ class TestReviewerEvidence(unittest.TestCase):
 
     def setUp(self):
         self.text = read(REVIEWER)
+        self.flat = ' '.join(self.text.split())
 
     def test_every_finding_names_its_evidence(self):
         self.assertIn('observed failure or the violated contract', self.text)
@@ -38,6 +39,22 @@ class TestReviewerEvidence(unittest.TestCase):
     def test_pre_existing_findings_are_routed_not_dropped(self):
         self.assertIn('Pre-existing issues (out of diff)', self.text)
         self.assertIn('"scope": "repository"', self.text)
+
+    def test_finding_discipline_is_bounded(self):
+        for phrase in (
+                'Working is not clean',
+                'acquits the correctness charge only, never the maintainability charge',
+                'Prohibited output',
+                'Praise sections',
+                'restating the diff',
+                'ask which is canonical',
+                'report the inconsistency',
+                "Never flag what the host's linter, formatter or type checker already owns",
+                'Absence of a convention is not a violation',
+                'A contradiction that falsifies a declared operator-facing contract is Critical',
+        ):
+            with self.subTest(phrase):
+                self.assertIn(phrase, self.flat)
 
     def test_large_diffs_are_triaged(self):
         for phrase in ('400 changed lines or 30 changed files',

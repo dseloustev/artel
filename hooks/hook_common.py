@@ -24,14 +24,25 @@ VERIFY_SCRIPT = PLUGIN_ROOT / 'scripts' / 'verify.py'
 DEFAULT_TICKET_PATTERN = r'^(?:{projectKey}-)?(\d+)(?:-p?(\d+))?$'
 
 
-def read_hook_input():
-    """The hook's stdin payload ({} when unreadable). Also moves the process into the
-    session's checkout root, so call it before anything reads `.artel/`."""
+def read_input():
+    """The hook's stdin payload ({} when unreadable), with no other effect.
+
+    For a hook whose cheapest check can answer before the worktree move — and so before the
+    up-to-three git calls `enter_session_root` makes — parse here, return early, and call
+    `enter_session_root(data)` on the surviving path. Every other hook uses
+    `read_hook_input()`, which does both."""
     try:
         data = json.load(sys.stdin)
     except Exception:
         return {}
-    if isinstance(data, dict):
+    return data if isinstance(data, dict) else {}
+
+
+def read_hook_input():
+    """The hook's stdin payload ({} when unreadable). Also moves the process into the
+    session's checkout root, so call it before anything reads `.artel/`."""
+    data = read_input()
+    if data:
         enter_session_root(data)
     return data
 

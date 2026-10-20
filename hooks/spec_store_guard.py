@@ -60,12 +60,9 @@ def read_hint(rel, config):
 
 
 def main():
-    try:
-        data = json.load(sys.stdin)
-    except Exception:
-        return 0
-    if not isinstance(data, dict):
-        return 0
+    # Parse before the worktree move: this hook sees every Read, and a non-image answers
+    # without paying enter_session_root()'s up-to-three git calls (hook_common.read_input).
+    data = h.read_input()
     reading = str(data.get('tool_name') or '').lower() == 'read'  # OpenCode sends `read`
     file_path = str((data.get('tool_input') or {}).get('file_path') or '')
     if reading and not kh.is_image_name(os.path.basename(file_path)):

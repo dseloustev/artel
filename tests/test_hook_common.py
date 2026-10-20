@@ -269,13 +269,9 @@ HOOKS_DIR = Path(__file__).resolve().parent.parent / 'hooks'
 # using_artel never reads its input: SessionStart fires before any worktree move, and its
 # in-process test would block on a terminal's stdin.
 READS_NO_INPUT = {'using_artel.py'}
-# spec_store_guard.py reads stdin itself (plain json.load, no hook_common call), so a Read of
-# a non-image can return before paying enter_session_root()'s up-to-three git calls. Its first
-# hook_common touch is therefore enter_session_root() directly -- the same worktree move
-# read_hook_input() makes, just reached after that early return instead of before the stdin
-# read. The invariant this test enforces (nothing touches hook_common before the worktree
-# move) still holds; only which name performs the move differs.
-ENTERS_ROOT_DIRECTLY = {'spec_store_guard.py'}
+# spec_store_guard.py parses with read_input() so a Read of a non-image can return before
+# paying enter_session_root()'s up-to-three git calls. Parsing is the one hook_common call
+# allowed before the move; the move must be the next one.
 # Not lifecycle hooks at all, so "has no main()" is not a violation: shared library
 # modules that hooks (and scripts) import, kept in hooks/ because that is what imports
 # them. kartoteka_http.py is kartoteka's HTTP client, shared by knowledge_mirror.py and,
@@ -287,27 +283,31 @@ NOT_A_HOOK = {'hook_common.py', 'kartoteka_http.py', 'spec_decision.py', 'doc_he
 
 
 class TestHooksReadInputFirst(unittest.TestCase):
-    """read_hook_input() moves the process into the session's worktree, so no hook may
-    touch hook_common (config, run state, git) before calling it -- directly, or, for
-    ENTERS_ROOT_DIRECTLY, before calling the enter_session_root() it wraps."""
+    """read_hook_input() moves the process into the session's worktree, so no hook may touch
+    hook_common (config, run state, git) before it. A hook that can answer before the move
+    parses with read_input(), and must then move before any other hook_common touch."""
 
-    def first_h_call(self, path):
+    def h_calls(self, path):
         tree = ast.parse(path.read_text(encoding='utf-8'))
         main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main')
         calls = [n for n in ast.walk(main)
                  if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
                  and n.value.id == 'h']
         calls.sort(key=lambda n: (n.lineno, n.col_offset))
-        return calls[0].attr if calls else None
+        return [call.attr for call in calls]
 
     def test_every_hook_reads_its_input_first(self):
         hooks = sorted(p for p in HOOKS_DIR.glob('*.py')
                        if p.name not in NOT_A_HOOK and p.name not in READS_NO_INPUT)
         self.assertTrue(hooks)
         for path in hooks:
-            expected = ('enter_session_root' if path.name in ENTERS_ROOT_DIRECTLY
-                       else 'read_hook_input')
-            self.assertEqual(self.first_h_call(path), expected, path.name)
+            calls = self.h_calls(path)
+            self.assertIn(calls[0] if calls else None, ('read_input', 'read_hook_input'),
+                          path.name)
+            if calls[0] == 'read_input':
+                # Parsing alone may precede the move; nothing else may.
+                self.assertGreater(len(calls), 1, path.name)
+                self.assertEqual(calls[1], 'enter_session_root', path.name)
 
 
 if __name__ == '__main__':

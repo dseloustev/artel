@@ -135,10 +135,6 @@ move to the decision log.
   - an MCP `attachment_get` returning image content, once OpenCode support is known;
   - user-supplied images and Jira attachments as sources;
   - phase-relative image links.
-  - **Guard input parsing.** `spec_store_guard.py` parses its input inline instead of calling
-    `hook_common.read_hook_input`, which the `ENTERS_ROOT_DIRECTLY` allowlist in
-    `tests/test_hook_common.py` permits. A shared parse primitive in `hook_common` would remove
-    the allowlist.
 
   Evidence files (`findings.json`, `observation.md`) moving into the store, and `.active_ticket`
   moving to `.artel/run/`, stay parked (2026-09-22 design, §16).
@@ -1699,3 +1695,11 @@ move to the decision log.
   failure mode is a disabled plugin — hooks included — so the generator stays. Evidence,
   counts and the conditions that would reopen it:
   [comparisons/opencode-runtime-registration-vs-generated-snapshot.md](comparisons/opencode-runtime-registration-vs-generated-snapshot.md).
+- **2026-10-20 — Hook input parsing has one primitive and no allowlist.** `hook_common.read_input()`
+  parses stdin and does nothing else; `read_hook_input()` is `read_input()` plus the worktree
+  move. `spec_store_guard.py` was the one hook that parsed inline, because a non-image Read must
+  answer before `enter_session_root()`'s up-to-three git calls — it now parses with
+  `read_input()` and moves on the surviving path. `tests/test_hook_common.py`'s
+  `ENTERS_ROOT_DIRECTLY` exception is gone: the rule is now general — a hook's first
+  `hook_common` call is `read_input` or `read_hook_input`, and when it is `read_input` the
+  worktree move must be the very next one, so nothing reads config or run state before it.

@@ -122,8 +122,11 @@ the checkout the session belongs to — the main checkout, which stays put when 
 into a linked worktree (`/artel-move-to-worktree`); `hook_common.read_hook_input()` then moves
 the process into that worktree — only one of the same repository, named by the payload's `cwd` —
 so the gates check the files the session actually edits. Every hook therefore reads its input
-before touching `.artel/` (`tests/test_hook_common.py` pins the order; `using_artel.py`, which
-reads no input, is the one exception). See [docs/worktrees.md](../docs/worktrees.md) §7.
+before touching `.artel/` — `read_hook_input()` in one call, or `read_input()` followed
+immediately by `enter_session_root()` for a hook that can answer before the move
+(`spec_store_guard.py`'s non-image Read). `tests/test_hook_common.py` pins the order;
+`using_artel.py`, which reads no input, is the one exception.
+See [docs/worktrees.md](../docs/worktrees.md) §7.
 
 Hook state lives in the host repo at `.artel/run/.hooks/` (session baselines
 `baseline-<session_id>.json`, verify-stop counters `stopblocks-<session_id>.json`) and the

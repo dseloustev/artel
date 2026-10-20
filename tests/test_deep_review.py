@@ -376,6 +376,7 @@ class PreparedCase(RepoCase):
             'base': self.base_sha,
             'head': self.head_sha,
             'completeness': 'complete',
+            'dangerous': self.manifest_data['dangerous']['summary'],
             'critical': 'none',
             'warnings': 'none',
             'suggestions': 'none',
@@ -398,6 +399,7 @@ class PreparedCase(RepoCase):
             '**Reviewed base:** {base}\n'
             '**Reviewed head:** {head}\n'
             '**Review completeness:** {completeness}\n'
+            '**Dangerous change:** {dangerous}\n'
             '\n'
             '## Critical Issues (must fix)\n'
             '{critical}\n'
@@ -480,7 +482,7 @@ class TestCheck(PreparedCase):
         text = (
             '---\ntype: deep-review\nticket: PROJ-1\nproduced_by: artel:reviewer\n---\n\n'
             '**Review run:** {}\n**Reviewed base:** {}\n**Reviewed head:** {}\n'
-            '**Review completeness:** complete\n\n'
+            '**Review completeness:** complete\n**Dangerous change:** none\n\n'
             '## Proposed fixes\n\n### Tasks (Critical)\n- none\n\n### Tasks (Warning)\n- none\n'
         ).format(self.run_id, self.base_sha, self.head_sha)
         self.write_report(text)
@@ -678,6 +680,23 @@ class TestCheck(PreparedCase):
         proc = self.check()
         self.assertEqual(proc.returncode, 2)
         self.assertTrue(any('schema must be 1' in error
+                            for error in self.envelope(proc)['errors']))
+
+    def test_missing_dangerous_line_is_rejected(self):
+        self.write_machine([])
+        self.write_report(self.report_text().replace('**Dangerous change:** none\n', ''))
+        proc = self.check()
+        self.assertEqual(proc.returncode, 1)
+        self.assertTrue(any('missing the **Dangerous change:** line' in error
+                            for error in self.envelope(proc)['errors']))
+
+    def test_dangerous_line_mismatch_is_rejected(self):
+        self.write_machine([])
+        self.write_report(self.report_text(
+            dangerous='yes — ci-cd (.github/workflows/ci.yml)'))
+        proc = self.check()
+        self.assertEqual(proc.returncode, 1)
+        self.assertTrue(any('**Dangerous change:**' in error
                             for error in self.envelope(proc)['errors']))
 
     def test_manifest_without_dangerous_is_exit_two(self):
@@ -1218,7 +1237,7 @@ class TestSubmoduleSourceCleanliness(unittest.TestCase):
         report = (
             '---\ntype: deep-review\nticket: PROJ-1\nproduced_by: artel:reviewer\n---\n\n'
             '**Review run:** {}\n**Reviewed base:** {}\n**Reviewed head:** {}\n'
-            '**Review completeness:** complete\n\n'
+            '**Review completeness:** complete\n**Dangerous change:** none\n\n'
             '## Suggestions (consider improving)\n\n{}\n\n'
             '## Proposed fixes\n\n### Tasks (Critical)\n- none\n\n### Tasks (Warning)\n- none\n'
         ).format(manifest['run_id'], manifest['base'], manifest['head'], suggestions)

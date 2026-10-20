@@ -612,7 +612,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Writes:** the pinned target and the machine report under
   `.artel/run/<TICKET_ID>/deep-review/` (local evidence on both spec-store paths);
   `<specs.dir>/<TICKET_ID>/deep-review.md` — the reviewer's standalone report with the document
-  header (`type: deep-review`, `produced_by: artel:reviewer`), the four metadata lines, its
+  header (`type: deep-review`, `produced_by: artel:reviewer`), the five metadata lines, its
   Critical / Warnings / Suggestions / Pre-existing issues / Accepted audits findings, the
   optional PR Compliance section, and a `## Proposed fixes` section whose `### Tasks (Critical)`
   and `### Tasks (Warning)` blocks carry one fix task per actionable finding. On apply:

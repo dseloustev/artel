@@ -194,6 +194,7 @@ class DeepReviewCase(unittest.TestCase):
             'base': self.manifest['base'],
             'head': self.manifest['head'],
             'completeness': 'complete',
+            'dangerous': self.manifest['dangerous']['summary'],
             'critical': 'none',
             'warnings': 'none',
             'suggestions': 'none',
@@ -214,6 +215,7 @@ class DeepReviewCase(unittest.TestCase):
             '**Reviewed base:** {base}\n'
             '**Reviewed head:** {head}\n'
             '**Review completeness:** {completeness}\n'
+            '**Dangerous change:** {dangerous}\n'
             '\n'
             '## Critical Issues (must fix)\n'
             '{critical}\n'
@@ -559,6 +561,7 @@ class TestContractDoc(unittest.TestCase):
     def test_it_owns_the_report_contract(self):
         for phrase in ('type: deep-review', '**Review run:**', '**Reviewed base:**',
                        '**Reviewed head:**', '**Review completeness:**',
+                       '**Dangerous change:**',
                        '### DR-NNN (<Priority>): <title>', '### DR-NNN (audit): <title>',
                        '### Tasks (Critical)', '### Tasks (Warning)',
                        'Finding: DR-NNN', 'Acceptance criteria:'):

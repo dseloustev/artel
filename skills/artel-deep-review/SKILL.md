@@ -204,7 +204,7 @@ Pinned target — review exactly this and nothing else:
 - Target manifest: .artel/run/<TICKET_ID>/deep-review/target.json — run <RUN_ID>, branch <BRANCH>, base <BASE>, head <HEAD>, merge-base <MERGE_BASE>.
 - Review range: `git diff <MERGE_BASE> <HEAD>`; regression guard: `git diff <BASE> <HEAD>`; anchors: the same merge-base..head range.
 - Machine report (schema 1): write it to .artel/run/<TICKET_ID>/deep-review/machine.json.
-- Report contract: `${ARTEL_ROOT}/docs/deep-review.md` — the header, the four metadata lines, the finding sections and DR-NNN IDs, the `### Tasks` blocks, the verification records and the completeness rules.
+- Report contract: `${ARTEL_ROOT}/docs/deep-review.md` — the header, the five metadata lines, the finding sections and DR-NNN IDs, the `### Tasks` blocks, the verification records and the completeness rules.
 
 Additional ticket context:
 - Active ticket: <TICKET_ID>
@@ -233,7 +233,7 @@ Pinned target — review exactly this and nothing else:
 - Target manifest: .artel/run/<TICKET_ID>/deep-review/target.json — run <RUN_ID>, branch <BRANCH>, base <BASE>, head <HEAD>, merge-base <MERGE_BASE>.
 - Review range: `git diff <MERGE_BASE> <HEAD>`; regression guard: `git diff <BASE> <HEAD>`; anchors: the same merge-base..head range.
 - Machine report (schema 1): write it to .artel/run/<TICKET_ID>/deep-review/machine.json.
-- Report contract: `${ARTEL_ROOT}/docs/deep-review.md` — the header, the four metadata lines, the finding sections and DR-NNN IDs, the `### Tasks` blocks, the verification records and the completeness rules.
+- Report contract: `${ARTEL_ROOT}/docs/deep-review.md` — the header, the five metadata lines, the finding sections and DR-NNN IDs, the `### Tasks` blocks, the verification records and the completeness rules.
 
 Additional ticket context:
 [... same five bullets as above ...]

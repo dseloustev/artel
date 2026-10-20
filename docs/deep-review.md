@@ -39,7 +39,13 @@ pins four SHAs plus a fresh run id:
   "head": "0123456789abcdef0123456789abcdef01234567",
   "merge_base": "1234567890abcdef1234567890abcdef12345678",
   "branch": "feat/timeout",
-  "specs_dir": "specs/.current"
+  "specs_dir": "specs/.current",
+  "dangerous": {
+    "is_dangerous": false,
+    "summary": "none",
+    "classes": [],
+    "paths": []
+  }
 }
 ```
 
@@ -53,6 +59,14 @@ The specs dir is a dedicated artifact root the host declares in `.artel/config.j
 product directory and not an exemption for source changes. A value that names product code is a
 configuration error to report; `prepare` already refuses `.`, absolute paths, paths outside the
 checkout, `.git` and the checkout root.
+
+The manifest also carries `dangerous` — the change's sensitive surfaces, computed by `prepare`
+from the effective sensitive-paths policy (`hooks/sensitive-paths.json`, replaced wholesale by a
+host `.artel/sensitive-paths.json` when present): `is_dangerous`, the matched `classes` and
+`paths`, and `summary`, the exact string the report's metadata line must carry. It is
+deterministic and never the reviewer's judgement: every path in `merge_base..head` is matched
+against every glob in the policy, deletions included, and a policy that matches nothing reads
+`none`.
 
 ## 2. The machine report (schema 1)
 
@@ -133,7 +147,7 @@ The pinned range is the only truth — never the working tree, never a moved HEA
 
 ### Header and metadata
 
-The report opens with the document header ([spec-storage.md](spec-storage.md) §3.2), then four
+The report opens with the document header ([spec-storage.md](spec-storage.md) §3.2), then five
 body metadata lines, each exactly once and matching the manifest:
 
 ```markdown
@@ -147,7 +161,13 @@ produced_by: artel:reviewer
 **Reviewed base:** 9f8e7d6c5b4a39281706f5e4d3c2b1a098765432
 **Reviewed head:** 0123456789abcdef0123456789abcdef01234567
 **Review completeness:** complete
+**Dangerous change:** none
 ```
+
+`**Dangerous change:**` carries the manifest's `dangerous.summary` verbatim — `none`, or
+`yes — <classes> (<paths>)` — so a change touching a sensitive surface reaches the reader even
+when its findings are all clean. The checker compares it to the manifest exactly; it never
+reclassifies.
 
 ### Sections
 
@@ -227,6 +247,7 @@ produced_by: artel:reviewer
 **Reviewed base:** 9f8e7d6c5b4a39281706f5e4d3c2b1a098765432
 **Reviewed head:** 0123456789abcdef0123456789abcdef01234567
 **Review completeness:** complete
+**Dangerous change:** none
 
 ## Critical Issues (must fix)
 
@@ -337,8 +358,9 @@ count), and `report` (the repo-relative path). `data.counts` and `data.tasks` ar
 offers from.
 
 **What the checker proves:** the artifacts' structure, identities and anchors — the metadata and
-SHA links, the heading/ID/task correspondence, and that every line anchor falls in the pinned
-diff. **What it does not prove:** never that a finding is true. Semantic truth stays the
+SHA links, the heading/ID/task correspondence, the dangerous-change line's agreement with the
+policy-derived summary, and that every line anchor falls in the pinned diff. **What it does not
+prove:** never that a finding is true. Semantic truth stays the
 reviewer's, and the reader's judgement.
 
 ## 6. The hand-off

@@ -160,7 +160,7 @@ Save to:
 **The `deep-review` output.** A caller may ask for the report as the ticket's `deep-review.md`
 instead — `deep-review` does, naming `<specs.dir>/<TICKET_ID>/deep-review.md` as the output path,
 a pinned target manifest, a machine-report path and the fix tasks. The artifact contract — the
-manifest's pins, the machine report's schema, the report's header, the four metadata lines, the
+manifest's pins, the machine report's schema, the report's header, the five metadata lines, the
 finding sections and IDs, the `### Tasks` blocks, the verification records and the completeness
 rules — is single-homed in `${ARTEL_ROOT}/docs/deep-review.md`; follow it exactly. In
 short:
@@ -169,9 +169,11 @@ short:
    immutable. Review `git diff <merge_base> <head>` and validate anchors against that same range
    — never the working tree, never a moved HEAD.
 2. Open with the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2):
-   `type: deep-review`, `ticket: <TICKET_ID>`, `produced_by: artel:reviewer`, then the four
+   `type: deep-review`, `ticket: <TICKET_ID>`, `produced_by: artel:reviewer`, then the five
    metadata lines — `**Review run:**`, `**Reviewed base:**`, `**Reviewed head:**`,
-   `**Review completeness:**` — with the manifest's values, exactly once each.
+   `**Review completeness:**`, `**Dangerous change:**` — with the manifest's values, exactly once
+   each. The dangerous-change summary is computed by `prepare`; copy it verbatim, never
+   reclassify.
 3. Write the machine report (schema 1) to the path the dispatch names: `completeness`, `gaps`,
    at least one `verification` record (`command`/`result` or `evidence` — never a numeric
    confidence), and one finding per report finding with a unique `DR-NNN` id, `kind`

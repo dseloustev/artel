@@ -74,7 +74,8 @@ NESTED_CHECKBOX = re.compile(r'^\s+- \[[ xX]\]')
 NONE_ITEM = re.compile(r'^- none\s*$')
 FINDING_LINE = re.compile(r'Finding:\s*(\S+)')
 SUMMARY = re.compile(r'^Deep review: (\d+) Critical, (\d+) Warning, (\d+) Suggestion — (.+?)\s*$')
-META_LABELS = ('Review run', 'Reviewed base', 'Reviewed head', 'Review completeness')
+META_LABELS = ('Review run', 'Reviewed base', 'Reviewed head', 'Review completeness',
+               'Dangerous change')
 PRIORITY_CATEGORY = {'Critical': 'critical', 'Warning': 'warning', 'Suggestion': 'suggestion'}
 
 # An empty report is a failed producer, not a malformed artifact: on the kartoteka path a
@@ -902,7 +903,7 @@ def header_errors(text, manifest):
 
 
 def metadata_errors(lines, manifest, machine):
-    """The four body metadata lines: present once each and matching the target."""
+    """The five body metadata lines: present once each and matching the target."""
     errors = []
     meta = {}
     for label in META_LABELS:
@@ -933,6 +934,12 @@ def metadata_errors(lines, manifest, machine):
         elif machine['completeness'] is not None and value != machine['completeness']:
             errors.append('report **Review completeness:** is {}, the machine report says '
                           '{}'.format(value, machine['completeness']))
+    if 'Dangerous change' in meta:
+        value = meta['Dangerous change']
+        summary = manifest['dangerous']['summary']
+        if value != summary:
+            errors.append('report **Dangerous change:** {!r} does not match the target '
+                          '{!r}'.format(value, summary))
     return errors
 
 

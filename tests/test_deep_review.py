@@ -55,11 +55,13 @@ FENCED_EXAMPLE = (
 
 def finding(fid, kind='defect', scope='diff', priority='Critical', file='src/app.py',
             line=10, evidence='the changed line trusts input',
-            recommendation='reject empty input'):
+            recommendation='reject empty input', convention_ref=None):
     item = {'id': fid, 'kind': kind, 'scope': scope, 'priority': priority, 'file': file,
             'evidence': evidence, 'recommendation': recommendation}
     if line is not None:
         item['line'] = line
+    if convention_ref is not None:
+        item['convention_ref'] = convention_ref
     return item
 
 
@@ -647,6 +649,50 @@ class TestCheck(PreparedCase):
                 errors = self.envelope(proc)['errors']
                 self.assertTrue(any(fragment in error for error in errors),
                                 'no error matched {!r}: {}'.format(fragment, errors))
+
+    def test_convention_ref_must_exist_at_head(self):
+        findings = self.canonical_findings()
+        findings[1] = finding('DR-002', priority='Suggestion', file='docs/guide.md', line=3,
+                              convention_ref='docs/absent.md')
+        self.write_machine(findings)
+        self.write_report(self.canonical_report())
+        proc = self.check(summary=self.summary(critical=1, suggestion=1))
+        self.assertEqual(proc.returncode, 1)
+        self.assertTrue(any('convention_ref docs/absent.md does not exist at the reviewed head'
+                            in error for error in self.envelope(proc)['errors']))
+
+    def test_convention_ref_is_optional_and_validates_when_present(self):
+        findings = self.canonical_findings()
+        findings[1] = finding('DR-002', priority='Suggestion', file='docs/guide.md', line=3,
+                              convention_ref='docs/guide.md')
+        self.write_machine(findings)
+        self.write_report(self.canonical_report())
+        proc = self.check(summary=self.summary(critical=1, suggestion=1))
+        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+
+    def test_convention_ref_must_be_a_safe_path(self):
+        self.write_report(self.canonical_report())
+        for ref in ('/etc/passwd', '../escape.py'):
+            with self.subTest(ref=ref):
+                findings = self.canonical_findings()
+                findings[1] = finding('DR-002', priority='Suggestion', file='docs/guide.md',
+                                      line=3, convention_ref=ref)
+                self.write_machine(findings)
+                proc = self.check(summary=self.summary(critical=1, suggestion=1))
+                self.assertEqual(proc.returncode, 1)
+                self.assertTrue(any('safe repo-relative path'
+                                    in error for error in self.envelope(proc)['errors']))
+
+    def test_convention_ref_must_exist_at_the_pinned_head(self):
+        findings = self.canonical_findings()
+        findings[1] = finding('DR-002', priority='Suggestion', file='docs/guide.md', line=3,
+                              convention_ref='src/gone.py')
+        self.write_machine(findings)
+        self.write_report(self.canonical_report())
+        proc = self.check(summary=self.summary(critical=1, suggestion=1))
+        self.assertEqual(proc.returncode, 1)
+        self.assertTrue(any('convention_ref src/gone.py does not exist at the reviewed head'
+                            in error for error in self.envelope(proc)['errors']))
 
     def test_findings_not_a_list_is_rejected(self):
         self.write_machine([])

@@ -395,7 +395,8 @@ observed failure or the violated contract. A correctness finding whose failing c
 cannot be named is not reported — a plausible worry with no path to the failure is noise in
 a report a human acts on. A correctness claim that could not be confirmed by a run says so
 in the finding ("rests on reading, not a run") rather than implying a run that never
-happened.
+happened. A convention finding names its backing in the machine report's `convention_ref` —
+the host rule file or the canonical example in the repo. No reference, no convention finding.
 
 Anchors are mechanical, not decorative: a finding's `file:line` is what a reader follows into
 the diff — `deep-review.md` cites them — so a guessed line sends a reader to the wrong place
@@ -442,8 +443,9 @@ that exists (§5): a layer violation asserted against a class nobody can find is
 human trusts.
 
 1. **convention-fit** — apply the host project's conventions docs (its AGENTS.md and anything it
-   points to). Findings already caught by `verify.fast` / `verify.commands` (config.md) are
-   enforced by the gate — never re-report them. Default severity: medium.
+   points to). Phrase a divergence as `repo already does X in <file> — align with it`, and name
+   that file in `convention_ref`. Findings already caught by `verify.fast` / `verify.commands`
+   (config.md) are enforced by the gate — never re-report them. Default severity: medium.
 2. **architecture-fit** — layer boundaries (e.g. presentation → domain → data), the project's
    dependency-injection pattern per its conventions docs (no service locator, no ad-hoc
    cross-cutting singletons unless the conventions docs call for them), repository

@@ -107,6 +107,7 @@ A finding:
 | `file` | safe repo-relative path |
 | `line` | optional positive integer or `null` (never a bool) |
 | `evidence`, `recommendation` | non-empty strings |
+| `convention_ref` | optional safe repo-relative path: the file that states the host rule or the canonical example the finding cites, and it must exist at the reviewed head |
 
 ### Anchors
 

@@ -526,6 +526,12 @@ def validate_finding(item, index):
         if not isinstance(value, str) or not value.strip():
             errors.append('machine report findings[{}].{} must be a non-empty string'.format(
                 index, key))
+    convention_ref = None
+    if 'convention_ref' in item:
+        convention_ref = normalise_rel(item['convention_ref'])
+        if convention_ref is None:
+            errors.append('machine report findings[{}].convention_ref must be a safe '
+                          'repo-relative path, got {!r}'.format(index, item['convention_ref']))
     if errors:
         return None, errors
     finding = {'id': fid, 'kind': item['kind'], 'scope': item['scope'],
@@ -533,6 +539,8 @@ def validate_finding(item, index):
                'evidence': item['evidence'], 'recommendation': item['recommendation']}
     if line is not None:
         finding['line'] = line
+    if convention_ref is not None:
+        finding['convention_ref'] = convention_ref
     return finding, []
 
 
@@ -645,6 +653,19 @@ def anchor_errors(root, manifest, findings):
             elif line > line_count:
                 errors.append('{}: {}:{} [repository] is past the file end ({} lines at the '
                               'reviewed head)'.format(fid, path, line, line_count))
+    return errors
+
+
+def convention_errors(root, manifest, findings):
+    """A finding's convention_ref names a file that exists at the reviewed head."""
+    errors = []
+    for finding in findings:
+        ref = finding.get('convention_ref')
+        if ref is None:
+            continue
+        if blob_line_count(root, manifest['head'], ref) is None:
+            errors.append('{}: convention_ref {} does not exist at the reviewed head'.format(
+                finding['id'], ref))
     return errors
 
 
@@ -1100,6 +1121,7 @@ def cmd_check(args):
         machine = validate_machine_report(machine_raw, manifest)
         errors.extend(machine['errors'])
         errors.extend(anchor_errors(root, manifest, machine['findings']))
+        errors.extend(convention_errors(root, manifest, machine['findings']))
         markdown_errors, task_counts = check_markdown(report_text, manifest, machine)
         errors.extend(markdown_errors)
         errors.extend(check_summary(args.summary, root, machine, task_counts, expected))

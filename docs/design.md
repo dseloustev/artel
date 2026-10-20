@@ -171,16 +171,13 @@ move to the decision log.
   Fine if deliberate — but then it should be a decision here rather than a standing omission.
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
   the plugin (decision of 2026-07-27, below). No record that the review has been requested.
-- **The orchestrator seat's remainders** (shipped opt-in; decision log 2026-10-02): flip
-  `seat.enabled`'s default to `true` after one release of opt-in validation on real tickets;
-  the `opus`-at-lower-effort arm stays parked as an unmeasured lever.
 - **Model selection: what stays parked** (2026-10-02 design,
   `docs/superpowers/specs/2026-10-02-model-distribution-design.md`, local). The distribution
   landed from superpowers 6.4.1's evaluations (decision log, 2026-10-02); the OpenCode
   `models` block followed on 2026-10-07 (decision log). Still parked: `effort` per agent or
-  dispatch; a stronger-model retry after a red task gate. `tech-writer` and `issue-scout` stay
-  `opus`: no superpowers equivalent argues for `sonnet`, and their only measurement points the
-  other way.
+  dispatch; a stronger-model retry after a red task gate; the `opus`-at-lower-effort arm stays
+  parked as an unmeasured lever. `tech-writer` and `issue-scout` stay `opus`: no superpowers
+  equivalent argues for `sonnet`, and their only measurement points the other way.
 - **Sub-project 2c: parallel seats.** Shipped behind `parallel.seats` (absent or `1` is the
   serial procedure); the frozen contract is [opencode-parallel.md](opencode-parallel.md),
   proven against OpenCode 2.0.32 (re-proved 2026-10-19; originally 2.0.29) and validated end
@@ -1184,6 +1181,8 @@ move to the decision log.
   Opt-in for one release, then the default flips. Rejected: one dispatch per gate (the main
   thread keeps the churn); the implement loop only (the relay is needed there anyway). Spec:
   `docs/superpowers/specs/2026-10-01-orchestrator-seat-design.md` (local).
+  *(Superseded 2026-10-15: the seat went with the Claude Code surface — decision log,
+  2026-10-20.)*
 - **2026-10-02 — OpenCode names MCP tools `<server>_<tool>`; the VCS guard's token match
   holds there.** The parked unknown is settled from the installed 2.0.21 registry: an MCP
   tool's effective name joins the server namespace and the tool name with one underscore, both
@@ -1672,3 +1671,10 @@ move to the decision log.
   documentation pass stays inside the reviewer), the 22 language packs (corporate authority),
   orchestrator-side anchor correction (we re-dispatch; provenance wins), pre-existing findings as
   tasks (scope creep), and a verdict line (the validated counts already carry it).
+- **2026-10-20 — The orchestrator seat is retired, not parked.** The open follow-up that asked
+  for `seat.enabled`'s default to flip to `true` was stale: the seat was Claude Code only
+  (0.28.0, decision log 2026-10-02) and went with the Claude Code surface in `ab99d8d`
+  (2026-10-15) — `agents/artel-seat.md`, its dispatch and `seat.enabled` no longer exist, and
+  the tail runs inline on OpenCode. `parallel.seats` is not the seat's successor: that key is
+  worker concurrency inside one inline coordinator, not a nested orchestrator. A nested tail
+  would be a new design, not a resumed default flip.

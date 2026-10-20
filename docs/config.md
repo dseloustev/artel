@@ -20,7 +20,8 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   `sensitive_guard` hook enforces (categories of globs with mode floors,
   [autonomous-run.md](autonomous-run.md) §10). When present it replaces the plugin's shipped
   default policy (`hooks/sensitive-paths.json`) wholesale. Committed, like the config; the
-  `artel-setup` skill offers to scaffold it from the shipped defaults.
+  `artel-setup` skill offers to scaffold it from the shipped defaults. The same policy, resolved
+  identically, is what `deep-review`'s `prepare` uses to compute the run's dangerous-change flag.
 - `.artel/templates/issue-draft-<type>.md` (`<type>` is `task`, `bug` or `epic`) and
   `.artel/templates/issue-draft.md` — optional host overrides of the description templates the
   `artel-issue-draft` skill renders (`skills/artel-issue-draft/assets/templates/<type>.template.md` in the

@@ -1648,3 +1648,27 @@ move to the decision log.
   (`parallel.seats` absent or `1`), so no default-on claim rests on the missing measurement,
   and the docs keep stating these as limits. The plan's close-out — the full suite on the
   final source and the whole-branch review — moved into Task 11.
+- **2026-10-20 — `deep-review` adopts AdGuard `code-review` v0.2.0's dangerous-change flag and
+  finding-discipline rules.** Two changes from the plugin's 0.2.0 release (`plugins/code-review`,
+  2026-10-14), chosen after re-reading it against
+  [comparisons/adguard-code-review-vs-deep-review.md](comparisons/adguard-code-review-vs-deep-review.md).
+  **The flag is computed, not judged:** `deep_review.py prepare` matches every path in
+  `merge_base..head` against the effective sensitive-paths policy (the host
+  `.artel/sensitive-paths.json`, else the shipped `hooks/sensitive-paths.json`), records
+  `is_dangerous`/`classes`/`paths`/`summary` in the target manifest, and `check` requires the
+  report's fifth metadata line to carry that summary verbatim. No new config key: the policy is
+  already the single home of what counts as sensitive. A dangerous change is still reviewed and
+  its fixes still applied; the skill says a human must approve before merge, and never ends a
+  clean dangerous review with a bare `Nothing to apply.` **`convention_ref`:** a machine finding
+  may name the host rule file or canonical example it cites, and `check` requires that file to
+  exist at the pinned head — AdGuard's "if you cannot point at existing code, it is not a
+  convention finding", made mechanical. **CI evidence:** when the resolved PR's head equals the
+  pinned head, its check statuses ride the existing `verification` records as provided evidence.
+  **Prose rules adopted:** working-is-not-clean, prohibited output, the three-ways/canonical
+  question, the docs-vs-code inconsistency, linter-owned exclusion, absence-of-convention, and a
+  documentation contradiction that falsifies a declared operator-facing contract as Critical.
+  **Not adopted:** the parallel `code-review` + `docs-review` subagent split (it would make
+  `deep-review` a synthesizer and break the one-agent/one-artifact/checker-as-judge rule; the
+  documentation pass stays inside the reviewer), the 22 language packs (corporate authority),
+  orchestrator-side anchor correction (we re-dispatch; provenance wins), pre-existing findings as
+  tasks (scope creep), and a verdict line (the validated counts already carry it).

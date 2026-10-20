@@ -605,10 +605,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   pull request — write `deep-review.md`, and offer to work its fixes.
 - **Invocation:** `/artel-deep-review [ticket-id] [branch] [pr-link] [--local]`
 - **Reads:** the host's declared `specs.dir` (`.artel/config.json`) and the ticket directory;
-  the PR title/body and, where the adapter returns them, its base/head branch names; the
-  `scripts/deep_review.py prepare` manifest (the pinned run id, branch, base, head and merge
-  base); the `verify.commands` gate output (a hard gate when configured, run against the pinned
-  checkout).
+  the PR title/body and, where the adapter returns them, its base/head branch names and check
+  statuses; the effective sensitive-paths policy (`hooks/sensitive-paths.json`, or the host
+  `.artel/sensitive-paths.json`); the `scripts/deep_review.py prepare` manifest (the pinned run
+  id, branch, base, head, merge base and computed dangerous-change record); the `verify.commands`
+  gate output (a hard gate when configured, run against the pinned checkout).
 - **Writes:** the pinned target and the machine report under
   `.artel/run/<TICKET_ID>/deep-review/` (local evidence on both spec-store paths);
   `<specs.dir>/<TICKET_ID>/deep-review.md` — the reviewer's standalone report with the document
@@ -633,7 +634,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   never retried; the skill never edits the reviewer's output. Applying fixes means
   invoke the `artel-implementer` skill once per appended task, then `verify.commands` once; no re-review loop —
   re-run the skill to re-review. `--local` records nothing in the task queue. Ticket-wide only
-  (phase suffix discarded). No PR link → no PR Compliance section in the report.
+  (phase suffix discarded). No PR link → no PR Compliance section in the report. The manifest
+  also pins the computed dangerous-change record — the change's matched sensitive surfaces,
+  derived from the effective sensitive-paths policy, never the reviewer's judgement; the report's
+  fifth metadata line carries its summary, and the skill surfaces it before the apply question.
+  A dangerous change still gets its fixes applied, but it needs a human's approval before merge.
 
 ### collaborative-review
 

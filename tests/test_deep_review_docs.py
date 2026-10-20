@@ -128,6 +128,9 @@ class TestConfigDoc(unittest.TestCase):
     def test_the_deep_review_site_stays(self):
         self.assertIn('`models.opencode.reviewer.deepReview`', self.text)
 
+    def test_the_sensitive_policy_also_decides_the_dangerous_flag(self):
+        self.assertIn('dangerous-change flag', self.text)
+
 
 RETIRED = ('review-second.md', 'review-summary.md', '<TICKET_ID>/review-claude.md')
 

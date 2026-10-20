@@ -20,6 +20,17 @@ discipline artel adopted the same day ([design.md](../design.md), decision log 2
 > audits never count or become tasks ([deep-review.md](../deep-review.md)). The rows below still
 > describe the 2026-10-02 comparison; the AdGuard side is the v0.1.0 snapshot (`2cafd82`), with
 > `41023264` as the current reference revision.
+>
+> **Delta (2026-10-20, Unreleased; AdGuard plugin at v0.2.0, 2026-10-14):** the plugin split into
+> three skills — `code-review` (the protocol), `docs-review` (a bounded documentation protocol)
+> and `review` (manual-only; runs both as parallel subagents and synthesizes one report) — and
+> added a dangerous-change classification carried from the report into the combined flag. artel
+> adopted the parts that fit its deterministic boundary: the dangerous-change flag is computed by
+> `deep_review.py prepare` from the sensitive-paths policy rather than judged by the reviewer,
+> `convention_ref` makes the convention-citation rule mechanical, and a PR's check statuses ride
+> the existing `verification` records. See "Adopted 2026-10-20" below. Not adopted: the parallel
+> two-subagent split, the language packs, orchestrator-side anchor correction, pre-existing
+> findings as tasks.
 
 ## Provenance
 
@@ -145,18 +156,35 @@ there.
    a counted finding. Landed in the reviewer, `docs/review-forecast.md` §2 and the
    forecaster's template.
 
+### Adopted 2026-10-20
+
+From the v0.2.0 plugin:
+
+1. **Dangerous-change flag, computed rather than judged** — `prepare` matches the reviewed range
+   against the effective sensitive-paths policy, pins the result in the manifest, and `check`
+   requires the report's fifth metadata line to carry its summary verbatim. artel's version is
+   stricter than the plugin's: no model classifies the change.
+2. **`convention_ref`** — a machine finding names the host rule file or canonical example it
+   cites, and the checker requires that file to exist at the pinned head.
+3. **CI evidence** — the resolved PR's check statuses for the pinned head ride the existing
+   `verification` records as provided evidence.
+4. **Convention protocol tightening** — the three-ways/canonical question, the docs-vs-code
+   inconsistency, linter-owned exclusion, and "absence of a convention is not a violation".
+5. **Anti-noise list and "working is not clean"** — prohibited output, and fragile-but-working
+   constructs reportable as maintainability findings.
+
 ### Still open (not adopted)
 
-- **Convention protocol tightening** — exact phrasing, must-cite-an-existing-example,
-  linter-owned exclusion, three-ways → ask which is canonical.
-- **Anti-noise list and "working is not clean"** — explicit prohibitions; fragile-but-working
-  constructs reportable as maintainability findings.
-- **Per-finding verification record** — exact commands/outcomes/gaps in the report, carried
-  into `deep-review.md`.
-- **Security taxonomy** — signal + confirm-check pairs behind the existing security lens.
+- **Per-finding verification record** — partly adopted: a finding still says in its evidence
+  whether a run confirmed it, and CI statuses are now recorded, but the machine report has no
+  per-finding `confirmed_by` field.
+- **Security taxonomy** — the signal + confirm-check pairs behind the existing security lens.
 - **Modernity ladder** — modern idiom for new code, with corporate docs and repo pattern
   taking precedence.
-- **Fix list** — one line per definite issue for quick triage.
+- **Fix list** — deliberately not adopted: it would be a third representation of findings the
+  machine report and the `### DR-NNN` headings already carry.
+- **Parallel `code-review` + `docs-review` subagents** — not adopted: it would make `deep-review`
+  a synthesizer and break the one-agent/one-artifact/checker-as-judge rule.
 
 ### What not to copy
 

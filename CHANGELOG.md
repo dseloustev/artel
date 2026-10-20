@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`deep-review` pins a computed dangerous-change flag.** `deep_review.py prepare` matches the
+  reviewed range against the effective sensitive-paths policy (the host
+  `.artel/sensitive-paths.json`, else the shipped `hooks/sensitive-paths.json`) and records the
+  matched classes, paths and a summary in the target manifest; the report's fifth metadata line
+  (`**Dangerous change:**`) carries that summary verbatim, `check` validates it, and the skill
+  surfaces it before offering fixes. A dangerous change still gets its fixes applied but needs a
+  human's approval before merge. Machine findings may also carry `convention_ref`, a repo-relative
+  path to the host rule or canonical example they cite, which `check` requires to exist at the
+  pinned head.
+
+### Changed
+
+- **The reviewer's finding discipline is bounded.** Working-is-not-clean, the prohibited-output
+  list, the canonical-way question, the docs-vs-code inconsistency, linter-owned exclusion,
+  absence-of-convention, and a documentation contradiction that falsifies a declared
+  operator-facing contract as Critical. A resolved PR's check statuses for the pinned head ride
+  the existing `verification` records as provided evidence.
+
 ## [0.38.2] - 2026-10-19
 
 ### Fixed

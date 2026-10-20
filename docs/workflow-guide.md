@@ -25,12 +25,12 @@ a phase suffix.
 
 ## First run: the config
 
-Everything project-specific — ticket grammar, tracker, VCS host, verify commands, languages,
-runtime commands — comes from `.artel/config.json` in the host repo (config.md). No config yet?
+Everything project-specific — ticket grammar, tracker, VCS host, verify commands, languages —
+comes from `.artel/config.json` in the host repo (config.md). No config yet?
 Run [`/artel-setup`](skills-reference.md#setup), or just start
 `/artel-feature-development` — it invokes the interview itself when the file
 is missing. Unconfigured gates degrade to `skipped`, never to fake green: an empty
-`verify.commands` skips the quality gate, an absent `runtime.run` skips the runtime gate,
+`verify.commands` skips the quality gate,
 `design.figma: false` skips design analysis.
 
 ## Where the spec trail lives
@@ -53,7 +53,7 @@ is [spec-storage.md](spec-storage.md).
   documents are uploaded, stale copies never overwrite newer stored versions, conflicts show a
   diff and ask, and local copies are deleted only after kartoteka verifiably holds them — with
   `git rm`, in one optional commit.
-- **Images** (`design/` screenshots, runtime screenshots, any `*.png|jpg|jpeg|gif|webp` under a
+- **Images** (`design/` screenshots, any `*.png|jpg|jpeg|gif|webp` under a
   ticket's trail) live in kartoteka too (kartoteka 0.44.0 and later).
   - Nothing changes for whoever produces them: images are written where they always were.
   - The orchestrator sweeps them in at fixed points with `spec_store.py image sync`, and never
@@ -94,7 +94,7 @@ config nothing is injected.
 | Get from ticket to an approved plan or work list, nothing more | `/artel-feature-development PROJ-XXXX --dry-run` |
 | Same, fully unattended (low-risk only) | `opencode run "/artel-feature-development PROJ-XXXX --mode=yolo"` |
 | Same, supervising every gate | `/artel-feature-development PROJ-XXXX --step` |
-| A small change to an existing flow: a work list, then implement → review → runtime → PR | `/artel-feature-development PROJ-XXXX` — sized `bounded`; `--head=lean` forces it |
+| A small change to an existing flow: a work list, then implement → review → PR | `/artel-feature-development PROJ-XXXX` — sized `bounded`; `--head=lean` forces it |
 | A bug: reproduce it and find the cause before anything is planned | `/artel-feature-development PROJ-XXXX` — sized `bug`; `--head=bug` forces it |
 | A question (can we, is it feasible, which of these) | `/artel-feature-development PROJ-XXXX` — sized `spike`: the researcher answers in `spike.md` and the run stops |
 | Run the next phase of a phased ticket | `/artel-feature-development PROJ-XXXX-<N>` |
@@ -104,7 +104,7 @@ config nothing is injected.
 | Just the tasklist | `/artel-tasklist PROJ-XXXX` (from plan) or `/artel-generate-tasklist PROJ-XXXX` (from the idea, with the vision when there is one) |
 | Parse a tasklist into task-queue rows (JSON; mirrors nothing) | `python3 <plugin-root>/scripts/tasklist_tasks.py --tasklist specs/.current/PROJ-XXXX/tasklist.md --ticket-key PROJ-XXXX` (kartoteka path: `set -o pipefail; python3 <plugin-root>/scripts/spec_store.py get specs/.current/PROJ-XXXX/tasklist.md | python3 <plugin-root>/scripts/tasklist_tasks.py --tasklist - --ticket-key PROJ-XXXX`) |
 | Implement the next open task | `/artel-implementer PROJ-XXXX` |
-| Review / runtime-check / QA and gate-status (à la carte, not pipeline stages) | `/artel-run-reviewer PROJ-XXXX` · `/artel-run-app --gate` · `/artel-qa PROJ-XXXX` · `/artel-validate PROJ-XXXX` |
+| Review / QA and gate-status (à la carte, not pipeline stages) | `/artel-run-reviewer PROJ-XXXX` · `/artel-qa PROJ-XXXX` · `/artel-validate PROJ-XXXX` |
 | PR description / open the PR | `/artel-pr-description PROJ-XXXX` · `/artel-pr-create PROJ-XXXX` |
 | Resume an interrupted run | re-invoke the same entry-point command — resume is automatic |
 | Ask the archive: what was decided about X, what is filed under a ticket, is the index fresh | `/artel-knowledge <query>` · `/artel-knowledge PROJ-XXXX` · `/artel-knowledge status` (needs `knowledge.adapter: "kartoteka"`) |
@@ -125,7 +125,7 @@ work, says the size aloud with its reasons, and runs the head that size calls fo
 | `bug` | bug | `debugging` reproduces the bug and finds its cause (`diagnosis.md`), then the work list |
 | `spike` | none | `researcher` answers the ticket's question in `spike.md`, and the run stops there |
 
-Every head but the spike ends in the same tail: implement → review → runtime → docs (once, when
+Every head but the spike ends in the same tail: implement → review → docs (once, when
 the ticket has a PRD) → PR. `--head=full|lean|bug` overrides the size. The rules are
 `autonomous-run.md §17`. Everything else in
 the table is one stage of that pipeline you can also run à la carte.
@@ -168,7 +168,7 @@ or a re-invocation all resume from the same files. The spec trail stays human-re
   the sensitive-paths policy matches: secrets, gate config, CI/CD by default) are mandatory
   HITL. Tags are shown at the approval pause, so every interruption is agreed before the run
   goes silent.
-- **Capped loops** (`autonomous-run.md §5`) — every fix loop (the task gate, review, runtime, the
+- **Capped loops** (`autonomous-run.md §5`) — every fix loop (the task gate, review, the
   checkpoint gate) has a hard cap, and each writes its counter into the artifact it produces so re-invocation
   can't reset it. Hit a cap and the run escalates (consolidated findings, then stop) rather than
   spinning. The global correction-round budget lives in `run-state.json` itself.
@@ -179,13 +179,12 @@ did; headless stdout stays human-oriented.
 
 ### What writes to your repo and remotes
 
-Four skills — and only these — touch git history or remotes: **`feature-development`**
+Two skills — and only these — touch git history or remotes: **`feature-development`**
 (the run's task and checkpoint commits, and the checkpoint pushes to `origin`, authorized at the
 approval pause or the work-list confirmation: one commit per completed implementer cycle, planning
 or work-list docs after arming, then one commit+push per completed phase —
 `autonomous-run.md §14`); **`pr-create`** (commit + push when the tree is dirty, then the PR
-itself); **`add-automation`** / **`remove-automation`** (each commits exactly the scaffold
-paths; `remove-automation` also pushes when an upstream exists). Everything else writes only
+itself). Everything else writes only
 files: `init-branch` may create a branch (only when asked) but never commits; `move-to-worktree` /
 `return-from-worktree` (and `init-branch`'s worktree option) move uncommitted work between the
 main checkout and `.opencode/worktrees/` through `git stash` and switch the main checkout's branch,
@@ -395,11 +394,10 @@ start, and each phase closes with the `verify.commands` gate + a checkpoint comm
   ticket/phase review resolves `reviewer.phase`, a task review `reviewer.task` and a re-review
   `reviewer.reReview`, `deep-review`'s whole-branch review `reviewer.deepReview`
   (`autonomous-run.md §16.4`).
-- *Gate 8 — runtime.* [`run-app`](skills-reference.md#run-app) `--gate` launches the configured
-  `runtime.run` command and observes for a `RUNTIME_OK` verdict. No `runtime.run` configured →
-  `skipped (not configured)`; `runtime.surface` set and no changed file matches →
-  `skipped (no runtime surface)`. A runtime error in app code gets a capped fix round
-  (`autonomous-run.md §5`); an environment failure escalates immediately.
+- *Gate 8 — retired.* App automation is the host project's own: artel has no `runtime.*` config,
+  no `run-app` skill and no `RUNTIME_OK` gate. When a run needs the app observed, it uses the
+  host's automation skill (its `AGENTS.md` and skill directories name it) as a debugging aid;
+  nothing in the pipeline gates on it.
 - *Gate 10 — docs.* [`docs-update`](skills-reference.md#docs-update) updates docs and the
   CHANGELOG **once per ticket**, on the last phase before its checkpoint commit, which carries
   them — when the ticket has a PRD; without one the journal records
@@ -412,17 +410,17 @@ the fifth, the PR-gate pause, belongs to the close-out below): a **deviation esc
 implementer hit something the plan didn't anticipate and needs a decision —
 [deviation-protocol.md](deviation-protocol.md)), a **HITL task** (a pre-declared pause the tags
 warned you about), a **cap escalation** (a loop hit its bound — consolidated findings, then
-stop), or an **environment error**. Nothing else asks you anything after the pause. On three
-cap escalations — an aborted task, a checkpoint still red at its cap, the runtime gate's second
-red from an app-code error — the question's first option is **Debug it here first**: the
+stop), or an **environment error**. Nothing else asks you anything after the pause. On two
+cap escalations — an aborted task and a checkpoint still red at its cap — the question's first
+option is **Debug it here first**: the
 [`debugging`](skills-reference.md#debugging) skill works the red evidence once, where the run
 stands (`autonomous-run.md §5`). Each is
 bracketed by a `pause_reason` in `run-state.json` so the Stop gate treats the wait as
 legitimate.
 
-**Completion gate + PR gate.** The orchestrator confirms eight facts itself — plan and tasklist
-status, no open box, review clean, runtime green or skipped, the final gate (the last checkpoint
-stands, or one more checkpoint gate), docs written, scaffold removed — and a red one routes back
+**Completion gate + PR gate.** The orchestrator confirms six facts itself — plan and tasklist
+status, no open box, review clean, the final gate (the last checkpoint
+stands, or one more checkpoint gate), docs written — and a red one routes back
 once (`autonomous-run.md §7`; [`validate`](skills-reference.md#validate) is the same report à la
 carte). On a run whose head wrote no plan or no PRD those two facts read `skipped (no plan)` and
 `skipped (no PRD)`. Then
@@ -435,7 +433,7 @@ Finally `run-state.json` flips to `completed: true`, `run_active: false`, and th
 its completion entry.
 
 **The final report** names: the ticket; phases traversed; gates passed; the aggregated
-`Deviations:` line (`none` when clean); the loop counters; the baseline and the final gate; runtime status; the
+`Deviations:` line (`none` when clean); the loop counters; the baseline and the final gate; the
 checkpoint commits and the task commits behind them; the path to `pr-description.md`; PR status (`PR_OPENED`/`PR_EXISTS` URL,
 `skipped-manual`, or `pending`); description-sync status; the effective mode and why; external
 actions taken unattended; and the path to `run-journal.md` — the append-only record of the whole
@@ -581,11 +579,11 @@ what to run next. Run all of these from the host repo root.
    tasks, then re-run (capped review rounds — `autonomous-run.md §5`). See
    [run-reviewer](skills-reference.md#run-reviewer).
 
-10. **Runtime gate alone.** *Pre:* `runtime.run` configured; a buildable app. *Run:*
-    `/artel-run-app --gate`. *Produces:* a GREEN/RED verdict in `runtime/observation.md`
-    (relaunches fresh for a clean baseline, stops the app after). *Next:* on RED from app code,
-    fix and re-run; a stale green is not trusted — re-run if the observation predates your last
-    relevant change. See [run-app](skills-reference.md#run-app).
+10. **App automation (host-owned).** *Pre:* the host project provides its own automation skill
+    and commands (check its `AGENTS.md` and skill directories). *Run:* that skill's own
+    invocation. *Produces:* its own evidence, under its own contract — artel has no
+    `runtime.*` config, no `run-app` skill, no `RUNTIME_OK` gate and no runtime evidence path.
+    *Next:* nothing in the pipeline gates on it; use it when observing the app helps the work.
 
 11. **QA.** *Pre:* implemented, reviewed changes. *Run:* `/artel-qa PROJ-XXXX`. *Produces:*
     `qa.md` with a verdict (generated, never paused on). *Next:* on a negative verdict, one
@@ -594,7 +592,7 @@ what to run next. Run all of these from the host repo root.
 
 12. **Validate (gate status).** *Pre:* a ticket with artifacts. *Run:*
     `/artel-validate PROJ-XXXX`. *Produces:* a read-only report of which gates are green/red
-    (`PRD_READY`, `PLAN_APPROVED`, `TASKLIST_READY`, `REVIEW_OK`, `RUNTIME_OK`, `CHECKPOINT_OK`, …); writes
+    (`PRD_READY`, `PLAN_APPROVED`, `TASKLIST_READY`, `REVIEW_OK`, `CHECKPOINT_OK`, …); writes
     nothing. *Next:* address whatever is red. See [validate](skills-reference.md#validate). Not a
     pipeline stage since 0.18.0 — the orchestrator's completion gate confirms the same facts.
 
@@ -651,7 +649,7 @@ what to run next. Run all of these from the host repo root.
 | A worktree move or hand-back reports **`conflict`** | The uncommitted work was stashed but did not apply where it was going; the stash is kept ([worktrees.md](worktrees.md) §6) | Resolve the conflicts in the path the report names, then `git stash drop` the stash entry it names. Nothing was lost. An **`error`** that names a `stash` means the same work is kept there: `git stash apply <stash>` restores it |
 | `edit` **denied** naming a sensitive-paths category and floor | The sensitive-path guard is armed and the path's floor outranks the effective mode, or `TASKLIST_READY` isn't confirmed yet (hooks/README.md, `autonomous-run.md §10`) | Re-run at or above the required mode, or use `--step` for a `full-gates` floor. Never lower the floor. |
 | Session won't end: **"run incomplete"** block | Run stop gate: `run-state.json` is `run_active: true`, `completed: false`, `pause_reason: null` (`autonomous-run.md §8`) | Let the run finish, or if it legitimately paused, have the orchestrator set the matching `pause_reason` (hand-edit `.artel/run/<TICKET_ID>/run-state.json` only as a fallback, when no session is live — same as the abort row). A truly finished run should already have `completed: true`. |
-| Run stops with a **consolidated findings report** | A capped loop hit its bound (task gate/review/runtime/checkpoint gate, or the global correction budget — `autonomous-run.md §5`) | Read the consolidated findings, give guidance, and resume. Counters reset only on that user-guided resume; for the review loop specifically, deleting `review.md` resets its round counter. |
+| Run stops with a **consolidated findings report** | A capped loop hit its bound (task gate/review/checkpoint gate, or the global correction budget — `autonomous-run.md §5`) | Read the consolidated findings, give guidance, and resume. Counters reset only on that user-guided resume; for the review loop specifically, deleting `review.md` resets its round counter. |
 | Checkpoint gate **red on `new_keys` only** while an older finding is still there | The gate compares against the baseline recorded at arm time ([gates.md](gates.md) §1): red means a finding the branch introduced; `baseline_red` stages are pre-existing and journaled by name | Fix the `new_keys`. A baseline that is genuinely stale (an upstream merge mid-run) is re-recorded by hand — `verify.py checkpoint --record-baseline --ticket <T>` — knowing it snapshots the tree as it is |
 | Stop pointing at **setup** (missing tool, exit 2) | An environment error — the verify envelope returned exit 2, which is never a code finding | Fix the toolchain/invocation, not app code. Do **not** enter a fix loop — the pipeline won't either. |
 | Guard/Stop hooks seem **inert** on an old run | `run-state.json`'s `started_at` is older than the wall-clock budget (`WALL_CLOCK_HOURS`, `autonomous-run.md §2`) and is treated as stale | Resume by re-invoking the same entry-point command; the orchestrator rewrites `started_at` and re-arms (re-deriving the mode fields — never trusting stale ones). |
@@ -660,4 +658,4 @@ what to run next. Run all of these from the host repo root.
 | Headless run **stalled on a permission** | A tool call isn't in the host's `permission` allowlist; the guardrail refused to self-widen (`autonomous-run.md §12`) | Extend the allowlist in the host's `opencode.json` **deliberately** (a reviewed edit, approved interactively), then resume. Never a bypass flag. |
 | Checkpoint stops: **push rejected / on default branch** | The `autonomous-run.md §14` branch guard or a non-fast-forward push — checkpoints never force-push and never commit to the default branch | Reconcile the branch manually (pull/rebase, or switch to a feature branch), then resume the run. |
 | The run picked a **head you did not want** | Sizing is a judgement over the ticket, and it goes heavier when in doubt (`autonomous-run.md §17`) | Say so at the head's first question, or re-run with `--head=full`, `--head=lean` or `--head=bug`. Only that flag lowers a size; once the run is armed the flag is ignored. |
-| Every gate reports **skipped** | The config's defaults are inert — empty `verify.commands`, no `runtime.run`, `design.figma: false` (config.md) | Configure the gates you want armed via `/artel-setup` or by editing `.artel/config.json`. Skipped is honest, not green. |
+| Every gate reports **skipped** | The config's defaults are inert — empty `verify.commands`, `design.figma: false` (config.md) | Configure the gates you want armed via `/artel-setup` or by editing `.artel/config.json`. Skipped is honest, not green. |

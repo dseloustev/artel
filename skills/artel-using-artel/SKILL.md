@@ -36,7 +36,7 @@ it). `<ticket>-<N>` is a phase-scoped run.
 |---|---|
 | a ticket — feature, small change, bug or question — taken to a pull request; it sizes the work and picks the head, one approval pause | `/artel-feature-development <ticket> [description-file] [--head=full\|lean\|bug] [--mode=…] [--dry-run] [--local]` |
 | just the approved work plan, no implementation | `/artel-feature-development <ticket> --dry-run` |
-| a small change implemented, reviewed and runtime-checked | `/artel-feature-development <ticket>` — small work is sized lean; `--head=lean` forces it |
+| a small change implemented, reviewed and PR-ready | `/artel-feature-development <ticket>` — small work is sized lean; `--head=lean` forces it |
 | the next phase of a phased ticket | `/artel-feature-development <ticket>-<N>` |
 | an interrupted run resumed | re-invoke the same entry-point command |
 | artel configured or reconfigured for this repo | `/artel-setup` |
@@ -61,14 +61,16 @@ it). `<ticket>-<N>` is a phase-scoped run.
 |---|---|
 | the ticket's changes reviewed | `/artel-run-reviewer <ticket>` |
 | a branch reviewed end-to-end, with its fixes offered | `/artel-deep-review <ticket> [branch] [pr-link] [--local]` |
-| the app built and launched (gate or inspection) | `/artel-run-app [--gate]` |
-| the running app driven through its UI | `/artel-drive-app` (needs `/artel-add-automation` first) |
 | a QA plan and report (à la carte; not a pipeline stage) | `/artel-qa <ticket> or R-<release>` |
 | to know which gates have passed (à la carte; the pipeline confirms them itself) | `/artel-validate <ticket> or R-<release>` |
 | documentation updated for the ticket's work | `/artel-docs-update <ticket>` |
 | a PR description / the PR opened | `/artel-pr-description <ticket>` · `/artel-pr-create <ticket>` |
 | a single PR comment addressed | `/artel-address-pr-comment <pr-comment-url>` |
 | a bug, test failure or unexpected behaviour traced to its cause and fixed | `/artel-debugging [symptom]` |
+
+**App automation is the host project's.** Artel ships no launcher or UI driver: use the host's own
+automation skill and commands (its skill directories, `AGENTS.md`, project commands) and follow
+its evidence contract. Never substitute a generic command — the host's skill is the authority.
 
 **Utilities**
 
@@ -82,7 +84,6 @@ it). `<ticket>-<N>` is a phase-scoped run.
 | phase status synced between tasklist and phase files | `/artel-sync-phases <ticket>` |
 | a report or quiz on what happened on a branch | `/artel-change-digest [ticket]` |
 | a text, a pasted ticket or a local file turned into a Jira-ready task, bug or epic description | `/artel-issue-draft` |
-| the UI-automation scaffold applied / removed | `/artel-add-automation` · `/artel-remove-automation` |
 | the working context saved / restored | `/artel-save-context` · `/artel-restore-context [ticket]` |
 | `AGENTS.md` files created or repaired | `/artel-agents-md-generator` |
 | a GitHub pull request walked one file at a time, with `reviewed` per file | `/artel-collaborative-review <pr-url-or-number>` |

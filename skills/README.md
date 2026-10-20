@@ -3,7 +3,7 @@
 Workflow skills — one folder per skill, `SKILL.md` inside. Installed, they surface as
 `/artel-<name>`.
 
-All [porting-plan Phase 3](../docs/porting-plan.md#phase-3--stage-skills) stage, runtime-adapter
+All [porting-plan Phase 3](../docs/porting-plan.md#phase-3--stage-skills) stage
 and utility skills are in place, plus the
 [Phase 4](../docs/porting-plan.md#phase-4--entry-point-orchestrators) entry points:
 `feature-development` (the one entry point for ticket work: it sizes the work and runs one head

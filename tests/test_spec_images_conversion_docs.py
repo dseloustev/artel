@@ -24,9 +24,9 @@ AGENTS = sorted(p.stem for p in (ROOT / 'agents').glob('*.md')
                 if p.name != 'README.md' and p.stem != 'artel-issue-scout'
                 and p.stem != 'artel-collaborative-reviewer')
 
-STOCK = ('Evidence text (`review/findings.json`, `verify/`, `runtime/*.md`) and `.active_ticket` '
+STOCK = ('Evidence text (`review/findings.json`, `verify/`) and `.active_ticket` '
          'stay files on both paths. On the kartoteka path, images under the trail (`design/`, '
-         '`runtime/`, any `*.png|jpg|jpeg|gif|webp`) are stored in kartoteka. To view one, run '
+         'any `*.png|jpg|jpeg|gif|webp`) are stored in kartoteka. To view one, run '
          '`python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and '
          'Read the path it prints. Save a new image to its logical path as usual; your '
          'orchestrator sweeps it in (spec-storage.md §4.6).')

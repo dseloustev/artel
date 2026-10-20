@@ -121,10 +121,11 @@ Implement the next incomplete task now, per your agent definition's workflow:
    `ready` rows only, so a task left `in_progress` is never re-offered and the ticket's
    queue wedges silently.
 
-For on-demand runtime checks: when a change's effect is unclear from tests alone and `runtime.run`
-(`${ARTEL_ROOT}/docs/config.md`) is configured, you may launch via the `/artel-run-app`
-skill flow to observe it. This is not the `RUNTIME_OK` completion gate — it's a debugging aid
-mid-task; `/artel-run-app --gate` remains the only mode the gate treats as authoritative.
+For on-demand runtime checks: when a change's effect is unclear from tests alone and the host
+project provides an app-automation skill or documented commands (check its `AGENTS.md` and its
+own skill directories), use that to launch or drive the app and observe it. This is a debugging
+aid mid-task, not a gate — artel defines no runtime gate or evidence contract, and the host
+skill's own contract governs the evidence it leaves.
 
 Deviations follow `${ARTEL_ROOT}/docs/deviation-protocol.md`: minor → conservative option, record,
 continue; major or unsure → halt and return a DEVIATION report instead of a completion.

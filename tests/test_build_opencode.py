@@ -814,7 +814,7 @@ class TestParallelProcedureBuild(BuildBase):
                        'reserves its round from the run-wide budget',
                        '`run-state.json`', 'correction_rounds',
                        'MAX_TOTAL_CORRECTION_ROUNDS', 'MAX_TASK_REVIEW_ROUNDS',
-                       'MAX_REVIEW_ROUNDS', 'MAX_RUNTIME_RETRIES',
+                       'MAX_REVIEW_ROUNDS',
                        'MAX_CHECKPOINT_VERIFY_ROUNDS', 'never start from zero',
                        'stale_revision', 'budget_exhausted', 'scope_cap',
                        'no reset, decrement or recredit'):

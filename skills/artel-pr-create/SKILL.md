@@ -57,5 +57,3 @@ Branch on `tracker.adapter`:
 
 `PR_OPENED: <url>` (or `PR_EXISTS: <url>`), commit hash, tracker keys commented, anything skipped,
 and the sweep's `image-sync:` line when it left images local.
-
-Additionally: if `runtime.scaffold` is configured (`${ARTEL_ROOT}/docs/config.md`) and its artifacts still appear present on the branch, append to the report: "automation still applied — run `/artel-remove-automation` before merge (expected order: it lands as a cleanup commit on this PR)".

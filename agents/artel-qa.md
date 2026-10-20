@@ -28,8 +28,8 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
   never with `read`/`write`/`edit` and never as a file. Evidence text (`review/findings.json`,
-  `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
-  path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
+  `verify/`) and `.active_ticket` stay files on both paths. On the kartoteka
+  path, images under the trail (`design/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
   `python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
   path it prints. Save a new image to its logical path as usual; your orchestrator sweeps it
@@ -107,4 +107,5 @@ Every `qa.md` opens with the document header (`${ARTEL_ROOT}/docs/spec-storage.m
 - **Previous reports:** Check existing QA reports for context and avoid duplication.
 - **Never overwrite a ticket-wide QA file from a phase-scoped run.** Phase output goes inside `phase-<PHASE_NUM>/`.
 - **Never silently write a flat `qa.md` when phase folders exist** — apply the refuse-and-ask rule.
+- **App checks use the host's automation skill.** When a scenario needs the app running, drive it through the host project's own automation skill and commands (its `AGENTS.md` and skill directories name them); artel ships no launcher. Without one, record the check under `Manual checks needed`.
 - **Paths in output: repo-relative only** — see `${ARTEL_ROOT}/docs/path-conventions.md`.

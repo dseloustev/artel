@@ -24,8 +24,8 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
   never with `read`/`write`/`edit` and never as a file. Evidence text (`review/findings.json`,
-  `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
-  path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
+  `verify/`) and `.active_ticket` stay files on both paths. On the kartoteka
+  path, images under the trail (`design/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
   `python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
   path it prints. Save a new image to its logical path as usual; your orchestrator sweeps it

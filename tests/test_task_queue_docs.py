@@ -344,7 +344,6 @@ class TestFixRowsAreRecordedNeverOffered(unittest.TestCase):
     def test_the_source_heading_rule_names_every_writer(self):
         for source in ('### review-r<R>', '### review-p<PHASE_NUM>-r<R>',
                        '### task-gate-<NNN>', '### deep-review-<YYYY-MM-DD>',
-                       '### runtime-r<n>', '### runtime-p<N>-r<n>',
                        '### checkpoint-r<k>', '### checkpoint-p<N>-r<k>',
                        '### manual-<YYYY-MM-DD>', '### manual-p<N>-<YYYY-MM-DD>'):
             self.assertIn(source, self.records)
@@ -394,7 +393,7 @@ class TestReviewerGroupingsNeverBecomeTheSource(unittest.TestCase):
 FIX_WRITERS = {
     'skills/artel-run-reviewer/SKILL.md': (),
     'skills/artel-deep-review/SKILL.md': ('### deep-review-<YYYY-MM-DD>',),
-    'skills/artel-feature-development/tail.md': ('### runtime-r<n>', '### checkpoint-r<k>'),
+    'skills/artel-feature-development/tail.md': ('### checkpoint-r<k>',),
     'skills/artel-tasks/SKILL.md': ('### manual-<YYYY-MM-DD>',),
 }
 
@@ -403,8 +402,6 @@ FIX_WRITERS = {
 # `data.sections` -- satisfies a whole-file assertIn with a record step deleted.
 # (file, start, end) -> phrases the step itself must carry.
 FIX_WRITER_STEPS = {
-    ('skills/artel-feature-development/tail.md', '| 8 | `RUNTIME_OK` |', '\n'):
-        ('### runtime-r<n>', '### runtime-p<N>-r<n>', 'never on a `--local` run'),
     ('skills/artel-feature-development/tail.md', '3. **Quality gate (phase-end only).**',
      '4. **Stage explicitly.**'):
         ('### checkpoint-r<k>', '### checkpoint-p<N>-r<k>'),
@@ -485,17 +482,6 @@ class TestLongFixTitlesStayFindable(unittest.TestCase):
         done = text.split('### `done <task-id>`')[1].split('### `block')[0]
         self.assertIn('500 characters long', done)
         self.assertIn("starts with the title's third segment", done)
-
-    def test_runtime_writers_put_a_one_line_summary_on_the_checkbox(self):
-        runtime = {
-            'skills/artel-feature-development/tail.md': ('| 8 | `RUNTIME_OK` |', '\n'),
-        }
-        for rel, (start, end) in runtime.items():
-            with self.subTest(rel):
-                step = (ROOT / rel).read_text(encoding='utf-8').split(start)[1].split(end)[0]
-                self.assertIn('one-line summary', step)
-                self.assertIn('nested under it as an indented block', step)
-                self.assertNotIn('append the quoted error as a', step)
 
 
 class TestLocalOnlyReachesTheImplementer(unittest.TestCase):

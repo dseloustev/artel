@@ -35,8 +35,8 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
   `${ARTEL_ROOT}/docs/spec-storage.md` §4.1 maps each operation — `artifact_get`,
   `artifact_list`, `artifact_put`, `artifact_patch`, always with `project=<knowledge.project>` —
   never with `read`/`write`/`edit` and never as a file. Evidence text (`review/findings.json`,
-  `verify/`, `runtime/*.md`) and `.active_ticket` stay files on both paths. On the kartoteka
-  path, images under the trail (`design/`, `runtime/`, any `*.png|jpg|jpeg|gif|webp`) are
+  `verify/`) and `.active_ticket` stay files on both paths. On the kartoteka
+  path, images under the trail (`design/`, any `*.png|jpg|jpeg|gif|webp`) are
   stored in kartoteka. To view one, run
   `python3 ${ARTEL_ROOT}/scripts/spec_store.py image fetch <logical path>` and Read the
   path it prints. Save a new image to its logical path as usual; your orchestrator sweeps it
@@ -541,4 +541,3 @@ uniform shallow reading of everything finds less than deep reading of what carri
 - In ticket mode, every blocking/important finding must become a task in the tasklist — not just a suggestion.
 - In standalone mode, group findings by priority and include specific fix examples.
 - **Paths in output: repo-relative only** (e.g., `src/auth/session.ts:47`, not `/Users/.../src/auth/session.ts:47`). Applies to every section including any "Files referenced" footer. See `${ARTEL_ROOT}/docs/path-conventions.md`.
-- **Transient automation artifacts are not findings:** artifacts introduced by the host's `runtime.scaffold.add` command (config.md) are the transient automation harness — expected on automation-enabled branches, removed before merge (validated by the `AUTOMATION_REMOVED` gate; `/artel-remove-automation`); do not flag them. Same convention as `AGENTS.md`/`<specs.dir>/**` ticket artifacts: do not flag.

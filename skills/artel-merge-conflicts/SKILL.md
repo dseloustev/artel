@@ -16,8 +16,7 @@ intent, and intelligently combining changes. Utility procedure — no agent, no 
 - If `$ARGUMENTS` is provided, use it as the branch name (e.g., `origin/main`, `main`,
   `feature/some-branch`).
 - If `$ARGUMENTS` is empty, detect the repo's default branch the same way
-  `${ARTEL_ROOT}/agents/artel-reviewer.md`'s standalone mode and
-  `${ARTEL_ROOT}/skills/artel-add-automation/SKILL.md` do — `git symbolic-ref
+  `${ARTEL_ROOT}/agents/artel-reviewer.md`'s standalone mode does — `git symbolic-ref
   refs/remotes/origin/HEAD`, asking the user if ambiguous — and default to `origin/<default-branch>`.
   Never a hardcoded `master`/`main`/`develop`.
 - Store the resolved branch name as `TARGET_BRANCH`.

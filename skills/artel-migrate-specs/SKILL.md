@@ -9,7 +9,7 @@ Worker, not an orchestrator — it runs inline. The contract is
 contents never pass through this conversation, except a conflict's diff. Image bytes never do.
 
 A trail holds spec **documents** and **images**. An image is any `*.png|jpg|jpeg|gif|webp` under
-the ticket directory: `design/`, `runtime/`, `phase-<N>/runtime/`, anywhere.
+the ticket directory: `design/`, anywhere.
 - This skill moves the images git tracks under `<specs.dir>/<TICKET_ID>/`, and every image in
   `.artel/context/tickets/<TICKET_ID>/spec-trail/`.
 - An untracked image in the working tree is not this skill's to move. The orchestrators' sweep
@@ -230,7 +230,7 @@ document, is re-hashed at the moment of deletion.
   list and stop without deleting.
 
 **Never deleted, whatever is chosen:** `.active_ticket`; gate evidence text (for example
-`review/findings.json`, `verify/` reports, `runtime/*.md`); `change-report.html`;
+`review/findings.json`, `verify/` reports); `change-report.html`;
 `pr-pending.md`; release-scope files under `<specs.releases>`; untracked working-tree images,
 which are the sweep's; and anything skipped, unresolved or unverified. An image is never
 evidence: one under `verify/` is migrated like any other image, not kept in place. Say so in

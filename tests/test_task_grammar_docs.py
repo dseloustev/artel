@@ -1001,7 +1001,7 @@ class TestTaskGrammarReleaseDocs(unittest.TestCase):
         self.assertIn("the first task of the parser's `ready_now`", implementer)
         self.assertIn("and on the task's `Test:` files", implementer)
         self.assertIn("Task mode is the `full` route's review",
-                      _between(ref, '### run-reviewer', '### run-app'))
+                      _between(ref, '### run-reviewer', '### qa'))
         # `dev` is an alias since 0.25.0: its entry points at feature-development's.
         self.assertIn("a task's own review runs when its route is `full`",
                       _between(ref, '### feature-development', '### dev'))

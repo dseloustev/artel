@@ -105,8 +105,9 @@ nor `data.ready_now`.
 
 **Stays:** the document header (`docs/spec-storage.md` §3.2); the Progress Report table; each
 iteration's `**Goal:**` and `**Test:**` lines; and the fix sections — `## Code Review Fixes`,
-`## Runtime Fixes`, `## Verify Fixes` — with their `### <source>` headings, one checkbox per
-row, exactly as `docs/task-queue.md` §6 describes. The fix sections are outside this grammar.
+`## Verify Fixes`, and the legacy `## Runtime Fixes` (parsed, never written) — with their
+`### <source>` headings, one checkbox per row, exactly as `docs/task-queue.md` §6 describes.
+The fix sections are outside this grammar.
 
 **Goes:** the `### \`path\`` file headings (their paths move into `Files:`), and the
 `### After changes` checklist — codegen, localization and formatting are the implementer's

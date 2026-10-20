@@ -1171,7 +1171,7 @@ tail carries the opt-in gate that reads it.
    reservation, worktree, ref, record and the ticket ownership, and lets only the coordinator
    ask the person. Stop/cancel follows the real transitions (`cancelled` with a recorded
    decision, `artel_parallel_interruptWorker` for a running session) — never an invented key.
-6. **Finish.** The final whole-tree review, runtime gate and checkpoint run only when the run
+6. **Finish.** The final whole-tree review and checkpoint run only when the run
    is quiescent: no task active or `integrating`, every required publication durable. `owner release`
    happens only for the matching, completed, quiescent run — the CLI re-checks the exact run's
    manifest quiescence and its run state's `completed` flag before the token proof removes the
@@ -1197,7 +1197,7 @@ There is no second ledger, no manifest key and no worker payload field;
   (`not_owned`, `ambiguous_owner`, `foreign_owner`) before the helper runs — the transient
   `<run-state>.lock` below serializes budget writers only and is not ticket ownership — and a
   malformed request still fails as invalid input first. The **stable key** is
-  `<kind>:<scope>:a<attempt>:r<ordinal>` — the fix-list source (`review`, `runtime`,
+  `<kind>:<scope>:a<attempt>:r<ordinal>` — the fix-list source (`review`,
   `checkpoint`), the gate scope (a task number, `ticket` or `phase-<N>`), the worker attempt
   and the true round ordinal of that scope's canonical artifact; a task and attempt alone never
   identify a round. The exact same identity and key replays for free (`replayed: true`), a new
@@ -1219,11 +1219,11 @@ conservatively stays charged until the same identity resumes.
 Only an actual fix dispatch is charged: never the initial plan review or a worker's own
 execution. The scope caps are the canonical workflow defaults ([autonomous-run.md](autonomous-run.md)
 §5) — `MAX_TASK_REVIEW_ROUNDS = 1` per worker task review, `MAX_REVIEW_ROUNDS = 3` per
-ticket/phase `review.md` artifact, `MAX_RUNTIME_RETRIES = 1` and
+ticket/phase `review.md` artifact, and
 `MAX_CHECKPOINT_VERIFY_ROUNDS = 2` — while the run-wide `MAX_TOTAL_CORRECTION_ROUNDS = 8` is
 shared by every scope. On resume the coordinator inspects fresh and reconciles the canonical
 artifact round (the task review's journal entry, `review.md`'s `**Review round:**`,
-`runtime-observation.md`, the checkpoint entry) against the recorded reservations before every
+the checkpoint entry) against the recorded reservations before every
 dispatch; it never starts from zero.
 
 ## 14. Proof record

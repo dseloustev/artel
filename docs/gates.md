@@ -33,9 +33,9 @@ task review belong to the coordinator. The task gate itself is unchanged (§1, �
 **Parallel runs keep the same gates, serialized.** A parallel coordinator runs the task gate
 in each worker's own tree and the whole-tree gates only after the run is quiescent: the
 integrated tree meets the task gate before the cycle commit
-([opencode-parallel.md](opencode-parallel.md) §13.8), and the whole-branch review, the runtime
-gate and the checkpoint run once no task is active or `integrating` and every completion is
-durably published (§13.11). Review, runtime and checkpoint fix lists stay serial — concurrency
+([opencode-parallel.md](opencode-parallel.md) §13.8), and the whole-branch review and the
+checkpoint run once no task is active or `integrating` and every completion is
+durably published (§13.11). Review and checkpoint fix lists stay serial — concurrency
 never multiplies a run-wide correction cap, and every fix round is reserved from the existing
 `counters.correction_rounds` budget before its dispatch (§13.12) — and only the coordinator
 asks the person ([autonomous-run.md](autonomous-run.md) §5).

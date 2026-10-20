@@ -18,14 +18,14 @@ reservation is idempotent for its exact identity and stable key (a crash before 
 costs nothing; a lost reply replays for free), a new identity or round charges the counter
 once, and nothing ever decrements, recredits or resets it.
 
-The stable key is `<kind>:<scope>:a<attempt>:r<ordinal>`: `kind` is `review`, `runtime` or
+The stable key is `<kind>:<scope>:a<attempt>:r<ordinal>`: `kind` is `review` or
 `checkpoint` (the fix-list source); `scope` is a task number, `ticket` or `phase-<N>` (the
 gate scope); `attempt` is the worker task's attempt for a task-scoped fix and 1 for a
 ticket/phase scope; and `ordinal` is the true round ordinal of that scope's canonical artifact
-(the per-task review's journal round, `review.md`'s `**Review round:**`, the runtime retry or
+(the per-task review's journal round, `review.md`'s `**Review round:**` or
 the checkpoint verify round). Task and attempt alone never identify a round -- the ordinal
 does. The per-scope caps the coordinator reconciles against (`MAX_TASK_REVIEW_ROUNDS = 1`,
-`MAX_REVIEW_ROUNDS = 3`, `MAX_RUNTIME_RETRIES = 1`, `MAX_CHECKPOINT_VERIFY_ROUNDS = 2`) are
+`MAX_REVIEW_ROUNDS = 3`, `MAX_CHECKPOINT_VERIFY_ROUNDS = 2`) are
 reported by `inspect` and enforced per scope by `reserve`; the run-wide cap is shared by every
 scope. Only an actual fix dispatch is charged: never the initial plan review or a worker's own
 execution.
@@ -75,13 +75,11 @@ CONFIG_PATH = ('.artel', 'config.json')
 MAX_TOTAL_CORRECTION_ROUNDS = 8
 MAX_TASK_REVIEW_ROUNDS = 1
 MAX_REVIEW_ROUNDS = 3
-MAX_RUNTIME_RETRIES = 1
 MAX_CHECKPOINT_VERIFY_ROUNDS = 2
-KINDS = ('review', 'runtime', 'checkpoint')
+KINDS = ('review', 'checkpoint')
 SCOPE_CAPS = {
     'review': {'task': MAX_TASK_REVIEW_ROUNDS, 'ticket': MAX_REVIEW_ROUNDS,
                'phase': MAX_REVIEW_ROUNDS},
-    'runtime': {'ticket': MAX_RUNTIME_RETRIES, 'phase': MAX_RUNTIME_RETRIES},
     'checkpoint': {'ticket': MAX_CHECKPOINT_VERIFY_ROUNDS,
                    'phase': MAX_CHECKPOINT_VERIFY_ROUNDS},
 }

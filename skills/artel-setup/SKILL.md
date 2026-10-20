@@ -1,6 +1,6 @@
 ---
 name: artel-setup
-description: "One-time configuration interview: create or revise .artel/config.json — ticket grammar, tracker/VCS adapters, verify commands, languages, optional extras (setup commands, design stage, runtime gate). Invoked automatically by /artel-feature-development when no config exists; run manually to create or revise the file."
+description: "One-time configuration interview: create or revise .artel/config.json — ticket grammar, tracker/VCS adapters, verify commands, languages, optional extras (setup commands, design stage). Invoked automatically by /artel-feature-development when no config exists; run manually to create or revise the file."
 argument-hint: ""
 ---
 
@@ -44,14 +44,14 @@ arrive via the "Other" option.
   English regardless).
 - **Round 4 — optional extras**, one multi-select question ("configure now, or leave inert?")
   offering: `setup.commands` (post-branch install/codegen), `design.figma` (the design-analysis
-  stage), the `runtime.*` commands (`run`, `drive`, `scaffold.add`, `scaffold.remove`),
-  `runtime.surface` (globs gating when the runtime gate runs), `verify.surface` (globs with
+  stage), `verify.surface` (globs with
   `!`-excludes filtering which edits the verify hooks check), `review.perTask` (every task on
   the `full` route: a review of each task's diff before the next task starts, not only of the
   tasks the planner or a floor routes `full` — one extra reviewer seat per task; the phase
   review runs either way), and a `.artel/sensitive-paths.json` scaffold (a copy of the plugin's default sensitive-paths policy, for projects that want to
   extend it). Ask follow-up value questions only for the selected ones; everything skipped keeps
-  its inert default. `verify.surface` is **derived, not hand-typed**: when it is selected — or
+  its inert default. App automation is not one of these keys: each host project carries its own
+  automation skill, and artel configures nothing for it. `verify.surface` is **derived, not hand-typed**: when it is selected — or
   already present on Revise — scan the project's own exclusion settings rather than asking for
   globs: the linter/analyzer's exclusion settings, the formatter's ignore settings where the
   ecosystem has them, and generated-code signals under the source tree (gitignored generated
@@ -103,7 +103,7 @@ Before writing: adapter names inside their allowed sets — `tracker.adapter` (`
 and `knowledge.project` non-empty and matching `^[a-z0-9][a-z0-9-]*$`; `knowledge.tokenEnv`
 empty or an environment-variable name (`^[A-Za-z_][A-Za-z0-9_]*$`) — an answer that is itself a
 token (`ktk_…`) is re-asked, never written;
-`verify.commands` / `setup.commands` / `runtime.surface` / `verify.surface` are arrays of
+`verify.commands` / `setup.commands` / `verify.surface` are arrays of
 strings; `review.perTask` and `design.figma` are booleans;
 `models.opencode` is an object whose site values are `provider/model` strings in the value form
 of config.md's `models` section (exactly one `/`, no whitespace, at most one `#` with a
@@ -131,7 +131,7 @@ and location"); append whichever is missing, touch nothing when both are present
 ## 6. Report
 
 - Path written and the chosen adapters.
-- Which gates are armed vs will record `skipped` (verify, runtime, design).
+- Which gates are armed vs will record `skipped` (verify, design).
 - The `.gitignore` outcome.
 - When `verify.surface` was derived in Round 4: the sources the scan read.
 - With `knowledge.tokenEnv` set: a reminder to export that variable in every shell and launcher

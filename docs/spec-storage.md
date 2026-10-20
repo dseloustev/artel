@@ -31,15 +31,14 @@ spike.md         diagnosis.md
 `/artel-debugging --diagnose`. Both are ticket-wide only: neither is ever written under
 `phase-<N>/`.
 
-**And every image file under the trail**, at any depth: `design/`, `runtime/`,
-`phase-<N>/runtime/` and anywhere else below `<specs.dir>/<TICKET_ID>/`. An image file is one whose
+**And every image file under the trail**, at any depth: `design/` and
+anywhere else below `<specs.dir>/<TICKET_ID>/`. An image file is one whose
 extension, compared case-insensitively, is `.png`, `.jpg`, `.jpeg`, `.gif` or `.webp`. Images go to
 kartoteka's attachment store (kartoteka 0.44.0), by path, never through a model (§4.6).
 
 **Stays on disk, on both paths:**
 - `<specs.dir>/.active_ticket`;
-- gate evidence text: `review/findings.json`, the text files under `verify/`,
-  `runtime/observation.md`, `runtime/drive-observation.md`;
+- gate evidence text: `review/findings.json`, the text files under `verify/`;
 - `change-report.html` and `pr-pending.md`;
 - everything under `.artel/`.
 
@@ -338,7 +337,7 @@ The tasklist stays one document with today's shape; its writers change verb, not
   replace edits: the checkbox and the Progress Report row. A task block
   (`docs/task-grammar.md` §1) takes one replace edit per step instead of the one checkbox, in
   the same patch.
-- **Append a fix batch** under `## Code Review Fixes`, `## Runtime Fixes` or `## Verify Fixes`
+- **Append a fix batch** under `## Code Review Fixes` or `## Verify Fixes`
   — `artifact_patch`, inserting before the next `## ` heading, or `append` when the section
   is last or missing.
 - **`sync-phases`** — one `artifact_patch` with the version bump and an edit per changed line. It creates
@@ -410,8 +409,8 @@ where `path` is the rest of the logical path below the ticket folder, kept verba
 | Logical path | `ticket_key` | `path` |
 |---|---|---|
 | `<specs.dir>/PROJ-12/design/desktop-overview.png` | `PROJ-12` | `design/desktop-overview.png` |
-| `<specs.dir>/PROJ-12/runtime/login-success.png` | `PROJ-12` | `runtime/login-success.png` |
-| `<specs.dir>/PROJ-12/phase-2/runtime/settings.png` | `PROJ-12` | `phase-2/runtime/settings.png` |
+| `<specs.dir>/PROJ-12/design/login-success.png` | `PROJ-12` | `design/login-success.png` |
+| `<specs.dir>/PROJ-12/phase-2/design/settings.png` | `PROJ-12` | `phase-2/design/settings.png` |
 | `<specs.dir>/PROJ-12/design/Screen Shot.png` | — | — |
 
 - The ticket folder is matched and canonicalised exactly as for documents (§3).
@@ -438,7 +437,7 @@ The cache is disposable: `.artel/run/` is gitignored, there is one cache per wor
 migration never reads it. Once an image is swept its logical path is empty on disk, and a `read` of
 it is answered by the guard with this command (§6).
 
-**Producing.** Unchanged. `figma-analyst`, host `runtime.drive` scripts and ad hoc simulator or
+**Producing.** Unchanged. `figma-analyst`, host automation scripts and ad hoc simulator or
 emulator captures write images to their logical paths, as on the files path. Nothing uploads them
 one by one.
 
@@ -484,7 +483,7 @@ trail's top level included. Leave `'<specs.dir>/<TICKET_ID>'` out of `<paths>` w
 neither exists nor has tracked files: `git add` refuses a pathspec that matches nothing. An image
 a sweep could not move therefore stays untracked; it is never committed.
 
-**Sensitive screen content.** Runtime screenshots can show account addresses, balances or test
+**Sensitive screen content.** App screenshots can show account addresses, balances or test
 credentials. They used to be committed to git and shown in pull requests; kartoteka narrows the
 audience to the daemon's users. When a screenshot shows a real secret, redact every version that
 shows it — `DELETE /api/attachments/<ticket_key>/<path>?project=<project>&version=<N>` — which

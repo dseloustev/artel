@@ -413,7 +413,7 @@ class TestImageSync(ImageCase):
         self.image(TRAIL + '/design/a.png', png('a'))
         self.image(TRAIL + '/phase-2/runtime/x.png', png('x'))
         (self.repo / TRAIL / 'runtime').mkdir()
-        (self.repo / TRAIL / 'runtime' / 'observation.md').write_text('RUNTIME_OK',
+        (self.repo / TRAIL / 'runtime' / 'observation.md').write_text('evidence',
                                                                      encoding='utf-8')
         proc, out = self.sync()
         self.assertEqual(proc.returncode, 0, proc.stderr)

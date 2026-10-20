@@ -84,7 +84,6 @@ class TestOrchestrators(unittest.TestCase):
 
     def test_the_fix_sections_are_named(self):
         tail = read(TAIL)
-        self.assertIn('the invocation names `## Runtime Fixes`', flat(tail))
         self.assertIn('naming `## Verify Fixes`', flat(tail))
 
     def test_step_up_rounds_are_documented(self):

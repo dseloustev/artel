@@ -28,8 +28,8 @@ Flutter host is in [docs/testing-flutter.md](docs/testing-flutter.md).
 | Component | What it does |
 |---|---|
 | **Entry points** | `/artel-feature-development` (the one entry point for ticket work: it sizes the work and runs the full, the lean or the bug head, with one approval pause), `/artel-setup` (one-time config interview) |
-| **Stage skills** | Each pipeline stage à la carte: `analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `figma-analysis`, `generate-idea`/`-vision`/`-tasklist`, `inner-loop`, `run-app`, `drive-app`, `sync-phases` |
-| **Ops & utility skills** | `debugging` (root cause before a fix), `collaborative-review` (walk a GitHub PR one file at a time), `init-branch`, `merge-conflicts`, `deep-review`, `issue-draft`, `change-digest`, `address-pr-comment`, `add-automation`/`remove-automation`, `save-context`/`restore-context`, `migrate-specs`, `move-to-worktree`/`return-from-worktree`, `agents-md-generator`, `set-home`, `migrate-prs` |
+| **Stage skills** | Each pipeline stage à la carte: `analysis`, `researcher`, `planner`, `tasklist`, `implementer`, `run-reviewer`, `qa`, `docs-update`, `validate`, `pr-description`, `pr-create`, `figma-analysis`, `generate-idea`/`-vision`/`-tasklist`, `inner-loop`, `sync-phases` |
+| **Ops & utility skills** | `debugging` (root cause before a fix), `collaborative-review` (walk a GitHub PR one file at a time), `init-branch`, `merge-conflicts`, `deep-review`, `issue-draft`, `change-digest`, `address-pr-comment`, `save-context`/`restore-context`, `migrate-specs`, `move-to-worktree`/`return-from-worktree`, `agents-md-generator`, `set-home`, `migrate-prs` |
 | **Session & kartoteka** | `using-artel` (turn-one router, hook-injected), `knowledge` (ask the index), `tasks` (operate the queue) |
 | **Agents** | The crew of 14: analyst, figma-analyst, researcher, planner, task-planner, implementer, reviewer, QA, validator, vision/tasklist/tech writers, issue-scout, collaborative-reviewer |
 | **Hooks** | Quality gates ([hooks/README.md](hooks/README.md)): session baseline, fast per-edit verification, latching verify stop gate, run stop gate, sensitive-path guard, VCS/tracker platform guard, knowledge mirror, session router |
@@ -52,6 +52,9 @@ Core design properties:
   work list instead of a PRD. `--head=` overrides it.
 - **Gates, not vibes** — hooks enforce verification before "done": analyzer/tests must pass,
   the stop gate latches until evidence exists, sensitive paths are guarded in autonomous mode.
+- **App automation is host-owned** — each project carries its own automation skill and commands
+  for launching, driving and screenshotting the app; artel ships no launcher, no `runtime.*`
+  config and no runtime gate, and points at the host's skill when one is needed.
 - **Tasks with dependencies and routes** — a tasklist task is a block with its files,
   dependencies, tests and the PRD requirements it implements ([docs/task-grammar.md](docs/task-grammar.md));
   a task runs once its dependencies are done, and the risky ones — declared by the planner or

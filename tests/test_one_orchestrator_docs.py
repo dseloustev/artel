@@ -408,8 +408,8 @@ class TestTail(unittest.TestCase):
     HEADINGS = ('# The tail', '## Phase traversal', '## Gates', '## Completion gate',
                 '## PR description and the PR gate', '## Description-file sync',
                 '## Final report', '## Checkpoint commits & pushes', '## Task commits')
-    FACTS = ('PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK', 'RUNTIME_OK',
-             'CHECKPOINT_OK', 'DOCS_UPDATED', 'AUTOMATION_REMOVED')
+    FACTS = ('PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK',
+             'CHECKPOINT_OK', 'DOCS_UPDATED')
 
     def setUp(self):
         self.raw = raw(FD + 'tail.md')
@@ -424,9 +424,9 @@ class TestTail(unittest.TestCase):
     def test_each_gate_sits_in_the_table_once(self):
         gates = between(self.raw, '\n## Gates\n', '\n## ')
         self.assertEqual(re.findall(r'(?m)^\| ([0-9.]+) \|', gates),
-                         ['5', '6', '7', '8', '10', '10.5', '10.7'])
+                         ['5', '6', '7', '10', '10.5', '10.7'])
         for row in ('| 5 | `IMPLEMENT_STEP_OK` — every task `- [x]` |', '| 6 | `INDEX_UPDATED` |',
-                    '| 7 | `REVIEW_OK` |', '| 8 | `RUNTIME_OK` |', '| 10 | `DOCS_UPDATED` |',
+                    '| 7 | `REVIEW_OK` |', '| 10 | `DOCS_UPDATED` |',
                     '| 10.5 | phase write-back (phase runs only) |',
                     '| 10.7 | `PHASE_CHECKPOINT` |'):
             self.assertEqual(self.raw.count('\n' + row), 1, row)
@@ -1117,14 +1117,14 @@ class TestTailRules(unittest.TestCase):
         self.assertIn('`${ARTEL_ROOT}/docs/task-queue.md` §6', row)
         self.assertIn('reports no unchecked box in any iteration or fix section', row)
 
-    def test_there_are_still_eight_facts(self):
-        self.assertIn('Confirm the eight facts below yourself', self.gate)
-        self.assertEqual(len(re.findall(r'\| `[A-Z_]+`(?: — the final gate)? \| ', self.gate)), 8)
+    def test_there_are_still_six_facts(self):
+        self.assertIn('Confirm the six facts below yourself', self.gate)
+        self.assertEqual(len(re.findall(r'\| `[A-Z_]+`(?: — the final gate)? \| ', self.gate)), 6)
 
 
 class TestDebugHere(unittest.TestCase):
     """Plan 2, Task 6: a run halted on a red gate in app code can be debugged where it stands —
-    on three halts, once per halt (spec §10)."""
+    on two halts, once per halt (spec §10)."""
 
     LABEL = '**Debug it here first**'
 
@@ -1138,13 +1138,11 @@ class TestDebugHere(unittest.TestCase):
               for heading in ('## Gates', '## Debug it here first', '## Completion gate')]
         self.assertEqual(at, sorted(at))
 
-    def test_three_halts_and_no_other(self):
+    def test_two_halts_and_no_other(self):
         bullets = [line for line in self.section.split('\n') if line.startswith('- ')]
-        self.assertEqual(len(bullets), 3)
+        self.assertEqual(len(bullets), 2)
         flat_section = re.sub(r'\s+', ' ', self.section)
         for phrase in ('- gate 5 — a task aborted when `MAX_VERIFY_ITERATIONS` ran out;',
-                       "- gate 8 — the runtime gate's second RED from a runtime error in app "
-                       'code;',
                        "- the checkpoint procedure's step 3 — still red after "
                        '`MAX_CHECKPOINT_VERIFY_ROUNDS`.',
                        'Nowhere else: not the review cap (findings, answered by guidance), not an '
@@ -1152,10 +1150,9 @@ class TestDebugHere(unittest.TestCase):
                        'A headless run journals and stops as before'):
             self.assertIn(phrase, flat_section)
 
-    def test_each_of_the_three_halts_offers_it_and_the_review_cap_does_not(self):
-        self.assertEqual(self.raw.count(self.LABEL), 4)  # the section and the three halts
+    def test_each_of_the_two_halts_offers_it_and_the_review_cap_does_not(self):
+        self.assertEqual(self.raw.count(self.LABEL), 3)  # the section and the two halts
         self.assertIn(self.LABEL, between(self.raw, '\n| 5 | `IMPLEMENT_STEP_OK`', '\n'))
-        self.assertIn(self.LABEL, between(self.raw, '\n| 8 | `RUNTIME_OK` |', '\n'))
         self.assertIn(self.LABEL, between(self.raw, '3. **Quality gate (phase-end only).**',
                                           '4. **Stage explicitly.**'))
         self.assertNotIn(self.LABEL, between(self.raw, '\n| 7 | `REVIEW_OK` |', '\n'))
@@ -1215,7 +1212,7 @@ class TestRouter(unittest.TestCase):
                       '[--head=full\\|lean\\|bug] [--mode=…] [--dry-run] [--local]` |', self.raw)
 
     def test_small_work_and_the_next_phase_go_to_the_one_entry_point(self):
-        for row in ('| a small change implemented, reviewed and runtime-checked | '
+        for row in ('| a small change implemented, reviewed and PR-ready | '
                     '`/artel-feature-development <ticket>` — small work is sized lean;',
                     '| the next phase of a phased ticket | '
                     '`/artel-feature-development <ticket>-<N>` |',
@@ -1254,7 +1251,7 @@ class TestRunContract(unittest.TestCase):
              'Spike answered: <one-line answer> — <path>')
     KEYS = ['size', 'head', 'reasons', 'decided_by', 'raised_from', 'answered', 'decided_at']
     CAPS = ['MAX_VERIFY_ITERATIONS = 4', 'MAX_TASK_REVIEW_ROUNDS = 1', 'ROUTE_FULL_FILES = 5',
-            'MAX_PLAN_REVIEW_ROUNDS = 2', 'MAX_REVIEW_ROUNDS = 3', 'MAX_RUNTIME_RETRIES = 1',
+            'MAX_PLAN_REVIEW_ROUNDS = 2', 'MAX_REVIEW_ROUNDS = 3',
             'MAX_CHECKPOINT_VERIFY_ROUNDS = 2', 'MAX_DEBUG_HERE_ATTEMPTS = 1',
             'MAX_TOTAL_CORRECTION_ROUNDS = 8', 'WALL_CLOCK_HOURS = 3']
 
@@ -1343,10 +1340,9 @@ class TestRunContract(unittest.TestCase):
         table = between(self.raw, '| Loop | Cap (default) | Counter location |', '\n\n')
         self.assertEqual(re.findall(r'`([A-Z_]+ = \d+)`', table), self.CAPS)
         for phrase in ('| debug it here first (per halt, below) | `MAX_DEBUG_HERE_ATTEMPTS = 1` |',
-                       '**Debug it here first.** On three cap escalations',
-                       'a task aborted when `MAX_VERIFY_ITERATIONS` ran out, a checkpoint still '
-                       'red after `MAX_CHECKPOINT_VERIFY_ROUNDS`, and the runtime gate\'s second '
-                       'red from an app-code error',
+                       '**Debug it here first.** On two cap escalations',
+                       'a task aborted when `MAX_VERIFY_ITERATIONS` ran out, and a checkpoint still '
+                       'red after `MAX_CHECKPOINT_VERIFY_ROUNDS`',
                        'Not the review cap, not an environment error',
                        '`debugged here: <root cause> — <files>`',
                        'one attempt per halt',
@@ -1355,7 +1351,7 @@ class TestRunContract(unittest.TestCase):
 
     def test_the_completion_gate_reads_what_exists(self):
         gate = between(self.run, '## 7. Completion gate', '## 8.')
-        for phrase in ('The orchestrator confirms eight facts itself',
+        for phrase in ('The orchestrator confirms six facts itself',
                        '`PLAN_APPROVED` (`skipped (no plan)` when the ticket has no plan',
                        'or `gates_confirmed` for a tasklist that declares none',
                        'and every fix-section parent closed',
@@ -1396,7 +1392,7 @@ class TestWholeSkill(unittest.TestCase):
     FILES = ('SKILL.md', 'heads/full.md', 'heads/lean.md', 'heads/bug.md', 'tail.md',
              'parallel.md')
     GATES = ['0', '0.5', '1', '2', '3', '3.5', '4', '4.2', '4.5', 'B1', 'B2',
-             '5', '6', '7', '8', '10', '10.5', '10.7']
+             '5', '6', '7', '10', '10.5', '10.7']
 
     def setUp(self):
         self.texts = {name: raw(FD + name) for name in self.FILES}
@@ -1485,7 +1481,6 @@ class TestReaders(unittest.TestCase):
     def test_task_queue_points_into_the_tail(self):
         doc = flat('docs/task-queue.md')
         for phrase in ('dispatch of gate 5 (`tail.md`)',
-                       '| runtime gate — gate 8 (`tail.md`) |',
                        '| phase checkpoint — `tail.md` `## Checkpoint commits & pushes` |',
                        '`feature-development` takes it on every head',
                        '`tasklist`, `generate-tasklist` and `run-reviewer`'):
@@ -1512,7 +1507,6 @@ class TestReaders(unittest.TestCase):
         config = flat('docs/config.md')
         self.assertIn('| `feature-development`, gate 5 (`tail.md`) |', config)
         self.assertIn('a HITL tag on a task that reaches outside the spec trail', config)
-        self.assertIn('`feature-development`, gate 8 (`tail.md`) |', config)
         self.assertIn('**The entry point** (`feature-development`) finds no '
                       '`.artel/config.json`', config)
         self.assertIn("The orchestrator and every stage skill run on the session's model",
@@ -1577,7 +1571,7 @@ class TestGuideAndReference(unittest.TestCase):
                        'a lean or a bug run in `yolo` opens its PR unattended as well',
                        '**Debug it here first**', '`DOCS_UPDATED: skipped (no PRD)`',
                        '**`sizing.json`** (`autonomous-run.md §17`)',
-                       'Four skills — and only these — touch git history or remotes'):
+                       'Two skills — and only these — touch git history or remotes'):
             self.assertIn(phrase, guide)
         for gone in ('Two entry points drive everything', 'not on `dev`', 'Lean loop (no PRD'):
             self.assertNotIn(gone, guide)

@@ -42,7 +42,7 @@ class TestTaskCommitProcedure(unittest.TestCase):
 
     def test_the_trigger_is_the_completed_cycle(self):
         for phrase in ('one commit per completed implementer cycle',
-                       '`## Code Review Fixes`', '`## Runtime Fixes`', '`## Verify Fixes`',
+                       '`## Code Review Fixes`', '`## Verify Fixes`',
                        'A `Routes` return'):
             self.assertIn(phrase, self.section)
 
@@ -197,7 +197,7 @@ class TestTheReviewFindings(unittest.TestCase):
         # return is its own cycle — and every fix callsite must cite the procedure.
         self.assertIn('one per dispatch', self.section)
         self.assertNotIn('the same return ticks them all', self.section)
-        for gate in ('| 7 | `REVIEW_OK` |', '| 8 | `RUNTIME_OK` |'):
+        for gate in ('| 7 | `REVIEW_OK` |',):
             row = self.raw.split(gate)[1].split('\n')[0]
             self.assertIn('`## Task commits`', row, gate)
 
@@ -217,14 +217,14 @@ class TestTheReviewFindings(unittest.TestCase):
         self.assertNotIn('git commit', flat('skills/artel-implementer/SKILL.md'))
 
 
-class TestNoNinthCompletionFact(unittest.TestCase):
-    """Spec non-goals: the completion gate still reads exactly eight facts."""
+class TestNoExtraCompletionFact(unittest.TestCase):
+    """Spec non-goals: the completion gate still reads exactly six facts."""
 
     def test_the_fact_list_is_unchanged(self):
         completion = between(raw(FD + 'tail.md'), '## Completion gate', '## PR description')
         self.assertEqual(re.findall(r'(?m)^\| `([A-Z_]+)`', completion),
                          ['PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK',
-                          'RUNTIME_OK', 'CHECKPOINT_OK', 'DOCS_UPDATED', 'AUTOMATION_REMOVED'])
+                          'CHECKPOINT_OK', 'DOCS_UPDATED'])
         self.assertNotIn('TASK_COMMIT', completion)
 
 

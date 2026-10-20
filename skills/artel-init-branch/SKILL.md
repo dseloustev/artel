@@ -51,7 +51,7 @@ failure handling for when to stop.
 ### Step 2: Choose a branch (current branch carries no ticket ID)
 
 1. Detect the repo's default branch the same way `${ARTEL_ROOT}/agents/artel-reviewer.md`'s
-   standalone mode and `${ARTEL_ROOT}/skills/artel-add-automation/SKILL.md` do:
+   standalone mode does:
    `git symbolic-ref refs/remotes/origin/HEAD`, asking the user if ambiguous — never a hardcoded
    `main`/`develop`. Call the result `BASE_BRANCH`.
 2. `git fetch origin` — best-effort; a failure here is non-fatal, fall back to local refs and

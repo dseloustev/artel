@@ -165,7 +165,7 @@ class TestOrchestrators(unittest.TestCase):
         gate = self.tail.split('## Completion gate')[1].split('## PR description')[0]
         self.assertNotIn('`artel-validate` skill', gate)
         for fact in ('PLAN_APPROVED', 'TASKLIST_READY', 'IMPLEMENT_STEP_OK', 'REVIEW_OK',
-                     'RUNTIME_OK', 'CHECKPOINT_OK', 'DOCS_UPDATED', 'AUTOMATION_REMOVED'):
+                     'CHECKPOINT_OK', 'DOCS_UPDATED'):
             self.assertIn(fact, gate)
         self.assertNotIn('RELEASE_READY', self.fd)
         self.assertNotIn('RELEASE_READY', self.tail)

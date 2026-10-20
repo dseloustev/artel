@@ -332,7 +332,7 @@ class TestClassify(MigrateCase):
 
     def test_evidence_and_the_pointer_are_not_candidates(self):
         self.local(SPECS / '.active_ticket', 'AW-12\n')
-        self.local(SPECS / 'AW-12/runtime/observation.md', 'RUNTIME_OK')
+        self.local(SPECS / 'AW-12/runtime/observation.md', 'evidence')
         self.local('specs/releases/2026.10.md', 'release')
         self.assertEqual(self.plan('AW-12'), {})
 
@@ -656,7 +656,7 @@ class TestApply(MigrateCase):
         self.assertEqual(self.fake.artifacts, {})
 
     def test_a_ticket_with_nothing_on_disk_is_never_flipped(self):
-        self.local(SPECS / 'AW-12/runtime/observation.md', 'RUNTIME_OK')  # evidence, not a trail
+        self.local(SPECS / 'AW-12/runtime/observation.md', 'evidence')  # evidence, not a trail
         self.decision('AW-12', store='files', reason='local-only run requested')
         out = self.apply('--all')
         self.assertEqual(out['flipped'], [])
@@ -1231,7 +1231,7 @@ class TestDelete(MigrateCase):
 
     def test_tracked_files_are_git_rm_and_committed_alone(self):
         self.local(SPECS / 'AW-12/prd.md', 'P')
-        self.local(SPECS / 'AW-12/runtime/observation.md', 'RUNTIME_OK')
+        self.local(SPECS / 'AW-12/runtime/observation.md', 'evidence')
         self.local(SPECS / '.active_ticket', 'AW-12\n')
         self.commit_all()
         self.local('unrelated.txt', 'staged work')
@@ -1869,7 +1869,7 @@ class TestDeleteImages(ImageCase):
 
     def test_a_tracked_image_is_git_rm_and_committed_with_the_trail(self):
         self.image(IMG, png('a'))
-        self.local(SPECS / 'AW-12/runtime/observation.md', 'RUNTIME_OK')
+        self.local(SPECS / 'AW-12/runtime/observation.md', 'evidence')
         self.local(SPECS / '.active_ticket', 'AW-12\n')
         self.commit_all()
         self.stored(png('a'))

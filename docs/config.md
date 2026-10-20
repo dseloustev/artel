@@ -3,7 +3,7 @@
 *Status: draft v0.1 · 2026-08-01*
 
 Every project-specific fact artel needs — ticket grammar, tracker, VCS host, verify commands,
-output languages, spec-trail location, runtime commands — lives in one JSON file in the **host
+output languages, spec-trail location — lives in one JSON file in the **host
 repo**. Skills, agents and hooks read it instead of hardcoding literals; see
 [design.md](design.md#genericization-strategy).
 
@@ -127,12 +127,11 @@ placeholder the init interview replaces.
     "baseUrl": "",
     "project": "",
     "tokenEnv": ""
-  },
-  "runtime": {}
+  }
 }
 ```
 
-The defaults are deliberately inert: no tracker calls, no quality gate, no runtime gate, no
+The defaults are deliberately inert: no tracker calls, no quality gate, no
 design stage, per-task review only on the tasks a tasklist routes `full`. Out of the box artel runs the pipeline and records every unconfigured gate as
 `skipped` rather than `green`. Configuring a key is what turns its gate on.
 
@@ -232,8 +231,8 @@ cannot be written to disk — so both failure modes stop rather than degrade:
 | Key | Type | Default | Allowed values / notes | Consumed by |
 |---|---|---|---|---|
 | `verify.commands` | array of strings | `[]` | Ordered shell commands forming the full gate. Run from the host repo root; the gate stops at the first non-zero exit. | The checkpoint and final gates ([gates.md](gates.md) §1, through `verify.py checkpoint`), `deep-review`'s step-0 quality gate, `merge-conflicts`' post-resolution check |
-| `verify.fast` | string | `""` | One quick command for per-edit feedback (lint/analyze of the touched scope, not the whole test suite). | Fast per-edit and verify stop-gate hooks, the task gate's fast half (`verify.py task`, the inner loop), `add-automation`/`remove-automation`'s post-change check |
-| `verify.surface` | array of strings | absent | Repo-relative glob patterns (`fnmatch` semantics — `*` crosses `/` — like `runtime.surface`); a `!`-prefixed pattern excludes (generated files). A path counts when it matches ≥ 1 positive and 0 negative patterns; a list with only excludes implies `*` as the positive set. Absent → every changed file counts. | The per-edit and stop-gate hooks' changed-file filter |
+| `verify.fast` | string | `""` | One quick command for per-edit feedback (lint/analyze of the touched scope, not the whole test suite). | Fast per-edit and verify stop-gate hooks, the task gate's fast half (`verify.py task`, the inner loop) |
+| `verify.surface` | array of strings | absent | Repo-relative glob patterns (`fnmatch` semantics — `*` crosses `/`); a `!`-prefixed pattern excludes (generated files). A path counts when it matches ≥ 1 positive and 0 negative patterns; a list with only excludes implies `*` as the positive set. Absent → every changed file counts. | The per-edit and stop-gate hooks' changed-file filter |
 | `verify.test` | string | `""` | One scoped test command with `{files}`, run by the task gate on the test files a task changed or added (`docs/gates.md` §1). Empty → the test half of the task gate is `skipped`. Without `{files}` it runs unscoped — the suite per task, which this key exists to avoid — and the envelope says `scoped: false`. | `verify.py task` (the inner loop) |
 | `verify.testSurface` | array of strings | `["*_test.*", "test_*.*", "**/test_*.*", "*.test.*", "*.spec.*"]` | Globs (`fnmatch` semantics — a leading `*` crosses `/`, so `*_test.*` covers nested and top-level files alike, while `**/` needs a directory component; a `!` prefix excludes; only excludes imply `*`) selecting which of a task's changed paths are test files. The default names test files, never directories: `test/**` would hand helpers, fixtures, goldens and generated mocks to a runner that cannot run them. Add `!**/*.mocks.dart` or similar for generated test code. An empty list or a non-list means the default. | `verify.py task` |
 | `verify.baseline` | boolean | `true` | Compare the checkpoint gate against the baseline the orchestrator records at arm time (`.artel/run/<TICKET_ID>/verify-baseline.json`, `docs/gates.md` §1); `false` → any red stage is red. Any value other than a JSON boolean is a configuration error under reading rule 3. | `verify.py checkpoint` |
@@ -244,8 +243,7 @@ Commands must be non-interactive, exit non-zero on failure, and be safe to re-ru
 
 Any command may contain the literal token `{files}`: callers that pass an explicit file scope
 (the hooks; `scripts/verify.py --files`; `scripts/verify.py task`, whose `test` stage passes only
-the test paths; `add-automation`/`remove-automation`, whose scope is the
-scaffold's own changed paths) replace it with the space-joined, shell-quoted paths, so
+the test paths) replace it with the space-joined, shell-quoted paths, so
 `"eslint {files}"` checks only what changed. A command without the token always runs unscoped. A
 caller that has a scope and skips the substitution passes the literal token to the shell — a
 failure that looks like findings but is an invocation bug. Exit codes `126`/`127`, a spawn
@@ -570,31 +568,25 @@ still run — because a person asked it for a draft, not for the index.
 The `using_artel` `session.hook("context")` hook reads the key too, only to tell the injected
 router whether those two routes are live.
 
-### `runtime` — optional runtime and automation commands
+### App automation — owned by the host project
 
-All `runtime` keys are optional and adapter-shaped: a project supplies whichever commands it has,
-and unset ones degrade to `skipped`.
+There is no `runtime` block. Artel ships no launcher, no UI driver and no transient-scaffold
+commands: app automation belongs to the host project, which carries its own automation skill and
+commands (for example `.agents/skills/<name>/SKILL.md`, `.opencode/skills/<name>/SKILL.md`, its
+`AGENTS.md`, and its project commands). When a run or an agent needs the app built, launched,
+driven or screenshotted, it uses that skill and follows that skill's own evidence and verdict
+contract; artel configures nothing and gates nothing on it. Each host project is expected to
+provide its own automation surface — an absent one simply means the app is not driven.
 
-| Key | Type | Default | Allowed values / notes | Consumed by |
-|---|---|---|---|---|
-| `runtime.run` | string | absent | Command that builds and launches the app | `run-app` — the `RUNTIME_OK` gate |
-| `runtime.drive` | string | absent | Command that drives the running app (UI automation) | `drive-app` |
-| `runtime.scaffold.add` | string | absent | Command that adds the transient automation scaffold | `add-automation` |
-| `runtime.scaffold.remove` | string | absent | Command that removes it again | `remove-automation` |
-| `runtime.surface` | array of strings | absent | Repo-relative glob patterns (`fnmatch` semantics, like the sensitive-paths policy) naming the files whose changes make the runtime gate worth running, e.g. `["lib/**/*.dart", "packages/*/lib/**/*.dart"]`. | The orchestrator's `RUNTIME_OK` gate decision — `feature-development`, gate 8 (`tail.md`) |
-
-An absent or empty command means the corresponding skill reports `not configured` and the
-`RUNTIME_OK` gate is recorded as `skipped`. Missing runtime configuration never blocks a run.
-
-`runtime.surface` is a filter, not a command: when set, the orchestrator runs the
-`RUNTIME_OK` gate only when the run's diff (changed files vs the default branch plus the working
-tree) matches at least one glob, recording `RUNTIME_OK: skipped (no runtime surface)` otherwise.
-When absent with `runtime.run` configured, the gate always runs. It has no effect on manual
-`/artel-run-app` invocations.
+This also means the pipeline has no `RUNTIME_OK` gate, no `runtime/observation.md` evidence and no
+automation-removal step: a host automation skill that needs a scaffold owns its own add/remove
+lifecycle, and its evidence stays under its own contract (for adguard-wallet, `.agent-run/`). A
+host config that still carries the old `runtime` block is inert — the loader ignores unknown keys,
+and nothing reads them.
 
 ## A filled example
 
-A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with a runtime gate:
+A hypothetical TypeScript project tracked in Jira, shipped through GitHub:
 
 ```json
 {
@@ -677,15 +669,6 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub, with 
     "baseUrl": "http://127.0.0.1:8734",
     "project": "acme-web",
     "tokenEnv": "KARTOTEKA_TOKEN"
-  },
-  "runtime": {
-    "run": "npm run dev -- --port 5173",
-    "drive": "npm run e2e:drive",
-    "surface": ["src/**"],
-    "scaffold": {
-      "add": "npm run automation:add",
-      "remove": "npm run automation:remove"
-    }
   }
 }
 ```

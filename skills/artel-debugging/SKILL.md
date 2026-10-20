@@ -33,6 +33,11 @@ Run it from the repository root. With `verify.test` empty the `test` stage is `s
 fault no test can reach gets a reproduction script under `.artel/run/repro/`, which
 `/artel-setup` already keeps out of git.
 
+A fault only visible with the app running — a launch failure, a broken screen, a wrong tap target
+— is reproduced through the host project's own automation skill and commands (its `AGENTS.md` and
+skill directories name them); artel ships no launcher. A host without one reports the fault from
+its logs and the reproduction script instead.
+
 ## 3. Ask the institutional record
 
 With `knowledge.adapter: "kartoteka"`, add one search to the investigation: the `artel-knowledge` skill

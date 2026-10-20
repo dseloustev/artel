@@ -1,7 +1,7 @@
 # The tail
 
-Everything a run does once it is armed: the implement loop, the review, the runtime gate, the
-docs stage, the checkpoints, the completion gate and the PR close-out. Read by
+Everything a run does once it is armed: the implement loop, the review, the docs stage, the
+checkpoints, the completion gate and the PR close-out. Read by
 `feature-development` when the run is armed (`${ARTEL_ROOT}/skills/artel-feature-development/SKILL.md`
 steps 5–6), and on every resume of an armed run. `SKILL.md` below is that file; its steps 0–1.5
 have run, so the config is read, the ticket is active and the spec store is resolved. Contract:
@@ -59,24 +59,28 @@ current when it is read.
 | 5 | `IMPLEMENT_STEP_OK` — every task `- [x]` | Loop the `artel-implementer` skill with `$0`, plus `--local` when this run was invoked with it — it becomes the dispatch's **Task queue:** field, which is what carries the opt-out to the agent (`${ARTEL_ROOT}/docs/task-queue.md` §1). Returns: **completion** → aggregate its `Deviations:`/`Verify iterations:` lines, add every path its `Deviations:` line names to `run-state.json` `deviation_files` (autonomous-run.md §2), and journal its `Report:` path (never open the report — autonomous-run.md §1, "Bulk stays in files"), continue. **Commit the cycle** when it is done — after its per-task review round, when the run takes one: stage and commit it per `## Task commits` before the next dispatch. **Boundary check** first: `git status --porcelain` over that cycle's paths not empty → run the procedure again and journal `task-commit: recovered <n> file(s) at the boundary`; whatever the never-staged set forbids stays dirty, journaled `task-commit: left <n> unstaged file(s)`. **Routes** (autonomous-run.md §16) → on a task-format tasklist run `scripts/review_package.py snapshot` before every iteration-task dispatch; when the completion names its task (`Task <N.M>: …`), take that task's route from the parser's row (the re-mirror's run; on a `--local` run, the same command run for the routes alone): `route_effective` — a `Route:` ending `— set at approval` is final over floors 1–3 — raised to `full` when one of its `Files:` is in `deviation_files` or `review.perTask` is `true`; journal `task <N.M>: route <effective> (declared <route>[; floor: <reason>[, <reason>…]]); model <value>`. A `full` task gets the §16.2 wrapper: `diff` + invoke the `artel-run-reviewer` skill with `--task …` and `--model <value>` — resolve `reviewer.task` (`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site reviewer.task`); no flag when null — (plus `--local` when this run was invoked with it) after its completion, at most one `## Code Review Fixes` implementer round (`MAX_TASK_REVIEW_ROUNDS = 1`, counted toward `counters.correction_rounds`), one `task review` journal entry (`; model <value>` — `none` when no flag was passed); a `light` task gets none. Fix-list dispatches are never wrapped. **`HITL: <reason>`** → set `pause_reason: "hitl-task"`, ask the pre-declared question via the `question` tool, clear `pause_reason`, dispatch a fresh `subagent` to that agent with the answer, continue. **`DEVIATION` escalation** → the skill handles the handshake; wrap it: set `pause_reason: "deviation-escalation"` before its `question` tool call, clear after. **Aborted task** → set `pause_reason: "cap-escalation"`, stop and report that the plan needs revision; the question opens with **Debug it here first** (below the table). |
 | 6 | `INDEX_UPDATED` | Optional host index-refresh hook (`${ARTEL_ROOT}/docs/orchestrator-common.md` §1): run it when the host has wired one up; silently absent otherwise. |
 | 7 | `REVIEW_OK` | invoke the `artel-run-reviewer` skill with `$0`, plus `--local` when this run was invoked with it — `run-reviewer` records the fix tasks it appends in the task queue, and the flag keeps a local-only run from writing rows (`${ARTEL_ROOT}/docs/task-queue.md` §1, §6). Blocking/Important findings → invoke the `artel-implementer` skill (fix tasks from `## Code Review Fixes`, plus `--local` when this run was invoked with it, plus `--model <value>` when the findings come from a `review.md` whose `**Review round:**` is 2 or more — resolve `implementer.stepUp` (`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site implementer.stepUp`); no flag when null, and the implementer's `implementer.fix` applies — autonomous-run.md §5) → re-review (the re-review passes `--model <value>` — resolve `reviewer.reReview` (`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site reviewer.reReview`); no flag when null, and ticket mode's `reviewer.phase` applies — and journals the round with `; model <value>`, `none` when no flag was passed). Every fix dispatch commits its fix task per `## Task commits`. Cap: `review.md` `**Review round:**` reaching `MAX_REVIEW_ROUNDS = 3` → `pause_reason: "cap-escalation"`, consolidated findings via the `question` tool, stop. On user guidance: reset the review round (delete `review.md`, or on the kartoteka path store the round-0 version — spec-storage.md §4.4) and resume. |
-| 8 | `RUNTIME_OK` | Surface check: with `runtime.surface` set (config.md), collect the run's changed files (diff vs the default branch plus the working tree) and match them against the globs; no match → write `RUNTIME_OK: skipped (no runtime surface)` to the phase-aware `runtime/observation.md` and move on. No `runtime.run` configured → the gate records `skipped (not configured)` (run-app reports this itself). Otherwise invoke the `artel-run-app` skill with `--gate`. RED caused by a **runtime error in app code** (runtime errors / ERROR logs / a broken UI tree) → append a `- [ ]` task under `## Runtime Fixes` in the phase-aware tasklist (mirroring `## Code Review Fixes`) (kartoteka path: one `artifact_patch(project=<project>, …)` — spec-storage.md §4.3), beneath a new `### runtime-r<n>` source heading (`### runtime-p<N>-r<n>` on a phase-scoped run, n the retry this round is — `${ARTEL_ROOT}/docs/task-queue.md` §6), its line a one-line summary of the error with the quoted error nested under it as an indented block (nested lines go to the row's description; the checkbox line is the row's title, capped at 500 characters), and on the queue path — never on a `--local` run — record it before the implementer round: `python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist <the phase-aware tasklist> --ticket-key <TICKET_ID>` (kartoteka path: `set -o pipefail; python3 ${ARTEL_ROOT}/scripts/spec_store.py get <the phase-aware tasklist> | python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py --tasklist - --ticket-key <TICKET_ID>`) (`<TICKET_ID>` the canonical key, without the phase suffix), then `task_create` its `data.sections` (§2's fix-writer rule); when the RED stems from incomplete cross-phase wiring (this phase's code invokes pieces a later phase will build), word the fix task to create the **minimal stubs** that restore launch — no-op implementations / placeholder surfaces with a `TODO: phase <M>` marker — rather than real implementations; stubbing is the expected resolution at a phase boundary and is recorded in the completion's `Deviations:` line. Run the `artel-implementer` skill once, plus `--local` when this run was invoked with it (`MAX_RUNTIME_RETRIES = 1`; counter in `.artel/run/<TICKET_ID>/runtime-observation.md`, autonomous-run.md §5) — the invocation names `## Runtime Fixes` — commit the fix per `## Task commits` — then re-run the gate; second RED → cap escalation, whose question opens with **Debug it here first** (below the table). RED from an **environment failure** (a launch/setup failure of `runtime.run` itself, not app code — run-app stops-and-asks for these) → cap escalation immediately, no implementer round. Do not trust a stale green — re-run unless the observation postdates the last change to files matching `runtime.surface` (or the last code change, when it is unset). |
 | 10 | `DOCS_UPDATED` | Runs only when a PRD exists for the ticket, at either scope — `spec_store.py exists` over the ticket-wide PRD and over the phase-aware one (`${ARTEL_ROOT}/docs/ticket-parsing.md` §4; exit `3` is "none"). Without one, journal `DOCS_UPDATED: skipped (no PRD)` and go on: there is no spec to write docs from. With one: invoke the `artel-docs-update` skill with `<TICKET_ID>` (ticket-wide) — **once per ticket, on the last phase only, before its 10.7 checkpoint** — so that checkpoint commit carries the docs and the CHANGELOG — never per phase. On a multi-phase traversal it is skipped for every phase but the last; an explicit `<TICKET_ID>-<N>` run of a phase that is not the last journals `DOCS_UPDATED: deferred to the final phase`. |
 | 10.5 | phase write-back (phase runs only) | invoke the `artel-sync-phases` skill with `$0` — sync completion into `tasklist.md`. |
 | 10.7 | `PHASE_CHECKPOINT` | Run the phase-end checkpoint (see `## Checkpoint commits & pushes`): the image sweep (kartoteka path) → the `verify.commands` gate → capped `## Verify Fixes` implementer rounds → explicit staging (no trail image on the kartoteka path) → commit (`feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>`; no phase → `<ticket summary>`) → push → journal (on the last phase this commit also carries gate 10's docs). Then advance `.active_ticket` to the next incomplete phase; on a multi-phase run loop back to the traversal (next phase), else proceed to the completion gate. |
 
 **Journal (§11):** append an entry to `run-journal.md` at every gate completion, pause/resume,
 and external action.
-**Budget:** before dispatching any fix-list implementer round (review gate 7, runtime gate 8),
+**Budget:** before dispatching any fix-list implementer round (review gate 7),
 increment `counters.correction_rounds`; at `MAX_TOTAL_CORRECTION_ROUNDS = 8` → journal
 the breach, `pause_reason: "cap-escalation"`, consolidated report via the `question` tool, stop.
 
+**App automation is not a gate.** Artel ships no launcher and no UI driver. When a run needs the
+app built, launched or driven — to observe a change, not to gate the run — use the automation
+skill and commands the host project provides (its own skill directories, `AGENTS.md` and project
+commands) and follow that skill's evidence contract. Nothing in this tail invokes, records or
+gates on it.
+
 ## Debug it here first
 
-Three halts of this file are a red gate in app code, and on each the escalation's
+Two halts of this file are a red gate in app code, and on each the escalation's
 `question` tool call opens with one more option, **Debug it here first**:
 
 - gate 5 — a task aborted when `MAX_VERIFY_ITERATIONS` ran out;
-- gate 8 — the runtime gate's second RED from a runtime error in app code;
 - the checkpoint procedure's step 3 — still red after `MAX_CHECKPOINT_VERIFY_ROUNDS`.
 
 Nowhere else: not the review cap (findings, answered by guidance), not an environment error,
@@ -96,7 +100,7 @@ reports:
 
 ## Completion gate
 
-Runs once, after the last phase on multi-phase runs. Confirm the eight facts below yourself — they
+Runs once, after the last phase on multi-phase runs. Confirm the six facts below yourself — they
 are artifacts you already read — and journal one line per fact (autonomous-run.md §7). No agent is
 dispatched here: `/artel-validate` stays à la carte.
 
@@ -106,13 +110,11 @@ dispatched here: `/artel-validate` stays à la carte.
 | `TASKLIST_READY` | the tasklist's status (`spec_store.py status`); a tasklist that declares none (written by `generate-tasklist` before 0.25.0 — `status` exits `1`) is read from `gates_confirmed` in `run-state.json` |
 | `IMPLEMENT_STEP_OK` | `tasklist_tasks.py` over the tasklist (and each `phase-<N>/tasks.md` on phased tickets) reports no unchecked box in any iteration or fix section — a `## Final Verification` section an older tasklist carries counts too; and, on the queue path, every fix-section parent row is closed (`${ARTEL_ROOT}/docs/task-queue.md` §6) |
 | `REVIEW_OK` | `review.md` exists with a `**Review round:**` line and the tasklist has no unchecked `## Code Review Fixes` box; a `**Verdict:**` line, when the reviewer wrote one, must not read *Needs fixes* |
-| `RUNTIME_OK` | the phase-aware `runtime/observation.md` is green or `skipped`, and no file matching `runtime.surface` changed after it |
 | `CHECKPOINT_OK` — the final gate | the last checkpoint journal entry is green, and `git diff --name-only <its commit>..HEAD` plus the working tree, filtered by `verify.surface` (absent → every changed file counts), is empty; otherwise run one more checkpoint gate and commit it as a checkpoint (`## Checkpoint commits & pushes`) |
 | `DOCS_UPDATED` | `summary.md` exists (`spec_store.py list <TICKET_ID>` on the kartoteka path); no PRD exists for the ticket → `skipped (no PRD)` |
-| `AUTOMATION_REMOVED` | `runtime.scaffold` unconfigured → `skipped`; else the scaffold paths `runtime.scaffold.add` introduces are gone (`/artel-remove-automation` was run) |
 
 A red fact routes back to its owning step once — the implementer for boxes, `run-reviewer` for
-the review, `run-app --gate` for runtime, the checkpoint procedure for the gate, `docs-update` for
+the review, the checkpoint procedure for the gate, `docs-update` for
 docs (followed by one more checkpoint commit, so they are not left uncommitted) — then
 cap-escalates. A fact that reads `skipped` is green. Never set `completed` while a fact is red. All green → the PR description and the PR gate.
 
@@ -148,7 +150,7 @@ On the kartoteka path, sweep once more before writing it:
 it left local instead.
 
 Ticket; phases traversed; gates passed; aggregated `Deviations:` line (`none` when clean); loop
-counters (verify iterations total, review rounds, escalation count); baseline (`recorded` / `skipped` / `absent` — armed before 0.18.0); final gate (the last checkpoint's commit stands, or `re-run`); runtime status;
+counters (verify iterations total, review rounds, escalation count); baseline (`recorded` / `skipped` / `absent` — armed before 0.18.0); final gate (the last checkpoint's commit stands, or `re-run`);
 checkpoint commits (hash + subject each, incl. push results); task commits (count and range — `task commits: <n> (<first>..<last>)`, the per-commit hashes stay in the journal); path to `pr-description.md`; PR
 status (`PR_OPENED`/`PR_EXISTS` URL, `skipped-manual`, or `pending`); description-sync status;
 reminder that opening the PR remains manual (only when the PR gate was skipped — the work itself
@@ -240,7 +242,7 @@ this is the second of the run's two commit kinds.
 | Cycle | Commit |
 |---|---|
 | An iteration task (gate 5) — after its tick, and after a `full` task's §16.2 per-task review round when that ran | one |
-| A fix task — gate 7's `## Code Review Fixes`, gate 8's `## Runtime Fixes`, checkpoint step 3's `## Verify Fixes` — one per dispatch: the implementer closes one fix row per return | one |
+| A fix task — gate 7's `## Code Review Fixes`, checkpoint step 3's `## Verify Fixes` — one per dispatch: the implementer closes one fix row per return | one |
 | A cycle that changed nothing — verification only, or a resumed re-run | none |
 | A `Routes` return, or a HITL pause before the person's answer | none — the task is not complete |
 
@@ -260,7 +262,7 @@ that matches nothing. A task commit runs no image sweep and no verify gate — i
 trailers, and neither a requirement ID nor a task number. The type is what the cycle did: `feat` for
 an iteration task that adds behaviour, `fix` for a fix round, `refactor`, `test`, `docs` or `chore`
 when that is what it did. A fix round names its section: `fix: <TICKET_ID> - review fixes`,
-`- runtime fixes`, `- checkpoint verify fixes`.
+`- checkpoint verify fixes`.
 
 **It never pushes.** A task commit reaches `origin` at `the next phase-end checkpoint`, or at
 `pr-create`'s close-out — never on its own.
@@ -277,7 +279,7 @@ when the ticked task cannot be told apart. Nothing staged → skip.
 **Halt.** Every path that hands the session back with an unresolved in-flight cycle commits what
 that cycle left, as `wip: <TICKET_ID> - <task> (run stopped: <reason>)`, journaled
 `task-commit: wip <hash> (<reason>)`, and does not push it: gate 5's `MAX_VERIFY_ITERATIONS`
-exhausted, gate 7's review cap, gate 8's second RED, `MAX_TOTAL_CORRECTION_ROUNDS = 8`, checkpoint
+exhausted, gate 7's review cap, `MAX_TOTAL_CORRECTION_ROUNDS = 8`, checkpoint
 step 3's verify cap, a deviation escalation, a stop-and-ask, or the person stopping the run. When the
 tree is clean — nothing dirty — there is nothing to commit, and the escalation proceeds unchanged.
 Two cases commit nothing, and neither recurses: the branch guard (a task commit is never made on

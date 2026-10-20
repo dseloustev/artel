@@ -177,10 +177,10 @@ an accepted review.
 - Fix lists stay **serial** — one fix dispatch at a time, in the worker's own tree, inside the
   transported paths; a new path is a new attempt, not an unreviewed commit.
 - **Central budgets are durable.** Every fix dispatch in this loop — a task review's
-  `## Code Review Fixes` round, a ticket/phase review's fix round, a runtime fix, a checkpoint
+  `## Code Review Fixes` round, a ticket/phase review's fix round, a checkpoint
   `## Verify Fixes` round — reserves its round from the run-wide budget **before** the
   dispatch: `budget inspect` fresh, reconcile the canonical artifact round (the task review's
-  journal entry, `review.md`'s `**Review round:**`, `runtime-observation.md`, the checkpoint
+  journal entry, `review.md`'s `**Review round:**`, the checkpoint
   entry) against the recorded reservations, then `budget reserve` with the true
   `kind`/`scope`/`attempt`/`ordinal` and the revision you just read. The budget is the existing
   `counters.correction_rounds` in the coordinator's
@@ -191,10 +191,10 @@ an accepted review.
   reserved-but-undispatched round stays charged until the same identity resumes, and there is
   no reset, decrement or recredit.
 - The caps are the canonical ones, and concurrency never multiplies them:
-  `MAX_TOTAL_CORRECTION_ROUNDS = 8` is shared by every task, review, runtime and checkpoint fix
+  `MAX_TOTAL_CORRECTION_ROUNDS = 8` is shared by every task, review and checkpoint fix
   round; `MAX_TASK_REVIEW_ROUNDS = 1` is per worker task review (its journal `task review`
   entry); `MAX_REVIEW_ROUNDS = 3` is per ticket/phase `review.md` artifact — not the sum of
-  every worker's initial review; `MAX_RUNTIME_RETRIES = 1`; `MAX_CHECKPOINT_VERIFY_ROUNDS = 2`.
+  every worker's initial review; `MAX_CHECKPOINT_VERIFY_ROUNDS = 2`.
   Only an actual fix dispatch is charged — never the initial plan review or a worker's own
   execution.
 - Workers never commit, push, edit the tasklist, touch the queue or run state, write shared
@@ -294,7 +294,7 @@ The run is finished only when it is **quiescent**: no task is active or `integra
 task's completion is durably published (required review, gate, evidence, queue and store
 receipts all recorded), and the publication latch is clear. Only then:
 
-1. Run the serial final gates from `tail.md` — the whole-tree review, the runtime gate, the
+1. Run the serial final gates from `tail.md` — the whole-tree review, the
    docs stage and the checkpoint — over the integrated branch. Their fix lists are serial.
 2. Write the final report and update the run state exactly as the tail says.
 3. Release ownership with `owner release` **only** for this matching, completed, quiescent run

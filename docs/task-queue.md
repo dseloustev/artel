@@ -163,7 +163,7 @@ of one iteration that `sync-phases` syncs back to the ticket-wide tasklist;
 mirroring both would create two rows per checkbox. On phase-scoped runs
 `sync-phases` therefore runs before this step, which the orchestrator's
 step order already does. Its fix sections are the exception, because
-they live nowhere else: on a phase-scoped run the review, runtime and checkpoint
+they live nowhere else: on a phase-scoped run the review and checkpoint
 gates append to the phase file, and `sync-phases` never copies a fix section
 back. Their writer mirrors the phase file's `data.sections` (the extract has no
 `## Iteration N:` heading, so its `data.iterations` is empty anyway), and the
@@ -343,7 +343,7 @@ per checkbox, and `task_ready` never hands one out.
 | Section | Parent row | Child title | Worked by |
 |---|---|---|---|
 | `## Code Review Fixes` | `CRF: Code Review Fixes` | `CRF · <source> · <checkbox text>` | file scan, on either path |
-| `## Runtime Fixes` | `RTF: Runtime Fixes` | `RTF · <source> · <checkbox text>` | file scan, on either path |
+| `## Runtime Fixes` | `RTF: Runtime Fixes` | `RTF · <source> · <checkbox text>` | file scan, on either path — a legacy section older tasklists carry; no writer emits it now |
 | `## Verify Fixes` | `VF: Verify Fixes` | `VF · <source> · <checkbox text>` | file scan, on either path |
 | `## Final Verification` | `FV: Final Verification` | `FV · <source> · <checkbox text>` | file scan, on either path — a section only tasklists written before 0.18.0 carry; no writer emits it now (`docs/gates.md` §1) |
 
@@ -369,7 +369,7 @@ file stays their source of truth on every path.
 `done`, and `backlog` again the moment a writer appends to its section. The
 implementer that marks the last child `done` marks the parent `done` in the same
 exit (§3, `close`); `/artel-tasks done` does the same; every writer in the table
-below (`run-reviewer`, `deep-review`, the runtime gate, the checkpoint,
+below (`run-reviewer`, `deep-review`, the checkpoint,
 `/artel-tasks add --fix`) sets an existing parent back to `backlog` when its
 re-mirror creates a new child under it — `task_create` is idempotent and returns
 the stored parent row with its status, so `task_update(parent, status="backlog")`
@@ -392,7 +392,6 @@ middle segment, the way an iteration's `### ` section is:
 | `reviewer` ticket mode, via `run-reviewer` | `### review-r<R>`, R the `**Review round:**` it writes — `### review-p<PHASE_NUM>-r<R>` on a phase-scoped run |
 | `reviewer` task mode, via `run-reviewer` (`autonomous-run.md` §16) | `### task-gate-<NNN>`, the `NNN` of the report it answers |
 | `deep-review` Step 6 | `### deep-review-<YYYY-MM-DD>` |
-| runtime gate — gate 8 (`tail.md`) | `### runtime-r<n>`, n the retry this round is — `### runtime-p<N>-r<n>` on a phase-scoped run |
 | phase checkpoint — `tail.md` `## Checkpoint commits & pushes` | `### checkpoint-r<k>`, k the verify round — `### checkpoint-p<N>-r<k>` on a phase-scoped run |
 | `/artel-tasks add --fix` | `### manual-<YYYY-MM-DD>` — `### manual-p<N>-<YYYY-MM-DD>` in a phase file |
 
@@ -418,8 +417,8 @@ the title's second ` · `. Lines nested under a checkbox — its body, its
 acceptance criteria, an indented sub-step — go to the row's description, never
 its title. A title runs to 500 characters at most: the script cuts a longer one
 there (kartoteka's cap), so its third segment is only the start of the box and
-`done` matches on that start. A writer quoting something long — the runtime gate
-quoting an error — therefore puts a one-line summary on the checkbox and nests the
+`done` matches on that start. A writer quoting something long — the checkpoint gate
+quoting a verify error — therefore puts a one-line summary on the checkbox and nests the
 quote under it.
 
 **Titles are identity, and fix sections repeat.** `task_create` is idempotent on
@@ -431,7 +430,7 @@ the file (the later box gets no row of its own), and §2 step 3 warns when an op
 box resolves to a `done` row.
 
 **Recognise such a dispatch by the section the orchestrator names**: the review
-gate's fixes, the runtime gate's fixes, the checkpoint's verify fixes, or the
+gate's fixes, the checkpoint's verify fixes, or the
 Final Verification gate. On either path the implementer scans the tasklist in
 scope for the first incomplete `- [ ]` under that heading; `task_ready` is not
 called at all, because it never offers these rows. On the queue path the

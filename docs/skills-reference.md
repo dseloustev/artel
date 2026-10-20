@@ -70,7 +70,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** The one entry point for ticket work. It imports the ticket, sizes the work —
   `spike`, `bug`, `bounded` or `architectural` — says the size aloud, runs the head that size
   calls for (full: PRD, vision, plan, tasklist; lean: a work list; bug: a diagnosis, then the
-  work list), and then one tail on every run: implementation, review, runtime check, docs (once
+  work list), and then one tail on every run: implementation, review, docs (once
   per ticket, when a PRD exists) and the PR — with exactly one approval pause.
 - **Invocation:** `/artel-feature-development [ticket-id] or [ticket-id]-[phase] [description-file] [--head=full|lean|bug] [--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]`
 - **Reads:** `.artel/config.json` (missing → invokes `setup` first); whichever ticket artifacts
@@ -82,8 +82,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   and `tail.md`, read once the run is armed; on OpenCode, `parallel.md` — the opt-in parallel
   coordinator loop, read when the host's `parallel.seats` is greater than `1`.
 - **Writes:** `<specs.dir>/.active_ticket`, `.artel/run/<TICKET_ID>/sizing.json`, `run-state.json`,
-  `run-journal.md`, `runtime-observation.md` (the runtime-retry counter — run bookkeeping,
-  distinct from `run-app`'s `runtime/observation.md` evidence in the spec trail), the
+  `run-journal.md`, the
   `open-questions.md` status flips, and the description-file sync — everything else (`prd.md`,
   `vision.md`, `plan.md`, `tasklist.md`, `review.md`, `pr-description.md`, …) is
   delegated to sub-skills/agents. Also performs the run's task and checkpoint commits, and the
@@ -347,8 +346,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   the task needs but does not declare is a Major deviation, and the completion's `Deviations:`
   line names the files each deviation changed. A task tagged `[HITL: …]` is never
   implemented directly — the skill stops and returns control instead. When a change's effect
-  isn't obvious from tests alone the agent may launch the app via the `run-app` flow
-  (`runtime.run` configured) — an on-demand check, not the `RUNTIME_OK` gate.
+  isn't obvious from tests alone the agent may use the host project's own app-automation skill
+  (its `AGENTS.md` and skill directories name it) — an on-demand check, not a gate.
 
 ### inner-loop
 
@@ -410,40 +409,6 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   the same `artel-reviewer` agent in standalone mode once, for a separate, non-pipeline whole-branch
   review-and-fix workflow.
 
-### run-app
-
-- **Purpose:** Build and launch the app via the configured `runtime.run` command and record the
-  `RUNTIME_OK` verdict.
-- **Invocation:** `/artel-run-app [--gate]`
-- **Reads:** `runtime.run`; `<specs.dir>/.active_ticket` for evidence pathing.
-- **Writes:** `<specs.dir>/<TICKET_ID>/[phase-<N>/]runtime/observation.md` — date, mode,
-  command, exit code, output summary, `Verdict: GREEN | RED (<reason>)`, and the
-  `RUNTIME_OK: green | red | skipped (not configured)` marker; reports inline when no ticket is
-  active.
-- **Pauses:** never — a failed launch retries once, then RED is the verdict (quoting the
-  captured output).
-- **Notes:** treats `runtime.run` as an opaque, self-reporting black box (the same
-  `{command, exit_code, output}` evidence envelope `inner-loop` uses). **`--gate`** (pipeline
-  use) is the only mode the `artel-validator` agent's `RUNTIME_OK` gate treats as authoritative;
-  interactive mode launches for inspection and leaves the app running. Absent/empty
-  `runtime.run` → `skipped (not configured)`, never a blocker. Callers must not trust a stale
-  green — re-run unless the observation postdates the last relevant change. UI driving is out
-  of scope — that is `drive-app`.
-
-### drive-app
-
-- **Purpose:** Drive the running app's UI via the configured `runtime.drive` command and record
-  a verified / not-verified drive observation.
-- **Invocation:** `/artel-drive-app`
-- **Reads:** `runtime.drive`; `<specs.dir>/.active_ticket` for evidence pathing.
-- **Writes:** `<specs.dir>/<TICKET_ID>/[phase-<N>/]runtime/drive-observation.md` — date,
-  command, goal, exit code, `Verdict: verified | not verified (<reason>)`.
-- **Pauses:** never.
-- **Notes:** requires the automation scaffold applied via `add-automation` first — this skill
-  never applies it itself, it relays the failure and points the caller there. Interactive
-  counterpart to `run-app`; the `RUNTIME_OK` pipeline gate never uses this skill. Absent/empty
-  `runtime.drive` → reports `not configured` and stops.
-
 ### qa
 
 - **Purpose:** Generate a QA plan and verdict for a ticket, phase, or release.
@@ -462,14 +427,14 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Report which quality gates have passed for a ticket, phase, or release.
 - **Invocation:** `/artel-validate [ticket-id] or [ticket-id]-[phase] or R-[release-id]`
 - **Reads:** the gate artifacts the `artel-validator` agent already knows about (`PRD_READY`,
-  `PLAN_APPROVED`, `TASKLIST_READY`, `IMPLEMENT_STEP_OK`, `REVIEW_OK`, `RUNTIME_OK`,
-  `CHECKPOINT_OK`, `DOCS_UPDATED`, `AUTOMATION_REMOVED`).
+  `PLAN_APPROVED`, `TASKLIST_READY`, `IMPLEMENT_STEP_OK`, `REVIEW_OK`,
+  `CHECKPOINT_OK`, `DOCS_UPDATED`).
 - **Writes:** nothing — a read-only status report.
 - **Pauses:** never.
 - **Notes:** orchestrator (dispatches the `artel-validator` agent). Not a pipeline stage since 0.18.0:
   `feature-development`'s completion gate confirms the same facts itself (autonomous-run.md §7)
   and routes a red one back once; this is the à-la-carte report.
-  Unconfigured gates (`verify.commands` empty, no `runtime.run`) report `skipped`, never
+  Unconfigured gates (`verify.commands` empty) report `skipped`, never
   `green`.
 
 ### docs-update
@@ -530,8 +495,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   ticket's own artifacts; never transitions the ticket's status. Ticket-key scraping is
   restricted to `origin/<default>..HEAD`, never the full base range. Bitbucket
   `projectKey`/`repositorySlug` are derived from `git remote get-url origin` at call time —
-  no config key. With `runtime.scaffold` configured, the report reminds to run
-  `/artel-remove-automation` before merge when scaffold artifacts appear present.
+  no config key.
 
 ---
 
@@ -851,42 +815,6 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `origin` is skipped and reported, never reconciled. Review comments, reviewer assignments and
   PR state are not migrated — thread anchors and reviewer identities do not carry across
   platforms. The Bitbucket PRs stay open until the operator declines them by hand.
-
-### add-automation
-
-- **Purpose:** Apply the transient agent UI-automation scaffold to the current branch and
-  commit exactly what it changed.
-- **Invocation:** `/artel-add-automation`
-- **Reads:** `runtime.scaffold.add`, `verify.fast`; a clean-tree and not-on-default-branch
-  pre-flight.
-- **Writes:** whatever paths `runtime.scaffold.add` changes (discovered via
-  `git status --porcelain`), committed as `chore: enable agent UI automation` after a
-  `verify.fast` check.
-- **Pauses:** stops and asks only on a dirty tree (commit or stash first).
-- **Notes:** worker; user-invoked only (`metadata.opencode/autoinvoke: false`). Opt-in per task; undone by
-  `remove-automation` before merge; the reviewer's transient-automation carve-out and the
-  validator's `AUTOMATION_REMOVED` gate account for it. Absent/empty command → `not
-  configured`, gate records `skipped`. Rolls the scaffold back if `verify.fast` goes red; never
-  `git add -A`; never on the default branch.
-
-### remove-automation
-
-- **Purpose:** Remove the transient UI-automation scaffold again (reverse of `add-automation`)
-  and push the removal when an upstream exists.
-- **Invocation:** `/artel-remove-automation`
-- **Reads:** `runtime.scaffold.remove`, `verify.fast`; a clean-tree pre-flight.
-- **Writes:** the removal changes, committed as `chore: remove agent UI automation`; `git push`
-  when an upstream exists (never any `--force` variant).
-- **Pauses:** stops and asks only on a dirty tree.
-- **Notes:** worker; user-invoked only (`metadata.opencode/autoinvoke: false`). Run after the PR is
-  created, before merge — this is what turns the `AUTOMATION_REMOVED` gate green. Re-derives
-  the removal by running the configured command, never `git revert`, then verifies it from
-  git alone: every path the `chore: enable agent UI automation` commit added must be gone
-  (a byte-identical survivor is deleted; a modified one is stop-and-report), and the
-  directories the scaffold created for itself are swept once their files are gone (removed
-  when empty or holding only ignored entries; untracked work is stop-and-report). Absent/empty
-  command → `not configured`, gate records `skipped`. `drive-app`'s `drive-observation.md` is
-  evidence and is not touched.
 
 ### save-context
 

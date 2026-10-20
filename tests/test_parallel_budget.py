@@ -242,7 +242,6 @@ class TestInspect(BudgetCase):
         self.assertEqual(data['reservations'], [])
         self.assertEqual(data['scope_caps']['review'],
                          {'task': 1, 'ticket': 3, 'phase': 3})
-        self.assertEqual(data['scope_caps']['runtime'], {'ticket': 1, 'phase': 1})
         self.assertEqual(data['scope_caps']['checkpoint'], {'ticket': 2, 'phase': 2})
         self.assertEqual(self.state_path().read_bytes(), before, 'inspect wrote bytes')
 
@@ -375,14 +374,14 @@ class TestReserve(BudgetCase):
         self.write_state()
         rounds = [('review', '2.1', 1, 1), ('review', '2.2', 1, 1),
                   ('review', 'ticket', 1, 1), ('review', 'ticket', 1, 2),
-                  ('runtime', 'phase-2', 1, 1), ('checkpoint', 'phase-2', 1, 1),
-                  ('checkpoint', 'phase-2', 1, 2), ('review', 'phase-2', 1, 1)]
+                  ('checkpoint', 'phase-2', 1, 1), ('checkpoint', 'phase-2', 1, 2),
+                  ('review', 'phase-2', 1, 1), ('review', 'phase-2', 1, 2)]
         for kind, scope, attempt, ordinal in rounds:
             self.reserve(kind=kind, scope=scope, attempt=attempt, ordinal=ordinal,
                          expected_revision=self.inspect()['revision'])
         self.assertEqual(self.counter(), CAP)
         before = self.state_path().read_bytes()
-        error = self.reserve_error(1, kind='runtime', scope='ticket', ordinal=1,
+        error = self.reserve_error(1, kind='review', scope='2.3', ordinal=1,
                                    expected_revision=self.revision())
         self.assertEqual(error['kind'], 'budget_exhausted')
         self.assertEqual(self.state_path().read_bytes(), before)
@@ -456,7 +455,7 @@ class TestReserve(BudgetCase):
     def test_simultaneous_reservations_serialize_without_lost_updates(self):
         self.write_state()
         rounds = [('review', '2.1', 1), ('review', '2.2', 1), ('review', 'ticket', 1),
-                  ('runtime', 'phase-2', 1), ('checkpoint', 'phase-2', 1),
+                  ('review', 'phase-2', 1), ('checkpoint', 'phase-2', 1),
                   ('checkpoint', 'phase-2', 2)]
         results = {}
         errors = []

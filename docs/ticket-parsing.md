@@ -100,9 +100,6 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
 │   └── findings.json   # lens findings (convention/architecture/security) for a ticket-wide review run
 ├── deep-review.md       # optional, deep-review skill: the whole-branch review report + proposed fixes (ticket-wide only); its target manifest and machine report are run evidence under .artel/run/<TICKET_ID>/deep-review/ (docs/deep-review.md)
 ├── verify/              # optional, quality-gate evidence from inner-loop runs (fast-check/full-gate JSON per iteration, residual.json on stop-and-ask)
-├── runtime/             # optional, runtime-gate evidence (run-app, drive-app)
-│   ├── observation.md   # RUNTIME_OK evidence from run-app
-│   └── drive-observation.md # UI-driving evidence from drive-app
 ├── adr.md               # optional, ticket-wide ADR
 ├── summary.md           # optional, ticket-wide summary
 ├── change-report.html   # optional, derived HTML change-comprehension report (change-digest skill) — regenerable, never committed
@@ -119,7 +116,6 @@ run ever produces a `phase-<N>/` folder — every artifact is ticket-wide.)
     ├── review/          # optional, machine-readable review findings for this phase (reviewer agent)
     │   └── findings.json # lens findings scoped to this phase's review run
     ├── verify/          # optional, quality-gate evidence from inner-loop runs scoped to this phase
-    ├── runtime/         # optional, runtime-gate evidence scoped to this phase (run-app, drive-app)
     ├── adr.md           # phase-scoped ADR (optional)
     ├── change-report.html # optional, phase-scoped variant of the change-digest report (derived, never committed)
     └── summary.md       # phase-scoped summary (optional)
@@ -136,8 +132,8 @@ directory (`agents/artel-reviewer.md`, the deep-review output).
 **These paths are logical addresses.** With kartoteka as the spec store
 ([spec-storage.md](spec-storage.md)), a spec-trail path names a document in kartoteka, not a
 file, addressed as spec-storage.md §3 maps it, and an image under the trail (`design/` and
-`runtime/` screenshots) is stored in kartoteka by path (spec-storage.md §4.6). `.active_ticket`
-and evidence text (`review/`, `verify/`, `runtime/*.md`, `change-report.html`, `pr-pending.md`)
+other screenshots) is stored in kartoteka by path (spec-storage.md §4.6). `.active_ticket`
+and evidence text (`review/`, `verify/`, `change-report.html`, `pr-pending.md`)
 are files on both paths. Every rule below — scope, refuse-and-ask, the read fallback — applies
 to the addresses unchanged.
 
@@ -151,7 +147,6 @@ to the addresses unchanged.
 | Implementation notes | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/implementation-notes.md` |
 | Review findings | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/review/findings.json` — machine-readable lens findings from the `artel-reviewer` agent, scoped to this phase's review run (`review.md` itself stays ticket-level — see 4.2) |
 | Verify evidence | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/verify/` — quality-gate evidence from `inner-loop` runs scoped to this phase (ticket-wide variant: 4.2) |
-| Runtime evidence | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/runtime/observation.md` (`run-app`) and `.../runtime/drive-observation.md` (`drive-app`), scoped to this phase (ticket-wide variant: 4.2) |
 | Change report | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/change-report.html` — derived HTML change-comprehension report from the `artel-change-digest` skill, scoped to this phase; regenerable, never committed (ticket-wide variant: 4.2) |
 | PRD | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/prd.md` |
 | Plan | `<specs.dir>/<TICKET_ID>/phase-<PHASE_NUM>/plan.md` |
@@ -181,7 +176,6 @@ On the files path, create the `phase-<PHASE_NUM>/` subfolder lazily on first wri
 | Review findings | `<specs.dir>/<TICKET_ID>/review/findings.json` — machine-readable lens findings from the `artel-reviewer` agent (phase-scoped variant: 4.1) |
 | Deep review | `<specs.dir>/<TICKET_ID>/deep-review.md` — the `artel-deep-review` skill's single deliverable: the reviewer's whole-branch report (Critical / Warnings / Suggestions, PR Compliance, pre-existing issues, accepted audits) and its proposed fixes as `### Tasks` blocks (`agents/artel-reviewer.md`); ticket-wide only (`deep-review` discards any phase suffix). Its pinned target manifest and machine report are local run evidence under `.artel/run/<TICKET_ID>/deep-review/` on both spec-store paths ([deep-review.md](deep-review.md)) |
 | Verify evidence | `<specs.dir>/<TICKET_ID>/verify/` — quality-gate evidence from `inner-loop` runs: `iteration-<i>.json` (the task gate's envelope, both stages — `docs/gates.md` §1), `residual.json` (on stop-and-ask) (phase-scoped variant: 4.1) |
-| Runtime evidence | `<specs.dir>/<TICKET_ID>/runtime/observation.md` — `RUNTIME_OK` evidence from `run-app`; `<specs.dir>/<TICKET_ID>/runtime/drive-observation.md` — UI-driving evidence from `drive-app` (phase-scoped variant: 4.1) |
 | Change report | `<specs.dir>/<TICKET_ID>/change-report.html` — derived HTML change-comprehension report from the `artel-change-digest` skill; regenerable, never committed (phase-scoped variant: 4.1) |
 | ADR | `<specs.dir>/<TICKET_ID>/adr.md` |
 | PR description | `<specs.dir>/<TICKET_ID>/pr-description.md` |

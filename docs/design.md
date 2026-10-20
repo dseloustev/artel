@@ -27,7 +27,9 @@ project can install it from a GitHub marketplace repo.
 - Porting the informational Flutter/Dart reference skills (the `flutter-*` / `dart-*` how-to
   and conventions guides) — those seed the **likbez** companion plugin (separate repo).
   Workflow skills that merely carry a Flutter/wallet name (`flutter-inner-loop`,
-  `wallet-review`, `run-app`, `drive-app`) **are** in artel's scope, in genericized form.
+  `wallet-review`) **are** in artel's scope, in genericized form. App automation
+  (`run-app`, `drive-app`, the scaffold add/remove pair) is not: each host project carries its
+  own automation skill and commands.
 - Windsurf mirroring (`move-to-windsurf` / `restore-from-windsurf`) — tooling quirk of the
   source repo.
 - Building a hosted service or GUI. Artel is files in a plugin: skills, agents, hooks, docs.
@@ -48,8 +50,8 @@ and bridge: [opencode.md](opencode.md); the hook wire format is artel's own ABI
 | Layer | Contents | Source of truth ported from |
 |---|---|---|
 | Entry points | `artel-feature-development` (one orchestrator; sizing picks the head) | orchestrator skills |
-| Stage skills | `artel-analysis`, `artel-researcher`, `artel-planner`, `artel-tasklist`, `artel-implementer`, `artel-run-reviewer`, `artel-qa`, `artel-docs-update`, `artel-validate`, `artel-pr-description`, `artel-pr-create`, `artel-sync-phases`, `artel-generate-idea`, `artel-generate-vision`, `artel-generate-tasklist`, `artel-figma-analysis`, `artel-inner-loop` (← `flutter-inner-loop`), `artel-deep-review` (← `wallet-review`), `artel-run-app`, `artel-drive-app`, `artel-change-digest`, `artel-address-pr-comment` | orchestrator skills |
-| Ops & utility skills | `artel-init-branch`, `artel-merge-conflicts`, `artel-add-automation`, `artel-remove-automation`, `artel-save-context`, `artel-restore-context`, `artel-issue-draft` (← `jira-issue-ru`), `artel-agents-md-generator` | utility skills |
+| Stage skills | `artel-analysis`, `artel-researcher`, `artel-planner`, `artel-tasklist`, `artel-implementer`, `artel-run-reviewer`, `artel-qa`, `artel-docs-update`, `artel-validate`, `artel-pr-description`, `artel-pr-create`, `artel-sync-phases`, `artel-generate-idea`, `artel-generate-vision`, `artel-generate-tasklist`, `artel-figma-analysis`, `artel-inner-loop` (← `flutter-inner-loop`), `artel-deep-review` (← `wallet-review`), `artel-change-digest`, `artel-address-pr-comment` | orchestrator skills |
+| Ops & utility skills | `artel-init-branch`, `artel-merge-conflicts`, `artel-save-context`, `artel-restore-context`, `artel-issue-draft` (← `jira-issue-ru`), `artel-agents-md-generator` | utility skills |
 | Agents | the crew of 14 under `agents/artel-*.md`: analyst, figma-analyst, researcher, planner, task-planner, tasklist-writer, vision-writer, implementer, reviewer, qa, validator, tech-writer, issue-scout, collaborative-reviewer | `.claude/agents/*.md` |
 | Hooks | the Python layer under `hooks/`, bound by the bridge: session baseline, fast per-edit verify, stop gate (+ verify), sensitive guard, VCS/tracker guard, knowledge mirror, session router, spec-store guard | `.claude/hooks/*.py` |
 | Contracts | autonomous-run contract, orchestrator-common, ticket-parsing rules, deviation protocol, path conventions | `.claude/docs/`, `.claude/agents/docs/` |
@@ -1703,3 +1705,14 @@ move to the decision log.
   `ENTERS_ROOT_DIRECTLY` exception is gone: the rule is now general — a hook's first
   `hook_common` call is `read_input` or `read_hook_input`, and when it is `read_input` the
   worktree move must be the very next one, so nothing reads config or run state before it.
+- **2026-10-20 — App automation moves to the host project; artel retires its automation layer.**
+  The four automation skills (`run-app`, `drive-app`, `add-automation`, `remove-automation`), the
+  `runtime.*` config block, the `RUNTIME_OK` and `AUTOMATION_REMOVED` gates, the runtime evidence
+  paths and the runtime correction-budget kind are removed. App automation is not a workflow
+  concern that artel can own: its contract differs per host (commands, evidence location, verdict
+  format, scaffold lifecycle), and the source project's replacement — `wallet-app-automation`
+  with `/app-launch` / `/app-drive` / `/app-stop` and `tools/wallet_agent` — is committed in the
+  host repo, with no transient scaffold and no spec-trail evidence. Each host project now carries
+  its own automation skill; artel skills point at it for on-demand app observation and gate
+  nothing on it. `## Runtime Fixes` stays parsed as a legacy fix section, like
+  `## Final Verification`, so older tasklists still load.

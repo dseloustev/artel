@@ -1,6 +1,6 @@
 ---
 name: artel-feature-development
-description: "Ticket in, pull request out: sizes the work and runs the head that fits — the full pipeline (interview -> PRD -> vision -> plan -> tasks), a lean work list, a bug diagnosis or a spike answer -> ONE approval pause -> autonomous implementation, review, runtime check, PR"
+description: "Ticket in, pull request out: sizes the work and runs the head that fits — the full pipeline (interview -> PRD -> vision -> plan -> tasks), a lean work list, a bug diagnosis or a spike answer -> ONE approval pause -> autonomous implementation, review, PR"
 argument-hint: "[ticket-id] or [ticket-id]-[phase] [description-file] [--head=full|lean|bug] [--mode=yolo|plan-gate|full-gates] [--dry-run] [--local]"
 ---
 
@@ -305,13 +305,12 @@ A resumed armed run enters here; its gates skip what is already done.
 - The only files this orchestrator writes directly: `<specs.dir>/.active_ticket`,
   `.artel/run/<TICKET_ID>/sizing.json`,
   `.artel/run/<TICKET_ID>/run-state.json`, `.artel/run/<TICKET_ID>/run-journal.md`,
-  `.artel/run/<TICKET_ID>/runtime-observation.md`, the phase-aware `runtime/observation.md`
-  surface-skip entry, the `open-questions.md` status flips (same directory), the deletion of a
+  the `open-questions.md` status flips (same directory), the deletion of a
   stale or reset `plan-review.md` (same directory — gate 4.2 and **Request changes**), a task's
   `Route:` line changed at the lean head's confirmation, the
   description file during sync, `.artel/run/<TICKET_ID>/spec-store.json` (through
   `spec_store.py`); on the kartoteka path its spec-document writes — the plan-check bounce line,
-  runtime and verify fix batches, the review reset — are store writes. Everything else is delegated.
+  verify fix batches, the review reset — are store writes. Everything else is delegated.
 - The run's task and checkpoint commits, and the checkpoint pushes, are the only direct git
   mutations this orchestrator performs; every other external action goes through `pr-create`. The
   checkpoint branch guard and no-force rules are absolute.

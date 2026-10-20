@@ -182,7 +182,7 @@ agreed upon before the run starts.
 Every loop writes its counter into the artifact it produces, so re-invocation cannot reset it. Counters
 reset only when the user resumes with guidance after a cap escalation. Exception:
 `counters.correction_rounds` is authoritative in `run-state.json` itself — it has no single loop
-artifact to live in (it spans review and runtime rounds). On resume/re-arm it is **preserved,
+artifact to live in (it spans review rounds). On resume/re-arm it is **preserved,
 never re-zeroed**; it resets only at the initial arm of a fresh run or on an explicit user reset after
 a cap escalation.
 
@@ -193,32 +193,29 @@ a cap escalation.
 | route floor 3 (per task, §16) — a threshold, not a loop | `ROUTE_FULL_FILES = 5` | none: a task whose `Files:` lists more paths is routed `full` |
 | plan review → fix (before the pause, task-format tasklists) | `MAX_PLAN_REVIEW_ROUNDS = 2` | `**Plan-review round:** k` in `.artel/run/<TICKET_ID>/plan-review.md` (the chatty head's; never counts toward `correction_rounds`) |
 | review → fix → re-review | `MAX_REVIEW_ROUNDS = 3` | `**Review round:** N` in `review.md` (reset by deleting it on the files path, by a round-0 version on the kartoteka path — spec-storage.md §4.4) |
-| runtime gate red → fix | `MAX_RUNTIME_RETRIES = 1` | `.artel/run/<TICKET_ID>/runtime-observation.md` |
 | checkpoint verify → fix (per checkpoint, §14) | `MAX_CHECKPOINT_VERIFY_ROUNDS = 2` | checkpoint entry in `run-journal.md` (rounds also count toward `correction_rounds`) |
 | debug it here first (per halt, below) | `MAX_DEBUG_HERE_ATTEMPTS = 1` | the halt's `debugged here: …` entry in `run-journal.md` |
 | baseline capture (§14, gates.md §1) | once per run, at a fresh arm — never re-recorded on resume or at a phase boundary | `.artel/run/<TICKET_ID>/verify-baseline.json` |
-| global correction rounds (review + runtime fix rounds) | `MAX_TOTAL_CORRECTION_ROUNDS = 8` | `counters.correction_rounds` in `run-state.json` |
+| global correction rounds (review fix rounds) | `MAX_TOTAL_CORRECTION_ROUNDS = 8` | `counters.correction_rounds` in `run-state.json` |
 | global wall-clock | `WALL_CLOCK_HOURS = 3` | `run-state.json` `started_at` |
 
 **OpenCode parallel runs** reserve each fix round from that same `counters.correction_rounds`
 before its dispatch, through `scripts/parallel_budget.py`
 ([opencode-parallel.md](opencode-parallel.md) §13.12): the run-wide cap is shared across every
-task, review, runtime and checkpoint scope, and only an actual fix dispatch is charged — never
+task, review and checkpoint scope, and only an actual fix dispatch is charged — never
 the initial plan review or a worker's own execution. A reservation replays for free for its
 exact identity; nothing decrements or resets it.
 
-These are the workflow's built-in defaults, not `.artel/config.json` keys. The runtime-gate row
-only runs at all when `runtime.run` (and `runtime.drive`, for `drive-app`) are configured; absent
-those keys the gate is recorded as `skipped` (config.md) and this loop never arms. When
-`runtime.surface` is set (config.md), the gate additionally runs only when the run's diff
-matches it — a non-match is recorded as `skipped (no runtime surface)`.
+These are the workflow's built-in defaults, not `.artel/config.json` keys. App automation is the
+host project's own: artel has no runtime-gate row, no `runtime.*` keys and no runtime evidence
+path. When a run needs the app observed, it uses the host's automation skill as a debugging aid;
+nothing in this budget or the gates arms on it.
 
 Cap hit ⇒ set `pause_reason: "cap-escalation"`, present consolidated findings via the `question` tool, stop.
 
-**Debug it here first.** On three cap escalations — each a red gate in app code — the question
+**Debug it here first.** On two cap escalations — each a red gate in app code — the question
 opens with one more option, **Debug it here first**: a task aborted when `MAX_VERIFY_ITERATIONS`
-ran out, a checkpoint still red after `MAX_CHECKPOINT_VERIFY_ROUNDS`, and the runtime gate's
-second red from an app-code error. Not the review cap, not an environment error, not
+ran out, and a checkpoint still red after `MAX_CHECKPOINT_VERIFY_ROUNDS`. Not the review cap, not an environment error, not
 `MAX_TOTAL_CORRECTION_ROUNDS` or the wall clock; a headless run journals and stops as before.
 The option runs the `artel-debugging` skill on the red evidence while `pause_reason` stays
 `cap-escalation`. Fixed → the orchestrator journals `debugged here: <root cause> — <files>`,
@@ -234,7 +231,7 @@ skill `--model <value>`, resolved from `models.opencode`'s `implementer.stepUp`
 (`python3 ${ARTEL_ROOT}/scripts/models.py resolve --site implementer.stepUp`); unset → no flag.
 A fix list's first round resolves `implementer.fix`, whatever the task's route — a fix list is
 run-level correction, not a task dispatch. Rounds that exist once — the per-task review's fix
-round, the runtime retry, review fix round 1 — keep the default, and a stepped-up round counts
+round, review fix round 1 — keep the default, and a stepped-up round counts
 toward `MAX_TOTAL_CORRECTION_ROUNDS` like any other.
 
 Environment errors (toolchain/dependency mismatches, subprocess failures, missing tools) are **never**
@@ -248,7 +245,7 @@ the autonomous default — confirm between major phases, per-task implementer ap
 
 ## 7. Completion gate
 
-A run may set `completed: true` only when its gates all pass. The orchestrator confirms eight
+A run may set `completed: true` only when its gates all pass. The orchestrator confirms six
 facts itself, from the artifacts it already
 reads, and journals one line each: `PLAN_APPROVED` (`skipped (no plan)` when the ticket has no
 plan — `gates_confirmed` holding `TASKLIST_READY` is then the approval — and
@@ -257,12 +254,11 @@ draft on a run whose confirmed work list was the approval), `TASKLIST_READY` (th
 tasklist's status, or `gates_confirmed` for a tasklist that declares none), `IMPLEMENT_STEP_OK` (no
 unchecked box in any iteration or fix section, and every fix-section parent closed —
 [task-queue.md](task-queue.md) §6), `REVIEW_OK` (`review.md` with a round line, no
-open `## Code Review Fixes` box), `RUNTIME_OK` (green or skipped, newer than the last
-`runtime.surface` change), `CHECKPOINT_OK` (the final gate — the last checkpoint green and no
+open `## Code Review Fixes` box), `CHECKPOINT_OK` (the final gate — the last checkpoint green and no
 `verify.surface` change since its commit, else one more checkpoint gate; gates.md §1),
-`DOCS_UPDATED` (`summary.md` exists — written on the last phase before its checkpoint, so that
+and `DOCS_UPDATED` (`summary.md` exists — written on the last phase before its checkpoint, so that
 checkpoint commit carries the docs; `skipped (no PRD)` when the ticket has no PRD, because the
-docs stage runs only with one) and `AUTOMATION_REMOVED`; the table is in the
+docs stage runs only with one); the table is in the
 `artel-feature-development` skill (`../skills/artel-feature-development/tail.md`, `## Completion gate`). A
 fact that reads `skipped` is green. Those readings are keyed on what exists for the ticket,
 never on the head that ran. No
@@ -295,7 +291,7 @@ the phase's gates pass (sync status back to `tasklist.md`). On the kartoteka pat
   task-format tasklist it is also the first mirror: `tasklist` mirrors nothing before the plan
   is `PLAN_APPROVED`, because the plan review and the fold-back can still renumber tasks
   (`docs/task-queue.md` §2).
-  Every writer of a fix section — `run-reviewer`, `deep-review`, the runtime gate
+  Every writer of a fix section — `run-reviewer`, `deep-review`
   and the phase checkpoint — records its batch the same way right after the
   append, so the queue shows fix work before the first fix is dispatched (§6:
   recorded, never offered). Create-only and idempotent; a failure reports and
@@ -463,8 +459,8 @@ means.
   checkpoint (§14).
 - After each checkpoint, `.active_ticket` advances to the next incomplete phase; after the final
   phase the last identifier stays in place.
-- `.active_ticket` is the phase pointer for argument-less invocations and for `run-app`'s
-  evidence pathing; the orchestrator still passes the full identifier explicitly to sub-skills.
+- `.active_ticket` is the phase pointer for argument-less invocations; the orchestrator still
+  passes the full identifier explicitly to sub-skills.
 
 ## 16. Routes
 

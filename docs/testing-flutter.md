@@ -95,21 +95,16 @@ Flutter configuration for a local-only test (no tracker, GitHub for PRs):
   "specs": {
     "dir": "specs/.current",
     "releases": "specs/releases"
-  },
-  "runtime": {
-    "surface": ["lib/**/*.dart"]
   }
 }
 ```
 
 Notes on the choices:
 
-- **`runtime.run` is deliberately unset** for the first pass, so the `RUNTIME_OK` gate records
-  `skipped (not configured)` — honest degradation is part of what you're testing. Don't put
-  `flutter run` there later: `run-app` treats the command as a bounded, self-terminating black
-  box whose exit code is the verdict, and `flutter run` never exits. When you do want the gate
-  armed, use something that builds-and-exits, e.g. `"run": "flutter build apk --debug"` (or
-  `flutter build macos --debug`), or an integration-test command.
+- **App automation is the host project's.** This guide configures none: a project that wants the
+  agent to launch or drive the app provides its own automation skill and commands (for
+  adguard-wallet, `wallet-app-automation` with `/app-launch` / `/app-drive` / `/app-stop`), and
+  artel points at it without gating on it.
 - **`verify.fast` carries `{files}`** so the per-edit hook analyzes only what changed;
   `verify.surface` keeps generated files out of the hooks' sight — `setup` derives it from
   `analysis_options.yaml`'s `analyzer.exclude` plus the gitignored generated families
@@ -122,7 +117,7 @@ Notes on the choices:
 
 **Expected after setup:** `.artel/config.json` exists; `.gitignore` gained `.artel/run/` and
 `.artel/context/`; the report says which gates are armed (verify) and which will record
-`skipped` (runtime, design).
+`skipped` (design).
 
 ## 4. Smoke tests
 
@@ -192,7 +187,7 @@ The lean head presents the tasklist from 4.2 for its one work-list confirmation
 (Confirm / Adjust — the pause happens even though the tasklist already exists), arms the run
 (`.artel/run/FLT-1/run-state.json` with `run_active: true`), makes the arm-time checkpoint
 commit, then silently implements, reviews (`review.md`, `## Code Review Fixes` on findings),
-records the runtime gate as `skipped (not configured)`, updates the docs once (the ticket has a
+updates the docs once (the ticket has a
 PRD), and closes the phase with its checkpoint:
 `flutter analyze` + format + tests green → commit + push. Without an `origin`, the push
 stops-and-asks — the checkpoint procedure never forces and never self-repairs remotes; a
@@ -214,7 +209,7 @@ Reset the scratch repo (or make a second ticket `FLT-2` with a new description) 
 itself, which is the path 4.1 skips.)
 
 **Expected:** the same head as 4.2 but the pause is live — **Approve** it. The run arms, makes
-the planning checkpoint, implements (the task gate per task), reviews, skips runtime, runs the
+the planning checkpoint, implements (the task gate per task), reviews, runs the
 checkpoint gate against the baseline it recorded at arm time, updates docs/CHANGELOG once,
 confirms the completion checklist, regenerates `pr-description.md`, and pauses at the PR gate
 ("Open the PR now?"). With `gh` authenticated and an `origin` on GitHub, approving opens a real
@@ -245,7 +240,7 @@ substitutes the paths into `verify.fast`'s `{files}` token.
 | Spec trail only under `specs/.current/<TICKET>/` | 4.1–4.5 |
 | Run state only under `.artel/run/` (gitignored) | 4.2, 4.4, 4.5 |
 | Nothing written into the plugin install/cache directory | `~/.config/opencode/artel/` unchanged |
-| Unconfigured gates report `skipped`, never green | runtime + design in every report |
+| Unconfigured gates report `skipped`, never green | design in every report |
 | Dry run never writes `run-state.json` | 4.2 |
 | Verify stop gate blocks only findings you introduced | 4.3 |
 | Task commits per completed cycle, checkpoint commits per phase — only on the feature branch, never forced | 4.4, 4.5 |
@@ -269,7 +264,6 @@ Then delete the scratch project, or keep it — `.artel/config.json` is inert wi
 | Hooks silent in 4.3 | Hooks are inert until `.artel/config.json` exists and `verify.fast` is non-empty; also check `python3` is on the PATH OpenCode runs with. |
 | `verify.py` exits `2` with `command_not_found`/`spawn_failed` | `flutter`/`dart` not on the hook shell's PATH — launch OpenCode from a shell where they resolve. |
 | Checkpoint stops on "push rejected / no origin" | Expected without a remote — add a scratch `origin` or accept the stop-and-ask. |
-| Runtime gate hangs | You configured a non-terminating `runtime.run` (e.g. `flutter run`) — use a build-and-exit command; see §3. |
 | Every gate `skipped` | That's the inert default config — arm gates via `verify.commands` etc. (config.md). |
 
 Findings that look like plugin defects (rather than environment issues) belong in a GitHub

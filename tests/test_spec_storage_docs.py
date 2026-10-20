@@ -111,8 +111,8 @@ class TestImagesMove(unittest.TestCase):
         self.assertNotIn('design/*.png', scope)
         for ext in kh.IMAGE_TYPES:
             self.assertIn('`{}`'.format(ext), scope)
-        for kept in ('.active_ticket', 'review/findings.json', 'runtime/observation.md',
-                     'runtime/drive-observation.md', 'change-report.html', 'pr-pending.md'):
+        for kept in ('.active_ticket', 'review/findings.json',
+                     'change-report.html', 'pr-pending.md'):
             self.assertIn(kept, scope)
         self.assertIn('§4.6', scope)
         self.assertIn('Images follow the documents', scope)
@@ -309,7 +309,8 @@ class TestMigrateSpecsImages(unittest.TestCase):
         start = self.text.index('**Never deleted')
         never = self.text[start:self.text.index('\n\n', start)]
         self.assertNotIn('`design/`', never)
-        self.assertIn('`runtime/*.md`', never)
+        self.assertNotIn('`runtime/*.md`', never)
+        self.assertIn('`verify/` reports', never)
         self.assertIn('untracked working-tree images', never)
 
 

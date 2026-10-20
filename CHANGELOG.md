@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Removed
+
+- **App automation moved to the host project.** The four automation skills (`run-app`,
+  `drive-app`, `add-automation`, `remove-automation`), the `runtime.*` config block, the
+  `RUNTIME_OK` and `AUTOMATION_REMOVED` gates, the runtime evidence paths
+  (`runtime/observation.md`, `runtime/drive-observation.md`) and the `runtime` correction-budget
+  kind are gone. Each host project now carries its own automation skill and commands — for
+  adguard-wallet, `wallet-app-automation` with `/app-launch` / `/app-drive` / `/app-stop` — and
+  artel skills point at it for on-demand app observation without gating on it. `## Runtime Fixes`
+  stays parsed as a legacy fix section so older tasklists still load.
+
 ## [0.39.1] - 2026-10-20
 
 ### Fixed

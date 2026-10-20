@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.39.1] - 2026-10-20
+
 ### Fixed
 
 - **A freshly started server's first session gets its findings baseline.** `session.created`

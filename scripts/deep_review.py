@@ -204,6 +204,12 @@ def sensitive_categories(root):
     return categories
 
 
+def summary_text(value):
+    """One metadata-line-safe rendering of a policy name or a path."""
+    return (value.replace('\\', '\\\\').replace('\r', '\\r').replace('\n', '\\n')
+            .replace('\t', '\\t'))
+
+
 def dangerous_change(root, merge_base, head):
     """The pinned diff's sensitive surfaces, as a deterministic dangerous-change record."""
     paths = sorted(changed_paths(root, merge_base, head))
@@ -227,7 +233,9 @@ def dangerous_change(root, merge_base, head):
         return {'is_dangerous': False, 'summary': 'none', 'classes': [], 'paths': []}
     matched = sorted(matched)
     return {'is_dangerous': True,
-            'summary': 'yes — {} ({})'.format(', '.join(classes), ', '.join(matched)),
+            'summary': 'yes — {} ({})'.format(
+                ', '.join(summary_text(name) for name in classes),
+                ', '.join(summary_text(path) for path in matched)),
             'classes': classes, 'paths': matched}
 
 

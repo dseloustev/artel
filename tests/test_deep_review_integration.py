@@ -537,6 +537,14 @@ class TestReviewerWiring(unittest.TestCase):
             with self.subTest(phrase):
                 self.assertIn(phrase, self.flat)
 
+    def test_convention_ref_belongs_to_the_deep_review_machine_report(self):
+        evidence = self.text.split('## Evidence and anchoring (code modes)')[1].split(
+            '## Review lenses')[0]
+        self.assertIn('in the report body', evidence)
+        self.assertNotIn('convention_ref', evidence)
+        deep = self.text.split('**The `deep-review` output.**')[1]
+        self.assertIn('convention_ref', deep)
+
     def test_the_deep_review_output_points_at_the_single_home(self):
         for phrase in ('docs/deep-review.md', 'machine report', 'DR-NNN',
                        'Finding: DR-NNN', 'Accepted audits'):

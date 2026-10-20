@@ -182,7 +182,8 @@ short:
    is worse than none. A dispatch may carry provided evidence — the VCS host's checks for the
    pinned head. Record it as a `verification` record (`kind: command` with the exact command,
    or `kind: evidence`) and cite it in a finding's evidence instead of re-running a command the
-   environment cannot run.
+   environment cannot run. A convention finding also carries that path in its `convention_ref`;
+   the checker requires the file to exist at the reviewed head.
 4. It closes with `## Proposed fixes`: a `### Tasks (Critical)` block and a `### Tasks (Warning)`
    block, each holding its findings' fixes in the ticket-mode task format — one checkbox item per
    actionable finding, `**Task N (Critical): …**` / `**Task N (Warning): …**`, numbered within
@@ -413,8 +414,8 @@ observed failure or the violated contract. A correctness finding whose failing c
 cannot be named is not reported — a plausible worry with no path to the failure is noise in
 a report a human acts on. A correctness claim that could not be confirmed by a run says so
 in the finding ("rests on reading, not a run") rather than implying a run that never
-happened. A convention finding names its backing in the machine report's `convention_ref` —
-the host rule file or the canonical example in the repo. No reference, no convention finding.
+happened. A convention finding names its backing in the report body — the host rule file or the
+canonical example in the repo. No reference, no convention finding.
 
 Anchors are mechanical, not decorative: a finding's `file:line` is what a reader follows into
 the diff — `deep-review.md` cites them — so a guessed line sends a reader to the wrong place

@@ -195,6 +195,21 @@ class TestPrepare(RepoCase):
         self.assertNotIn('ci-cd', dangerous['classes'])
         self.assertEqual(dangerous['paths'], ['docs/guide.md'])
 
+    def test_a_sensitive_path_with_a_newline_is_escaped_in_the_summary(self):
+        (self.root / '.artel').mkdir()
+        (self.root / '.artel' / 'sensitive-paths.json').write_text(json.dumps(
+            {'categories': [{'name': 'custom', 'floor': 'full-gates',
+                             'globs': ['src/*']}]}), encoding='utf-8')
+        weird = self.root / 'src' / 'weird\nname.py'
+        weird.write_text('x\n', encoding='utf-8')
+        self.git('add', '-A')
+        self.git('commit', '-q', '-m', 'a filename with a newline')
+        proc = self.prepare()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        summary = self.manifest()['dangerous']['summary']
+        self.assertNotIn('\n', summary)
+        self.assertIn('\\n', summary)
+
     def test_run_ids_are_fresh_per_prepare(self):
         self.assertEqual(self.prepare().returncode, 0)
         first = self.manifest()['run_id']

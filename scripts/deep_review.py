@@ -35,6 +35,7 @@ An empty or whitespace-only report is unprocessable input: `check` refuses it as
 report parses. Contract: skills/artel-deep-review/SKILL.md, agents/artel-reviewer.md.
 """
 import argparse
+import fnmatch
 import json
 import os
 import re
@@ -56,6 +57,8 @@ SCOPES = ('diff', 'repository')
 KINDS = ('defect', 'audit')
 BASE_CANDIDATES = ('refs/remotes/origin/main', 'refs/remotes/origin/master',
                    'refs/heads/main', 'refs/heads/master', 'refs/heads/trunk')
+SENSITIVE_HOST = Path('.artel/sensitive-paths.json')
+SENSITIVE_DEFAULT = Path(__file__).resolve().parent.parent / 'hooks' / 'sensitive-paths.json'
 FINDING_ID = re.compile(r'DR-\d{3}\Z')
 COMMIT_SHA = re.compile(r'[0-9a-f]{40}(?:[0-9a-f]{24})?\Z')
 HEADER_FIELD = re.compile(r'([A-Za-z_][A-Za-z0-9_]*):(?:[ \t]+(.*?))?[ \t]*\Z')
@@ -182,6 +185,49 @@ def blob_line_count(root, head, path):
     if data and not data.endswith(b'\n'):
         count += 1
     return count
+
+
+# --- the dangerous-change record --------------------------------------------
+
+def sensitive_categories(root):
+    """The effective sensitive-paths policy: the host override or the shipped default."""
+    host = Path(root) / SENSITIVE_HOST
+    path = host if host.is_file() else SENSITIVE_DEFAULT
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise InputError('cannot read the sensitive-paths policy {}: {}'.format(path, exc))
+    categories = data.get('categories') if isinstance(data, dict) else None
+    if not isinstance(categories, list):
+        raise InputError('the sensitive-paths policy {} has no categories list'.format(path))
+    return categories
+
+
+def dangerous_change(root, merge_base, head):
+    """The pinned diff's sensitive surfaces, as a deterministic dangerous-change record."""
+    paths = sorted(changed_paths(root, merge_base, head))
+    classes = []
+    matched = set()
+    for category in sensitive_categories(root):
+        if not isinstance(category, dict):
+            continue
+        globs = category.get('globs')
+        if not isinstance(globs, list):
+            continue
+        hits = [path for path in paths
+                if any(isinstance(glob, str) and fnmatch.fnmatch(path, glob)
+                       for glob in globs)]
+        if not hits:
+            continue
+        name = category.get('name')
+        classes.append(name if isinstance(name, str) and name else 'sensitive')
+        matched.update(hits)
+    if not classes:
+        return {'is_dangerous': False, 'summary': 'none', 'classes': [], 'paths': []}
+    matched = sorted(matched)
+    return {'is_dangerous': True,
+            'summary': 'yes — {} ({})'.format(', '.join(classes), ', '.join(matched)),
+            'classes': classes, 'paths': matched}
 
 
 # --- paths ------------------------------------------------------------------
@@ -346,6 +392,7 @@ def cmd_prepare(args):
         'merge_base': merge_base,
         'branch': branch,
         'specs_dir': specs,
+        'dangerous': dangerous_change(root, merge_base, head),
     }
     try:
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -415,6 +462,19 @@ def read_manifest(path):
     if any(char in data['branch'] for char in ('\x00', '\n', '\r')):
         raise InputError('the target manifest branch is not a usable branch name: {!r}'.format(
             data['branch']))
+    dangerous = data.get('dangerous')
+    if not isinstance(dangerous, dict):
+        raise InputError('the target manifest dangerous must be an object; re-run prepare')
+    if not isinstance(dangerous.get('is_dangerous'), bool):
+        raise InputError('the target manifest dangerous.is_dangerous must be a boolean')
+    for key in ('classes', 'paths'):
+        value = dangerous.get(key)
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            raise InputError('the target manifest dangerous.{} must be a list of strings'.format(
+                key))
+    summary = dangerous.get('summary')
+    if not isinstance(summary, str) or not summary.strip():
+        raise InputError('the target manifest dangerous.summary must be a non-empty string')
     return data
 
 
@@ -1090,6 +1150,7 @@ def build_data(manifest, machine, task_counts, expected, root):
             },
         },
         'verification': machine['verification'],
+        'dangerous': manifest['dangerous'],
         'report': display_path(root, expected),
     }
 

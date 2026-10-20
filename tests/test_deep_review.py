@@ -145,6 +145,56 @@ class TestPrepare(RepoCase):
         self.assertEqual(manifest['merge_base'], self.base_sha)
         self.assertEqual(str(uuid.UUID(manifest['run_id'])), manifest['run_id'])
 
+    def test_manifest_records_no_dangerous_change(self):
+        proc = self.prepare()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(self.manifest()['dangerous'],
+                         {'is_dangerous': False, 'summary': 'none', 'classes': [],
+                          'paths': []})
+
+    def test_manifest_records_a_dangerous_change(self):
+        workflows = self.root / '.github' / 'workflows'
+        workflows.mkdir(parents=True)
+        (workflows / 'ci.yml').write_text('name: ci\n', encoding='utf-8')
+        self.git('add', '-A')
+        self.git('commit', '-q', '-m', 'ci')
+        proc = self.prepare()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        dangerous = self.manifest()['dangerous']
+        self.assertTrue(dangerous['is_dangerous'])
+        self.assertIn('ci-cd', dangerous['classes'])
+        self.assertTrue(dangerous['summary'].startswith('yes — ci-cd ('))
+        self.assertIn('.github/workflows/ci.yml', dangerous['paths'])
+
+    def test_a_deleted_sensitive_path_is_dangerous(self):
+        (self.root / '.artel').mkdir()
+        (self.root / '.artel' / 'sensitive-paths.json').write_text(json.dumps(
+            {'categories': [{'name': 'removed', 'floor': 'full-gates',
+                             'globs': ['src/gone.py']}]}), encoding='utf-8')
+        proc = self.prepare()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        dangerous = self.manifest()['dangerous']
+        self.assertTrue(dangerous['is_dangerous'])
+        self.assertEqual(dangerous['classes'], ['removed'])
+        self.assertEqual(dangerous['paths'], ['src/gone.py'])
+
+    def test_host_policy_replaces_the_shipped_default(self):
+        workflows = self.root / '.github' / 'workflows'
+        workflows.mkdir(parents=True)
+        (workflows / 'ci.yml').write_text('name: ci\n', encoding='utf-8')
+        self.git('add', '-A')
+        self.git('commit', '-q', '-m', 'ci')
+        (self.root / '.artel').mkdir()
+        (self.root / '.artel' / 'sensitive-paths.json').write_text(json.dumps(
+            {'categories': [{'name': 'custom', 'floor': 'full-gates',
+                             'globs': ['docs/*.md']}]}), encoding='utf-8')
+        proc = self.prepare()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        dangerous = self.manifest()['dangerous']
+        self.assertEqual(dangerous['classes'], ['custom'])
+        self.assertNotIn('ci-cd', dangerous['classes'])
+        self.assertEqual(dangerous['paths'], ['docs/guide.md'])
+
     def test_run_ids_are_fresh_per_prepare(self):
         self.assertEqual(self.prepare().returncode, 0)
         first = self.manifest()['run_id']
@@ -629,6 +679,16 @@ class TestCheck(PreparedCase):
         self.assertEqual(proc.returncode, 2)
         self.assertTrue(any('schema must be 1' in error
                             for error in self.envelope(proc)['errors']))
+
+    def test_manifest_without_dangerous_is_exit_two(self):
+        manifest = self.manifest()
+        del manifest['dangerous']
+        (self.root / MANIFEST_REL).write_text(json.dumps(manifest), encoding='utf-8')
+        self.write_machine([])
+        self.write_report(self.report_text())
+        proc = self.check()
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('dangerous', proc.stderr)
 
     def test_invalid_finding_types_are_rejected(self):
         cases = (

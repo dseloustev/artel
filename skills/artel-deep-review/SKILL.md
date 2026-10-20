@@ -131,8 +131,8 @@ python3 ${ARTEL_ROOT}/scripts/deep_review.py prepare \
 ```
 
 - Exit `0`: the manifest is written. Display the line it prints (run id, branch, head, base,
-  merge-base), then read the manifest and keep `run_id`, `branch`, `base`, `head` and
-  `merge_base` for the dispatch. The manifest is run evidence on both spec-store paths.
+  merge-base), then read the manifest and keep `run_id`, `branch`, `base`, `head`, `merge_base`
+  and `dangerous` for the dispatch. The manifest is run evidence on both spec-store paths.
 - Exit `2`: display its `deep_review.py: <reason>` line and terminate. The reason for a branch
   mismatch or a dirty checkout already carries the worktree instruction — display it verbatim.
   Never retarget to the checked-out branch, never check out another branch, never fetch, and
@@ -204,6 +204,7 @@ Pinned target — review exactly this and nothing else:
 - Target manifest: .artel/run/<TICKET_ID>/deep-review/target.json — run <RUN_ID>, branch <BRANCH>, base <BASE>, head <HEAD>, merge-base <MERGE_BASE>.
 - Review range: `git diff <MERGE_BASE> <HEAD>`; regression guard: `git diff <BASE> <HEAD>`; anchors: the same merge-base..head range.
 - Machine report (schema 1): write it to .artel/run/<TICKET_ID>/deep-review/machine.json.
+- Dangerous change (copy verbatim into the report's **Dangerous change:** line): <DANGEROUS_SUMMARY>
 - Report contract: `${ARTEL_ROOT}/docs/deep-review.md` — the header, the five metadata lines, the finding sections and DR-NNN IDs, the `### Tasks` blocks, the verification records and the completeness rules.
 
 Additional ticket context:
@@ -233,6 +234,7 @@ Pinned target — review exactly this and nothing else:
 - Target manifest: .artel/run/<TICKET_ID>/deep-review/target.json — run <RUN_ID>, branch <BRANCH>, base <BASE>, head <HEAD>, merge-base <MERGE_BASE>.
 - Review range: `git diff <MERGE_BASE> <HEAD>`; regression guard: `git diff <BASE> <HEAD>`; anchors: the same merge-base..head range.
 - Machine report (schema 1): write it to .artel/run/<TICKET_ID>/deep-review/machine.json.
+- Dangerous change (copy verbatim into the report's **Dangerous change:** line): <DANGEROUS_SUMMARY>
 - Report contract: `${ARTEL_ROOT}/docs/deep-review.md` — the header, the five metadata lines, the finding sections and DR-NNN IDs, the `### Tasks` blocks, the verification records and the completeness rules.
 
 Additional ticket context:
@@ -321,11 +323,15 @@ Display:
 ```
 Deep review written to <specs.dir>/<TICKET_ID>/deep-review.md
 Critical: <c> · Warnings: <w> · Suggestions: <s>
+Dangerous change: <data.dangerous.summary>
 ```
-`<c>`, `<w>` and `<s>` are the validated `data.counts` from Step 3b.
+`<c>`, `<w>` and `<s>` are the validated `data.counts` from Step 3b; the dangerous line is the
+validated `data.dangerous.summary`. When `data.dangerous.is_dangerous` is true, add:
+`This branch touches a surface a human must review and approve before merge.`
 
-If `c` and `w` are both `0`, display `Nothing to apply.` and terminate. (A partial review never
-reaches this step — Step 3b stopped on its gaps.)
+If `c` and `w` are both `0`, display `Nothing to apply.` — with the dangerous-change line and the
+human-approval sentence above it when the flag is set, never the bare sentence on a dangerous
+change — and terminate. (A partial review never reaches this step — Step 3b stopped on its gaps.)
 
 Otherwise ask via the `question` tool which fixes to work. Offer only the options that have rows,
 using the validated `data.tasks` counts:
@@ -394,8 +400,11 @@ using the validated `data.tasks` counts:
    - Tasks appended: <count>
    - Tasks completed: <checked count> of <count>
    - Quality gate: <passed | failed | skipped>
+   - Dangerous change: <data.dangerous.summary>
    Re-run /artel-deep-review <TICKET_ID> to re-review the branch.
    ```
+   When `data.dangerous.is_dangerous` is true, add:
+   `A human must review and approve this branch before merge.`
 
 ## Rules
 
@@ -414,3 +423,7 @@ using the validated `data.tasks` counts:
   accepts at most two reviewer attempts. There is no second reviewer and no merged summary. The
   whole-branch review before a pull request is this skill's only seat.
 - **No inline correction** — an invalid artifact is corrected by the reviewer or not at all.
+- **The dangerous-change flag is computed, not judged.** `prepare` derives it from the effective
+  sensitive-paths policy; neither the reviewer nor this skill classifies it. A dangerous change
+  still gets its fixes applied, but it needs a human's approval before merge, and the report says
+  so.

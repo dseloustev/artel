@@ -498,6 +498,21 @@ class TestProtocolWiring(unittest.TestCase):
         self.assertIn('Provided evidence', self.flat)
         self.assertIn('equals the pinned head', self.flat)
 
+    def test_the_dangerous_flag_is_surfaced_before_the_apply_question(self):
+        step4 = self.skill.split('## Step 4:')[1].split('## Step 5:')[0]
+        self.assertIn('data.dangerous.summary', step4)
+        self.assertLess(step4.index('Dangerous change:'), step4.index('which fixes to work'))
+
+    def test_nothing_to_apply_still_reports_a_dangerous_change(self):
+        step4 = flat(self.skill.split('## Step 4:')[1].split('## Step 5:')[0])
+        self.assertIn('a human must review and approve', step4.lower())
+
+    def test_the_manifest_summary_is_copied_verbatim(self):
+        self.assertIn('Dangerous change (copy verbatim', self.flat)
+
+    def test_the_flag_is_computed_not_judged(self):
+        self.assertIn('computed, not judged', self.flat)
+
     def test_the_checker_is_not_semantic_truth(self):
         self.assertIn('never that a finding is true', self.flat)
 

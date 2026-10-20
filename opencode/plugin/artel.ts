@@ -18,7 +18,8 @@
  *                       THEN hooks/knowledge_mirror.py (side effect only)
  *       findings -> appended to the tool result (v2 has no failure channel here)
  *   session.hook("context") -> hooks/using_artel.py — router + host status prepended to the
- *                       first user message in memory, on every model step
+ *                       first user message in memory, on every model step; also the second
+ *                       capture point for hooks/session_baseline.py (see below)
  *   session.created    -> hooks/session_baseline.py (child sessions skip)
  *   session.execution.succeeded -> hooks/stop_gate.py + hooks/verify_stop_gate.py; a block
  *                       re-prompts via ctx.session.prompt
@@ -221,6 +222,10 @@ const stopRuns = new Set<string>()
 /** Session id -> its own location directory. The event stream is server-wide, so every
  * event-driven hook checks this before touching this location's state. */
 const sessionLocations = new Map<string, string>()
+/** Sessions this instance has already sent to `session_baseline.py`. `session.created` can
+ * fire before the subscription is live on a freshly started server, so the context hook
+ * captures the same baseline; the set keeps that capture to once per session. */
+const baselined = new Set<string>()
 
 export function createArtelPlugin(options: { root?: string } = {}): Plugin {
   const root = options.root || ARTEL_ROOT
@@ -350,11 +355,21 @@ export function createArtelPlugin(options: { root?: string } = {}): Plugin {
 
     await ctx.session.hook("context", async (event) => {
       if (!hasArtelConfig(directory)) return
+      const sessionID = event.sessionID
+      if (!sessionID) return
+      // A `session.created` event can fire before this subscription is live on a freshly
+      // started server; the verify stop gate's first sight of such a session would then
+      // record its own findings as pre-existing and fail open for the whole session. The
+      // context hook always runs before the model's first tool call, so it captures the
+      // same idempotent baseline — once per session, and never for a known child.
+      if (!childSessions.has(sessionID) && !baselined.has(sessionID)) {
+        baselined.add(sessionID)
+        void runHook("session_baseline.py", { session_id: sessionID, cwd: directory }, directory, 120_000)
+      }
       // A pinned worker gets its assignment from the coordinator's prompt, never the router.
       if (isWorker()) return
       const firstUser: any = (event.messages ?? []).find((message: any) => message.role === "user")
-      const sessionID = event.sessionID
-      if (!firstUser || !Array.isArray(firstUser.content) || !sessionID) return
+      if (!firstUser || !Array.isArray(firstUser.content)) return
       // Subagent child sessions get no router: routing is the main session's job.
       if (childSessions.has(sessionID)) return
       if (firstUser.content.some((part: any) => part?.type === "text" && part.text?.includes(ROUTER_MARKER))) return
@@ -432,6 +447,7 @@ export function createArtelPlugin(options: { root?: string } = {}): Plugin {
               continue
             }
             if (sessionID) {
+              baselined.add(sessionID)
               void runHook("session_baseline.py", { session_id: sessionID, cwd: directory }, directory, 120_000)
             }
             continue
@@ -454,6 +470,7 @@ export function createArtelPlugin(options: { root?: string } = {}): Plugin {
               childSessions.delete(sessionID)
               stopBlocks.delete(sessionID)
               sessionLocations.delete(sessionID)
+              baselined.delete(sessionID)
             }
             continue
           }

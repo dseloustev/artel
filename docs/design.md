@@ -119,11 +119,6 @@ move to the decision log.
   snapshot, its staleness and the install manifest. The 2026-10-01 v2 adaptation deliberately
   kept the generator (fix in place); evaluate the transform path once the v2 API has a release
   or two behind it.
-- **OpenCode first-session baseline race.** On a freshly started server the first session can
-  miss `session.created` (the bridge's event subscription comes up after it), so no baseline is
-  captured and the verify stop gate fails open for that session; documented in
-  [opencode.md](opencode.md). The long-lived service and the TUI are unaffected. Capture the
-  baseline on the session's first context-hook call if it ever matters.
 - **The VCS guard does not cover `git push` or run an entry-point preflight** (from the
   2026-09-16 platform-migration design). A stale `origin` pointing at the old platform still
   pushes there; `set-home` moves it, but nothing enforces that it was run. Both were considered
@@ -1682,3 +1677,13 @@ move to the decision log.
   53 tags through `v0.39.0` have shipped this way. Publishing a GitHub release stays a
   deliberate manual step, not a release step; if distribution ever moves to a release
   artifact, publish them from the existing tags in one pass.
+- **2026-10-20 — The first-session baseline race is closed at the context hook.** On a freshly
+  started server `session.created` can fire before the bridge's event subscription is live, so
+  the first session got no findings baseline and `verify_stop_gate.py`'s first-sight branch
+  recorded that session's own findings as pre-existing — the gate failed open for the whole
+  session. The bridge now captures the same idempotent `session_baseline.py` from the session's
+  first `context` hook call (once per session, known child sessions skipped, cleared on
+  `session.deleted`), because that hook always precedes the model's first tool call; the event
+  path stays as the primary capture. Proved end to end through the real TypeScript bridge in
+  `tests/test_opencode_bridge.py`: a harness run that delivers no `session.created` still finds
+  `baseline-<session>.json`, and the event path still baselines and routes.

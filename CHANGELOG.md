@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **A freshly started server's first session gets its findings baseline.** `session.created`
+  can fire before the bridge's event subscription is live, and the session then reached
+  `verify_stop_gate.py` with no baseline — whose first-sight branch records the session's own
+  findings as pre-existing, leaving the gate open for that whole session. The bridge now
+  captures the same idempotent `session_baseline.py` from the session's first `context` hook
+  call, which always precedes the model's first tool call, once per session and never for a
+  known child session; the event remains the primary capture. Proved through the real
+  TypeScript bridge against a scratch host: a run that delivers no `session.created` still
+  finds `baseline-<session>.json`.
+
 ## [0.39.0] - 2026-10-20
 
 ### Added

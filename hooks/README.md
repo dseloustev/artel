@@ -62,7 +62,8 @@ Five layers:
 - **Verify layer** — same-session quality feedback, driven by `verify.fast` /
   `verify.surface` (config.md) through the `scripts/verify.py` envelope
   (exit 0 clean / 1 findings / 2 environment error):
-  - `session_baseline.py` (`session.created`) — captures the findings baseline so pre-existing
+  - `session_baseline.py` (`session.created`; on the OpenCode bridge also the session's first
+    `context` call when that event was missed) — captures the findings baseline so pre-existing
     findings never block.
   - `fast_verify_post_edit.py` (`tool.execute.after` on `edit|write|patch`) — runs `verify.fast`
     scoped to the edited file for same-turn feedback; never blocks.

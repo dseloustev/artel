@@ -1,11 +1,16 @@
 """The OpenCode 2.x bridge source: shape and bindings asserted against the plugin
-source. There is no TypeScript runner in this repo, so source-level checks are the
-only ones available -- which is why they assert placement and casing rather than
-mere presence.
+source. Most checks are source-level -- placement and casing rather than mere presence --
+because the bridge's hook bindings have no seam to inject. The session-baseline capture is
+the exception: it is driven end to end through the real TypeScript (Node's type stripping)
+against a scratch host, since a missed `session.created` is a timing race whose consequence
+is a silently open gate.
 
 Companion to tests/test_build_opencode.py: that file covers the generator, this one
 the hand-written bridge.
 """
+import json
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -312,6 +317,66 @@ class TestHookReplyShape(unittest.TestCase):
             with self.subTest(rel=rel):
                 text = (ROOT / rel).read_text(encoding='utf-8')
                 self.assertIn("'hookEventName': '{}'".format(event), text)
+
+
+class TestFirstSessionBaseline(unittest.TestCase):
+    """A session whose `session.created` was missed still gets its findings baseline.
+
+    On a freshly started server the bridge's event subscription can come up after the first
+    `session.created` (docs/opencode.md, `Headless runs`). The only other capture point was
+    the verify stop gate's first-sight branch, which records the session's own findings as
+    pre-existing and so fails open for that whole session. The session context hook always
+    runs before the model's first tool call, so the same idempotent baseline hook belongs
+    there too. Driven through the real TypeScript bridge; only the native client is fake."""
+
+    HARNESS = ROOT / 'tests' / 'fixtures' / 'bridge_ts_harness.mjs'
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.host = Path(self._tmp.name)
+        (self.host / '.artel').mkdir(parents=True)
+        (self.host / '.artel' / 'config.json').write_text(json.dumps({
+            'version': 1,
+            'ticket': {'projectKey': 'BASE'},
+            'tracker': {'adapter': 'none'},
+            'vcs': {'adapter': 'none'},
+            'verify': {'commands': [], 'fast': 'sh -c "exit 0"'},
+            'knowledge': {'adapter': 'none'},
+        }), encoding='utf-8')
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def run_harness(self, mode):
+        proc = subprocess.run(
+            ['node', str(self.HARNESS), str(BRIDGE), str(ROOT), str(self.host), mode,
+             'ses_first'],
+            capture_output=True, text=True, timeout=180)
+        self.assertEqual(proc.returncode, 0, proc.stderr or proc.stdout)
+        return json.loads(proc.stdout.strip().splitlines()[-1])
+
+    def test_a_missed_created_event_still_baselines_on_the_first_context_call(self):
+        report = self.run_harness('missed')
+        self.assertTrue(report['baseline'], report)
+        self.assertEqual(report['baseline_keys'], [])
+
+    def test_the_created_event_path_still_baselines_and_routes(self):
+        report = self.run_harness('created')
+        self.assertTrue(report['created_baseline'], report)
+        self.assertTrue(report['context_injected'], report)
+
+    def test_the_context_capture_precedes_the_router_and_runs_once_per_session(self):
+        source = BRIDGE.read_text(encoding='utf-8')
+        context = source[source.index('ctx.session.hook("context"'):]
+        self.assertIn('runHook("session_baseline.py"', context)
+        self.assertLess(context.index('runHook("session_baseline.py"'),
+                        context.index('runHook("using_artel.py"'))
+        self.assertIn('baselined.has(sessionID)', context)
+        created = source[source.index('event.type === "session.created"'):]
+        self.assertLess(created.index('baselined.add(sessionID)'),
+                        created.index('runHook("session_baseline.py"'))
+        deleted = source[source.index('event.type === "session.deleted"'):]
+        self.assertIn('baselined.delete(sessionID)', deleted)
 
 
 if __name__ == '__main__':

@@ -83,7 +83,7 @@ hooks, whose stdin/stdout contracts are artel's own internal hook ABI
 | `tool.hook("execute.before")` (shell, platform-named tools) | `vcs_guard.py` | deny → the tool call errors |
 | `tool.hook("execute.after")` (edit/write/patch) | `fast_verify_post_edit.py`, then `knowledge_mirror.py` | findings are appended to the tool result (this order; v2 has no failure channel here) |
 | `session.hook("context")` | `using_artel.py` | router + host status prepended to the first user message in memory |
-| `session.created` | `session_baseline.py` | baseline captured; child sessions skip |
+| `session.created`, else the session's first `context` call | `session_baseline.py` | baseline captured once per session; child sessions skip |
 | `session.execution.succeeded` | `stop_gate.py`, `verify_stop_gate.py` | block → `ctx.session.prompt` re-prompts the run; the hooks' own caps (5 and 2 consecutive) remain the loop bound, under a bridge-side fail-safe of 10 consecutive blocks that resets on any clean stop; pass-through warnings go to the console |
 | `session.compaction.ended` | — | router cache invalidated so host status refreshes |
 | `session.deleted` | — | caches dropped |
@@ -150,9 +150,10 @@ reached, verify environment error) go to the console either way.
 
 One more: on a freshly started server (for example `opencode run --standalone`, or the first
 run against a just-booted service), `session.created` can fire before the bridge's event
-subscription is live, so that first session gets no baseline — the verify stop gate then
-fails open for it (it records the current findings as pre-existing). The long-lived service
-and the TUI load plugins before any session and capture it.
+subscription is live. The session still gets its baseline: the bridge captures the same
+baseline from the session's first `context` hook call, which always precedes the model's
+first tool call, so the verify stop gate does not fail open for that first session. Either
+path captures once per session, and the long-lived service and the TUI keep using the event.
 
 ## Verifying an install
 

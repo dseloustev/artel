@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.43.2] - 2026-10-21
+
 ### Changed
 
 - **A parallel claim is pinned to the admitted task.** `claim prepare` records the task the

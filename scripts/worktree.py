@@ -477,13 +477,60 @@ def parse(argv):
     back.add_argument('--ticket', required=True)
     back.add_argument('--name')
     back.add_argument('--check', action='store_true')
+    sub.add_parser('list')
     return parser.parse_args(argv)
+
+
+def listing(_args):
+    """Every worktree of this repository, with its ticket, branch, path and dirty state.
+
+    Read-only: it runs `git worktree list` and reads each worktree's `.artel/worktree.json`.
+    A worktree made by hand is listed too — with no ticket — rather than hidden, and a
+    registration whose directory is gone is reported `missing` instead of being probed.
+    """
+    entries = worktrees()
+    root = Path(entries[0]['path']).resolve() if entries else None
+    here = Path.cwd().resolve()
+    rows = []
+    for entry in entries:
+        path = Path(entry['path'])
+        exists = path.is_dir()
+        resolved = path.resolve() if exists else path
+        manifest = read_json(path / MANIFEST) if exists else None
+        if not isinstance(manifest, dict):
+            manifest = {}
+        rows.append({
+            'name': manifest.get('name') or path.name,
+            'path': str(resolved),
+            'branch': entry['branch'],
+            'ticket': manifest.get('ticket'),
+            'main': root is not None and same_path(resolved, root),
+            'current': False,
+            'dirty': len(changes(cwd=str(path))) if exists else None,
+            'missing': not exists,
+        })
+    matches = []
+    for row in rows:
+        try:
+            here.relative_to(Path(row['path']))
+            matches.append(row)
+        except ValueError:
+            pass
+    if matches:
+        # The main checkout contains every linked worktree, so the deepest match is the one
+        # this session is actually in.
+        deepest = max(matches, key=lambda row: len(row['path']))
+        deepest['current'] = True
+    return {'status': 'ok', 'schema': 1, 'main': str(root) if root is not None else None,
+            'current': next((row['path'] for row in rows if row['current']), None),
+            'worktrees': rows}
 
 
 def main(argv):
     args = parse(argv)
     try:
-        report = (move_in if args.command == 'move-in' else hand_back)(args)
+        report = {'move-in': move_in, 'hand-back': hand_back,
+                  'list': listing}[args.command](args)
     except Stop as stop:
         report = stop.report
     except Exception as exc:  # noqa: BLE001 -- the JSON report is the contract

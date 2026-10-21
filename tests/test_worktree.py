@@ -8,6 +8,7 @@ Contract: docs/worktrees.md
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -634,6 +635,73 @@ class TestHandBackRecovery(HandBackCase):
         self.assertEqual(report['status'], 'error')
         self.assertIn('OSError: disk full', report['reason'])
         self.assert_stash_kept(report)
+
+
+class TestListing(RepoCase):
+    """`worktree.py list` — the read side: every worktree with its ticket, branch and state.
+
+    It is what `/artel-worktrees` renders, so a hidden or mislabelled row is the defect that
+    matters: a hand-made worktree must not vanish, and a stale registration must not be probed
+    as if its directory were there.
+    """
+
+    def test_the_main_checkout_alone_is_listed_before_any_worktree(self):
+        code, report = self.run_script('list')
+        self.assertEqual(code, 0, report)
+        self.assertEqual(report['status'], 'ok')
+        self.assertEqual(len(report['worktrees']), 1)
+        row = report['worktrees'][0]
+        self.assertTrue(row['main'])
+        self.assertTrue(row['current'])
+        self.assertIsNone(row['ticket'])
+        self.assertEqual(report['current'], row['path'])
+
+    def test_a_moved_in_worktree_carries_its_ticket_branch_and_dirty_count(self):
+        code, moved = self.move_in()
+        self.assertEqual(code, 0, moved)
+        self.write('dirty.txt', 'x\n', base=self.target)
+        code, report = self.run_script('list')
+        self.assertEqual(code, 0, report)
+        row = next(r for r in report['worktrees'] if r['ticket'] == 'T-1')
+        self.assertEqual(row['branch'], BRANCH)
+        self.assertEqual(row['name'], 'T-1')
+        self.assertEqual(row['dirty'], 1)
+        self.assertFalse(row['main'])
+        self.assertFalse(row['current'])
+
+    def test_a_worktree_made_by_hand_is_listed_without_a_ticket(self):
+        elsewhere = self.root / 'elsewhere'
+        git(self.root, 'worktree', 'add', '-q', str(elsewhere), BRANCH)
+        code, report = self.run_script('list')
+        self.assertEqual(code, 0, report)
+        row = next(r for r in report['worktrees'] if r['path'].endswith('elsewhere'))
+        self.assertIsNone(row['ticket'])
+        self.assertEqual(row['name'], 'elsewhere')
+
+    def test_a_registration_whose_directory_is_gone_is_missing(self):
+        stale = self.root / 'stale'
+        git(self.root, 'worktree', 'add', '-q', str(stale), BRANCH)
+        shutil.rmtree(stale)
+        code, report = self.run_script('list')
+        self.assertEqual(code, 0, report)
+        row = next(r for r in report['worktrees'] if r['path'].endswith('stale'))
+        self.assertTrue(row['missing'])
+        self.assertIsNone(row['dirty'])
+
+    def test_the_current_worktree_is_the_one_the_call_runs_in(self):
+        code, moved = self.move_in()
+        self.assertEqual(code, 0, moved)
+        code, report = self.run_script('list', cwd=self.target)
+        self.assertEqual(code, 0, report)
+        self.assertTrue(report['current'].endswith('T-1'))
+        self.assertEqual(next(r for r in report['worktrees'] if r['current'])['ticket'], 'T-1')
+
+    def test_listing_mutates_nothing(self):
+        before = git(self.root, 'status', '--porcelain', '--untracked-files=all')
+        code, _report = self.run_script('list')
+        self.assertEqual(code, 0)
+        self.assertEqual(git(self.root, 'status', '--porcelain', '--untracked-files=all'),
+                         before)
 
 
 if __name__ == '__main__':

@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`/artel-worktrees` lists the repository's worktrees.** `scripts/worktree.py list` answers
+  every worktree with its ticket, branch, path, uncommitted-path count, whether it is the main
+  checkout and whether this session is in it — and marks a registration whose directory is gone
+  as `missing` instead of probing it. The skill is read-only: a worktree made by hand is listed
+  with no ticket rather than hidden, and pruning stays the person's call
+  (`docs/worktrees.md` §6).
+
 ## [0.42.0] - 2026-10-21
 
 ### Added

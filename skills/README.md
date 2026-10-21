@@ -18,7 +18,8 @@ project to a different VCS platform, rewriting `vcs.*` in `.artel/config.json` a
 the git remotes together; `migrate-prs` follows it to recreate a Bitbucket project's still-open
 pull requests on GitHub. `move-to-worktree` and `return-from-worktree` are workers too: they
 move a ticket's work into its own git worktree and back, through `scripts/worktree.py`
-([docs/worktrees.md](../docs/worktrees.md)).
+([docs/worktrees.md](../docs/worktrees.md)); `worktrees` is the read side of the same script —
+it lists them and changes nothing.
 
 Four of them are not pipeline stages: `using-artel` is the session router the `using_artel`
 hook injects at turn one (a routing table over every other skill —

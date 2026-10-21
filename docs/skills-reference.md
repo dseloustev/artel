@@ -753,6 +753,20 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   never a branch deletion. The move ends by printing `cd <path> && opencode`; the session
   continues there. Counterpart: `return-from-worktree`.
 
+### worktrees
+
+- **Purpose:** List this repository's git worktrees — ticket, branch, path, dirty state, and
+  which one the session is in — so parked work and parallel sessions are visible at a glance.
+  The read side of `move-to-worktree` / `return-from-worktree`.
+- **Invocation:** `/artel-worktrees`
+- **Reads:** `git worktree list --porcelain`; each worktree's `.artel/worktree.json`;
+  `git status --porcelain` per worktree. Through `scripts/worktree.py list`.
+- **Writes:** nothing.
+- **Pauses:** none.
+- **Notes:** a worktree made by hand is listed with no ticket rather than hidden; a registration
+  whose directory is gone is reported `missing` and the person runs `git worktree prune` —
+  the skill never prunes ([worktrees.md](worktrees.md) §6).
+
 ### return-from-worktree
 
 - **Purpose:** Hand a finished worktree's branch back to the main checkout and remove the

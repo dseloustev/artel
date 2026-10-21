@@ -123,6 +123,12 @@ worktree; `.opencode/worktrees/<name>` existing but not a worktree of that branc
 uncommitted changes in the main checkout — they may belong to another session — or with the
 worktree on a detached HEAD.
 
+**Seeing them.** `/artel-worktrees` runs `python3 ${ARTEL_ROOT}/scripts/worktree.py list`, which
+is read-only and answers the same JSON shape: the main checkout first, then every linked
+worktree with `name`, `path`, `branch`, `ticket` (null for one made by hand), `main`, `current`,
+`dirty` (uncommitted paths, ignored files excluded) and `missing` (a registration whose
+directory is gone — `git worktree prune` clears it; the skill never prunes).
+
 ## 7. Hooks
 
 Artel's hooks start in the directory the session runs in — the main checkout, after a move

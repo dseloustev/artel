@@ -61,8 +61,8 @@ it). `<ticket>-<N>` is a phase-scoped run.
 |---|---|
 | the ticket's changes reviewed | `/artel-run-reviewer <ticket>` |
 | a branch reviewed end-to-end, with its fixes offered | `/artel-deep-review <ticket> [branch] [pr-link] [--local]` |
-| a QA plan and report (à la carte; not a pipeline stage) | `/artel-qa <ticket> or R-<release>` |
-| to know which gates have passed (à la carte; the pipeline confirms them itself) | `/artel-validate <ticket> or R-<release>` |
+| a QA plan and report (à la carte) | `/artel-qa <ticket> or R-<release>` |
+| which gates have passed (à la carte; the pipeline confirms them) | `/artel-validate <ticket> or R-<release>` |
 | documentation updated for the ticket's work | `/artel-docs-update <ticket>` |
 | a PR description / the PR opened | `/artel-pr-description <ticket>` · `/artel-pr-create <ticket>` |
 | a single PR comment addressed | `/artel-address-pr-comment <pr-comment-url>` |
@@ -77,13 +77,13 @@ its evidence contract. Never substitute a generic command — the host's skill i
 | The user wants… | Run |
 |---|---|
 | a branch set up for a ticket | `/artel-init-branch <ticket>` |
-| a ticket's work moved into its own worktree / handed back | `/artel-move-to-worktree [ticket]` · `/artel-return-from-worktree [ticket]` |
-| the project moved to a different VCS platform | `/artel-set-home <repo-url>` |
-| Bitbucket's still-open pull requests recreated on GitHub after set-home | `/artel-migrate-prs [pr-id ...]` |
+| a ticket's work moved into its own worktree / handed back, or the worktrees listed | `/artel-move-to-worktree [ticket]` · `/artel-return-from-worktree [ticket]` · `/artel-worktrees` |
+| the project moved to another VCS platform | `/artel-set-home <repo-url>` |
+| Bitbucket's open PRs recreated on GitHub after set-home | `/artel-migrate-prs [pr-id ...]` |
 | merge conflicts resolved | `/artel-merge-conflicts [branch]` |
 | phase status synced between tasklist and phase files | `/artel-sync-phases <ticket>` |
 | a report or quiz on what happened on a branch | `/artel-change-digest [ticket]` |
-| a text, a pasted ticket or a local file turned into a Jira-ready task, bug or epic description | `/artel-issue-draft` |
+| a text or pasted ticket turned into a Jira-ready task, bug or epic | `/artel-issue-draft` |
 | the working context saved / restored | `/artel-save-context` · `/artel-restore-context [ticket]` |
 | `AGENTS.md` files created or repaired | `/artel-agents-md-generator` |
 | a GitHub pull request walked one file at a time, with `reviewed` per file | `/artel-collaborative-review <pr-url-or-number>` |

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.41.1] - 2026-10-21
+
 ### Changed
 
 - **A phase-scoped claim is narrowed to its iteration.** A phase-scoped run now resolves its

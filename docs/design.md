@@ -1716,3 +1716,16 @@ move to the decision log.
   its own automation skill; artel skills point at it for on-demand app observation and gate
   nothing on it. `## Runtime Fixes` stays parsed as a legacy fix section, like
   `## Final Verification`, so older tasklists still load.
+- **2026-10-21 — The missed-event probe test is removed, not re-pointed.** The adapter suite
+  carried `TestProbeGapPredicate` — four tests over the scratch probe's identity-based replay
+  predicate (`classify_replay`, `max_disconnected_seq`) — skipped unless
+  `.artel/run/repro/opencode-parallel-proof/bin/probe_gap.py` existed. §14 of
+  [opencode-parallel.md](opencode-parallel.md) makes that bundle host-owned scratch that is
+  not committed, so in a clean checkout the class could not run: four permanently skipped
+  tests that read as coverage of the missed-event boundary. The bundle is not recoverable from
+  this repository — it was gitignored, and the worktree that held it is gone — so the class is
+  removed rather than re-pointed at a copy, which would test a fixture instead of the probe.
+  What the product owes is unchanged and still tested: `workerStatus` refuses a native idle or
+  `succeeded` without a valid, identity-matching `result.json`, an interruption wins over a
+  contradictory success, and `tests/test_parallel_adapter.py`'s status tests cover those
+  refusals. The platform proof stays recorded as evidence in §14, not as a test.

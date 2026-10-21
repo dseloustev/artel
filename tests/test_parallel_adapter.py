@@ -303,6 +303,20 @@ def flat(rel):
 
 @unittest.skipUnless(parallel_launch is not None, 'the adapter policy half is not implemented yet')
 class AdapterCase(WorkerCase):
+    @staticmethod
+    def close_pipes(child):
+        """Close a spawned child's pipe wrappers: `wait()` reaps the process, not the handles.
+
+        `Popen(text=True)` hands the parent a `TextIOWrapper` per pipe, and leaving them to the
+        garbage collector emits a `ResourceWarning` from whichever test happens to trigger it.
+        """
+        for stream in (child.stdin, child.stdout, child.stderr):
+            try:
+                if stream is not None and not stream.closed:
+                    stream.close()
+            except (OSError, ValueError):
+                pass
+
     def start_input(self, assignment=None, **overrides):
         value = {
             'request': self.request(assignment=assignment),
@@ -822,6 +836,7 @@ class TestGuardHold(AdapterCase):
             [sys.executable, str(HELPER), 'guard-hold'], stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             cwd=str(self.coord))
+        self.addCleanup(self.close_pipes, child)
         child.stdin.write(json.dumps(payload) + '\n')
         child.stdin.flush()
         return child
@@ -914,6 +929,7 @@ class TestActualTransport(AdapterCase):
              str(ADAPTER), str(ROOT), str(self.coord), COORDINATOR, 'interruptWorker',
              json.dumps({'assignment': assignment}), str(barrier)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.addCleanup(self.close_pipes, child)
         try:
             deadline = time.time() + 60
             while True:
@@ -1426,86 +1442,6 @@ class TestInstallerPlacesTheAdapter(unittest.TestCase):
             installed = home / 'config' / 'opencode' / 'artel' / 'scripts' / 'parallel_launch.py'
             self.assertTrue(installed.is_file(),
                             'the adapter policy half must ship with the plugin copy')
-
-
-BUNDLE = ROOT / '.artel' / 'run' / 'repro' / 'opencode-parallel-proof'
-PROBE = BUNDLE / 'bin' / 'probe_gap.py'
-
-
-@unittest.skipUnless(PROBE.is_file(), 'the Task 1 scratch bundle is not present')
-class TestProbeGapPredicate(unittest.TestCase):
-    """The corrected missed-event predicate of the scratch probe: identity-based replay
-    detection (original `created`/`durable.seq`), never receive time; a missing identity is
-    inconclusive; a legitimate later completion does not fail the check."""
-
-    @classmethod
-    def setUpClass(cls):
-        import importlib.util
-        import warnings
-        spec = importlib.util.spec_from_file_location('probe_gap_task7', str(PROBE))
-        module = importlib.util.module_from_spec(spec)
-        sys.modules['probe_gap_task7'] = module
-        with warnings.catch_warnings():
-            # oclib.py (Task 1 scratch instrumentation, retained verbatim) leaks one file
-            # handle at import; that is not this suite's contract.
-            warnings.simplefilter('ignore', ResourceWarning)
-            spec.loader.exec_module(module)
-        cls.probe = module
-
-    def test_an_old_event_with_a_fresh_receive_time_is_a_replay(self):
-        after = [{'recv': 1792038798.5, 'event': {
-            'type': 'session.execution.succeeded', 'created': 1792038784686,
-            'data': {'sessionID': 'ses_proof'},
-            'durable': {'aggregateID': 'ses_proof', 'seq': 12, 'version': 1}}}]
-        verdict = self.probe.classify_replay(
-            after_events=after, session_id='ses_proof', gap_end=1792038797.130879,
-            gap_end_ms=1792038797130.879, max_disconnected_seq=12,
-            after_reconnect_turns=1)
-        self.assertFalse(verdict['no_replay'])
-        self.assertFalse(verdict['inconclusive'])
-
-    def test_a_legitimate_later_completion_is_not_a_replay(self):
-        after = [{'recv': 1792038799.276, 'event': {
-            'type': 'session.execution.succeeded', 'created': 1792038799272,
-            'data': {'sessionID': 'ses_proof'},
-            'durable': {'aggregateID': 'ses_proof', 'seq': 21, 'version': 1}}}]
-        verdict = self.probe.classify_replay(
-            after_events=after, session_id='ses_proof', gap_end=1792038797.130879,
-            gap_end_ms=1792038797130.879, max_disconnected_seq=12,
-            after_reconnect_turns=1)
-        self.assertTrue(verdict['no_replay'])
-        self.assertFalse(verdict['inconclusive'])
-        self.assertEqual(verdict['legitimate_successes'], 1)
-
-    def test_a_missing_identity_is_inconclusive_not_a_pass(self):
-        after = [{'recv': 1792038798.5, 'event': {
-            'type': 'session.execution.succeeded',
-            'data': {'sessionID': 'ses_proof'}}}]
-        verdict = self.probe.classify_replay(
-            after_events=after, session_id='ses_proof', gap_end=1792038797.130879,
-            gap_end_ms=1792038797130.879, max_disconnected_seq=12,
-            after_reconnect_turns=1)
-        self.assertFalse(verdict['no_replay'])
-        self.assertTrue(verdict['inconclusive'])
-
-    def test_the_retained_capture_classifies_as_no_replay(self):
-        gap = json.loads((BUNDLE / 'phase2_gap.json').read_text(encoding='utf-8'))
-        window = gap['gap_window']
-        after = [json.loads(line) for line in
-                 (BUNDLE / 'gap-after.jsonl').read_text(encoding='utf-8').splitlines() if line.strip()]
-        global_events = [json.loads(line) for line in
-                         (BUNDLE / 'sse-all.jsonl').read_text(encoding='utf-8').splitlines()
-                         if line.strip()]
-        sid = 'ses_ec22a7227ffe3U2j2alqC3zP36'
-        max_seq = self.probe.max_disconnected_seq(global_events, sid, window['end'] * 1000)
-        self.assertEqual(max_seq, 12)
-        verdict = self.probe.classify_replay(
-            after_events=after, session_id=sid, gap_end=window['end'],
-            gap_end_ms=window['end'] * 1000, max_disconnected_seq=max_seq,
-            after_reconnect_turns=1)
-        self.assertTrue(verdict['no_replay'], verdict)
-        self.assertFalse(verdict['inconclusive'])
-        self.assertEqual(verdict['legitimate_successes'], 1)
 
 
 if __name__ == '__main__':

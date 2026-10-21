@@ -121,12 +121,6 @@ move to the decision log.
   pushes there; `set-home` moves it, but nothing enforces that it was run. Both were considered
   and deliberately declined for 0.13.0, so they are decisions rather than omissions — revisit if
   a stale remote ever causes a real push to the wrong host.
-- **kartoteka's queue parameters: one use still open.** The serial phase-scoped claim narrows
-  by `parent_id`, fix rows are claimed by their dispatch, and plan order comes from
-  `order="created"` (2026-10-21, decision log; [task-queue.md](task-queue.md) §2, §3). Still
-  open: the **parallel coordinator's claim**, whose row shape
-  (`scripts/parallel_queue.py`'s `ROW_KEYS`) carries no parent. Moving task state wholly into
-  the queue — option A of the 2026-09-22 design — is where that would land.
 - **Spec images: parked follow-ups.** From the 2026-09-23 design, §15:
   - blobs out of SQLite if database size hurts backups;
   - an MCP `attachment_get` returning image content, once OpenCode support is known;
@@ -1761,6 +1755,17 @@ move to the decision log.
   it the same way (`queue offered a fix row to an iteration claim`) rather than working it. The
   capability-dependent status decision this follow-up kept deferring turned out to be
   unnecessary: a row's creation status never changes, only the claim does.
+- **2026-10-21 — The parallel claim is fenced on the admitted task, not on a parent.** The last
+  of kartoteka's queue parameters: the coordinator claimed unscoped and validated the row's
+  phase, so a ticket-wide parallel run could work a row from an iteration the grammar had not
+  admitted. `parent_id` was the obvious fix and the wrong one: it would change the frozen row
+  shape (`ROW_KEYS`) in two modules and every row fixture, and it expresses less than the
+  coordinator already knows. The claim intent now carries the **admitted task id** — `claim
+  prepare` pins it, `claim record` releases a row for any other task once as `wrong-task` and
+  stops admission (the wrong-phase shape exactly), and the queue call passes the iteration's
+  parent as `parent_id` where the adapter supports narrowing. The pin also fences a fix-section
+  row, which can never match an admitted task id. A manifest written before this change is
+  refused as invalid: fail-closed, and a parallel run is short-lived.
 - **2026-10-21 — Follow-up work appends one iteration; a finished list is never rewritten.** A
   lean run on a ticket whose work list has no open box used to stop with a message telling the
   person to add tasks by hand — a host did exactly that on 2026-09-28. The lean head now offers

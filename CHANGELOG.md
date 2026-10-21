@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **A parallel claim is pinned to the admitted task.** `claim prepare` records the task the
+  coordinator admitted, and `claim record` releases a row for any other task once as
+  `wrong-task` and stops admission — the wrong-phase shape — so a ticket-wide parallel run can
+  no longer work a row from an iteration the grammar did not admit. The queue call also passes
+  the admitted iteration's parent as `parent_id` where the adapter supports narrowing. A run
+  manifest written before this change is refused as invalid (`docs/opencode-parallel.md` §13).
+
 ## [0.43.1] - 2026-10-21
 
 ### Changed

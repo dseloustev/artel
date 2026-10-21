@@ -519,10 +519,13 @@ unlike it, two runs on one host never share it.
 
 **The order is durable before each external step.**
 
-    prepare   begin_claim: append the claim intent to the run manifest
-              write the manifest        <- durable BEFORE the queue call
-    claim     task_ready(project=<project>, actor=<the intent's actor>, ticket_key=<TICKET_KEY>)
+    prepare   begin_claim: append the claim intent to the run manifest, pinned to the
+              admitted task; write the manifest   <- durable BEFORE the queue call
+    claim     task_ready(project=<project>, actor=<the intent's actor>, ticket_key=<TICKET_KEY>
+                         [, parent_id=<the admitted iteration's row>])
                 -> nothing returned: no ready work; reconcile the intent, then §5 applies
+                -> a row for any task but the pinned one is released once as `wrong-task`
+                   and admission stops for reconciliation
     record    record_claim: record the returned row mapping in the manifest
               write the manifest        <- durable BEFORE any worker launch
     launch    only a `mapped` row in phase authorizes the worker

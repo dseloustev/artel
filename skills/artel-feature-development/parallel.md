@@ -104,11 +104,16 @@ selector answers `{start, resume, claim_capacity, drain, reasons}`:
 For each task in `start`, claim through the queue's atomic operation in this order — the
 queue cannot claim by task id, and its returned row is authoritative:
 
-1. `claim prepare` — persists the durable claim intent **before** the call.
-2. Call `task_ready` through the configured queue adapter (the host's queue tools).
+1. `claim prepare` with `task` set to the admitted task id — persists the durable claim intent
+   **before** the call, and pins which task it is for.
+2. Call `task_ready` through the configured queue adapter (the host's queue tools). Where the
+   adapter supports narrowing, pass the admitted iteration's parent row as `parent_id`, so the
+   queue offers only that iteration; where it does not, the claim is unscoped and the pin in
+   step 1 is what fences it.
 3. `claim record` with the returned row, exactly as returned. A row held by this run's own
-   actor in the run's phase authorizes the run; anything else is a stop for diagnosis — never
-   adopt, clear, release or re-claim a foreign row, and never claim by id.
+   actor, in the run's phase, for the pinned task authorizes the run; anything else is a stop
+   for diagnosis — a row for another task is released once as `wrong-task` — never adopt,
+   clear, release or re-claim a foreign row, and never claim by id.
 4. Recompute `admit`. The returned row names a task — reserve that task with `run transition`
    (`expected: null`, `target: reserved`) if the manifest does not hold it yet — then launch
    **only** when the fresh `resume` lists it.

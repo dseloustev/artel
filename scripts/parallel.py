@@ -681,10 +681,11 @@ def cmd_run_transition(request, _stdin_used):
 
 
 def cmd_claim_prepare(request, _stdin_used):
-    _keys(request, ('repo', 'ticket', 'run_id', 'expected_revision', 'coordinator_id'))
+    _keys(request, ('repo', 'ticket', 'run_id', 'expected_revision', 'coordinator_id'),
+          optional=('task',))
     with parallel_state.ticket_guard(_text(request, 'repo'), _text(request, 'ticket')):
         repo, ticket, run_id, revision, manifest = _authoritative_manifest(request)
-        result = parallel_queue.begin_claim(manifest)
+        result = parallel_queue.begin_claim(manifest, request.get('task'))
         written = _persist_manifest(repo, ticket, run_id, result['manifest'], revision)
         return {'schema': SCHEMA, 'manifest': written, 'intent': result['intent']}
 

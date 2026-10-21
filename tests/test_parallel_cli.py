@@ -1098,10 +1098,18 @@ class TestClaims(CliCase):
         self.acquire()
         self.create_run()
 
-    def prepare(self, revision):
-        return self.ok('claim', 'prepare', request={
+    def prepare(self, revision, **extra):
+        request = {'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
+                   'expected_revision': revision}
+        request.update(extra)
+        return self.ok('claim', 'prepare', request=request)
+
+    def test_prepare_pins_the_admitted_task_on_the_intent(self):
+        self.arm()
+        self.assertEqual(self.prepare(1, task='3.1')['intent']['task'], '3.1')
+        self.assertEqual(self.kind(2, 'claim', 'prepare', request={
             'repo': str(self.repo), 'ticket': TICKET, 'run_id': RUN_ID,
-            'expected_revision': revision})
+            'expected_revision': 2, 'task': 'not-a-task'}), 'invalid_task')
 
     def test_prepare_persists_the_intent_before_the_queue_call(self):
         self.arm()

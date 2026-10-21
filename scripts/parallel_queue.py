@@ -68,7 +68,7 @@ import parallel_state
 
 ROW_KEYS = ('task_id', 'title', 'status', 'actor', 'phase', 'task')
 ACTION_KINDS = ('run', 'release', 'stop')
-STOP_REASONS = ('wrong-phase', 'unexpected-holder')
+STOP_REASONS = ('wrong-phase', 'wrong-task', 'unexpected-holder')
 
 
 class QueueError(ValueError):
@@ -255,7 +255,7 @@ def _replaced(intents, index, intent):
     return intents[:index] + [intent] + intents[index + 1:]
 
 
-def begin_claim(manifest):
+def begin_claim(manifest, task=None):
     """Append the next claim intent to `manifest`, before the coordinator calls the queue.
 
     Refused while the run's admission is stopped for reconciliation and while an earlier
@@ -265,6 +265,10 @@ def begin_claim(manifest):
     claims within the run; a sequence whose claim was reconciled as `lost` is retried with the
     next `attempt`, and every other outcome opens a new one.
     """
+    if task is not None:
+        if not isinstance(task, str) or not parallel_contract.TASK_RE.match(task):
+            _fail('invalid_task', 'the claim task is not an `<iteration>.<n>` number: '
+                                  '{!r}'.format(task))
     value = _manifest(manifest)
     if value['stop'] is not None:
         _fail('admission_stopped', 'the run stopped admission for reconciliation ({})'.format(
@@ -282,7 +286,7 @@ def begin_claim(manifest):
         seq, attempt = value['claims']['seq'] + 1, 1
     intent = {'intent_id': '{}#{}:{}'.format(value['run_id'], seq, attempt),
               'seq': seq, 'attempt': attempt, 'actor': _actor(value['run_id'], seq, attempt),
-              'state': 'pending', 'row': None}
+              'state': 'pending', 'row': None, 'task': task}
     claims = dict(value['claims'], seq=seq, intents=intents + [intent])
     return {'manifest': dict(value, claims=claims), 'intent': intent}
 
@@ -312,6 +316,21 @@ def record_claim(manifest, intent_id, row):
         action = {'kind': 'stop', 'reason': 'unexpected-holder', 'intent_id': intent_id,
                   'task_id': recorded['task_id'], 'row': recorded,
                   'detail': 'the row is held by {!r}, not by this run'.format(recorded['actor'])}
+    elif intent.get('task') is not None and recorded['task'] != intent['task']:
+        # The claim was opened for one task; a different one means the queue and the admitted
+        # graph have diverged (a stale mirror, another run's rows). Released once, never
+        # worked, and admission stops for reconciliation -- the wrong-phase shape exactly.
+        updated = dict(intent, state='wrong-task', row=recorded)
+        if value['stop'] is None:
+            stop = _stop('wrong-task', intent_id, recorded)
+            action = {'kind': 'release', 'reason': 'wrong-task', 'intent_id': intent_id,
+                      'task_id': recorded['task_id'], 'row': recorded}
+        else:
+            stop = value['stop']
+            action = {'kind': 'stop', 'reason': 'wrong-task-released', 'intent_id': intent_id,
+                      'task_id': recorded['task_id'], 'row': recorded,
+                      'detail': 'a wrong-task row was already released once; admission is '
+                                'stopped for reconciliation'}
     elif _wrong_phase(value, recorded):
         updated = dict(intent, state='wrong-phase', row=recorded)
         if value['stop'] is None:

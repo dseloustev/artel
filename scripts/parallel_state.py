@@ -77,15 +77,15 @@ MANIFEST_KEYS = ('schema', 'ticket', 'phase', 'run_id', 'seats', 'graph_digest',
                  'tasks', 'claims', 'stop')
 TASK_KEYS = ('state', 'attempt', 'decision')
 CLAIMS_KEYS = ('seq', 'intents')
-INTENT_KEYS = ('intent_id', 'seq', 'attempt', 'actor', 'state', 'row')
+INTENT_KEYS = ('intent_id', 'seq', 'attempt', 'actor', 'state', 'row', 'task')
 # A claim intent's lifecycle: `pending` is durable before the claim call, `mapped` carries
 # the recorded returned row, `wrong-phase` and `foreign` are the stopped observations,
 # `orphaned` is this run's reconciled claim whose release is not confirmed yet, `released`
 # is an orphan whose external release a fresh complete observation confirmed (the exact
 # recorded row is no longer held by the exact actor), and `lost` is a call whose outcome
 # never landed.
-INTENT_STATES = ('pending', 'mapped', 'wrong-phase', 'foreign', 'orphaned', 'released',
-                 'lost')
+INTENT_STATES = ('pending', 'mapped', 'wrong-phase', 'wrong-task', 'foreign', 'orphaned',
+                 'released', 'lost')
 STOP_KEYS = ('reason', 'intent_id', 'row')
 # §13.4: the owner identity the coordinator fence compares. `coordinator_id` is the native
 # session id of the coordinator that holds the ticket -- never a run UUID, a token or a CLI
@@ -218,6 +218,8 @@ def _intent_record(value, what, kind):
             what, ', '.join(INTENT_STATES), value['state']))
     if value['row'] is not None:
         _object(value['row'], '{} row'.format(what), kind)
+    if value['task'] is not None:
+        _text(value['task'], '{} task'.format(what), kind)
     return value
 
 

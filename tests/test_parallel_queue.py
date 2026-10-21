@@ -21,7 +21,7 @@ RUN_ID = '0f6f0f2e-6b1a-4f2e-9c5d-2b7a1c8e4d10'
 TICKET = 'PROJ-123'
 DIGEST = 'a' * 64
 
-INTENT_KEYS = ('intent_id', 'seq', 'attempt', 'actor', 'state', 'row')
+INTENT_KEYS = ('intent_id', 'seq', 'attempt', 'actor', 'state', 'row', 'task')
 ROW_KEYS = ('task_id', 'title', 'status', 'actor', 'phase', 'task')
 
 
@@ -37,9 +37,9 @@ def row(**overrides):
     return value
 
 
-def begin(value=None):
+def begin(value=None, task=None):
     """A manifest with one pending claim intent, plus the intent itself."""
-    return parallel_queue.begin_claim(value if value is not None else manifest())
+    return parallel_queue.begin_claim(value if value is not None else manifest(), task)
 
 
 def claimed(value=None, **row_overrides):
@@ -71,6 +71,7 @@ class TestBeginClaim(unittest.TestCase):
         self.assertEqual(intent['actor'], 'artel@' + RUN_ID + '#1:1')
         self.assertEqual(intent['state'], 'pending')
         self.assertIsNone(intent['row'])
+        self.assertIsNone(intent['task'])
         self.assertEqual(result['manifest']['claims'], {'seq': 1, 'intents': [intent]})
 
     def test_the_reducer_returns_a_new_manifest_and_never_mutates_its_input(self):
@@ -182,6 +183,34 @@ class TestRecordClaim(unittest.TestCase):
                                              prepared['intent']['intent_id'], row(actor=None))
         self.assertEqual(result['action']['kind'], 'stop')
         self.assertEqual(result['manifest']['claims']['intents'][0]['state'], 'foreign')
+
+    def test_the_claim_pins_the_admitted_task(self):
+        # The coordinator admits a task from the grammar, then claims it: the intent carries
+        # the task, so a row for another one cannot be worked as if it were admitted.
+        prepared = begin(task='3.1')
+        self.assertEqual(prepared['intent']['task'], '3.1')
+        returned = row(actor=prepared['intent']['actor'], task='3.1')
+        result = parallel_queue.record_claim(prepared['manifest'],
+                                             prepared['intent']['intent_id'], returned)
+        self.assertEqual(result['action']['kind'], 'run')
+        self.assertEqual(result['action']['task'], '3.1')
+
+    def test_a_wrong_task_row_is_released_once_then_admission_stops(self):
+        prepared = begin(task='3.1')
+        returned = row(actor=prepared['intent']['actor'], task='2.1')
+        result = parallel_queue.record_claim(prepared['manifest'],
+                                             prepared['intent']['intent_id'], returned)
+        intent = result['manifest']['claims']['intents'][0]
+        self.assertEqual(intent['state'], 'wrong-task')
+        self.assertEqual(intent['row'], returned)
+        self.assertEqual(result['action']['reason'], 'wrong-task')
+        self.assertEqual(result['action']['task_id'], 41)
+        self.assertEqual(result['manifest']['stop']['reason'], 'wrong-task')
+        rejects(self, 'admission_stopped',
+                lambda: parallel_queue.begin_claim(result['manifest']))
+
+    def test_a_task_that_is_not_a_task_number_is_refused_before_any_call(self):
+        rejects(self, 'invalid_task', lambda: parallel_queue.begin_claim(manifest(), 'nope'))
 
     def test_a_wrong_phase_row_is_released_once_then_admission_stops(self):
         prepared = begin(manifest(phase=2))

@@ -110,12 +110,14 @@ class TestLeanWriter(unittest.TestCase):
         self.assertIn('the draft carries `status: DRAFT`', self.agent)
 
     def test_local_skips_the_mirror(self):
-        self.assertIn('argument-hint: "[ticket-id] [idea-file] [vision-file] [--local]"',
+        self.assertIn('argument-hint: "[ticket-id] [idea-file] [vision-file] [--local]'
+                      ' [--followup]"',
                       raw(self.SKILL))
         phase4 = between(self.skill, '### Phase 4:', '### Completion')
         self.assertIn('a run invoked with `--local` mirrors nothing', phase4)
         self.assertIn('- **Invocation:** `/artel-generate-tasklist [ticket-id] [idea-file]'
-                      ' [vision-file] [--local]`', raw('docs/skills-reference.md'))
+                      ' [vision-file] [--local] [--followup]`',
+                      raw('docs/skills-reference.md'))
 
     def test_the_skill_is_the_heads_writer(self):
         overview = between(self.skill, '## Overview', '## Ticket Resolution')
@@ -869,18 +871,21 @@ class TestLeanHead(unittest.TestCase):
                        'first invoke the `artel-sync-phases` skill with `$0`'):
             self.assertIn(phrase, opening)
 
-    def test_a_finished_work_list_stops_the_head(self):
-        # Follow-up work on a finished ticket: generate-tasklist skips a tasklist that exists,
-        # so without this rule the run would arm with nothing to do and drop the request.
+    def test_a_finished_work_list_offers_follow_up_work(self):
+        # A lean run on a finished ticket: generate-tasklist skips a tasklist that exists, so
+        # without this branch the request is dropped — and a follow-up must append to the
+        # record of work already done, never rewrite it.
         opening = between(self.head, '# The lean head', '## The ladder')
-        for phrase in ('**A finished work list stops the head.**',
+        for phrase in ('**A finished work list offers follow-up work.**',
                        'none of its boxes is open',
-                       'Do not invoke `generate-tasklist`',
-                       'do not go on to `SKILL.md` step 5',
+                       '**Plan follow-up work**',
+                       '**Stop**',
                        "This ticket's work list is complete: nothing was planned and the run is "
                        'not armed.',
                        '/artel-tasks add <TICKET_ID> "<title>" --iteration <N>',
-                       'or open a new ticket'):
+                       'or open a new ticket',
+                       '`--followup`',
+                       'A work list in the pre-0.27.0 format is refused'):
             self.assertIn(phrase, opening)
 
     def test_two_branches_and_no_third(self):
@@ -1836,6 +1841,43 @@ class TestReviewFixes(unittest.TestCase):
         # the skill prints exactly the line the head waits for
         self.assertIn('`This diagnosis is structural. Next: /artel-feature-development '
                       '<TICKET_ID> --head=full`', flat('skills/artel-generate-tasklist/SKILL.md'))
+
+
+class TestFollowUpMode(unittest.TestCase):
+    """`generate-tasklist --followup` appends one iteration, and the guard is mechanical.
+
+    Prose alone cannot keep a writer from rewriting a finished record: the append check is what
+    turns "append, don't rewrite" into something a run can fail on.
+    """
+
+    def setUp(self):
+        self.skill = flat('skills/artel-generate-tasklist/SKILL.md')
+
+    def test_the_flag_appends_and_never_rewrites(self):
+        for phrase in ('`--followup`', 'byte-preserved prefix',
+                       'one Progress Report row and one `## Iteration <N+1>:` block',
+                       'append-check --base', 'append_old_format'):
+            self.assertIn(phrase, self.skill)
+
+    def test_the_draft_and_the_written_file_are_both_checked(self):
+        self.assertIn('append-check --base <the snapshot> --tasklist '
+                      '.artel/run/<TICKET_ID>/tasklist-draft.md', self.skill)
+        self.assertIn('append-check --base <the snapshot> --tasklist '
+                      '<specs.dir>/<TICKET_ID>/tasklist.md', self.skill)
+
+    def test_the_contract_names_the_append_rules(self):
+        grammar = flat('docs/task-grammar.md')
+        section = between(grammar, '## 9. Follow-up iterations', '\0')
+        for phrase in ('Nothing above the append changes', 'append_rewrites',
+                       'append_old_format', 'One Progress Report row',
+                       'planned work, not fixes'):
+            self.assertIn(phrase, section)
+
+    def test_the_skip_rule_names_the_one_exception(self):
+        contract = flat('docs/autonomous-run.md')
+        section = between(contract, '## 9. Worker-skill invocation', '## 10.')
+        self.assertIn('One exception: a follow-up run', section)
+        self.assertIn('`generate-tasklist --followup`', section)
 
 
 if __name__ == '__main__':

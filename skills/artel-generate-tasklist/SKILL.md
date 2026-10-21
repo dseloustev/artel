@@ -1,7 +1,7 @@
 ---
 name: artel-generate-tasklist
 description: "Generate an iterative, testable work plan (<specs.dir>/<TICKET_ID>/tasklist.md) directly from the idea file — with the vision, a spike answer or a diagnosis when the ticket has one"
-argument-hint: "[ticket-id] [idea-file] [vision-file] [--local]"
+argument-hint: "[ticket-id] [idea-file] [vision-file] [--local] [--followup]"
 ---
 
 ## Overview
@@ -22,6 +22,13 @@ written (Phase 1).
 
 `--local` flag: mirror nothing into the kartoteka task queue (Phase 4) — the tasklist alone
 carries the work list for this run (`${ARTEL_ROOT}/docs/task-queue.md` §1).
+
+`--followup` flag: append one iteration to an existing, finished work list instead of writing a
+new one — the lean head's follow-up path (`${ARTEL_ROOT}/docs/autonomous-run.md` §9). The
+existing tasklist stays a byte-preserved prefix of the result: one Progress Report row and one
+`## Iteration <N+1>:` block are added and nothing else changes
+(`${ARTEL_ROOT}/docs/task-grammar.md` §9), proved by a mechanical append check on the draft and
+on the written file. A work list in the pre-0.27.0 format is refused rather than half-written.
 
 ## Ticket Resolution
 
@@ -67,6 +74,19 @@ filenames do not repeat `<TICKET_ID>` or `<TICKET_NUM>`.
 Ensure `<specs.dir>/<TICKET_ID>/` exists before writing.
 
 ### Existing-file handling
+
+**Follow-up invocation** (`--followup`, from the lean head): do not skip and do not ask
+Overwrite/Abort. Snapshot the existing tasklist to
+`.artel/run/<TICKET_ID>/tasklist-base.md` — files path `cp`, kartoteka path
+`spec_store.py get <specs.dir>/<TICKET_ID>/tasklist.md` — then prove it is a task-format list:
+
+    python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py append-check --base <the snapshot>
+
+Exit `0` → continue. Exit `2` with `append_old_format` → print `error.message` unchanged and
+stop: that list predates the task grammar and a follow-up cannot be appended to it. Any other
+refusal is this skill's own invocation being wrong, not the person's — report it and stop.
+Every draft and the final file is then checked with
+`append-check --base <the snapshot> --tasklist <the file>`.
 
 **Pipeline invocation** (from `feature-development`'s lean head or bug head): if `tasklist.md`
 exists (kartoteka path:
@@ -161,6 +181,34 @@ Write the draft to .artel/run/<TICKET_ID>/tasklist-draft.md — never to the tas
 and stop.
 ```
 
+**Follow-up mode.** Add this section to the prompt, after the Context block and before
+`## Instructions`:
+
+```
+## Follow-up mode
+
+The work list at <the snapshot> is finished and must not be rewritten. Your draft is that
+document byte for byte, plus exactly two additions:
+
+- one Progress Report row `| <N+1> | <iteration title> | ⬜ Pending |  |`, after the table's
+  last row (the existing rows end at iteration <N>);
+- one `## Iteration <N+1>: <title>` section with contiguous `### Task <N+1>.<n>:` blocks, their
+  fields, their steps and its `**Test:**` footer, placed after the last iteration and before the
+  first fix section (`## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes`,
+  `## Final Verification`), or at the end of a list that has none.
+
+Nothing above those additions changes — no renumbering, no retitling, no reordering. The work is
+the person's follow-up request: <the request>.
+```
+
+**The append check runs on the draft.** Before Phase 1b's grammar check:
+
+    python3 ${ARTEL_ROOT}/scripts/tasklist_tasks.py append-check --base <the snapshot> --tasklist .artel/run/<TICKET_ID>/tasklist-draft.md
+
+Exit `0` → continue. Exit `2` → the draft rewrote or misplaced something: send `error.message`
+back to the writer as a Phase 1b finding — "the draft must append, not rewrite" — and count the
+round. Never hand-edit the draft yourself.
+
 **Fresh dispatch, not a resume** — Phase 1b and Phase 3 re-dispatch the same
 `artel-tasklist-writer` agent; it re-reads its context files.
 
@@ -245,7 +293,12 @@ User's answers:
 3. Return the single confirmation line.
 ```
 
-When the agent confirms, run Phase 1b's check once more on the written tasklist — the answers
+**In follow-up mode** the draft is the appended document, so step 2 writes it whole — the
+snapshot is what proves it still appends, not a partial write.
+
+When the agent confirms, run the append check once more against the snapshot when this is a
+follow-up (`append-check --base <the snapshot> --tasklist <specs.dir>/<TICKET_ID>/tasklist.md`),
+then Phase 1b's check once more on the written tasklist — the answers
 folded in can break what the draft check passed (a dropped task renumbers the rest). Files path
 first, kartoteka path (`docs/spec-storage.md` §4.2) second:
 
@@ -301,7 +354,8 @@ When the agent returns its confirmation line, print it verbatim plus:
   fix-round `subagent` dispatches in Phase 1b, one `subagent` dispatch in Phase 3 and at most one post-write
   fix `subagent` dispatch in Phase 3 — all to the same agent. Do not spawn a second agent.
 - **Never silently overwrite.** If the tasklist already exists, always confirm via
-  the `question` tool before proceeding.
+  the `question` tool before proceeding — except in follow-up mode, which appends one iteration
+  and asks no overwrite question (its confirmation is the approval round).
 - **KISS is the agent's job.** The orchestrator does not re-check KISS; if the user's answers
   would push the agent past its limits, the agent surfaces the conflict in the next round.
 - **A `RAISE` is not a failure.** It is the writer saying the ticket needs the full head. Never

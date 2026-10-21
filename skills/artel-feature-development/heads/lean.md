@@ -14,15 +14,21 @@ the chatty part of the run: it is not armed yet, so every question here is a pla
 On phase-scoped runs (`PHASE_NUM` set), first invoke the `artel-sync-phases` skill with `$0` to extract
 `phase-<N>/tasks.md` from `tasklist.md` when it is missing.
 
-**A finished work list stops the head.** When a tasklist exists (phase-scoped
+**A finished work list offers follow-up work.** When a tasklist exists (phase-scoped
 `phase-<N>/tasks.md` or ticket-wide `tasklist.md`) and none of its boxes is open — the grep of
-`SKILL.md` step 3 finds no `- [ ]` in it — there is nothing to plan and nothing to confirm. Do
-not invoke `generate-tasklist`, which skips a tasklist that exists, and do not go on to
-`SKILL.md` step 5. Print
+`SKILL.md` step 3 finds no `- [ ]` in it — nothing in it is left to plan or confirm. Ask once
+with the `question` tool: **Plan follow-up work** (the person describes the work in "Other") /
+**Stop**. On **Stop**, print
 
     This ticket's work list is complete: nothing was planned and the run is not armed. For follow-up work, add tasks to the work list (/artel-tasks add <TICKET_ID> "<title>" --iteration <N>, or by hand) and run this again, or open a new ticket.
 
-and stop, in every mode.
+and stop, in every mode. On **Plan follow-up work**, invoke the `artel-generate-tasklist` skill
+with `$0` `--followup` and the person's request as the follow-up brief: it appends one iteration
+to the existing work list — one Progress Report row and one `## Iteration <N+1>:` block, with
+nothing above them changed — and this head then continues its ladder on the appended list,
+whose confirmation is the run's one pause. A work list in the pre-0.27.0 format is refused
+rather than half-written (`docs/task-grammar.md` §4): its message says to open a new ticket for
+the work, or to rewrite the list in the task grammar first.
 
 ## The ladder
 

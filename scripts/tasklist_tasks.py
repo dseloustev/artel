@@ -18,6 +18,11 @@ old-format tasklist -- an iteration heading and checkbox tasks -- is refused.
 
 Exit codes: 0 parsed (JSON on stdout), 1 `--check` found a Critical or Important
 finding, 2 error (error envelope, nothing to mirror).
+
+`append-check --base <existing> [--tasklist <follow-up>]` proves a follow-up appends to a
+finished tasklist: one Progress Report row and one iteration block, nothing else changed. With
+`--base` alone it answers whether that list can take a follow-up at all (`append_old_format`
+for the pre-0.27.0 format).
 Contract: docs/superpowers/specs/2026-08-22-artel-task-queue-design.md, docs/task-grammar.md
 
 Usage: tasklist-tasks --tasklist <path|-> --ticket-key <KEY> [--repo <dir>] [--sensitive-paths <file>]
@@ -25,6 +30,7 @@ Usage: tasklist-tasks --tasklist <path|-> --ticket-key <KEY> [--repo <dir>] [--s
        tasklist-tasks requirements --prd <path|->
        tasklist-tasks route --tasklist <path|-> --ticket-key <KEY> (--next|--task <N.M>) [--repo <dir>] [--sensitive-paths <file>]
 """
+import difflib
 import json
 import re
 import sys
@@ -511,6 +517,106 @@ def read_deviation_files(repo, ticket_key, fail):
     return value
 
 
+def append_main(argv, elapsed):
+    """`append-check`: a follow-up draft appends to the base list and changes nothing else.
+
+    A follow-up writes one Progress Report row and one iteration block onto a finished
+    tasklist. A rewrite of anything above the append would rewrite the record of work already
+    done, so it is refused here — with the offending line — rather than accepted on trust.
+    """
+    def fail(kind, message, data=None):
+        error = {'kind': kind, 'message': message}
+        if data is not None:
+            error['data'] = data
+        print(envelope(False, elapsed(), error=error, verb='tasklist-append-check'))
+        return 2
+
+    base_path = None
+    tasklist_path = None
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == '--base':
+            i += 1
+            base_path = argv[i] if i < len(argv) else None
+        elif arg == '--tasklist':
+            i += 1
+            tasklist_path = argv[i] if i < len(argv) else None
+        else:
+            return fail('invalid_argument', 'unknown flag: {}'.format(arg))
+        i += 1
+    if not base_path:
+        return fail('invalid_argument', 'missing required --base <path|->')
+    if tasklist_path is not None and base_path == '-' and tasklist_path == '-':
+        return fail('invalid_argument', 'only one of --base and --tasklist may be stdin')
+
+    base, label = _read_input(base_path, fail, 'tasklist_not_found', 'the existing tasklist')
+    if base is None:
+        return label
+    if not task_grammar.is_task_format(doc_header.body(base)):
+        return fail('append_old_format',
+                    'this work list predates the task grammar and is no longer read '
+                    '(docs/task-grammar.md §4): open a new ticket for the follow-up work, or '
+                    'rewrite the list in the task grammar first')
+    if tasklist_path is None:
+        print(envelope(True, elapsed(), data={'task_format': True},
+                       verb='tasklist-append-check'))
+        return 0
+    new, label = _read_input(tasklist_path, fail, 'tasklist_not_found', 'the follow-up tasklist')
+    if new is None:
+        return label
+
+    base_lines = base.splitlines(keepends=True)
+    new_lines = new.splitlines(keepends=True)
+    changed = [op for op in difflib.SequenceMatcher(
+        None, base_lines, new_lines).get_opcodes() if op[0] != 'equal']
+    rewrites = [op for op in changed if op[0] != 'insert']
+    if rewrites:
+        tag, i1, i2, _j1, _j2 = rewrites[0]
+        return fail('append_rewrites',
+                    'the follow-up changes line {} ({}) instead of appending; a finished '
+                    'tasklist is not rewritten'.format(i1 + 1, tag),
+                    {'line': base_lines[i1].rstrip('\n') if i1 < len(base_lines) else None})
+    if len(changed) != 2:
+        return fail('append_shape',
+                    'a follow-up adds exactly two things — one Progress Report row and one '
+                    'appended iteration — and this adds {}'.format(len(changed)))
+
+    row_op, tail_op = sorted(changed, key=lambda op: op[1])
+    header = next((n for n, line in enumerate(base_lines) if line.startswith('| # |')), None)
+    if header is None:
+        return fail('append_no_table', 'the base tasklist has no Progress Report table')
+    after_table = next((n for n in range(header + 1, len(base_lines))
+                        if not base_lines[n].startswith('|') and base_lines[n].strip()),
+                       len(base_lines))
+    fix_start = next((n for n, line in enumerate(base_lines)
+                      if re.match(r'^## (Code Review Fixes|Runtime Fixes|Verify Fixes|'
+                                  r'Final Verification)\s*$', line)), None)
+    inserted = [line for line in new_lines[row_op[3]:row_op[4]] if line.strip()]
+    if row_op[0] != 'insert' or row_op[1] != row_op[2] \
+            or not header < row_op[1] <= after_table or len(inserted) != 1 \
+            or not re.match(r'^\|\s*\d+\s*\|', inserted[0]):
+        return fail('append_table_row',
+                    'the first addition must be exactly one Progress Report row inside the '
+                    'table, and it is not: {!r}'.format(
+                        ''.join(new_lines[row_op[3]:row_op[4]]).rstrip('\n')))
+    if tail_op[0] != 'insert' or tail_op[1] != tail_op[2] or (
+            tail_op[1] != fix_start if fix_start is not None else tail_op[1] != len(base_lines)):
+        return fail('append_not_at_end',
+                    'the appended iteration must sit before the first fix section, or end a '
+                    'tasklist that has none; the second change is not: {!r}'.format(
+                        ''.join(new_lines[tail_op[3]:tail_op[4]])[:120]))
+    appended = ''.join(new_lines[tail_op[3]:tail_op[4]])
+    heading = re.search(r'^## (?:Iteration|Phase) \d+:', appended, re.MULTILINE)
+    if heading is None:
+        return fail('append_no_iteration',
+                    'the appended text carries no `## Iteration <N>:` heading')
+    print(envelope(True, elapsed(), data={
+        'table_row': inserted[0].rstrip('\n'), 'iteration': heading.group(0),
+        'appended_lines': len(new_lines) - len(base_lines)}, verb='tasklist-append-check'))
+    return 0
+
+
 def main(argv):
     start = time.monotonic()
 
@@ -528,6 +634,8 @@ def main(argv):
         return requirements_main(argv[1:], elapsed)
     if argv and argv[0] == 'route':
         return route_main(argv[1:], elapsed)
+    if argv and argv[0] == 'append-check':
+        return append_main(argv[1:], elapsed)
 
     tasklist_path = None
     ticket_key = None

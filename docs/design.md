@@ -177,13 +177,6 @@ move to the decision log.
   per-task worktree setup multiplication at significant setup cost is unmeasured: the
   expensive-setup criterion is marked NOT PROVEN, not replaced by the cheaper case that was
   measured.
-- **Follow-up work on a finished ticket.** A lean run on a ticket whose work list has no open
-  task stops before arming and says so (0.25.0, `skills/artel-feature-development/heads/lean.md`):
-  `generate-tasklist` skips a tasklist that exists, and before the merge such a request was
-  either dropped or improvised around — a host run of 2026-09-28 appended tasks to a finished
-  tasklist by hand. A follow-up mode, in which the writer appends one iteration from the
-  person's request, is not designed: a finished old-format tasklist cannot take a task-block
-  iteration without changing the file's format.
 - **kartoteka's dashboard shows Mermaid as source.** Its 2026-09-17 dashboard design left Mermaid
   out (no stored document used it; about 3 MB of JavaScript), so `design-analysis.md`'s flow map
   renders as a diagram only on the files path. kartoteka's decision; recorded here because artel
@@ -1756,3 +1749,15 @@ move to the decision log.
   `ready` — safe only where the daemon narrows, so a row's creation status would become
   capability-dependent — and the **parallel coordinator's claim**, whose row shape carries no
   parent. Both stay in Open follow-ups.
+- **2026-10-21 — Follow-up work appends one iteration; a finished list is never rewritten.** A
+  lean run on a ticket whose work list has no open box used to stop with a message telling the
+  person to add tasks by hand — a host did exactly that on 2026-09-28. The lean head now offers
+  follow-up work, and `generate-tasklist --followup` appends one iteration: one Progress Report
+  row and one `## Iteration <N+1>:` block, with everything above them byte-identical. The guard
+  is mechanical, not prose: `tasklist_tasks.py append-check` compares the snapshot the skill
+  takes before planning against the draft and then against the written file, and accepts only
+  those two insertions. The same call answers the format question — a pre-0.27.0 list is refused
+  (`append_old_format`) rather than half-written, because the old format is no longer read and
+  migrating a finished record would invent fields nobody wrote; the message points at a new
+  ticket instead. The bug head keeps its stop: a follow-up is the lean head's offer, not a
+  second way into a fault run.

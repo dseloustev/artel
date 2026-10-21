@@ -288,7 +288,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Purpose:** Write the ticket's work list in the task grammar from the idea — with the vision,
   a spike or a diagnosis when they exist — without the PRD/plan chain. It is the lean head's and
   the bug head's writer, and it runs à la carte.
-- **Invocation:** `/artel-generate-tasklist [ticket-id] [idea-file] [vision-file] [--local]`
+- **Invocation:** `/artel-generate-tasklist [ticket-id] [idea-file] [vision-file] [--local] [--followup]`
 - **Reads:** `idea.md` (required; `$1` overrides it); `vision.md` when it exists (`$2`
   overrides it) — without one the writer grounds the work list in the idea and the codebase;
   `spike.md` and `diagnosis.md` when they exist; the PRD, for its requirement IDs only.
@@ -301,7 +301,7 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   Abort), which shows every task's route — it is the lean and the bug heads' interview and their
   single work-list confirmation; an
   Overwrite/Abort prompt on manual invocation when `tasklist.md` already exists (pipeline runs
-  skip-if-exists, autonomous-run.md §9).
+  skip-if-exists, autonomous-run.md §9; `--followup` is the one exception — it appends).
 - **Notes:** ticket-level only — a phase argument is ignored with a printed note ("iterations
   are the phases"). One agent (`tasklist-writer`), one draft — never a second agent spawn;
   never writes the file itself, only the agent does. In place of a draft the writer may return
@@ -309,7 +309,11 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   code, or, with no vision, work that needs more than one iteration. The skill prints that line
   and `Next: /artel-feature-development <TICKET_ID> --head=full`, and stops; inside a run the
   orchestrator raises the size instead. With a `DIAGNOSED` diagnosis, task `1.1` writes the
-  failing test for the reproduction and no task reaches beyond the fix origin.
+  failing test for the reproduction and no task reaches beyond the fix origin. `--followup`
+  appends one iteration to a finished work list — one Progress Report row and one
+  `## Iteration <N+1>:` block, nothing above them changed — proved by
+  `scripts/tasklist_tasks.py append-check` on the draft and on the written file; a pre-0.27.0
+  list is refused rather than half-written ([task-grammar.md](task-grammar.md) §9).
 
 ### implementer
 

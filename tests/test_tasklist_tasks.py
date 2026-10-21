@@ -522,5 +522,111 @@ class TestTrailPrefix(unittest.TestCase):
                              'specs/.current/AW-12/', config)
 
 
+class TestAppendCheck(unittest.TestCase):
+    """A follow-up appends one iteration and one Progress Report row, and nothing else.
+
+    The check exists because the alternative — trusting a writer to append — rewrites the
+    record of work already done: a reordered iteration, a retitled task or a dropped row all
+    pass unnoticed until someone reads the finished list.
+    """
+
+    ROW = '| 3 | Add the follow-up | ⬜ Pending |  |\n'
+    BLOCK = '''
+## Iteration 3: Add the follow-up
+
+**Goal:** Do the follow-up work.
+
+### Task 3.1: Add the follow-up behaviour
+- **Files:** `lib/wallet/adapter.dart`
+- **Depends on:** none
+- **Route:** light
+- **Test:** none — nothing to pin
+- [ ] Add it
+
+**Test:** the follow-up behaviour works.
+
+---
+
+'''
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.space = Path(self._tmp.name)
+
+    def write(self, name, text):
+        path = self.space / name
+        path.write_text(text, encoding='utf-8')
+        return path
+
+    def followup(self):
+        text = TASKLIST.replace('| 2 | Wire it in | ⬜ Pending |  |\n',
+                                '| 2 | Wire it in | ⬜ Pending |  |\n' + self.ROW)
+        return text.replace('## Final Verification', self.BLOCK + '## Final Verification')
+
+    def check(self, new_text):
+        return run_cli('append-check', '--base', str(self.write('base.md', TASKLIST)),
+                       '--tasklist', str(self.write('new.md', new_text)))
+
+    def kind(self, new_text):
+        code, envelope = self.check(new_text)
+        self.assertEqual(code, 2, envelope)
+        self.assertFalse(envelope['ok'], envelope)
+        return envelope['error']['kind']
+
+    def test_an_appended_iteration_and_row_pass(self):
+        code, envelope = self.check(self.followup())
+        self.assertEqual(code, 0, envelope)
+        self.assertTrue(envelope['ok'], envelope)
+        self.assertEqual(envelope['data']['iteration'], '## Iteration 3:')
+        self.assertGreater(envelope['data']['appended_lines'], 0)
+
+    def test_a_rewritten_line_is_refused(self):
+        self.assertEqual(self.kind(self.followup().replace('Wire it in', 'Wire it up')),
+                         'append_rewrites')
+
+    def test_a_follow_up_that_only_appends_is_the_wrong_shape(self):
+        self.assertEqual(self.kind(TASKLIST.replace(
+            '## Final Verification', self.BLOCK + '## Final Verification')), 'append_shape')
+
+    def test_the_row_must_sit_inside_the_table(self):
+        moved = self.followup().replace(self.ROW, '')
+        moved = moved.replace('---\n\n## Iteration 1:', '---\n\n' + self.ROW + '## Iteration 1:')
+        self.assertEqual(self.kind(moved), 'append_table_row')
+
+    def test_the_iteration_must_precede_the_fix_sections_or_end_the_file(self):
+        text = self.followup().replace(self.BLOCK + '## Final Verification', '## Final Verification')
+        self.assertEqual(self.kind(text + self.BLOCK), 'append_not_at_end')
+
+    def test_a_block_without_an_iteration_heading_is_refused(self):
+        block = self.BLOCK.replace('## Iteration 3: Add the follow-up', '## Add the follow-up')
+        text = TASKLIST.replace('| 2 | Wire it in | ⬜ Pending |  |\n',
+                                '| 2 | Wire it in | ⬜ Pending |  |\n' + self.ROW)
+        self.assertEqual(self.kind(text.replace('## Final Verification',
+                                                block + '## Final Verification')),
+                         'append_no_iteration')
+
+    def test_an_old_format_base_is_refused_rather_than_half_written(self):
+        old = ('# Development Tasklist: Wallet adapter (AW-1234)\n\n'
+               '## Iteration 1: Scaffold the adapter\n\n- [x] Create the adapter\n')
+        code, envelope = run_cli('append-check',
+                                 '--base', str(self.write('old.md', old)),
+                                 '--tasklist', str(self.write('new.md', self.followup())))
+        self.assertEqual(code, 2, envelope)
+        self.assertEqual(envelope['error']['kind'], 'append_old_format')
+
+    def test_the_base_alone_is_the_format_probe(self):
+        code, envelope = run_cli('append-check',
+                                 '--base', str(self.write('base.md', TASKLIST)))
+        self.assertEqual(code, 0, envelope)
+        self.assertTrue(envelope['data']['task_format'])
+        old = ('# Development Tasklist: Wallet adapter (AW-1234)\n\n'
+               '## Iteration 1: Scaffold the adapter\n\n- [x] Create the adapter\n')
+        code, envelope = run_cli('append-check', '--base', str(self.write('old.md', old)))
+        self.assertEqual(code, 2, envelope)
+        self.assertEqual(envelope['error']['kind'], 'append_old_format')
+
+
 if __name__ == '__main__':
     unittest.main()

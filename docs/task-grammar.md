@@ -263,3 +263,26 @@ implementer resolves `implementer.<route_effective>` from `models.opencode`
 malformed tasklist, an unreadable `run-state.json`, or a non-boolean `review.perTask` exits `2`
 with an error envelope. The route decision after completion (`autonomous-run.md` §16.1) is
 unchanged; the helper only reports the route before dispatch.
+
+## 9. Follow-up iterations
+
+A finished ticket can take more work without a new ticket: the lean head offers it, and
+`generate-tasklist --followup` writes one new iteration onto the existing tasklist.
+
+- **One iteration, appended.** `## Iteration <N+1>: <title>` with contiguous
+  `### Task <N+1>.<n>:` blocks and its `**Test:**` footer, placed after the last iteration and
+  before the first fix section (`## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes`,
+  `## Final Verification`), or at the end of a tasklist that has none.
+- **One Progress Report row.** `| <N+1> | <title> | ⬜ Pending |  |`, added after the table's
+  last row.
+- **Nothing above the append changes.** No renumbering, no retitling, no reordering, no dropped
+  row: the iterations above record work already done, and a follow-up must not rewrite that
+  record. `scripts/tasklist_tasks.py append-check --base <the existing tasklist> --tasklist
+  <the draft>` proves it — it accepts those two insertions and refuses a rewrite
+  (`append_rewrites`), a misplaced table row (`append_table_row`), an addition that is not at
+  the end or before the fix sections (`append_not_at_end`), a block with no iteration heading
+  (`append_no_iteration`), and a list in the pre-0.27.0 format (`append_old_format`). Run with
+  `--base` alone it answers whether that list can take a follow-up at all.
+- **The new tasks are planned work, not fixes.** They carry the fields every task block carries
+  (`Files:`, `Depends on:`, `Route:`, `Test:`), so routes, floors and gates apply to them like
+  any other iteration — and the queue mirror creates their rows on the next mirror.

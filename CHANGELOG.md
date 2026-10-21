@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Follow-up work on a finished ticket.** A lean run whose work list has no open box now offers
+  to plan follow-up work instead of only stopping: `generate-tasklist --followup` appends one
+  iteration — one Progress Report row and one `## Iteration <N+1>:` block — and leaves
+  everything above it byte-identical. `scripts/tasklist_tasks.py append-check` proves that on
+  the draft and again on the written file, and refuses a pre-0.27.0 work list rather than
+  half-writing one (`docs/task-grammar.md` §9).
+
 ## [0.41.1] - 2026-10-21
 
 ### Changed

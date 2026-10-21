@@ -291,6 +291,13 @@ interactive Overwrite/Abort prompts fire only on manual invocation. `sync-phases
 orchestrator on phase-scoped runs: at run start (extract `phase-N/tasks.md` when missing) and after
 the phase's gates pass (sync status back to `tasklist.md`). On the kartoteka path an artifact "exists" when the store holds it (`spec_store.py list <TICKET_ID>`, spec-storage.md §4.1).
 
+**One exception: a follow-up run.** When the lean head finds a finished work list and the person
+asks for follow-up work, it invokes `generate-tasklist --followup` instead of skipping, and that
+skill appends one iteration to the existing list rather than writing a new one — one Progress
+Report row and one `## Iteration <N+1>:` block, with a mechanical append check on the draft and
+on the written file (`skills/artel-generate-tasklist/SKILL.md`,
+[docs/task-grammar.md](task-grammar.md) §9). Every other invocation still skips.
+
 - **Task-queue mirror** — `generate-tasklist` and `tasklist` mirror `tasklist.md`
   into the kartoteka task queue as they write it, and the orchestrator
   re-mirrors on entry to implementation, after `sync-phases` on

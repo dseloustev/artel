@@ -129,7 +129,11 @@ alone carries the tasks, exactly as before fix rows existed.
 **Order matters.** `task_ready` claims `ORDER BY task_id LIMIT 1` and the table
 has no priority column, so insertion order is queue order. Mirror in the order
 the script emits. Fix-section rows are never `ready`, so where they land in that
-order changes nothing.
+order changes nothing. `task_list` is called with `order="created"` wherever plan
+order is what the reader needs — the phase-scoped parent resolution in §3, the
+promotion scan there, and `/artel-tasks list` — so the queue returns plan order
+instead of activity order; a daemon that predates it answers activity order, and
+sorting on `task_id` client-side is the fallback.
 
 **A task-format tasklist mirrors one row per task** (`docs/task-grammar.md` §7). Its
 iteration rows are unchanged; each `### Task <N.M>:` block becomes one child, titled
@@ -171,21 +175,29 @@ source heading names the phase (§6), so two phases' fixes never share a title.
 
 ## 3. Claiming, reporting and promoting
 
-    claim     task_ready(project=<project>, actor="artel@<hostname>", ticket_key=<TICKET_KEY>)
+    probe     (phase-scoped run) task_list(project=<project>, ticket_key=<TICKET_KEY>,
+                                           order="created")
+                → the row titled "I<N>: …" — its task_id is the iteration's parent P
+                → no such row, or the call fails or rejects `order`: claim unscoped
+                  (below) and record "kartoteka predates the ordered list (0.28.0);
+                  claiming unscoped for this run"
+    claim     task_ready(project=<project>, actor="artel@<hostname>", ticket_key=<TICKET_KEY>
+                         [, parent_id=P])
                 → nothing returned: no ready work; fall through to §5
                 → the row is now in_progress and held by this actor
-                → first child of an iteration: task_update(parent, in_progress)
+                → first child of an iteration: task_update(P, in_progress)
     guard     title contains "[HITL:" → task_update(task_id, blocked),
                 return `HITL: <reason>`, do not implement
               (the claimed block's heading carries "[HITL:" — the row's
                 description has a "HITL:" line — and the guard covers every step)
-    phase     claimed row belongs to another phase -> task_update(task_id, ready)
+    phase     (unscoped claim only) claimed row belongs to another phase ->
+                task_update(task_id, ready)
                 the one release that is not blocked; nothing was worked
     work      implement; work every step of the block, then tick them all
               and update the Progress Report in one write, in the tasklist in scope
               (tasklist.md, or phase-<N>/tasks.md on a phase-scoped run)
     report    task_update(task_id, status="done")
-    promote   task_list(project=<project>, ticket_key=<TICKET_KEY>)
+    promote   task_list(project=<project>, ticket_key=<TICKET_KEY>, order="created")
                 → any "I<N> · " sibling not done?
                 yes → stop here
                 no  → task_update(parent "I<N>: …", done)
@@ -199,6 +211,16 @@ source heading names the phase (§6), so two phases' fixes never share a title.
                 task_update(task_id, blocked)
                 never left in_progress: task_ready offers `ready` rows only,
                 so a held row wedges the iteration permanently
+
+**A phase-scoped run claims inside its own iteration** (kartoteka 0.28.0). It resolves
+the iteration's parent row first — the `I<N>: …` row's `task_id` is the `parent_id` the
+claim carries — so the queue offers only that iteration's children and the wrong-phase
+release below stops being the normal case. The resolution and the claim are two calls,
+not one atomic step: the parent may gain a child between them, which is harmless (the
+claim still returns that parent's oldest `ready` child), and a parent row that is absent
+— an unmirrored ticket, a failed mirror — falls back to the unscoped claim with the
+release as its guard. A ticket-wide run keeps the unscoped claim: any iteration is its
+iteration, in queue order.
 
 **Promotion follows dependencies.** `ready_now` is computed from
 the ticks in the document, so the document stays the source of truth for readiness: the
@@ -218,18 +240,19 @@ record.
 Siblings are found by the `I<N> · ` title prefix rather than by `parent_id`.
 Since kartoteka 0.28.0 `task_list` *does* render the parent, as `· parent: #N`
 (and `task_ready` and `task_update` return it), so the title prefix is now a
-convention artel keeps rather than a limitation it works around. Moving the
-sibling scan — and the claim itself, via `task_ready`'s `parent_id` narrowing —
-onto the parent is an open follow-up ([design.md](design.md#open-follow-ups)).
+convention artel keeps rather than a limitation it works around. The claim itself
+is narrowed by `parent_id` for a phase-scoped run; moving the sibling scan onto
+the parent is the remaining open follow-up ([design.md](design.md#open-follow-ups)).
 
 **Iteration N is phase N.** `generate-tasklist` writes the tasklist ticket-wide
 and calls its iterations phases; `sync-phases` maps `phase-<N>/tasks.md` onto
-iteration N. So a phase-scoped run claims only `I<N> · ` tasks for its own phase.
-If `task_ready` hands it one from another phase, return that task with
-`task_update(task_id, status="ready")` — which clears the holder — and report
-that the queue offered work from another phase, most often an earlier one this
-run is not authorised to finish, rather than crossing the boundary
-`agents/artel-implementer.md`'s `## Phase support` rule forbids.
+iteration N. So a phase-scoped run claims only `I<N> · ` tasks for its own phase —
+by narrowing the claim to that iteration's parent row. If an unscoped claim (a
+daemon that cannot narrow, or a missing parent row) hands it one from another
+phase, return that task with `task_update(task_id, status="ready")` — which clears
+the holder — and report that the queue offered work from another phase, most often
+an earlier one this run is not authorised to finish, rather than crossing the
+boundary `agents/artel-implementer.md`'s `## Phase support` rule forbids.
 
 **A wrong-phase claim is the one exception to releasing a held task `blocked`.**
 Every other exit that is not a completion goes to `blocked`, because the task
@@ -453,8 +476,12 @@ and it is a state read off the file, never inferred from an empty queue.
 **Claiming them is a follow-up, and the rows are shaped for it.** kartoteka
 0.28.0's `task_ready` narrows by `parent_id`, and one parent per section is what
 that needs: a fix dispatch could claim from its own section and gain the holder
-these rows lack today. It changes the claim protocol, so it is the open follow-up
-in [design.md](design.md#open-follow-ups), not this section.
+these rows lack today. Two things are still missing, which is why this section
+still moves them by `task_update` alone: the queue offers only a `ready` row, so
+the mirror would have to emit fix rows `ready` on a daemon that can narrow — a
+capability-dependent status decision — and the serial narrowing landed for
+iteration work first, with parallel claims still unscoped. That is the open
+follow-up in [design.md](design.md#open-follow-ups), not this section.
 
 ## 7. Parallel claims
 

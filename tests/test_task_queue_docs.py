@@ -712,5 +712,46 @@ class TestSectionParentsClose(unittest.TestCase):
                 self.assertIn('data.sections', text)
 
 
+class TestPhaseScopedClaimIsNarrowed(unittest.TestCase):
+    """A phase-scoped serial claim is narrowed to its iteration (kartoteka 0.28.0).
+
+    The release of a wrong-phase row must stay a *fallback*: if a rewrite makes it the
+    normal path again, or drops the unscoped downgrade, the protocol silently returns to
+    claiming other phases' work and releasing it.
+    """
+
+    def setUp(self):
+        self.doc = (ROOT / QUEUE_DOC).read_text(encoding='utf-8')
+        self.agent = (ROOT / 'agents/artel-implementer.md').read_text(encoding='utf-8')
+
+    def test_the_claim_block_carries_the_parent_and_the_unscoped_downgrade(self):
+        block = ' '.join(self.doc.split('## 3. Claiming, reporting and promoting')[1].split(
+            '**A phase-scoped run claims')[0].split())
+        self.assertIn('parent_id=P', block)
+        self.assertIn('order="created"', block)
+        self.assertIn(
+            'kartoteka predates the ordered list (0.28.0); claiming unscoped for this run', block)
+
+    def test_the_contract_keeps_the_release_as_the_fallback(self):
+        flat = ' '.join(self.doc.split())
+        self.assertIn('stops being the normal case', flat)
+        self.assertIn('If an unscoped claim', flat)
+
+    def test_a_ticket_wide_run_stays_unscoped(self):
+        flat = ' '.join(self.doc.split())
+        self.assertIn('A ticket-wide run keeps the unscoped claim', flat)
+
+    def test_plan_order_comes_from_the_queue(self):
+        flat = ' '.join(self.doc.split())
+        self.assertIn('`task_list` is called with `order="created"`', flat)
+
+    def test_the_implementer_resolves_the_parent_before_claiming(self):
+        step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
+        flat = ' '.join(step_one.split())
+        self.assertIn('order="created"', flat)
+        self.assertIn('parent_id=<that id>', flat)
+        self.assertIn('Claim without `parent_id` on a ticket-wide run', flat)
+
+
 if __name__ == '__main__':
     unittest.main()

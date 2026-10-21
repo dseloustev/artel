@@ -121,17 +121,15 @@ move to the decision log.
   pushes there; `set-home` moves it, but nothing enforces that it was run. Both were considered
   and deliberately declined for 0.13.0, so they are decisions rather than omissions — revisit if
   a stale remote ever causes a real push to the wrong host.
-- **kartoteka 0.28.0's queue parameters are unused.** `task_ready` takes `parent_id` and
-  `task_list` takes `order="created"`, both added for artel's stated needs.
-  [task-queue.md](task-queue.md) §3 still claims unscoped and releases a wrong-phase row back to
-  `ready`, and still recovers plan order by sorting client-side. Adopting them changes the claim
-  protocol (a phase-scoped run must first learn its iteration's `task_id`), so it wants its own
-  design pass rather than an in-place edit. Fix-section rows (0.15.0,
-  [task-queue.md](task-queue.md) §6) are already shaped for it: one parent row per section, so
-  a fix dispatch can claim from its own section by `parent_id` once the protocol adopts it, and
-  gain the holder those rows lack today. Store mode (0.16.0) did not need them: the tasklist
-  stayed a document (2026-09-22 decision log). Moving task state wholly into the queue — option
-  A of the 2026-09-22 design — is where they would land.
+- **kartoteka's queue parameters: adopted for iteration claims, two uses still open.** The
+  serial phase-scoped claim now narrows by `parent_id` (2026-10-21, decision log) and reads
+  plan order with
+  `order="created"` ([task-queue.md](task-queue.md) §2, §3). Still open, each needing its own
+  decision: **fix-row claims** — the mirror would have to emit fix rows `ready` on a daemon
+  that can narrow, which makes a row's creation status capability-dependent — and the
+  **parallel coordinator's claim**, whose row shape (`scripts/parallel_queue.py`'s `ROW_KEYS`)
+  carries no parent. Moving task state wholly into the queue — option A of the 2026-09-22
+  design — is where the rest would land.
 - **Spec images: parked follow-ups.** From the 2026-09-23 design, §15:
   - blobs out of SQLite if database size hurts backups;
   - an MCP `attachment_get` returning image content, once OpenCode support is known;
@@ -1746,3 +1744,15 @@ move to the decision log.
   `owner recover` handoff. Serial task and checkpoint commits then re-validate with
   `owner validate` before they stage, so a handed-off session stops at its next commit instead
   of writing over the new coordinator.
+- **2026-10-21 — A phase-scoped claim is narrowed to its iteration.** kartoteka 0.28.0 shipped
+  `parent_id` on `task_ready` and `order="created"` on `task_list` for artel's stated needs, and
+  artel used neither. The serial phase-scoped claim now resolves its `I<N>: …` parent row from
+  `task_list` and claims inside it, so the wrong-phase release stops being the normal path and
+  becomes the fallback — for a daemon that predates the parameter, a failed read, or a missing
+  parent row, all recorded as `kartoteka predates the ordered list (0.28.0); claiming unscoped
+  for this run`. There is no version probe: the read itself is the probe, because it changes
+  nothing. A ticket-wide run keeps the unscoped claim, where any iteration is its iteration.
+  Deliberately not adopted yet: **fix-row claims**, which need the mirror to emit those rows
+  `ready` — safe only where the daemon narrows, so a row's creation status would become
+  capability-dependent — and the **parallel coordinator's claim**, whose row shape carries no
+  parent. Both stay in Open follow-ups.

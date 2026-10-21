@@ -57,7 +57,9 @@ operation — never with `read`/`write`/`edit` or a shell file command.
 
 ### `list [ticket] [--status <status>]`
 
-1. `task_list(project=<project>, ticket_key=<TICKET_ID> or omitted, status=<status> or omitted)`.
+1. `task_list(project=<project>, ticket_key=<TICKET_ID> or omitted, status=<status> or omitted,
+   order="created")` — plan order, not activity order (`docs/task-queue.md` §2). A daemon that
+   predates `order` answers activity order; sort on `task_id` yourself then.
 2. Render a table — `task_id`, title, status, actor, last activity — with iteration parents
    (titles `I<N>: …`) first, each followed by its children (`I<N> · …`), then the fix-section
    parents (`CRF: …`, `RTF: …`, `VF: …`, `FV: …`) in `task_id` order, each followed by its

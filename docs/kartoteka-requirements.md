@@ -81,9 +81,11 @@ for iteration work). Workable, and strictly worse.
 `parent_id`, folded into the existing fused claim statement so atomicity is unchanged. It
 narrows and does not gate: omitting it still means "any parent", and a `parent_id` naming no
 task is **rejected** rather than answered with "No ready tasks.", so a typo cannot look like a
-finished section. **artel has not adopted it.** `docs/task-queue.md` §3 still claims unscoped
-and releases a wrong-phase row back to `ready` — see the open follow-up in
-[design.md](design.md#open-follow-ups).
+finished section. **Adopted for the serial iteration claim on 2026-10-21:** a phase-scoped run
+resolves its iteration's parent row from `task_list` and claims with `parent_id`, so a
+wrong-phase row is no longer the normal case (`docs/task-queue.md` §3). Still unused: fix-row
+claims (the mirror would have to emit those rows `ready`) and the parallel coordinator's claim
+— the open follow-up in [design.md](design.md#open-follow-ups).
 
 ### 1.2 `list_tasks` returns activity order, not plan order
 
@@ -108,8 +110,10 @@ tool, accepting `"activity"` (today's behaviour, default, nothing breaks) and `"
 (`ORDER BY task_id`). Two lines of SQL.
 
 **Shipped — kartoteka 0.28.0 (E1, 2026-09-01),** as proposed: `order = "activity" | "created"`
-on `task_list` and `GET /api/tasks`, `"activity"` still the default. **artel has not adopted
-it** — it still recovers plan order by sorting on `task_id` client-side. Same follow-up as §1.1.
+on `task_list` and `GET /api/tasks`, `"activity"` still the default. **Adopted 2026-10-21** for
+the reads whose order is plan order — the phase-scoped parent resolution, the promotion scan
+and `/artel-tasks list` (`docs/task-queue.md` §2); a daemon that predates it falls back to the
+client-side `task_id` sort.
 
 ---
 
@@ -340,8 +344,8 @@ documented, not enforced.
 
 | # | Change | Tier | Size | State |
 |---|---|---|---|---|
-| 1.1 | Scope `task_ready` / `claim_ready_task` by `parent_id` | Blocking | Small | **Shipped 0.28.0** — unused by artel |
-| 1.2 | `order` parameter on `list_tasks` / `task_list` | Blocking | Trivial | **Shipped 0.28.0** — unused by artel |
+| 1.1 | Scope `task_ready` / `claim_ready_task` by `parent_id` | Blocking | Small | **Shipped 0.28.0** — adopted for the serial iteration claim 2026-10-21 |
+| 1.2 | `order` parameter on `list_tasks` / `task_list` | Blocking | Trivial | **Shipped 0.28.0** — adopted 2026-10-21 |
 | 2.1 | Authentication + non-loopback bind | Gating | Large — own design | **Shipped 0.32.0** — artel side in 0.11.0 |
 | 2.2 | `expected_version` on `put_artifact` | Gating | Small | **Shipped 0.30.0** |
 | 2.3 | Per-project namespace, or a documented one-project constraint | Gating | Medium or doc-only | **Shipped 0.31.0** — artel side in 0.9.0 |

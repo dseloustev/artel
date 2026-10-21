@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **A phase-scoped claim is narrowed to its iteration.** A phase-scoped run now resolves its
+  `I<N>: …` parent row from `task_list(order="created")` and claims with
+  `task_ready(parent_id=…)` (kartoteka 0.28.0), so the queue offers only that iteration's
+  children and releasing a wrong-phase row becomes the fallback rather than the normal path —
+  for a daemon that predates the parameter, a failed read, or a missing parent row, recorded as
+  `kartoteka predates the ordered list (0.28.0); claiming unscoped for this run`. Plan order now
+  comes from `order="created"` in the parent resolution, the promotion scan and
+  `/artel-tasks list`. A ticket-wide run keeps the unscoped claim (`docs/task-queue.md` §2, §3).
+
 ## [0.41.0] - 2026-10-21
 
 ### Added

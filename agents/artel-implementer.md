@@ -106,12 +106,17 @@ read it with `artifact_get` and scan it exactly as you would the file.
 
 Decide the path per `${ARTEL_ROOT}/docs/task-queue.md` §1.
 
-**Queue path.** Call
-`task_ready(project=<project>, actor="artel@<hostname>", ticket_key=<TICKET_KEY>)`,
-where `<project>` is `knowledge.project` from `.artel/config.json`, the key is the canonical
-one without the phase suffix, and `<hostname>` is what `hostname -s` prints — run it in this
-dispatch, never recalled or composed: a guessed name records a machine that does not exist,
-and `/artel-tasks list` then reports it as holding the row. A `Rejected:` line naming
+**Queue path.** On a phase-scoped run, resolve the iteration's parent row first:
+`task_list(project=<project>, ticket_key=<TICKET_KEY>, order="created")` — the row titled
+`I<N>: …` for this run's phase, whose `task_id` is the parent the claim carries. Then call
+`task_ready(project=<project>, actor="artel@<hostname>", ticket_key=<TICKET_KEY>, parent_id=<that id>)`,
+where `<project>` is `knowledge.project` from `.artel/config.json`, the key is the canonical one
+without the phase suffix, and `<hostname>` is what `hostname -s` prints — run it in this
+dispatch, never recalled or composed: a guessed name records a machine that does not exist, and
+`/artel-tasks list` then reports it as holding the row. Claim without `parent_id` on a
+ticket-wide run, when that read fails or rejects `order` — record `kartoteka predates the
+ordered list (0.28.0); claiming unscoped for this run` — and when the parent row is missing. A
+`Rejected:` line naming
 `kartoteka project add` is §1's sixth case: fall back to the file and record it as §1
 spells it. Nothing returned → consult `${ARTEL_ROOT}/docs/task-queue.md` §5, which
 reads iteration children (`I<N> · `) only. Every iteration child `done` is the normal end
@@ -121,7 +126,7 @@ a promotion repair. Iteration children still `backlog`, `blocked` or `in_progres
 queue is stalled, not finished — report which. A task returned is now held by
 you and `in_progress`. If it is the first child of its iteration, also
 `task_update` the `I<N>: …` parent to `in_progress`. On a phase-scoped run, read
-the `I<N> · ` prefix before working it: a claim from another phase goes straight
+the `I<N> · ` prefix before working it: an **unscoped** claim from another phase goes straight
 back, per §3, and that is the one release that is not `blocked`.
 
 **A fix-list dispatch is file-scan work, on either path.** When the orchestrator's

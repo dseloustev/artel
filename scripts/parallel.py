@@ -187,7 +187,7 @@ def _parser():
 
     leaf(('config',), 'resolve the host parallel configuration')
     leaf(('preflight',), 'coordinator readiness plus the capability report')
-    leaf(('owner', 'acquire', 'arm', 'recover', 'release'),
+    leaf(('owner', 'acquire', 'arm', 'recover', 'release', 'validate'),
          'the repository-wide ticket lock')
     leaf(('run', 'create', 'inspect', 'transition'), 'the run manifest')
     leaf(('claim', 'prepare', 'record', 'reconcile'), 'claim intents and reconciliation')
@@ -451,6 +451,23 @@ def cmd_owner_arm(request, _stdin_used):
     return parallel_state.acquire_ticket(repo, ticket, {
         'schema': SCHEMA, 'ticket': ticket, 'run_id': run_id, 'phase': phase,
         'coordinator_id': coordinator})
+
+
+def cmd_owner_validate(request, _stdin_used):
+    """Read-only: the run and coordinator asking are still the ticket's owner.
+
+    The serial loop's fence: a task or checkpoint commit asks this first, so a session that was
+    handed off by `owner recover` stops instead of writing over the new coordinator. Runs under
+    the ticket guard and never mutates anything.
+    """
+    _keys(request, ('repo', 'ticket', 'run_id', 'phase', 'coordinator_id'))
+    repo = _text(request, 'repo')
+    ticket = _text(request, 'ticket')
+    run_id = _text(request, 'run_id')
+    phase = _phase(request, 'phase')
+    coordinator = _coordinator(request)
+    with parallel_state.ticket_guard(repo, ticket):
+        return parallel_state.validate_owner(repo, ticket, run_id, phase, coordinator)
 
 
 def cmd_owner_recover(request, _stdin_used):
@@ -914,6 +931,7 @@ DISPATCH = {
     ('owner', 'arm'): cmd_owner_arm,
     ('owner', 'recover'): cmd_owner_recover,
     ('owner', 'release'): cmd_owner_release,
+    ('owner', 'validate'): cmd_owner_validate,
     ('run', 'create'): cmd_run_create,
     ('run', 'inspect'): cmd_run_inspect,
     ('run', 'transition'): cmd_run_transition,

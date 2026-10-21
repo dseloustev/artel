@@ -209,8 +209,12 @@ is the proof, the same rule applies to the manifest). The consequence is deliber
 paused run in a **new session** is the documented handoff, one `owner recover`, not a silent
 takeover. A crashed run leaves the same record and is recovered the same way.
 
-The limit worth knowing: this pass fences the **arm**, not every mutation. Serial task commits do
-not re-check ownership, so a session whose lock was taken over by `owner recover` keeps editing
-and committing until someone stops it — which is why `owner recover` is a deliberate handoff for
-a session believed gone, never a way to evict a live one. Per-mutation fencing is the parallel
-path's rule and remains a follow-up here.
+**Ownership is re-checked, not just taken.** A serial task commit and every checkpoint ask
+before they stage: `owner validate` with the run state's `run_id`, `phase` and
+`ownership.coordinator_id` plus the live session id. A refusal — `coordinator_conflict`,
+`foreign_owner`, `ticket_owned`, `not_owned` — stops the commit and the run: the ticket belongs
+to another session now, so the person decides, and the orchestrator never commits over the new
+owner or recovers on its own. That is what makes the handoff safe: a session taken over by
+`owner recover` stops at its next commit instead of writing on top of the new coordinator. A
+parallel run needs no such check — every mutating command of its loop already matches the owner
+under the guard.

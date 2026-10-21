@@ -514,6 +514,26 @@ class TestSerialOwnership(CliCase):
                           'token': token or self.read_json(self.lock_path())['token'],
                           'completed': True, 'quiescent': True}}
 
+    def validate_request(self, run_id=RUN_ID, coordinator=COORDINATOR):
+        return {'repo': str(self.repo), 'ticket': TICKET, 'run_id': run_id, 'phase': PHASE,
+                'coordinator_id': coordinator}
+
+    def test_validate_answers_the_owner_record(self):
+        record = self.arm(run_id=RUN_ID)
+        self.assertEqual(self.ok('owner', 'validate', raw=True,
+                                 request=self.validate_request()), record)
+
+    def test_validate_fences_a_handed_off_session(self):
+        self.arm(run_id=RUN_ID)
+        self.assertEqual(self.kind(1, 'owner', 'validate', raw=True,
+                                   request=self.validate_request(
+                                       coordinator=OTHER_COORDINATOR)),
+                         'coordinator_conflict')
+
+    def test_validate_refuses_a_ticket_nobody_owns(self):
+        self.assertEqual(self.kind(1, 'owner', 'validate', raw=True,
+                                   request=self.validate_request()), 'not_owned')
+
     def test_arm_mints_a_run_id_and_writes_the_repository_common_lock(self):
         record = self.arm()
         self.assertTrue(self.lock_path().is_file())
@@ -1859,8 +1879,8 @@ class TestCoordinatorDocs(unittest.TestCase):
     def test_the_parallel_contract_documents_the_cli_and_the_loop(self):
         text = (ROOT / 'docs' / 'opencode-parallel.md').read_text(encoding='utf-8')
         for phrase in ('scripts/parallel.py', '--request', '`config`', '`preflight`',
-                       '`owner acquire`', '`owner arm`', '`owner release`', '`run create`',
-                       '`run inspect`',
+                       '`owner acquire`', '`owner arm`', '`owner release`', '`owner validate`',
+                       '`run create`', '`run inspect`',
                        '`run transition`', '`claim prepare`', '`claim record`',
                        '`claim reconcile`', '`admit`', '`worktree create`',
                        '`integration prepare`', '`publication next`', '`publication record`',
@@ -1887,7 +1907,7 @@ class TestCoordinatorDocs(unittest.TestCase):
     def test_the_worktree_contract_documents_the_serial_ticket_lock(self):
         flat = ' '.join((ROOT / 'docs' / 'worktrees.md').read_text(
             encoding='utf-8').split())
-        for phrase in ('## 9. The ticket lock', 'owner arm', 'owner recover',
+        for phrase in ('## 9. The ticket lock', 'owner arm', 'owner recover', 'owner validate',
                        'coordinator_conflict', 'run-state.json', 'Held from arm to completion'):
             self.assertIn(phrase, flat)
 

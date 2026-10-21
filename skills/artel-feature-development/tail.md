@@ -180,7 +180,9 @@ they never pause, and each one is journaled as an external action (autonomous-ru
 | Planning (`SKILL.md` step 5) | immediately after arming | `<specs.dir>/<TICKET_ID>/**` + `.active_ticket` (kartoteka path: skipped when, images aside, only `.active_ticket` changed) | `docs: <TICKET_ID> planning artifacts` when a plan exists, `docs: <TICKET_ID> work list` otherwise (phase runs: `… phase <N> planning artifacts` / `… phase <N> work list`) |
 | Phase-end (gate 10.7) | after the phase's gates pass | the phase's code changes + updated ticket artifacts | `feat\|fix\|refactor: <TICKET_ID> phase <N> - <phase title>` (no phase → `<ticket summary>`) |
 
-Procedure:
+Procedure — on the serial path (`run-state.json` carries `ownership`), step 1 also validates
+ownership: `owner validate` exactly as `## Task commits` prescribes, and a refusal stops the
+checkpoint and the run before anything is staged.
 
 1. **Branch guard.** `git branch --show-current` — on the default branch (`git symbolic-ref
    refs/remotes/origin/HEAD`, fallback `main`) → stop-and-ask (environment error): checkpoints
@@ -259,6 +261,16 @@ this is the second of the run's two commit kinds.
 
 A fix round is a loop of dispatches, one fix row each (`autonomous-run.md` §16.2): every return is a
 completed cycle of its own, so a round of five fix tasks is five commits, one per dispatch.
+
+**Ownership is re-checked, not just taken.** A serial task commit asks before it stages:
+`owner validate` with the run state's `run_id`, `phase` and `ownership.coordinator_id` and the
+live session id. A refusal — `coordinator_conflict`, `foreign_owner`, `ticket_owned`,
+`not_owned` — stops the commit and the run: the ticket belongs to another session now
+([worktrees.md](worktrees.md) §9). Report the recorded owner and stop — no `question` call,
+because a run that lost its ticket has no pause kind to bracket one with; the person resolves it.
+Never commit over the new owner and never recover on your own. A parallel run skips this: every
+mutating command of its loop already matches the owner under the guard. The same check opens the
+checkpoint procedure above, as its step 1.
 
 **Contents.** The cycle's changed files, plus the tasklist tick (on a phase run, the phase-aware
 tasklist). The file set comes from the working tree, never from a report — you never open one

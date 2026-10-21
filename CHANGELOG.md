@@ -14,8 +14,8 @@ All notable changes to this project are documented here. The format follows
   same ticket and commit the same tasks twice. `run-state.json` carries `run_id` and
   `ownership`; the run state is the release proof (`completed: true`, no pause), and a second
   session of the same run is refused as `coordinator_conflict` — the handoff stays the explicit
-  `owner recover`. The limit is recorded: this fences the arm, not every mutation
-  (`docs/worktrees.md` §9).
+  `owner recover`. Serial task and checkpoint commits re-validate ownership (`owner validate`)
+  before staging, so a handed-off session stops at its next commit (`docs/worktrees.md` §9).
 
 ## [0.40.0] - 2026-10-20
 

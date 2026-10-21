@@ -150,9 +150,9 @@ move to the decision log.
 - **Worktrees: the ticket lock shipped, the listing is still parked** (from the 2026-09-17
   worktree design, released in 0.14.0). The ticket-level lock landed for serial runs on
   2026-10-21 (decision log, [worktrees.md](worktrees.md) §9) — the parallel path already had
-  it — so two sessions cannot arm the same ticket. Still parked: a `/artel:worktrees` listing
-  (ticket, branch, path, dirty state) once parallel use is common, and per-mutation ownership
-  fencing on the serial path (the lock fences the arm today).
+  it — so two sessions cannot arm the same ticket, and serial task and checkpoint commits
+  re-validate before staging. Still parked: a `/artel:worktrees` listing (ticket, branch, path,
+  dirty state) once parallel use is common.
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
   the plugin (decision of 2026-07-27, below). No record that the review has been requested.
 - **Model selection: what stays parked** (2026-10-02 design,
@@ -1743,5 +1743,6 @@ move to the decision log.
   let a mid-flight parallel run hold a different file, and the lock belongs to the ticket, not
   to a mode. It is held from arm to completion — a pause, an abort and a crash retain it,
   exactly as on the parallel path — so a resumed run in a new session is the explicit
-  `owner recover` handoff. Deliberate limit, recorded: this fences the arm, not every mutation;
-  serial task commits do not re-validate ownership, so per-mutation fencing stays a follow-up.
+  `owner recover` handoff. Serial task and checkpoint commits then re-validate with
+  `owner validate` before they stage, so a handed-off session stops at its next commit instead
+  of writing over the new coordinator.

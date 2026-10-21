@@ -98,6 +98,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -186,7 +187,8 @@ def _parser():
 
     leaf(('config',), 'resolve the host parallel configuration')
     leaf(('preflight',), 'coordinator readiness plus the capability report')
-    leaf(('owner', 'acquire', 'recover', 'release'), 'the repository-wide ticket lock')
+    leaf(('owner', 'acquire', 'arm', 'recover', 'release'),
+         'the repository-wide ticket lock')
     leaf(('run', 'create', 'inspect', 'transition'), 'the run manifest')
     leaf(('claim', 'prepare', 'record', 'reconcile'), 'claim intents and reconciliation')
     leaf(('admit',), 'the admission selector over the current tasklist')
@@ -288,6 +290,14 @@ def _manifest_path(repo, ticket, run_id):
 
 def _read_manifest(repo, ticket, run_id):
     return parallel_state.read_manifest(str(_manifest_path(repo, ticket, run_id)))
+
+
+def _read_manifest_or_none(repo, ticket, run_id):
+    """The run manifest, or None when this run has none — a serial run owns no manifest."""
+    path = _manifest_path(repo, ticket, run_id)
+    if not path.exists():
+        return None
+    return parallel_state.read_manifest(str(path))
 
 
 def _check_identity(manifest, ticket, run_id):
@@ -421,6 +431,28 @@ def cmd_owner_acquire(request, _stdin_used):
                                          request['owner'])
 
 
+def cmd_owner_arm(request, _stdin_used):
+    """Mint or adopt a run identity and take the ticket lock before arming a serial run.
+
+    A fresh arm omits `run_id` and gets one minted here; a resume passes the run state's
+    `run_id`, so the same run re-acquires its own record instead of minting a second identity.
+    The reply is the stored owner record: `run_id` and `token` are what the run state persists.
+    """
+    _keys(request, ('repo', 'ticket', 'phase', 'coordinator_id'), optional=('run_id',))
+    repo = _text(request, 'repo')
+    ticket = _text(request, 'ticket')
+    phase = _phase(request, 'phase')
+    coordinator = _coordinator(request)
+    run_id = request.get('run_id')
+    if run_id is None:
+        run_id = str(uuid.uuid4())
+    else:
+        _text(request, 'run_id')
+    return parallel_state.acquire_ticket(repo, ticket, {
+        'schema': SCHEMA, 'ticket': ticket, 'run_id': run_id, 'phase': phase,
+        'coordinator_id': coordinator})
+
+
 def cmd_owner_recover(request, _stdin_used):
     _keys(request, ('repo', 'ticket', 'run_id', 'phase', 'coordinator_id', 'reason'))
     repo = _text(request, 'repo')
@@ -503,7 +535,9 @@ def cmd_owner_release(request, _stdin_used):
         if stored['token'] != token:
             _fail('foreign_owner', 'the ticket {} is held under another token; only the '
                                    'acquiring run releases it'.format(ticket))
-        manifest = _read_manifest(repo, ticket, run_id)
+        manifest = _read_manifest_or_none(repo, ticket, run_id)
+        if manifest is None:
+            return _release_serial(repo, ticket, owner, run_id, phase)
         if manifest['ticket'] != ticket or manifest['run_id'] != run_id \
                 or manifest['phase'] != phase:
             _fail('manifest_mismatch', 'the run manifest is not this run\'s: {!r}'.format(
@@ -518,6 +552,49 @@ def cmd_owner_release(request, _stdin_used):
             _fail('premature_release', 'the run is paused ({!r}); a pause retains ownership and '
                                        'recovery state'.format(state.get('pause_reason')))
         return parallel_state.release_ticket_locked(repo, ticket, owner)
+
+
+def _serial_run_state(repo, ticket, phase, run_id):
+    """The serial run's state, or `missing_manifest` when there is neither proof at all.
+
+    A held lock with no manifest and no run state is the same refusal the parallel path
+    reports for a missing manifest: the lock is retained either way.
+    """
+    try:
+        return parallel_budget.read_run_state(repo, ticket, phase)
+    except parallel_budget.BudgetError as exc:
+        if exc.kind != 'missing_run_state':
+            raise
+        _fail('missing_manifest', 'run {} owns the ticket but has neither a run manifest nor '
+                                  'a run state; the lock is retained'.format(run_id))
+
+
+def _release_serial(repo, ticket, owner, run_id, phase):
+    """Release a serial run's lock: its run state is the quiescence proof, not a manifest.
+
+    The caller already holds the ticket guard and has matched the stored owner, its token and
+    its coordinator. A run state that is not this run's, or that has not finished, keeps the
+    lock exactly as the parallel path does: `completed` must be exactly true and no pause may
+    be recorded. The run state's `ownership.mode` is what marks a serial run — a parallel run
+    whose manifest went missing is refused rather than released through this branch.
+    """
+    path, state = _serial_run_state(repo, ticket, phase, run_id)
+    ownership = state.get('ownership')
+    if not isinstance(ownership, dict) or ownership.get('mode') != 'serial':
+        _fail('missing_manifest', 'run {} owns the ticket but has no run manifest and no '
+                                  'serial ownership record at {}; the lock is retained'.format(
+                                      run_id, path))
+    if state.get('run_id') != run_id:
+        _fail('foreign_owner', 'the run state at {} is run {!r}, not {!r}; the lock is '
+                               'retained'.format(path, state.get('run_id'), run_id))
+    if state.get('completed') is not True:
+        _fail('premature_release', 'the run state says completed={!r}; the final gates and the '
+                                   'completion update come before release; the lock is '
+                                   'retained'.format(state.get('completed')))
+    if state.get('pause_reason') is not None:
+        _fail('premature_release', 'the run is paused ({!r}); a pause retains ownership and '
+                                   'recovery state'.format(state.get('pause_reason')))
+    return parallel_state.release_ticket_locked(repo, ticket, owner)
 
 
 def cmd_run_create(request, _stdin_used):
@@ -834,6 +911,7 @@ DISPATCH = {
     ('config',): cmd_config,
     ('preflight',): cmd_preflight,
     ('owner', 'acquire'): cmd_owner_acquire,
+    ('owner', 'arm'): cmd_owner_arm,
     ('owner', 'recover'): cmd_owner_recover,
     ('owner', 'release'): cmd_owner_release,
     ('run', 'create'): cmd_run_create,

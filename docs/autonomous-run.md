@@ -82,6 +82,8 @@ Path: `.artel/run/<TICKET_ID>/run-state.json` (always ticket-top-level, even for
   "completed": false,            // true only after the completion gate passes (§7)
   "pause_reason": null,          // "deviation-escalation" | "hitl-task" | "cap-escalation" | "store-unavailable" | "user-abort"
   "started_at": "2026-08-01T12:00:00Z",   // ISO-8601 UTC, written at run start
+  "run_id": "0f6f0f2e-6b1a-4f2e-9c5d-2b7a1c8e4d10",  // the ticket lock's run identity (UUID); minted at a fresh arm, carried unchanged by every resume
+  "ownership": { "mode": "serial", "token": "<hex>", "coordinator_id": "ses_…" },  // the ticket lock this serial run holds (worktrees.md §9); absent on the parallel path, whose identity lives in its manifest
   "counters": { "verify": 0, "review_rounds": 0, "escalations": 0, "correction_rounds": 0,   // reporting aggregate only (exception: correction_rounds — authoritative here, preserved across resume; §5)
                 "correction_reservations": { "schema": 1, "revision": 0, "rounds": [] } },  // OpenCode parallel only: the reservation block (§5; opencode-parallel.md §13.12)
   "effective_mode": "plan-gate", // "yolo" | "plan-gate" — resolved per §10 (full-gates never arms a run)
@@ -107,6 +109,14 @@ Transitions:
   by the Stop hook (§8). On resume, the orchestrator rewrites `started_at`.
 
 The `counters` object is a reporting aggregate; authoritative counters live in the loop artifacts (§5).
+
+`run_id` and `ownership` are the serial run's ticket lock (worktrees.md §9): the arm mints
+`run_id` once, and every resume adopts it rather than minting a second identity, so the same run
+re-acquires its own record. `ownership.token` is the release proof and `coordinator_id` the
+session that holds it; an explicit `owner recover` rotates both, and the orchestrator persists
+the new values. Both keys stay in the file after completion as the run's record — the lock
+itself is removed by `owner release` at the completion gate. A parallel run writes neither: its
+run identity and ownership live in the run manifest (opencode-parallel.md §13).
 
 The OpenCode parallel coordinator adds one narrow key inside `counters` —
 `correction_reservations` (`{schema, revision, rounds}`) — the durable reservation block for

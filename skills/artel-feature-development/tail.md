@@ -137,6 +137,17 @@ continue to close-out; never loop.
 Then update `run-state.json`: `completed: true`, `run_active: false`. Append the completion entry
 to the journal.
 
+**Serial path only — release the ticket lock** (worktrees.md §9). When gate 5 ran this tail's
+serial procedure — not `parallel.md` — release now, once the run state above says `completed:
+true` and no pause is recorded: `python3 ${ARTEL_ROOT}/scripts/parallel.py owner release
+--request <a request file>` with `{repo, ticket, owner: {schema, ticket, run_id, phase,
+coordinator_id, token, completed: true, quiescent: true}}`, taking `run_id`, `phase`,
+`coordinator_id` and `token` from `run-state.json`'s `run_id` and `ownership`. A refusal keeps
+the lock and is journaled, never retried with invented bytes: `premature_release` means a gate
+or this completion update is not done, `foreign_owner` means the run no longer owns the ticket.
+The parallel procedure releases at its own finish (`parallel.md` §8.3) — never twice, never
+from the other path.
+
 ## Description-file sync
 
 Per `${ARTEL_ROOT}/docs/orchestrator-common.md` §4 (only when `$1` is a description file

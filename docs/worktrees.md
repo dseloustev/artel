@@ -165,3 +165,52 @@ defaults (`/.claude`, `/.mcp.json`) select nothing on OpenCode, whose host files
 `/.opencode/`, `/opencode.json` and `/opencode.jsonc` (§3). A host that wrote a
 `.worktreeinclude` for the old defaults keeps the old selection until it updates the file;
 `.artel/` handling is unchanged either way.
+
+## 9. The ticket lock
+
+One ticket belongs to one run at a time, whichever mode that run is in. Two sessions on the
+same ticket would commit the same tasks twice, so the lock is taken **before arming** and held
+until the completion gate.
+
+The lock is one record per ticket at `<git-common-dir>/artel/parallel/<TICKET>.json` — the
+repository-common Git directory, so every linked worktree of the repository resolves the same
+lock and a session working in a ticket worktree cannot bypass it. The file name is historical:
+the parallel path introduced it first, and a serial run takes the same lock, because two locks
+would not exclude each other. Its contract — identity, token, explicit recovery — is
+[opencode-parallel.md](opencode-parallel.md) §13.
+
+A serial run takes it with `owner arm`, which mints the run's `run_id` on a fresh arm and
+adopts the one a resume passes:
+
+```bash
+python3 ${ARTEL_ROOT}/scripts/parallel.py owner arm --request <a request file>
+# {"repo": "<checkout>", "ticket": "PROJ-2052", "phase": 1, "coordinator_id": "ses_…"}
+```
+
+The reply is the owner record; `run_id` and `token` are written into `run-state.json` as
+`run_id` and `ownership: {mode: "serial", token: …, coordinator_id: …}`
+([autonomous-run.md](autonomous-run.md) §2). `ticket` is the canonical base ticket and `phase`
+the phase number or `null`, so `PROJ-2052` and `PROJ-2052-1` cannot both hold it. A crash
+between the arm and the run-state write leaves the lock with no run state — the refusal names
+its run, phase and acquisition time, which is enough to `owner recover` it.
+
+**Refusals stop the run; they never arm around the lock.** `ticket_owned` means another run
+holds the ticket; `coordinator_conflict` means this run is armed under another session;
+`legacy_owner` and `ambiguous_owner` mean the record cannot be adopted automatically. The run is
+reported with what the record proves — run, phase, coordinator, acquisition time — and stops
+there. A deliberate handoff
+is `owner recover` — the explicit, journaled takeover that rotates the token — and nothing else
+takes a lock over, not a timeout and not a dead-looking session.
+
+**Held from arm to completion.** A pause, an abort and a crash all keep it: the run is still
+armed, and a pause is not a finish. `owner release` therefore succeeds only for a run whose run
+state is `completed: true` with no recorded `pause_reason` (on the parallel path, whose manifest
+is the proof, the same rule applies to the manifest). The consequence is deliberate: resuming a
+paused run in a **new session** is the documented handoff, one `owner recover`, not a silent
+takeover. A crashed run leaves the same record and is recovered the same way.
+
+The limit worth knowing: this pass fences the **arm**, not every mutation. Serial task commits do
+not re-check ownership, so a session whose lock was taken over by `owner recover` keeps editing
+and committing until someone stops it — which is why `owner recover` is a deliberate handoff for
+a session believed gone, never a way to evict a live one. Per-mutation fencing is the parallel
+path's rule and remains a follow-up here.

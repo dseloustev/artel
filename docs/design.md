@@ -147,9 +147,12 @@ move to the decision log.
   the plan-approval pause, and keyed `sources` in the header, which would let kartoteka flag a
   document whose cited decision was since refuted. Status-only patches bump the version, so
   version-pinned `sources` would need a staleness rule that ignores them.
-- **Worktrees: two extensions are parked** (from the 2026-09-17 worktree design, released in
-  0.14.0): a ticket-level lock so two sessions cannot run the same ticket, and a
-  `/artel:worktrees` listing (ticket, branch, path, dirty state) once parallel use is common.
+- **Worktrees: the ticket lock shipped, the listing is still parked** (from the 2026-09-17
+  worktree design, released in 0.14.0). The ticket-level lock landed for serial runs on
+  2026-10-21 (decision log, [worktrees.md](worktrees.md) §9) — the parallel path already had
+  it — so two sessions cannot arm the same ticket. Still parked: a `/artel:worktrees` listing
+  (ticket, branch, path, dirty state) once parallel use is common, and per-mutation ownership
+  fencing on the serial path (the lock fences the arm today).
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
   the plugin (decision of 2026-07-27, below). No record that the review has been requested.
 - **Model selection: what stays parked** (2026-10-02 design,
@@ -1729,3 +1732,16 @@ move to the decision log.
   `succeeded` without a valid, identity-matching `result.json`, an interruption wins over a
   contradictory success, and `tests/test_parallel_adapter.py`'s status tests cover those
   refusals. The platform proof stays recorded as evidence in §14, not as a test.
+- **2026-10-21 — One ticket, one run: the ticket lock reaches the serial path.** The lock
+  (`scripts/parallel_state.py`, `<git-common-dir>/artel/parallel/<TICKET>.json`) existed only
+  for parallel runs, so two sessions could arm the same ticket and commit the same tasks twice.
+  A serial arm now takes it through `owner arm`, which mints the run's `run_id` on a fresh arm
+  and adopts the one a resume passes; `run-state.json` carries `run_id` and
+  `ownership: {mode, token, coordinator_id}`, and the completion gate releases it through the
+  same `owner release`, whose proof for a serial run is the run state (`completed: true`, no
+  pause) rather than a manifest. The file keeps its `artel/parallel/` path: renaming it would
+  let a mid-flight parallel run hold a different file, and the lock belongs to the ticket, not
+  to a mode. It is held from arm to completion — a pause, an abort and a crash retain it,
+  exactly as on the parallel path — so a resumed run in a new session is the explicit
+  `owner recover` handoff. Deliberate limit, recorded: this fences the arm, not every mutation;
+  serial task commits do not re-validate ownership, so per-mutation fencing stays a follow-up.

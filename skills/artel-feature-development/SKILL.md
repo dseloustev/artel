@@ -237,8 +237,24 @@ or the confirmed work list with `idea.md` and `vision.md` when present. `forced_
 "full-gates"` ⇒ stop here: report the matched sensitive categories and instruct the user to
 re-run with `--step`. `--dry-run` ⇒ stop here too: print the resolved mode, its reasons and the
 intended external actions — the task and checkpoint commits, the checkpoint pushes, and the pull
-request the run ends with (opened without asking in `yolo`) — and write nothing. Otherwise write
-`.artel/run/<TICKET_ID>/run-state.json` per
+request the run ends with (opened without asking in `yolo`) — and write nothing.
+
+**Take the ticket lock first** (worktrees.md §9) — on the arming path, never on a `--dry-run`,
+which writes nothing at all. The ticket belongs to one run at a time, and a second session on it
+would commit the same tasks twice. Resolve the session id with the bridge's
+`coordinatorIdentity` tool and call
+`python3 ${ARTEL_ROOT}/scripts/parallel.py owner arm --request <a request file>` with
+`{repo, ticket, phase, coordinator_id}` on a fresh arm, or with the run state's `run_id` added
+on a resume; `ticket` is the canonical base ticket and `phase` the phase number or null. On
+success write the reply's `run_id` and `token` into the run state as `run_id` and
+`ownership: {mode: "serial", token, coordinator_id}`. A refusal — `ticket_owned` (another run
+holds the ticket), `coordinator_conflict` (this run is armed under another session),
+`legacy_owner`, `ambiguous_owner` — stops here: report the recorded run, phase, coordinator and
+acquisition time, and offer the explicit handoff, `owner recover` with the reason, once the
+person agrees; it rotates the token, so persist the new one. Never arm around a refusal, and
+never take a lock over on a timeout.
+
+Then write `.artel/run/<TICKET_ID>/run-state.json` per
 autonomous-run.md §2: `run_active: true`, `completed: false`, `pause_reason: null`, fresh
 `started_at`, zeroed counters, `requested_local` (§2 — the `--local` opt-out, recorded because
 a resumed run has no argument list left to read it from), `deviation_files: []` (§2), plus the
@@ -247,7 +263,9 @@ six mode fields (§10), with
 external actions, and every task's effective route (§16.1). On resume,
 re-derive the mode fields before re-arming — never trust stale ones, and carry `requested_local`
 and `deviation_files` forward unchanged: the first is the user's opt-out, the second the run's
-record of deviations, and neither is a classifier output. From here the run is
+record of deviations, and neither is a classifier output. Carry `run_id` and `ownership` forward
+the same way: the resume re-acquires the lock with them, and a rotated token after `owner
+recover` replaces the stored one. From here the run is
 silent except deviations, HITL tasks, and cap escalations. Create
 `.artel/run/<TICKET_ID>/run-journal.md` with the run-start entry (autonomous-run.md §11): mode
 resolution, reasons, HITL tags count, every route changed at the approval, the size —

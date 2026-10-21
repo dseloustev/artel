@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from unittest import mock
 
@@ -42,7 +43,7 @@ COORDINATOR = 'ses_coordinator-primary'
 OTHER_COORDINATOR = 'ses_coordinator-secondary'
 # Every mutating command; the fixture injects this coordinator's id unless `raw=True`.
 MUTATING_VERBS = frozenset({
-    ('owner', 'acquire'), ('owner', 'recover'), ('owner', 'release'),
+    ('owner', 'acquire'), ('owner', 'arm'), ('owner', 'recover'), ('owner', 'release'),
     ('run', 'create'), ('run', 'transition'),
     ('claim', 'prepare'), ('claim', 'record'), ('claim', 'reconcile'),
     ('worktree', 'create'), ('worktree', 'cleanup'),
@@ -485,6 +486,101 @@ class TestOwner(CliCase):
                              'token': 'f' * 32, 'completed': True, 'quiescent': True}}
         self.assertEqual(self.kind(1, 'owner', 'release', request=request), 'foreign_owner')
         self.assertEqual(self.read_json(self.lock_path())['token'], record['token'])
+
+
+class TestSerialOwnership(CliCase):
+    """The ticket lock for the serial path: `owner arm` takes it before arming, the run state
+    proves the quiescent finish, and a second session of the same run is fenced."""
+
+    def arm(self, run_id=None, coordinator=None, phase=PHASE):
+        request = {'repo': str(self.repo), 'ticket': TICKET, 'phase': phase}
+        if run_id is not None:
+            request['run_id'] = run_id
+        if coordinator is not None:
+            request['coordinator_id'] = coordinator
+        return self.ok('owner', 'arm', raw=coordinator is not None, request=request)
+
+    def serial_state(self, completed=True, pause_reason=None, run_id=RUN_ID, ownership=True):
+        extra = {'run_id': run_id, 'pause_reason': pause_reason}
+        if ownership:
+            extra['ownership'] = {'mode': 'serial',
+                                  'token': self.read_json(self.lock_path())['token'],
+                                  'coordinator_id': COORDINATOR}
+        self.write_run_state(completed=completed, extra=extra)
+
+    def release_request(self, run_id=RUN_ID, token=None):
+        return {'repo': str(self.repo), 'ticket': TICKET,
+                'owner': {'schema': 1, 'ticket': TICKET, 'run_id': run_id, 'phase': PHASE,
+                          'token': token or self.read_json(self.lock_path())['token'],
+                          'completed': True, 'quiescent': True}}
+
+    def test_arm_mints_a_run_id_and_writes_the_repository_common_lock(self):
+        record = self.arm()
+        self.assertTrue(self.lock_path().is_file())
+        self.assertEqual(self.read_json(self.lock_path()), record)
+        self.assertEqual(str(uuid.UUID(record['run_id'])), record['run_id'])
+        self.assertEqual(record['phase'], PHASE)
+        self.assertEqual(record['coordinator_id'], COORDINATOR)
+
+    def test_arm_adopts_the_run_id_a_resume_passes(self):
+        self.assertEqual(self.arm(run_id=OTHER_RUN)['run_id'], OTHER_RUN)
+
+    def test_an_unphased_ticket_locks_the_base_ticket_with_a_null_phase(self):
+        record = self.arm(phase=None)
+        self.assertIsNone(record['phase'])
+        self.assertEqual(record['ticket'], TICKET)
+
+    def test_a_second_session_of_the_same_run_is_fenced(self):
+        record = self.arm()
+        self.assertEqual(self.kind(1, 'owner', 'arm', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET, 'phase': PHASE,
+            'run_id': record['run_id'],
+            'coordinator_id': OTHER_COORDINATOR}), 'coordinator_conflict')
+        self.assertEqual(self.read_json(self.lock_path())['coordinator_id'], COORDINATOR)
+
+    def test_a_second_run_on_the_ticket_is_refused(self):
+        record = self.arm()
+        self.assertEqual(self.kind(1, 'owner', 'arm', raw=True, request={
+            'repo': str(self.repo), 'ticket': TICKET, 'phase': PHASE, 'run_id': OTHER_RUN,
+            'coordinator_id': OTHER_COORDINATOR}), 'ticket_owned')
+        self.assertEqual(self.read_json(self.lock_path())['run_id'], record['run_id'])
+
+    def test_release_needs_a_completed_unpaused_run_state(self):
+        self.arm(run_id=RUN_ID)
+        request = self.release_request()
+        self.serial_state(completed=False)
+        self.assertEqual(self.kind(1, 'owner', 'release', request=request),
+                         'premature_release')
+        self.serial_state(pause_reason='hitl-task')
+        self.assertEqual(self.kind(1, 'owner', 'release', request=request),
+                         'premature_release')
+        self.assertTrue(self.lock_path().is_file())
+        self.serial_state()
+        receipt = self.ok('owner', 'release', request=request)
+        self.assertTrue(receipt['released'])
+        self.assertFalse(self.lock_path().exists())
+
+    def test_release_refuses_a_run_state_that_is_not_this_run(self):
+        self.arm(run_id=RUN_ID)
+        self.serial_state(run_id=OTHER_RUN)
+        self.assertEqual(self.kind(1, 'owner', 'release', request=self.release_request()),
+                         'foreign_owner')
+        self.assertTrue(self.lock_path().is_file())
+
+    def test_release_refuses_a_run_state_without_the_serial_marker(self):
+        self.arm(run_id=RUN_ID)
+        self.serial_state(ownership=False)
+        self.assertEqual(self.kind(1, 'owner', 'release', request=self.release_request()),
+                         'missing_manifest')
+        self.assertTrue(self.lock_path().is_file())
+
+    def test_release_needs_the_acquiring_token(self):
+        self.arm(run_id=RUN_ID)
+        self.serial_state()
+        self.assertEqual(self.kind(1, 'owner', 'release',
+                                   request=self.release_request(token='f' * 32)),
+                         'foreign_owner')
+        self.assertTrue(self.lock_path().is_file())
 
 
 class TestCoordinatorFence(CliCase):
@@ -1763,7 +1859,8 @@ class TestCoordinatorDocs(unittest.TestCase):
     def test_the_parallel_contract_documents_the_cli_and_the_loop(self):
         text = (ROOT / 'docs' / 'opencode-parallel.md').read_text(encoding='utf-8')
         for phrase in ('scripts/parallel.py', '--request', '`config`', '`preflight`',
-                       '`owner acquire`', '`owner release`', '`run create`', '`run inspect`',
+                       '`owner acquire`', '`owner arm`', '`owner release`', '`run create`',
+                       '`run inspect`',
                        '`run transition`', '`claim prepare`', '`claim record`',
                        '`claim reconcile`', '`admit`', '`worktree create`',
                        '`integration prepare`', '`publication next`', '`publication record`',
@@ -1786,6 +1883,29 @@ class TestCoordinatorDocs(unittest.TestCase):
             encoding='utf-8').split())
         self.assertIn('correction_reservations', flat)
         self.assertIn('preserved', flat)
+
+    def test_the_worktree_contract_documents_the_serial_ticket_lock(self):
+        flat = ' '.join((ROOT / 'docs' / 'worktrees.md').read_text(
+            encoding='utf-8').split())
+        for phrase in ('## 9. The ticket lock', 'owner arm', 'owner recover',
+                       'coordinator_conflict', 'run-state.json', 'Held from arm to completion'):
+            self.assertIn(phrase, flat)
+
+    def test_autonomous_run_documents_the_serial_run_identity(self):
+        flat = ' '.join((ROOT / 'docs' / 'autonomous-run.md').read_text(
+            encoding='utf-8').split())
+        for phrase in ('"run_id"', '"ownership"', 'owner recover', 'worktrees.md §9'):
+            self.assertIn(phrase, flat)
+
+    def test_the_orchestrator_arms_and_releases_the_serial_ticket_lock(self):
+        skill = ' '.join((ROOT / 'skills' / 'artel-feature-development' / 'SKILL.md').read_text(
+            encoding='utf-8').split())
+        for phrase in ('owner arm', 'run_id', 'ownership', 'owner recover'):
+            self.assertIn(phrase, skill)
+        tail = ' '.join((ROOT / 'skills' / 'artel-feature-development' / 'tail.md').read_text(
+            encoding='utf-8').split())
+        for phrase in ('Serial path only', 'owner release', 'run_id', 'ownership'):
+            self.assertIn(phrase, tail)
 
     def test_the_parallel_contract_defines_worker_concurrency_inline(self):
         text = (ROOT / 'docs' / 'opencode-parallel.md').read_text(encoding='utf-8')

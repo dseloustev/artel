@@ -157,8 +157,10 @@ or a re-invocation all resume from the same files. The spec trail stays human-re
   head that follows from it, its reasons and who decided. Written once, before any head, so an
   interrupted head resumes on the same one; it is not run state, and a `--step` run has it too.
 - **`run-state.json`** (`autonomous-run.md §2`) — written only by the orchestrator; carries
-  `run_active`, `completed`, `pause_reason`, `started_at`, the resolved mode fields, and
-  `gates_confirmed`. Its existence with `run_active: true` is what "armed" means.
+  `run_active`, `completed`, `pause_reason`, `started_at`, the resolved mode fields,
+  `gates_confirmed`, and — for the serial ticket lock — `run_id` and `ownership`
+  ([worktrees.md](worktrees.md) §9). Its existence with `run_active: true` is what "armed"
+  means.
 - **`open-questions.md`** (`autonomous-run.md §3`) — between the interview and the approval
   pause the silent sub-skills (`researcher`, `planner`, `tasklist`) never stop to ask; a
   question they can't resolve is appended here with a proposed default, and the pipeline

@@ -1088,6 +1088,7 @@ commands:
 | `config` | `{repo}` | Reads `<repo>/.artel/config.json` and resolves `parallel.seats`; absent or `1` is the serial default. |
 | `preflight` | `{repo, capabilities}` | Consumes the adapter's read-only capability report and verifies the coordinator's branch, cleanliness and reflog before any claim or worktree. Read-only. |
 | `owner acquire` / `owner recover` / `owner release` | `{repo, ticket, owner}` / `{repo, ticket, run_id, phase, coordinator_id, reason}` / `{repo, ticket, owner}` | The repository-common ticket lock. `acquire` is idempotent for the same run and coordinator; `recover` is the explicit audited handoff that rotates the token and the coordinator (and adopts a legacy record); `release` requires the exact run's manifest quiescent (every task published, no latched stop, no unfinished owned claim, no unconfirmed orphan release) and its run state `completed: true` and unpaused, then the matching token and coordinator. |
+| `owner arm` | `{repo, ticket, phase, coordinator_id, run_id?}` | The **serial** path's entry to the same lock: mints `run_id` when a fresh arm omits it (a resume passes the run state's), then acquires. Returns the owner record. |
 | `run create` / `run inspect` / `run transition` | `{repo, ticket, phase, run_id, seats, graph_digest, coordinator_id}` / `{repo, ticket, run_id}` / `{repo, ticket, run_id, expected_revision, task, expected, target, fields?, coordinator_id}` | The run manifest; `inspect` is a pure read. |
 | `claim prepare` / `claim record` / `claim reconcile` | `{repo, ticket, run_id, expected_revision, coordinator_id, intent_id?, row?, rows?}` | The claim intent before the queue call, the recorded returned row, and reconciliation against fresh rows (an orphan becomes `released` only when a fresh complete observation confirms it). |
 | `admit` | `{repo, ticket, run_id, tasklist, case_sensitive?}` | The pure admission selector over the parsed tasklist; only the current unfinished iteration is admitted. Without the optional override, case sensitivity is read from the actual volume that holds the checkout, never from `normcase`'s POSIX string behavior; an unknown volume is treated conservatively as case-insensitive and NFC/NFD aliases conflict. Read-only. |
@@ -1095,6 +1096,16 @@ commands:
 | `integration prepare` / `integration apply` / `integration commit` / `integration recover` | `{repo, assignment, result, coordinator_id}` / `{repo, assignment, prepared, coordinator_id}` / `{repo, transaction, subject, coordinator_id}` / `{repo, transaction, coordinator_id}` | The serialized integration transaction. |
 | `publication next` / `publication record` | `{repo, ticket, run_id, task, observed}` / `{repo, transaction, task, action_id, receipt, coordinator_id}` | The publication plan and one durable intent/receipt. |
 | `budget inspect` / `budget reserve` | `{repo, ticket, phase}` / `{repo, ticket, run_id, phase, kind, scope, attempt, ordinal, expected_revision, coordinator_id}` | The run-wide correction budget (§13.12). |
+
+`owner arm` is the serial path's entry to the same lock: it is `owner acquire` with the run
+identity minted once, so a fresh arm mints `run_id` and a resume adopts the one in
+`run-state.json` (worktrees.md §9). A serial run owns no manifest, so `owner release` proves
+quiescence from its run state instead: `ownership.mode: "serial"`, a run-state `run_id` equal to
+the lock's, `completed: true` and no recorded pause. A held lock with neither a manifest nor a
+serial run state is `missing_manifest`, and the lock is retained. The lock is held from the arm
+to the completion gate; a pause, an abort and a crash all retain it, so a second session on the
+ticket is refused rather than silently duplicating task commits, and a resumed run in a new
+session is the documented `owner recover` handoff, not an automatic takeover.
 
 Every command answers with the deterministic-script envelope — `{ok, verb, elapsed_ms,
 data}` or `{ok, verb, elapsed_ms, error: {kind, message}}` — and exits `0` on success, exit `1`

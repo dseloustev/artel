@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **The ticket lock covers serial runs.** A serial run now takes the repository-common ticket
+  lock before arming — `owner arm`, which mints the run's `run_id` on a fresh arm and adopts it
+  on a resume — and releases it at the completion gate, so two sessions can no longer run the
+  same ticket and commit the same tasks twice. `run-state.json` carries `run_id` and
+  `ownership`; the run state is the release proof (`completed: true`, no pause), and a second
+  session of the same run is refused as `coordinator_conflict` — the handoff stays the explicit
+  `owner recover`. The limit is recorded: this fences the arm, not every mutation
+  (`docs/worktrees.md` §9).
+
 ## [0.40.0] - 2026-10-20
 
 ### Removed

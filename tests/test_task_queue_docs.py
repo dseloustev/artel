@@ -232,14 +232,14 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
         step_one = self.agent.split('### Step 1')[1].split('### Step 2')[0]
         paragraph = step_one.split('**A fix-list dispatch is file-scan work')[1].split(
             '**Fallback path.**')[0]
-        self.assertIn('do not call `task_ready` at all', paragraph)
+        self.assertIn('never an iteration claim', paragraph)
+        self.assertIn('parent_id=<the section row>', paragraph)
         for section in self.GATE_SECTIONS[:3]:
             self.assertIn(section, paragraph)
         self.assertIn('Final Verification', paragraph)
         for status in ('in_progress', 'done', 'blocked'):
             self.assertIn('status="{}"'.format(status), paragraph)
         self.assertIn('`row not found; file only`', paragraph)
-        self.assertIn('never `ready`', paragraph)
         self.assertNotIn('never\nmirrored', paragraph)
 
     def test_step_five_completes_a_fix_row_without_promotion(self):
@@ -256,7 +256,7 @@ class TestGateWorkIsFileScanOnBothPaths(unittest.TestCase):
 
     def test_the_skill_prompt_keeps_the_fix_row_current(self):
         text = (ROOT / 'skills/artel-implementer/SKILL.md').read_text(encoding='utf-8')
-        self.assertIn('`task_ready` never offers their rows', text)
+        self.assertIn('an ordinary `task_ready` never offers their rows', text)
         self.assertIn('`row not found; file only`', text)
         self.assertNotIn('those sections are never mirrored', text)
 
@@ -310,7 +310,8 @@ class TestFixRowsAreRecordedNeverOffered(unittest.TestCase):
             '## 3. Claiming, reporting and promoting')[1].split('## 4.')[0]
         self.empty = self.doc.split('## 5. When the queue is empty')[1].split('## 6.')[0]
         self.records = self.doc.split('## 6. What the queue records but never offers')[1]
-        self.fix_block = self.claim.split('**Fix-section rows are recorded, not claimed.**')[1]
+        self.fix_block = self.claim.split(
+            '**Fix-section rows are claimed by the dispatch that works them.**')[1]
 
     def test_the_old_title_and_claim_are_gone(self):
         self.assertNotIn('What the queue does not hold', self.doc)
@@ -325,15 +326,19 @@ class TestFixRowsAreRecordedNeverOffered(unittest.TestCase):
         self.assertIn('**A fix-section writer creates `data.sections` only.**', self.mirror)
         self.assertIn('`phase-<N>/tasks.md` on a phase-scoped run', self.mirror)
 
-    def test_the_fix_row_protocol_moves_rows_by_task_update_alone(self):
-        for status in ('in_progress', 'done', 'blocked'):
-            self.assertIn('task_update(task_id, status="{}")'.format(status), self.fix_block)
+    def test_the_fix_row_protocol_claims_narrowed_to_its_section(self):
+        # A fix row is still created `backlog`: the dispatch promotes its own row and claims
+        # it narrowed to the section, so an ordinary claim never sees one.
+        for status in ('ready', 'in_progress', 'done', 'blocked'):
+            self.assertIn('status="{}"'.format(status), self.fix_block)
+        self.assertIn('task_ready(project=<project>, actor="artel@<hostname>"', self.fix_block)
+        self.assertIn('parent_id=<the section row>', self.fix_block)
         self.assertIn('row not found; file only', self.fix_block)
-        self.assertNotIn('status="ready"', self.fix_block)
-        self.assertNotIn('task_ready(', self.fix_block)
+        self.assertIn('fix claim returned another row', self.fix_block)
+        self.assertIn('queue offered a fix row to an iteration claim', self.fix_block)
 
-    def test_holder_absence_and_hitl_are_stated(self):
-        self.assertIn('**No holder.**', self.fix_block)
+    def test_the_holder_and_hitl_are_stated(self):
+        self.assertIn('**A fix row names its holder.**', self.fix_block)
         self.assertIn('**A HITL fix task is never claimable,**', self.fix_block)
 
     def test_the_empty_queue_reads_iteration_children_only(self):
@@ -465,7 +470,8 @@ class TestLongFixTitlesStayFindable(unittest.TestCase):
 
     def test_the_fix_row_protocol_matches_the_capped_title(self):
         claim = self.doc.split('## 3. Claiming, reporting and promoting')[1].split('## 4.')[0]
-        fix_block = claim.split('**Fix-section rows are recorded, not claimed.**')[1]
+        fix_block = claim.split(
+            '**Fix-section rows are claimed by the dispatch that works them.**')[1]
         self.assertIn('first 500 characters', fix_block)
         self.assertIn('whitespace runs collapsed to one space', fix_block)
 
@@ -676,8 +682,9 @@ class TestSectionParentsClose(unittest.TestCase):
         text = (ROOT / 'docs/task-queue.md').read_text(encoding='utf-8')
         self.assertNotIn('Section rows are labels', text)
         self.assertIn('**Section rows close with their last child.**', text)
-        protocol = text.split('**Fix-section rows are recorded, not claimed.**')[1].split(
-            '**Never `ready`.**')[0]
+        protocol = text.split(
+            '**Fix-section rows are claimed by the dispatch that works them.**')[1].split(
+            '**Created `backlog`, promoted by the claim.**')[0]
         self.assertIn('close', protocol)
         self.assertIn('task_update(parent_id, status="done")', protocol)
 

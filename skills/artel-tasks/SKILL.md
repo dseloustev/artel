@@ -65,9 +65,10 @@ operation — never with `read`/`write`/`edit` or a shell file command.
    parents (`CRF: …`, `RTF: …`, `VF: …`, `FV: …`) in `task_id` order, each followed by its
    children (`<CODE> · <source> · …`). Flag `[HITL:` titles.
    A parent `in_progress` means only that its iteration is active (`docs/task-queue.md` §3 sets
-   it on the first child's claim and leaves it there); it is not a held claim. A fix row
-   `in_progress` has no actor: only a claim records a holder, and fix rows are never claimed
-   (`docs/task-queue.md` §3). Render its actor as `— (not claimed)`.
+   it on the first child's claim and leaves it there); it is not a held claim. A fix row is
+   claimed by the dispatch that works it, so an `in_progress` one names its holder; one with no
+   actor predates that protocol (`docs/task-queue.md` §3). Render that one as
+   `— (not claimed)`.
 3. Diagnose per `docs/task-queue.md` §5 — but where §5 answers for one empty claim, a listing
    can be in several of its states at once, so report **every** line that applies, in this
    order, and say "nothing to report" only when none does. Fix-section rows count for

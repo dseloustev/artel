@@ -98,11 +98,11 @@ Implement the next incomplete task now, per your agent definition's workflow:
    One task is one `### Task <N.M>:` block: work every step of it
    in this dispatch, reading the `Produces:` lines of the tasks its `Depends on:` names. A dispatch naming
    `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` or Final Verification
-   is file-scan work on either path — `task_ready` never offers their rows (§6), so do
-   not call it for one. On the queue path keep that task's row current per §3's
-   fix-section protocol: `in_progress` when you start, `done` when you flip the box,
-   `blocked` on any other exit, never `ready`; a missing row is `row not found; file only`,
-   not an error. If the task carries a `[HITL: …]` tag, STOP and
+   is file-scan work on either path — an ordinary `task_ready` never offers their rows (§6);
+   the dispatch promotes its own row and claims it narrowed to its section (§3). On the
+   queue path keep that task's row current per §3's fix-section protocol: `in_progress` when
+   you start, `done` when you flip the box, `blocked` on any other exit; a missing row is
+   `row not found; file only`, not an error. If the task carries a `[HITL: …]` tag, STOP and
    return `HITL: <reason>` instead of implementing — the orchestrator owns that pause.
 2. Implement directly (no proposal step). Apply the task gate (`${ARTEL_ROOT}/docs/gates.md`
    §1) through the verify loop (max MAX_VERIFY_ITERATIONS = 4) of the `/artel-inner-loop` skill:

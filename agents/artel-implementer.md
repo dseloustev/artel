@@ -127,23 +127,33 @@ queue is stalled, not finished — report which. A task returned is now held by
 you and `in_progress`. If it is the first child of its iteration, also
 `task_update` the `I<N>: …` parent to `in_progress`. On a phase-scoped run, read
 the `I<N> · ` prefix before working it: an **unscoped** claim from another phase goes straight
-back, per §3, and that is the one release that is not `blocked`.
+back, per §3, and that is the one release that is not `blocked`. A fix-section
+row (`CRF`/`RTF`/`VF`/`FV`) returned to an unscoped claim is the same shape: release
+it `backlog` (never `ready`), report `queue offered a fix row to an iteration
+claim`, and claim once more — never work it.
 
 **A fix-list dispatch is file-scan work, on either path.** When the orchestrator's
 prompt names `## Code Review Fixes`, `## Runtime Fixes`, `## Verify Fixes` or the
-Final Verification gate, do not call `task_ready` at all — it never offers those
-sections' rows (`${ARTEL_ROOT}/docs/task-queue.md` §6).
-Find the first incomplete `- [ ]` under the named section and work it exactly as
-before the queue existed. A dispatch that names no section but whose only incomplete `- [ ]` sits
-under one of those headings is the same work, and takes the same route.
+Final Verification gate, the task is the first incomplete `- [ ]` under that
+section, never an iteration claim (`${ARTEL_ROOT}/docs/task-queue.md` §6).
+Find it and work it exactly as before the queue existed. A dispatch that names no
+section but whose only incomplete `- [ ]` sits under one of those headings is the
+same work, and takes the same route.
 
-On the queue path that task also has a row, which records the work and never
-directs it (§3, fix-section rows). `task_list(project=<project>, ticket_key=<TICKET_KEY>)`
+On the queue path that task also has a row, which records the work and does not
+direct it (§3, fix-section rows). `task_list(project=<project>, ticket_key=<TICKET_KEY>, order="created")`
 and find the row titled `<CODE> · <source> · <checkbox text>`: the code from §6's
 table, `<source>` the nearest `### ` heading above the box inside its section
 (`tasklist` when there is none), the checkbox text verbatim — the title as the script
 builds it: cut to its first 500 characters, and compared with
-whitespace runs collapsed to one space, so a longer checkbox matches on its start. Then
+whitespace runs collapsed to one space, so a longer checkbox matches on its start.
+Its `parent_id` is the section row. Then own it: `task_update(task_id, status="ready")`
+followed by `task_ready(project=<project>, actor="artel@<hostname>",
+ticket_key=<TICKET_KEY>, parent_id=<the section row>)` — the actor is the same one
+the iteration claim uses, `hostname -s` run in this dispatch — and the row it returns must be
+the one you promoted, and a different row is a leftover `ready` from a crashed
+claim: release it `task_update(returned, status="backlog")` and claim once more; a
+second mismatch stops and reports. Then
 `task_update(task_id, status="in_progress")` when you start,
 `task_update(task_id, status="done")` when you flip the checkbox, and
 `task_update(task_id, status="blocked")` on every exit **Rules** lists for a held

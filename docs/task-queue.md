@@ -266,35 +266,56 @@ and nothing is ever promoted. Claiming one is what triggers the pause. The
 orchestrator asks the user; clearing it sets the task back to `ready`, which
 also clears the holder.
 
-**Fix-section rows are recorded, not claimed.** The rows §6 describes move by a
-protocol of their own. The implementer still takes its task by file scan — the
-first `- [ ]` under the section its dispatch names — and never calls
-`task_ready` for it; the row is a record of that work, not the source of it:
+**Fix-section rows are claimed by the dispatch that works them.** The implementer
+still takes its task by file scan — the first `- [ ]` under the section its
+dispatch names — and the row records that work; the dispatch also owns the row
+while it works, so `/artel-tasks list` names it:
 
-    find      task_list(project=<project>, ticket_key=<TICKET_KEY>)
+    find      task_list(project=<project>, ticket_key=<TICKET_KEY>, order="created")
                 → the row titled "<CODE> · <source> · <checkbox text>" (§6), as
                   the script builds it: cut to its first 500 characters, and
                   compared with whitespace runs collapsed to one space
+                → its `parent_id` is the section row, from the same read
                 → none (an older ticket, a mirror that failed): not an error;
                   work from the file and report `row not found; file only`
+    claim     task_update(task_id, status="ready")
+              task_ready(project=<project>, actor="artel@<hostname>",
+                         ticket_key=<TICKET_KEY>, parent_id=<the section row>)
+                → the actor is §3's: `hostname -s`, run in the dispatch
+                → the returned row must be the promoted one (same task_id)
+                → another row: it is a leftover `ready` from a crashed claim —
+                  release it `task_update(returned, status="backlog")`, report
+                  `fix claim returned another row`, and claim once more; a second
+                  mismatch stops and reports
     guard     title contains "[HITL:" → task_update(task_id, status="blocked"),
                 return `HITL: <reason>`, do not implement
                 resumed with the answer → task_update(task_id, status="in_progress")
-    start     task_update(task_id, status="in_progress")
     work      implement; flip the checkbox in the tasklist in scope, exactly as before
     report    task_update(task_id, status="done") — no promotion: nothing waits on a fix row
-    close     task_list(project=<project>, ticket_key=<TICKET_KEY>)
+    close     task_list(project=<project>, ticket_key=<TICKET_KEY>, order="created")
                 → no other child of the same parent left backlog / ready / in_progress / blocked?
                   yes → task_update(parent_id, status="done") — a section closes with its last child
     abort     red gate, any DEVIATION halt, or Abort task ->
                 task_update(task_id, status="blocked")
 
-**Never `ready`.** No step above moves a fix row to `ready`, and the mirror never
-creates one that way; §6, "Why never offer them", says why.
+**Created `backlog`, promoted by the claim.** The mirror still never creates a fix
+row `ready`; the dispatch above promotes its own row immediately before claiming
+it, which is what keeps an ordinary claim from ever seeing one. The two calls are
+not atomic, and under the ticket lock nothing else claims in between: a crash
+between them leaves the row `ready` and unheld, and the next claim of that
+section releases it `backlog` and claims again (the mismatch branch above).
 
-**No holder.** Only a `task_ready` claim sets a row's holder, so an
-`in_progress` fix row names none: `actor` stays empty and `updated_at` says when
-the work started. `/artel-tasks list` shows it that way rather than inventing one.
+**A fix row claimed unscoped goes back to `backlog`.** An iteration dispatch
+claims unscoped on a ticket-wide run, and only the crash window above can leave a
+fix row `ready` for it to return — but if it does, the claim releases it
+`task_update(returned, status="backlog")` (never `ready`, so the window closes),
+reports `queue offered a fix row to an iteration claim`, and claims again once.
+It is the same shape as the wrong-phase release: nothing was worked, and the row
+goes back to the state its section expects.
+
+**A fix row names its holder.** A claimed fix row carries the claiming dispatch's
+`actor` while it is `in_progress`. One that names none predates this protocol;
+`/artel-tasks list` shows it as `— (not claimed)` rather than inventing one.
 
 **A HITL fix task is never claimable,** so the reason above for keeping a HITL
 iteration task claimable — a child never completed deadlocks promotion — does not
@@ -377,15 +398,16 @@ hours while `/artel-tasks list` reported the queue drained. The queue is where
 people look to see what an agent is doing, and that work never became searchable
 history either.
 
-**Why never offer them.** They are gate remediation and the end-of-feature gate,
-not planned iteration work, and they are appended after the iterations were
-mirrored. `task_ready` claims the oldest `ready` row for the ticket with no notion
-of section (§2, "Order matters"), so a `ready` fix row would go to whichever
-queue-path implementer asked next — a phase-scoped run included, across the
-boundary §3's wrong-phase check exists to hold. So the parser emits them
-`backlog`, or `done` for a checked box, and never `ready` — even in a file with no
-iterations — and §3's fix-section protocol moves them by `task_update` alone. The
-file stays their source of truth on every path.
+**Why an ordinary claim never sees one.** They are gate remediation and the
+end-of-feature gate, not planned iteration work, and they are appended after the
+iterations were mirrored. An unscoped `task_ready` claims the oldest `ready` row
+for the ticket with no notion of section (§2, "Order matters"), so a fix row left
+`ready` would go to whichever queue-path implementer asked next — a phase-scoped
+run included, across the boundary §3's wrong-phase check exists to hold. So the
+mirror emits them `backlog`, or `done` for a checked box, and never `ready`: a fix
+dispatch promotes its own row and claims it narrowed to its section (§3), and an
+unscoped claim that still returns one releases it back to `backlog`. The file
+stays their source of truth on every path.
 
 **Section rows close with their last child.** A fix-section parent (`CRF:`, `RTF:`,
 `VF:`, `FV:`) is `backlog` while any child is open, `done` when its last child is
@@ -473,21 +495,19 @@ Report the ticket complete and return; do not loop and
 do not re-claim. This is the only state in which reporting completion is right,
 and it is a state read off the file, never inferred from an empty queue.
 
-**Claiming them is a follow-up, and the rows are shaped for it.** kartoteka
-0.28.0's `task_ready` narrows by `parent_id`, and one parent per section is what
-that needs: a fix dispatch could claim from its own section and gain the holder
-these rows lack today. Two things are still missing, which is why this section
-still moves them by `task_update` alone: the queue offers only a `ready` row, so
-the mirror would have to emit fix rows `ready` on a daemon that can narrow — a
-capability-dependent status decision — and the serial narrowing landed for
-iteration work first, with parallel claims still unscoped. That is the open
-follow-up in [design.md](design.md#open-follow-ups), not this section.
+**Claiming them shipped; the parallel claim has not.** A fix dispatch claims from
+its own section by `parent_id` and gains the holder these rows lacked, as §3
+describes. What remains is the parallel coordinator's claim, whose row shape
+(`scripts/parallel_queue.py`'s `ROW_KEYS`) carries no parent, so it stays unscoped
+until that changes ([design.md](design.md#open-follow-ups)).
 
 ## 7. Parallel claims
 
 A parallel run's coordinator is the only claimer for its ticket, and it claims through the
 same atomic `task_ready` as §3 — never by task ID, never with an unguarded `task_update`.
-What differs is the actor and the write order, both fixed in
+The serial tail is the exception: once the loop has drained, its fix dispatches
+claim their own rows per §3 like any serial fix dispatch, and the coordinator
+claims nothing further. What differs is the actor and the write order, both fixed in
 [opencode-parallel.md](opencode-parallel.md) §13 and implemented by
 `scripts/parallel_queue.py`.
 

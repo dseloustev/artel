@@ -121,15 +121,12 @@ move to the decision log.
   pushes there; `set-home` moves it, but nothing enforces that it was run. Both were considered
   and deliberately declined for 0.13.0, so they are decisions rather than omissions — revisit if
   a stale remote ever causes a real push to the wrong host.
-- **kartoteka's queue parameters: adopted for iteration claims, two uses still open.** The
-  serial phase-scoped claim now narrows by `parent_id` (2026-10-21, decision log) and reads
-  plan order with
-  `order="created"` ([task-queue.md](task-queue.md) §2, §3). Still open, each needing its own
-  decision: **fix-row claims** — the mirror would have to emit fix rows `ready` on a daemon
-  that can narrow, which makes a row's creation status capability-dependent — and the
-  **parallel coordinator's claim**, whose row shape (`scripts/parallel_queue.py`'s `ROW_KEYS`)
-  carries no parent. Moving task state wholly into the queue — option A of the 2026-09-22
-  design — is where the rest would land.
+- **kartoteka's queue parameters: one use still open.** The serial phase-scoped claim narrows
+  by `parent_id`, fix rows are claimed by their dispatch, and plan order comes from
+  `order="created"` (2026-10-21, decision log; [task-queue.md](task-queue.md) §2, §3). Still
+  open: the **parallel coordinator's claim**, whose row shape
+  (`scripts/parallel_queue.py`'s `ROW_KEYS`) carries no parent. Moving task state wholly into
+  the queue — option A of the 2026-09-22 design — is where that would land.
 - **Spec images: parked follow-ups.** From the 2026-09-23 design, §15:
   - blobs out of SQLite if database size hurts backups;
   - an MCP `attachment_get` returning image content, once OpenCode support is known;
@@ -1752,6 +1749,18 @@ move to the decision log.
   without probing it; pruning stays the person's call. The router's injection budget was the
   real constraint: the route went in by trimming five verbose rows to the same meaning, not by
   raising the cap.
+- **2026-10-21 — A fix row is claimed by the dispatch that works it.** The four fix sections
+  were recorded but holder-less: only a `task_ready` claim sets an actor, and their rows were
+  created `backlog` so an unscoped claim — which has no notion of section — could never hand
+  one to an iteration dispatch. A fix dispatch now promotes its own row `ready` and claims it
+  narrowed to the section's parent, so the work has a holder; the mirror still creates them
+  `backlog`, which is what keeps an ordinary claim from ever seeing one. The two calls are not
+  atomic, and that is acceptable because the ticket lock admits one claimer per ticket: a crash
+  between them leaves a `ready`, unheld row that the next claim of that section releases back
+  to `backlog` and re-claims, and an unscoped iteration claim that still returns one releases
+  it the same way (`queue offered a fix row to an iteration claim`) rather than working it. The
+  capability-dependent status decision this follow-up kept deferring turned out to be
+  unnecessary: a row's creation status never changes, only the claim does.
 - **2026-10-21 — Follow-up work appends one iteration; a finished list is never rewritten.** A
   lean run on a ticket whose work list has no open box used to stop with a message telling the
   person to add tasks by hand — a host did exactly that on 2026-09-28. The lean head now offers

@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Fix-section rows are claimed by the dispatch that works them.** A fix dispatch now promotes
+  its own row `ready` and claims it narrowed to its section (`task_ready(parent_id=…)`), so the
+  work has a holder that `/artel-tasks list` shows instead of an anonymous `in_progress`. The
+  mirror still creates those rows `backlog`, so an ordinary claim never sees one; a row left
+  `ready` by a crashed claim is released back to `backlog` by the next claim of that section,
+  or by an unscoped iteration claim that returns it (`docs/task-queue.md` §3, §6).
+
 ## [0.43.0] - 2026-10-21
 
 ### Added

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-10-21
+
 ### Changed
 
 - **Fix-section rows are claimed by the dispatch that works them.** A fix dispatch now promotes

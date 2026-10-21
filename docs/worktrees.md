@@ -127,7 +127,11 @@ worktree on a detached HEAD.
 is read-only and answers the same JSON shape: the main checkout first, then every linked
 worktree with `name`, `path`, `branch`, `ticket` (null for one made by hand), `main`, `current`,
 `dirty` (uncommitted paths, ignored files excluded) and `missing` (a registration whose
-directory is gone — `git worktree prune` clears it; the skill never prunes).
+directory is gone — `git worktree prune` clears it; the skill never prunes). The same report
+carries `locks` — the ticket locks of §9 as `{ticket, run_id, phase, coordinator_id,
+acquired_at, recovered_at, unreadable}` — so one call says where a ticket's work lives and
+whether another session currently owns it. The lock's `token` is the release proof and is never
+reported.
 
 ## 7. Hooks
 

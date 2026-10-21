@@ -696,6 +696,42 @@ class TestListing(RepoCase):
         self.assertTrue(report['current'].endswith('T-1'))
         self.assertEqual(next(r for r in report['worktrees'] if r['current'])['ticket'], 'T-1')
 
+    def lock_dir(self):
+        common = Path(git(self.root, 'rev-parse', '--path-format=absolute',
+                          '--git-common-dir'))
+        directory = common / 'artel' / 'parallel'
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
+
+    def test_a_ticket_lock_is_listed_without_its_release_token(self):
+        # The lock is the release proof; a listing that leaked its token would hand anyone who
+        # reads the report the ability to release a live run.
+        (self.lock_dir() / 'T-1.json').write_text(json.dumps({
+            'schema': 1, 'ticket': 'T-1', 'run_id': 'r1', 'phase': None,
+            'coordinator_id': 'ses_owner', 'token': 'secret-token',
+            'acquired_at': '2026-10-21T00:00:00Z'}), encoding='utf-8')
+        code, report = self.run_script('list')
+        self.assertEqual(code, 0, report)
+        self.assertEqual(len(report['locks']), 1)
+        lock = report['locks'][0]
+        self.assertEqual(lock['ticket'], 'T-1')
+        self.assertEqual(lock['coordinator_id'], 'ses_owner')
+        self.assertFalse(lock['unreadable'])
+        self.assertNotIn('token', lock)
+        self.assertNotIn('secret-token', json.dumps(report))
+
+    def test_an_unreadable_lock_is_reported_rather_than_skipped(self):
+        # An ambiguous owner is exactly what the person needs to see before moving a session.
+        (self.lock_dir() / 'T-2.json').write_text('{not json', encoding='utf-8')
+        code, report = self.run_script('list')
+        self.assertEqual(code, 0, report)
+        self.assertEqual(report['locks'], [{'ticket': 'T-2', 'unreadable': True}])
+
+    def test_no_lock_directory_lists_no_locks(self):
+        code, report = self.run_script('list')
+        self.assertEqual(code, 0, report)
+        self.assertEqual(report['locks'], [])
+
     def test_listing_mutates_nothing(self):
         before = git(self.root, 'status', '--porcelain', '--untracked-files=all')
         code, _report = self.run_script('list')

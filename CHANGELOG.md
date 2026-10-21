@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`/artel-worktrees` also reports the ticket locks.** `worktree.py list` now answers `locks`
+  beside `worktrees`: for each ticket, the run that owns it, the coordinator session, when it was
+  acquired and whether a handoff happened — so one call says where a ticket's work lives and
+  whether another session currently owns it. The lock's release token is never reported, and a
+  record that cannot be read is listed as `unreadable` rather than skipped
+  (`docs/worktrees.md` §6, §9).
+
 ## [0.44.0] - 2026-10-21
 
 ### Added

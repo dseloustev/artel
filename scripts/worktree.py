@@ -481,6 +481,39 @@ def parse(argv):
     return parser.parse_args(argv)
 
 
+def locks():
+    """The repository's ticket locks, as the listing may show them: never the release token.
+
+    A lock lives in the common Git directory (docs/worktrees.md §9), so every checkout sees the
+    same set. A record that cannot be read is reported as `unreadable` rather than skipped: an
+    ambiguous owner is exactly what a person needs to know about.
+    """
+    common = Path(out('rev-parse', '--path-format=absolute', '--git-common-dir'))
+    directory = common / 'artel' / 'parallel'
+    if not directory.is_dir():
+        return []
+    found = []
+    for path in sorted(directory.glob('*.json')):
+        try:
+            record = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            found.append({'ticket': path.stem, 'unreadable': True})
+            continue
+        if not isinstance(record, dict):
+            found.append({'ticket': path.stem, 'unreadable': True})
+            continue
+        found.append({
+            'ticket': record.get('ticket') or path.stem,
+            'run_id': record.get('run_id'),
+            'phase': record.get('phase'),
+            'coordinator_id': record.get('coordinator_id'),
+            'acquired_at': record.get('acquired_at'),
+            'recovered_at': record.get('recovered_at'),
+            'unreadable': False,
+        })
+    return found
+
+
 def listing(_args):
     """Every worktree of this repository, with its ticket, branch, path and dirty state.
 
@@ -523,7 +556,7 @@ def listing(_args):
         deepest['current'] = True
     return {'status': 'ok', 'schema': 1, 'main': str(root) if root is not None else None,
             'current': next((row['path'] for row in rows if row['current']), None),
-            'worktrees': rows}
+            'worktrees': rows, 'locks': locks()}
 
 
 def main(argv):

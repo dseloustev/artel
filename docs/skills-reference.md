@@ -760,7 +760,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   The read side of `move-to-worktree` / `return-from-worktree`.
 - **Invocation:** `/artel-worktrees`
 - **Reads:** `git worktree list --porcelain`; each worktree's `.artel/worktree.json`;
-  `git status --porcelain` per worktree. Through `scripts/worktree.py list`.
+  `git status --porcelain` per worktree; the ticket locks in the common Git directory
+  (`artel/parallel/*.json`), reported without their release tokens. Through
+  `scripts/worktree.py list`.
 - **Writes:** nothing.
 - **Pauses:** none.
 - **Notes:** a worktree made by hand is listed with no ticket rather than hidden; a registration

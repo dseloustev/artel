@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-21
+
 ### Added
 
 - **Follow-up work on a finished ticket.** A lean run whose work list has no open box now offers

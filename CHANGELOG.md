@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-21
+
 ### Added
 
 - **The spec-trail header records verification and its sources.** `verified: <gate>@<UTC>`

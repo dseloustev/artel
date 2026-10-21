@@ -145,12 +145,6 @@ move to the decision log.
   the plan-approval pause, and keyed `sources` in the header, which would let kartoteka flag a
   document whose cited decision was since refuted. Status-only patches bump the version, so
   version-pinned `sources` would need a staleness rule that ignores them.
-- **Worktrees: the ticket lock shipped, the listing is still parked** (from the 2026-09-17
-  worktree design, released in 0.14.0). The ticket-level lock landed for serial runs on
-  2026-10-21 (decision log, [worktrees.md](worktrees.md) §9) — the parallel path already had
-  it — so two sessions cannot arm the same ticket, and serial task and checkpoint commits
-  re-validate before staging. Still parked: a `/artel:worktrees` listing (ticket, branch, path,
-  dirty state) once parallel use is common.
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
   the plugin (decision of 2026-07-27, below). No record that the review has been requested.
 - **Model selection: what stays parked** (2026-10-02 design,
@@ -1749,6 +1743,15 @@ move to the decision log.
   `ready` — safe only where the daemon narrows, so a row's creation status would become
   capability-dependent — and the **parallel coordinator's claim**, whose row shape carries no
   parent. Both stay in Open follow-ups.
+- **2026-10-21 — The worktree pair is complete: lock and listing.** The two extensions parked
+  by the 2026-09-17 worktree design both landed. The ticket lock (`worktrees.md` §9) went first,
+  in 0.41.0 with the serial path and per-commit fencing; the listing followed in 0.43.0 as
+  `/artel-worktrees` over `scripts/worktree.py list` — read-only, every worktree with its
+  ticket, branch, path and uncommitted-path count. It lists a worktree made by hand with no
+  ticket rather than hiding it, and reports a registration whose directory is gone as `missing`
+  without probing it; pruning stays the person's call. The router's injection budget was the
+  real constraint: the route went in by trimming five verbose rows to the same meaning, not by
+  raising the cap.
 - **2026-10-21 — Follow-up work appends one iteration; a finished list is never rewritten.** A
   lean run on a ticket whose work list has no open box used to stop with a message telling the
   person to add tasks by hand — a host did exactly that on 2026-09-28. The lean head now offers

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-21
+
 ### Added
 
 - **The ticket lock covers serial runs.** A serial run now takes the repository-common ticket

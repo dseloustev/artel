@@ -129,13 +129,6 @@ move to the decision log.
 
   Evidence files (`findings.json`, `observation.md`) moving into the store, and `.active_ticket`
   moving to `.artel/run/`, stay parked (2026-09-22 design, §16).
-- **Spec-trail frontmatter: adopted in 0.21.0 as the document header** (decision log, 2026-09-25).
-  `type`, `ticket`, `version`, `title`, `status`, `summary`, `schema` and `produced_by` replace
-  the `## Metadata` status bullet (`docs/spec-storage.md` §3.2), and documents cite each other by
-  `workspace:` reference (§3.1). Still open from the 2026-09-15 OKF review: a `verified` entry for
-  the plan-approval pause, and keyed `sources` in the header, which would let kartoteka flag a
-  document whose cited decision was since refuted. Status-only patches bump the version, so
-  version-pinned `sources` would need a staleness rule that ignores them.
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
   the plugin (decision of 2026-07-27, below). No record that the review has been requested.
 - **Model selection: what stays parked** (2026-10-02 design,
@@ -1766,6 +1759,17 @@ move to the decision log.
   parent as `parent_id` where the adapter supports narrowing. The pin also fences a fix-section
   row, which can never match an admitted task id. A manifest written before this change is
   refused as invalid: fail-closed, and a parallel run is short-lived.
+- **2026-10-21 — The spec-trail header carries `verified` and pinned `sources`.** The two gaps
+  the 2026-09-15 OKF review left. `verified: <gate>@<UTC>` is written by the orchestrator at the
+  run's one approval pause — `plan-approval` on the full head's plan, `work-list-approval` on a
+  lean or bug head's work list — never by a writer, so a plan a planner finalizes on its own
+  carries none. `sources: <key>=<ref>@<version>; …` lists the trail documents a document was
+  written from, pinned at the version read, and is the one place §3.1's "never a reference
+  inside the header" rule admits one: an unpinned source cannot go stale, which is the point of
+  the line. Staleness is defined for the consumer rather than computed by artel — a source is
+  stale when the cited document's version moved past the pin *and* the change was not
+  status-only, because a status flip bumps the version without changing what was cited. Both
+  fields are optional and come after `produced_by`, so every existing document stays valid.
 - **2026-10-21 — Follow-up work appends one iteration; a finished list is never rewritten.** A
   lean run on a ticket whose work list has no open box used to stop with a message telling the
   person to add tasks by hand — a host did exactly that on 2026-09-28. The lean head now offers

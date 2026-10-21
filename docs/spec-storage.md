@@ -215,7 +215,7 @@ On the kartoteka path:
 - **Sections go in the link text** (`[plan.md v2 §2.3](workspace:…@v2)`); references carry no
   anchors.
 - **Never a `<specs.dir>/` path** in the content, and never a reference inside the header
-  block.
+  block — except the header's `sources` line (§3.2), which exists to pin exactly that.
 
 A logical path found in an older or files-path document still resolves through §3's table.
 Nothing rewrites a stored document's references.
@@ -234,6 +234,8 @@ status: TASKLIST_READY
 summary: "Nine tasks, two HITL, one parallel wave of three."
 schema: 1
 produced_by: artel:task-planner
+verified: work-list-approval@2026-10-21T09:14:00Z
+sources: plan=workspace:AW-3270/plan/plan.md@v4; vision=workspace:AW-3270/vision/vision.md@v1
 ---
 ```
 
@@ -252,7 +254,23 @@ kartoteka, which then stores the block unread and checks nothing.
 | `summary` | no | one line |
 | `schema` | no | `1` — the template version, never the document version |
 | `produced_by` | no | `artel:<agent or skill>` |
+| `verified` | no | `<gate>@<ISO-8601 UTC>` — the human verification that made this document's status meaningful: `plan-approval` (the full head's plan) or `work-list-approval` (a lean or bug head's work list) |
+| `sources` | no | `<key>=<ref>@<version>[; <key>=…]` — the spec documents this one was written from, each pinned at the version read; `key` matches `[a-z][a-z0-9-]*`, `<ref>` is §3.1's reference on the kartoteka path or the logical path on the files path, and `@0` where a path has no version |
 
+- **`verified` is written by the pause, never by the writer.** A document's writer leaves the
+  line out: the orchestrator adds it when the person confirms at the run's one approval pause,
+  in the same write that records the confirmation. A `PLAN_APPROVED` a planner reaches on its
+  own — no provisional markers left — is not a human verification and carries none.
+- **`sources` is written by the writer.** Every document written from other trail documents
+  lists them, pinned at the version it read: the `ref:` line's version on the kartoteka path,
+  `0` on the files path. It is the one place a `workspace:` reference may appear inside the
+  header (§3.1), and it is always pinned — an unpinned source cannot go stale, which is the
+  whole point of the line.
+- **Staleness.** A source pinned at `@N` is stale when the cited document's current version is
+  greater than N **and** that change was not status-only: a status flip (`DRAFT` →
+  `TASKLIST_READY`, `PLAN_DRAFTED` → `PLAN_APPROVED`) bumps the version without changing what
+  was cited. kartoteka applies the rule when it renders the citation. artel never rewrites a
+  citation to clear it — a rewrite pins what it actually read.
 - **What stays out:** the creator, the creation time and hashes. kartoteka records them per
   version.
 - **What stays in the body:** a `## Metadata` section keeps inputs and scope, with no `Status:`

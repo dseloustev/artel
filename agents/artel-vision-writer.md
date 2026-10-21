@@ -48,7 +48,7 @@ Your dispatch carries **Spec store:** — `kartoteka`, or `files (<reason>)`.
 
 `<specs.dir>/<TICKET_ID>/vision.md` — written in one pass on finalize (Workflow Step 2).
 
-- Header: the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2) — `type: vision`, `status: DRAFT` (set to `VISION_READY` on finalize), `produced_by: artel:vision-writer` — then `# Vision: {Feature Title} (<TICKET_ID>)`, a one-line **Sources:** line citing `idea.md` and `prd.md` (`${ARTEL_ROOT}/docs/spec-storage.md` §3.1), a `---` separator, then the seven sections from the section contract.
+- Header: the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2) — `type: vision`, `status: DRAFT` (set to `VISION_READY` on finalize), `produced_by: artel:vision-writer`, and `sources:` naming the idea and the PRD, each pinned — then `# Vision: {Feature Title} (<TICKET_ID>)`, a one-line **Sources:** line citing `idea.md` and `prd.md` (`${ARTEL_ROOT}/docs/spec-storage.md` §3.1), a `---` separator, then the seven sections from the section contract.
 - After Section 7: `## Out of scope` (bulleted, sourced from the PRD's Out of Scope and the idea file) and `## References` (tracker link from the idea file, when `tracker.adapter` is not `"none"` — else omitted; related tickets). These two blocks are not numbered sections.
 
 ## Section contract

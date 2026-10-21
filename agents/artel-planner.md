@@ -59,8 +59,9 @@ Always read for context:
 
 A plan file at the path determined by `ticket-parsing.md` §4, containing:
 - the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2): `type: plan`,
-  `status: PLAN_DRAFTED` or `PLAN_APPROVED`, `produced_by: artel:planner`; an ADR carries
-  `type: adr` and no status
+  `status: PLAN_DRAFTED` or `PLAN_APPROVED`, `produced_by: artel:planner`, and `sources:`
+  listing every trail document it was written from — the idea, the PRD, the vision — each
+  pinned at the version read; an ADR carries `type: adr` and no status
 - an **Inputs:** line citing the documents read (`${ARTEL_ROOT}/docs/spec-storage.md` §3.1)
 - components and modules
 - target interfaces and contracts

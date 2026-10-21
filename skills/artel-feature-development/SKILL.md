@@ -254,6 +254,14 @@ acquisition time, and offer the explicit handoff, `owner recover` with the reaso
 person agrees; it rotates the token, so persist the new one. Never arm around a refusal, and
 never take a lock over on a timeout.
 
+**Record the verification.** The confirmation the pause produced belongs in the document it
+confirmed: add `verified: <gate>@<UTC now>` to the header of the plan (full head —
+`plan-approval`) or of the work list (lean and bug heads — `work-list-approval`), after
+`produced_by` with nothing else changed (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2). The
+timestamp is `date -u +%Y-%m-%dT%H:%M:%SZ`, run now, never recalled. On the kartoteka path that
+is an `artifact_patch` with the version bump first; on the files path an `edit`. A document
+that already carries the line for this gate keeps it — a resume writes no second one.
+
 Then write `.artel/run/<TICKET_ID>/run-state.json` per
 autonomous-run.md §2: `run_active: true`, `completed: false`, `pause_reason: null`, fresh
 `started_at`, zeroed counters, `requested_local` (§2 — the `--local` opt-out, recorded because

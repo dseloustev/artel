@@ -30,8 +30,26 @@ class TestHeaderContract(unittest.TestCase):
     def test_the_header_section_gives_the_field_order(self):
         header = section(self.text, '### 3.2 The document header')
         order = [m.group(1) for m in re.finditer(r'^([a-z_]+): ', header, re.M)]
-        self.assertEqual(order[:8], ['type', 'ticket', 'version', 'title', 'status', 'summary',
-                                     'schema', 'produced_by'])
+        self.assertEqual(order, ['type', 'ticket', 'version', 'title', 'status', 'summary',
+                                 'schema', 'produced_by', 'verified', 'sources'])
+
+    def test_the_verification_belongs_to_the_pause_not_the_writer(self):
+        header = flat(section(self.text, '### 3.2 The document header'))
+        self.assertIn('`verified` is written by the pause, never by the writer', header)
+        self.assertIn('is not a human verification and carries none', header)
+        self.assertIn('plan-approval', header)
+        self.assertIn('work-list-approval', header)
+
+    def test_a_source_is_pinned_and_its_staleness_rule_is_stated(self):
+        header = flat(section(self.text, '### 3.2 The document header'))
+        self.assertIn('`sources` is written by the writer', header)
+        self.assertIn('always pinned', header)
+        self.assertIn('that change was not status-only', header)
+        self.assertIn('artel never rewrites a citation to clear it', header)
+
+    def test_the_header_may_carry_the_sources_reference_it_exists_for(self):
+        refs = flat(section(self.text, '### 3.1 Citing a document'))
+        self.assertIn('except the header\'s `sources` line', refs)
 
     def test_every_write_carries_the_version_and_its_guard(self):
         ops = flat(section(self.text, '### 4.1 Agents'))

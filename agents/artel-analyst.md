@@ -104,7 +104,8 @@ Always read for context:
 
 A PRD file at the path determined by `ticket-parsing.md` §4, containing:
 - the document header (`${ARTEL_ROOT}/docs/spec-storage.md` §3.2): `type: prd`, `status:
-  PRD_READY` once open questions are empty and `## Requirements` is written, `produced_by: artel:analyst`
+  PRD_READY` once open questions are empty and `## Requirements` is written, `produced_by:
+  artel:analyst`, and `sources:` naming the idea it was written from, pinned
 - a `## Metadata` section whose **Inputs:** line cites the documents read
   (`${ARTEL_ROOT}/docs/spec-storage.md` §3.1) — no `Status:` line
 - goal and context

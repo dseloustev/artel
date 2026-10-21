@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **The spec-trail header records verification and its sources.** `verified: <gate>@<UTC>`
+  marks the document a person confirmed at the run's one approval pause — `plan-approval` on
+  the full head's plan, `work-list-approval` on a lean or bug head's work list — and is written
+  by the orchestrator, never by the document's writer. `sources: <key>=<ref>@<version>; …` lists
+  the trail documents a document was written from, each pinned at the version read, so a
+  citation can be flagged once the cited document moves on. The staleness rule ignores
+  status-only changes; both fields are optional (`docs/spec-storage.md` §3.2).
+
 ## [0.43.2] - 2026-10-21
 
 ### Changed

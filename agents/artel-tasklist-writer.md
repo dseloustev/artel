@@ -65,6 +65,7 @@ title: "{Feature Title}"
 status: TASKLIST_READY
 schema: 1
 produced_by: artel:tasklist-writer
+sources: plan=workspace:<TICKET_ID>/plan/plan.md@vN
 ---
 # Development Tasklist: {Feature Title} (<TICKET_ID>)
 
@@ -114,7 +115,9 @@ Based on [vision.md vN](workspace:<TICKET_ID>/vision/vision.md@vN) — kartoteka
 ...
 ```
 
-The header and the citation follow `${ARTEL_ROOT}/docs/spec-storage.md` §3.2 and §3.1. The finished file carries `status: TASKLIST_READY`; the draft carries `status: DRAFT`. With no vision, the "Based on" line cites the idea the same way — `[idea.md vN](workspace:<TICKET_ID>/idea/idea.md@vN)` on the kartoteka path, `<specs.dir>/<TICKET_ID>/idea.md` on the files path — and, after it, the diagnosis or the spike answer when one was an input.
+The header and the citation follow `${ARTEL_ROOT}/docs/spec-storage.md` §3.2 and §3.1.
+`sources` names the plan this work list was broken down from, pinned at the version read; a
+tasklist generated without a plan (the lean and bug heads) omits the line. The finished file carries `status: TASKLIST_READY`; the draft carries `status: DRAFT`. With no vision, the "Based on" line cites the idea the same way — `[idea.md vN](workspace:<TICKET_ID>/idea/idea.md@vN)` on the kartoteka path, `<specs.dir>/<TICKET_ID>/idea.md` on the files path — and, after it, the diagnosis or the spike answer when one was an input.
 
 ### Rules for the Progress Report table
 

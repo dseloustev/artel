@@ -44,6 +44,14 @@ class TestFields(unittest.TestCase):
         self.assertEqual(found['version'], '3')
         self.assertEqual(found['title'], 'A: title with a colon')
 
+    def test_a_sources_line_stays_one_flat_field(self):
+        # The header is flat by contract (spec-storage.md §3.2): the `key=ref; key=ref` form is
+        # what keeps a list of pinned sources out of YAML nesting.
+        text = ('---\ntype: plan\nticket: AW-1\nversion: 1\nproduced_by: artel:planner\n'
+                'sources: prd=workspace:AW-1/prd/prd.md@v2; vision=vision.md@0\n---\nbody\n')
+        self.assertEqual(dh.fields(text)['sources'],
+                         'prd=workspace:AW-1/prd/prd.md@v2; vision=vision.md@0')
+
     def test_none_without_a_block(self):
         self.assertIsNone(dh.fields('# PRD\n'))
 

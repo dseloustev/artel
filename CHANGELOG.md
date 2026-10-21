@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-21
+
 ### Added
 
 - **`/artel-worktrees` also reports the ticket locks.** `worktree.py list` now answers `locks`

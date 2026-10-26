@@ -1430,3 +1430,25 @@ tracker — so this run proves the adapter transport, the guard and the capabili
 role (the denial above covered `artel_parallel_startWorker`); the 2.0.32 proof covers all
 three. Still unproven after this run: live remote store/queue adapters and the
 expensive-setup/codegen host.
+
+**Expensive-setup host (2026-10-26).** The one criterion the earlier fixtures could not reach:
+their configured setup was real generation work measured at ~0.3–0.5 s per worker root, which
+is not an expensive-setup host and cannot show per-task setup multiplication. A scratch host
+was built with `setup.commands: ["python3 tools/generate.py"]` — a generator emitting 900
+modules of 700 functions each and then byte-compiling them, 371 MB per root, 20.9 s standalone
+— and `verify.commands: ["python3 generated/check.py"]`, which fails in a root that skipped
+setup. Recorded at `seats: 2`: both `worktree create` calls ran the setup in their own root
+and returned `setup: {"status": "complete", "ran": true, "commands": 1}` in **21,857 ms** and
+**21,681 ms** (about 1 s of worktree plumbing over the generator alone); each root held 902
+generated files and 371 MB; both pinned `artel-implementer` workers started
+(`adopted: false`, `ses_90eb54ec…`, `ses_8f8fe104…`), overlapped, and both returned validated
+`succeeded` results whose `verify` entry was green — `"generated ok: 900 modules"` — which is
+what makes this a codegen host rather than a sleep. The cost is **serialized, not overlapped**:
+the second root's marker is 27 s after the first, because the coordinator's create loop runs
+one `worktree create` at a time, so `seats: N` on this host pays N × setup (~43.5 s at
+`seats: 2`) before the first worker starts. Both worktrees were clean afterwards — the
+generated tree is gitignored, so setup never enters the task commit. Limits, not claims: one
+synthetic fixture, one sample per cell, generation-plus-compile rather than a network install;
+there is no `seats: 1` comparison to draw, because the serial procedure creates no worker
+roots at all. Raw evidence: the scratch host's `.artel/run/PROOF-15/` (host-owned, not
+committed).

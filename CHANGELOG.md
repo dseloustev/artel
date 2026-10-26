@@ -17,8 +17,17 @@ All notable changes to this project are documented here. The format follows
   lock, a `seats: 2` manifest, four detached worker worktrees, four pinned workers, two
   concurrent validated `succeeded` results, an interrupt reported as `interrupted`, and the
   worker-role denial of `artel_parallel_startWorker`. `PROVEN_VERSION` now pins 2.1.4
-  (`docs/opencode-parallel.md` §14). Still unproven: live remote store/queue adapters and the
-  expensive-setup/codegen host.
+  (`docs/opencode-parallel.md` §14). Still unproven: live remote store/queue adapters.
+
+- **The expensive-setup cost of per-task worktrees is measured, and it is serialized.** On a
+  scratch host whose `setup.commands` is a real generator plus byte-compile (~21 s, 371 MB per
+  root), two `worktree create` calls at `seats: 2` took **21,857 ms** and **21,681 ms**, each
+  with `setup: {"ran": true, "commands": 1}`, and both workers' `verify` came back green. The
+  second root starts only after the first finishes, so `seats: N` pays N × setup before the
+  first worker starts (~43.5 s at two seats) — the coordinator's create loop serializes it
+  (`docs/opencode-parallel.md` §14). The criterion is measured, not waived: one synthetic
+  fixture, one sample per cell, and no `seats: 1` comparison, because the serial procedure
+  creates no worker roots.
 
 ## [0.45.0] - 2026-10-21
 

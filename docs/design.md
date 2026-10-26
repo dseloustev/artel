@@ -148,13 +148,14 @@ move to the decision log.
   shared-state collisions the earlier plan listed — the `NNN-` report counter, one actor name,
   the whole-tree review snapshot, every task patching one tasklist, the shared
   `implementation-notes.md`, whole-tree codegen — are resolved by construction rather than by
-  serializing around them. Still unproven and not to be claimed: remote store/queue adapters
-  exercised live, and the expensive-setup/codegen host case — the fixture's setup is real
-  generation work measured at ~0.3–0.5 s per worker root, not an expensive-setup host, so
-  per-task worktree setup multiplication at significant setup cost is unmeasured: the
-  expensive-setup criterion is marked NOT PROVEN, not replaced by the cheaper case that was
-  measured. The default globally installed plugin path is no longer in this list: the
-  2026-10-26 re-proof ran through it, with no wrapper and no scratch install root.
+  serializing around them. The expensive-setup criterion is measured rather than unproven: on
+  2026-10-26 a scratch host whose `setup.commands` is a real generator plus byte-compile
+  (~21 s, 371 MB per root) paid it once per worker root — 21,857 ms and 21,681 ms for two
+  `worktree create` calls, serialized, with both workers' verify green
+  ([opencode-parallel.md](opencode-parallel.md) §14). Still unproven and not to be claimed:
+  remote store/queue adapters exercised live. The default globally installed plugin path is no
+  longer in this list either: the 2026-10-26 re-proof ran through it, with no wrapper and no
+  scratch install root.
 - **kartoteka's dashboard shows Mermaid as source.** Its 2026-09-17 dashboard design left Mermaid
   out (no stored document used it; about 3 MB of JavaScript), so `design-analysis.md`'s flow map
   renders as a diagram only on the files path. kartoteka's decision; recorded here because artel
@@ -1799,3 +1800,16 @@ move to the decision log.
   installed copy for the run and restored after, because the pin is the thing being re-proved
   — the committed source carries the same line. Still unproven: live remote store/queue
   adapters and the expensive-setup/codegen host.
+- **2026-10-26 — The expensive-setup criterion is measured, not waived.** Every earlier fixture
+  was cheap — ~0.3–0.5 s of setup per worker root — which cannot show per-task multiplication.
+  A scratch host with a real generator (900 modules of 700 functions, byte-compiled, 371 MB per
+  root, 20.9 s standalone) and a `verify` command that consumes its output paid that cost once
+  per root: 21,857 ms and 21,681 ms for two `worktree create` calls, both
+  `{"ran": true, "commands": 1}`, both workers' `verify` green. The measurement also settles the
+  *shape* of the cost: it is serialized, because the coordinator's create loop runs one
+  worktree at a time, so `seats: N` pays N × setup before the first worker starts (~43.5 s at
+  two seats) rather than overlapping the generators. That is a property of the loop, not of the
+  setup command, and it is now on the record instead of being inferred. Not waived and not
+  replaced: the fixture is synthetic, one sample per cell, generation-plus-compile rather than a
+  network install, and there is no `seats: 1` comparison to draw because the serial procedure
+  creates no worker roots at all. Spec: the contract's §14 proof record.

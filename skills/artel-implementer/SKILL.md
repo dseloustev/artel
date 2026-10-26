@@ -22,7 +22,8 @@ on every spawn. Default is the queue; see
 in any position; strip it before reading `$0`. Any other value is an invocation error — report
 it and stop. A dispatch refused for that model (not available, or not allowed on this host) is
 re-dispatched once without it. The orchestrator passes the flag to step up a fix round that
-follows a failed one (`${ARTEL_ROOT}/docs/autonomous-run.md` §5); otherwise the skill
+follows a failed one, and the one retry of a task whose gate stayed red
+(`${ARTEL_ROOT}/docs/autonomous-run.md` §5); otherwise the skill
 resolves the model itself (below).
 
 **Choosing the model** — after the spec-store read and before the `subagent` call, first match

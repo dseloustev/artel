@@ -323,7 +323,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Model:** resolved from `models.opencode` — an iteration task follows its route
   (`implementer.light` / `implementer.full`), a fix list its round (`implementer.fix` /
   `implementer.stepUp`); `--model` overrides it for one dispatch (the orchestrator passes
-  `implementer.stepUp` on a fix round that follows a failed one, `autonomous-run.md` §5).
+  `implementer.stepUp` on a fix round that follows a failed one, and on a task's one retry
+  after its gate stayed red, `autonomous-run.md` §5).
 - **Reads:** on the queue path a `task_ready` claim from kartoteka, else the phase tasks
   file or `tasklist.md` (first `- [ ]` task in scope; on a task-format tasklist the first task
   of the parser's `ready_now`) — `--local` forces the file

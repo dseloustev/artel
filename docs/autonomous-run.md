@@ -199,6 +199,7 @@ a cap escalation.
 | Loop | Cap (default) | Counter location |
 |---|---|---|
 | task gate → fix (per task, gates.md §1) | `MAX_VERIFY_ITERATIONS = 4` | `Verify iterations: N` in the implementer completion note |
+| task gate still red past the inner loop → one step-up retry (per task) | `MAX_TASK_STEPUP_RETRIES = 1` | `task <N.M>: step-up retry` in `run-journal.md` |
 | per-task review → fix (per task on the `full` route, §16) | `MAX_TASK_REVIEW_ROUNDS = 1` | the task's `task review` entry in `run-journal.md` (the round also counts toward `correction_rounds`) |
 | route floor 3 (per task, §16) — a threshold, not a loop | `ROUTE_FULL_FILES = 5` | none: a task whose `Files:` lists more paths is routed `full` |
 | plan review → fix (before the pause, task-format tasklists) | `MAX_PLAN_REVIEW_ROUNDS = 2` | `**Plan-review round:** k` in `.artel/run/<TICKET_ID>/plan-review.md` (the chatty head's; never counts toward `correction_rounds`) |
@@ -243,6 +244,19 @@ A fix list's first round resolves `implementer.fix`, whatever the task's route �
 run-level correction, not a task dispatch. Rounds that exist once — the per-task review's fix
 round, review fix round 1 — keep the default, and a stepped-up round counts
 toward `MAX_TOTAL_CORRECTION_ROUNDS` like any other.
+
+**A task retries once on the stronger model.** The task gate runs inside the implementer's own
+inner loop, so a task that exhausts `MAX_VERIFY_ITERATIONS` comes back aborted with the gate
+still red — and the tier that failed is the tier a plain retry would repeat. Before that abort
+becomes a cap escalation, the orchestrator dispatches the same task once more on
+`implementer.stepUp`, with the same resolution and `--model` flag as a stepped-up fix round; the
+retry keeps the task's route and its declared paths, and it is the same task, not a fix list.
+`MAX_TASK_STEPUP_RETRIES = 1` per task, journalled `task <N.M>: step-up retry`, counted toward
+`MAX_TOTAL_CORRECTION_ROUNDS`. Green → the task continues as any completed task (checkbox
+flipped by the dispatch, cycle committed by the orchestrator); red again → the cap escalation
+below, with **Debug it here first** still offered. An unset `stepUp` runs no retry and today's
+behaviour stands. In a parallel run the retry is the task's next attempt: the assignment's
+`attempt` is incremented and the step-up model pinned ([opencode-parallel.md](opencode-parallel.md) §4).
 
 Environment errors (toolchain/dependency mismatches, subprocess failures, missing tools) are **never**
 loop findings — immediate stop-and-ask pointing at setup.

@@ -1186,7 +1186,11 @@ class TestDebugHere(unittest.TestCase):
             self.assertIn(phrase, flat_section)
 
     def test_it_adds_no_step_up_round(self):
-        self.assertEqual(self.tail.count('--site implementer.stepUp'), 2)
+        # The option runs the debugging skill; it is not a model escalation. The tail's three
+        # `implementer.stepUp` uses are the review step-up, the checkpoint step-up and gate 5's
+        # task retry (2026-10-26) — none of them this section.
+        self.assertEqual(self.tail.count('--site implementer.stepUp'), 3)
+        self.assertNotIn('implementer.stepUp', self.section)
 
 
 class TestRouter(unittest.TestCase):
@@ -1255,7 +1259,8 @@ class TestRunContract(unittest.TestCase):
              '- size: <size> (<head> head; decided by <decided_by>)',
              'Spike answered: <one-line answer> — <path>')
     KEYS = ['size', 'head', 'reasons', 'decided_by', 'raised_from', 'answered', 'decided_at']
-    CAPS = ['MAX_VERIFY_ITERATIONS = 4', 'MAX_TASK_REVIEW_ROUNDS = 1', 'ROUTE_FULL_FILES = 5',
+    CAPS = ['MAX_VERIFY_ITERATIONS = 4', 'MAX_TASK_STEPUP_RETRIES = 1',
+            'MAX_TASK_REVIEW_ROUNDS = 1', 'ROUTE_FULL_FILES = 5',
             'MAX_PLAN_REVIEW_ROUNDS = 2', 'MAX_REVIEW_ROUNDS = 3',
             'MAX_CHECKPOINT_VERIFY_ROUNDS = 2', 'MAX_DEBUG_HERE_ATTEMPTS = 1',
             'MAX_TOTAL_CORRECTION_ROUNDS = 8', 'WALL_CLOCK_HOURS = 3']
@@ -1340,7 +1345,9 @@ class TestRunContract(unittest.TestCase):
         self.assertIn('A run armed before 0.25.0 has no `sizing.json` and resumes the same way, '
                       'through either command.', self.sizing)
 
-    def test_the_debug_option_is_the_one_new_cap(self):
+    def test_the_caps_and_the_debug_option(self):
+        # The debug option was the one new cap when it landed (0.25.0); the task step-up retry
+        # added a second bounded loop on 2026-10-26, so the list is asserted whole.
         caps = between(self.run, '## 5. Capped loops', '## 6.')
         table = between(self.raw, '| Loop | Cap (default) | Counter location |', '\n\n')
         self.assertEqual(re.findall(r'`([A-Z_]+ = \d+)`', table), self.CAPS)

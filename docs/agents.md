@@ -24,7 +24,7 @@ passes no model, so the child inherits the caller's:
 | `implementer` — an iteration task on route `light` | `implementer.light` |
 | `implementer` — an iteration task on route `full` | `implementer.full` |
 | `implementer` — a fix list, first round | `implementer.fix` |
-| `implementer` — a fix list, a round after a failed one (review round 2 or more, checkpoint verify round 2) | `implementer.stepUp` |
+| `implementer` — a fix list, a round after a failed one (review round 2 or more, checkpoint verify round 2), and a task's one retry after its gate stayed red | `implementer.stepUp` |
 | `reviewer` — a task review (route `full` tasks) | `reviewer.task` |
 | `reviewer` — a ticket/phase review, round 1 | `reviewer.phase` |
 | `reviewer` — a re-review after a fix round | `reviewer.reReview` |

@@ -76,8 +76,9 @@ class TestOrchestrators(unittest.TestCase):
         tail = flat(read(TAIL))
         self.assertIn('`--model <value>` when the findings come from a `review.md` whose '
                       '`**Review round:**` is 2 or more', tail)
-        self.assertEqual(tail.count('--site implementer.stepUp'), 2)
+        self.assertEqual(tail.count('--site implementer.stepUp'), 3)
         self.assertIn('plus `--model <value>` on the second round', tail)
+        self.assertIn('one step-up retry first, when `implementer.stepUp` is set', tail)
 
     def test_the_route_journal_line_carries_the_model(self):
         self.assertIn('; model <value>', read(TAIL))

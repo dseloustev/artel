@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A task whose gate stays red is retried once on the step-up model.** The task gate runs
+  inside the implementer's own loop, so a task that exhausted `MAX_VERIFY_ITERATIONS` came back
+  aborted and the run escalated to a person — after four rounds on the same tier. The
+  orchestrator now re-dispatches that task once on `implementer.stepUp` before the cap
+  escalation: one retry per task (`MAX_TASK_STEPUP_RETRIES = 1`), counted toward
+  `MAX_TOTAL_CORRECTION_ROUNDS`, journalled `task <N.M>: step-up retry`, with **Debug it here
+  first** still offered if it goes red again. An unset `stepUp` changes nothing
+  (`docs/autonomous-run.md` §5).
+
 ### Changed
 
 - **The parallel capability gate moved to OpenCode 2.1.4.** The installed service upgraded past

@@ -139,8 +139,8 @@ move to the decision log.
   `docs/superpowers/specs/2026-10-02-model-distribution-design.md`, local). The distribution
   landed from superpowers 6.4.1's evaluations (decision log, 2026-10-02); the OpenCode
   `models` block followed on 2026-10-07 (decision log). Still parked: `effort` per agent or
-  dispatch; a stronger-model retry after a red task gate; the `opus`-at-lower-effort arm stays
-  parked as an unmeasured lever. `tech-writer` and `issue-scout` stay `opus`: no superpowers
+  dispatch; the `opus`-at-lower-effort arm stays parked as an unmeasured lever. The
+  stronger-model retry after a red task gate left this list on 2026-10-26 (decision log). `tech-writer` and `issue-scout` stay `opus`: no superpowers
   equivalent argues for `sonnet`, and their only measurement points the other way.
 - **Sub-project 2c: parallel seats.** Shipped behind `parallel.seats` (absent or `1` is the
   serial procedure); the frozen contract is [opencode-parallel.md](opencode-parallel.md),
@@ -1835,3 +1835,18 @@ move to the decision log.
   remote-backed parallel cycle — no worker was launched and nothing was published, so the
   transport and the claim order are proven, not the whole loop. The rows and the stored version
   stay in `artel-smoke` as the trail.
+- **2026-10-26 — A task whose gate stays red gets one retry on the step-up model.** The task
+  gate runs inside the implementer's own inner loop, so a task that exhausted
+  `MAX_VERIFY_ITERATIONS` came back aborted with the gate red and the orchestrator went straight
+  to the cap-escalation question — all four rounds having been spent on the tier that failed.
+  The retry is added at the orchestrator, not inside the loop: one re-dispatch of the same task
+  (same route, same declared paths) on `implementer.stepUp`, the site that already means "the
+  dispatch after a failed one", so there is no new config key and no second lever to reason
+  about. Capped at one per task (`MAX_TASK_STEPUP_RETRIES = 1`), counted toward
+  `MAX_TOTAL_CORRECTION_ROUNDS`, journalled `task <N.M>: step-up retry`. A green retry continues
+  as any completed task; a red one falls through to the existing escalation, which keeps
+  **Debug it here first** — the retry is cheap and automatic, debugging stays the person's call.
+  An unset `stepUp` runs no retry, so a host that never configured one sees no change. In a
+  parallel run the retry is the task's next attempt, which the manifest already models.
+  Deliberately not adopted: re-dispatching at every red round (it would multiply the correction
+  cap), and a separate `implementer.retry` site (two levers for one decision).

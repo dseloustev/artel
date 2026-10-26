@@ -167,7 +167,8 @@ the reservation, and it is never bypassed with a local reservation.
 5. On a valid `succeeded` result: persist `verifying/reviewing` and go to §4. On a failed,
    blocked or interrupted worker: persist the matching side state with the recorded decision,
    keep the evidence, and let the run's bounded retry decide (a retry keeps the identity and
-   takes the next attempt).
+   takes the next attempt — pinned to the step-up model when `implementer.stepUp` is set,
+   `autonomous-run.md` §5).
 
 ## 4. Review, fix and prepare
 

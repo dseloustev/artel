@@ -124,7 +124,13 @@ move to the decision log.
 - **Spec images: parked follow-ups.** From the 2026-09-23 design, §15:
   - blobs out of SQLite if database size hurts backups;
   - an MCP `attachment_get` returning image content, once OpenCode support is known;
-  - user-supplied images and Jira attachments as sources;
+  - Jira attachments as sources — **blocked on the tracker adapter, not on artel** (checked
+    2026-10-26): the Jira MCP server exposes `jira_add_attachment` (upload) and no tool that
+    returns an attachment's bytes, and artel never holds the tracker's credentials, so a generic
+    fetch needs either a new adapter tool or a config-declared download command. The other half
+    of that item is **not** a gap: `image put <path> --file F` already takes any local file
+    ([spec-storage.md](spec-storage.md) §7), so a screenshot a person supplies is a first-class
+    source today;
   - phase-relative image links.
 
   Evidence files (`findings.json`, `observation.md`) moving into the store, and `.active_ticket`

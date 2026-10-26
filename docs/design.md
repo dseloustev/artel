@@ -152,10 +152,14 @@ move to the decision log.
   2026-10-26 a scratch host whose `setup.commands` is a real generator plus byte-compile
   (~21 s, 371 MB per root) paid it once per worker root — 21,857 ms and 21,681 ms for two
   `worktree create` calls, serialized, with both workers' verify green
-  ([opencode-parallel.md](opencode-parallel.md) §14). Still unproven and not to be claimed:
-  remote store/queue adapters exercised live. The default globally installed plugin path is no
-  longer in this list either: the 2026-10-26 re-proof ran through it, with no wrapper and no
-  scratch install root.
+  ([opencode-parallel.md](opencode-parallel.md) §14). The remote store and queue adapters are no
+  longer unproven either: on 2026-10-26 a scratch host on a live kartoteka 0.64.1 daemon wrote
+  and read a stored version through `spec_store.py`, and the coordinator's claim order ran
+  against the real queue — `claim prepare`, a `task_ready` claim into `in_progress`, `claim
+  record` mapping the row into the manifest, and a release back to `ready`
+  ([opencode-parallel.md](opencode-parallel.md) §14). The default globally installed plugin
+  path is no longer in this list either: the 2026-10-26 re-proof ran through it, with no wrapper
+  and no scratch install root.
 - **kartoteka's dashboard shows Mermaid as source.** Its 2026-09-17 dashboard design left Mermaid
   out (no stored document used it; about 3 MB of JavaScript), so `design-analysis.md`'s flow map
   renders as a diagram only on the files path. kartoteka's decision; recorded here because artel
@@ -1813,3 +1817,17 @@ move to the decision log.
   replaced: the fixture is synthetic, one sample per cell, generation-plus-compile rather than a
   network install, and there is no `seats: 1` comparison to draw because the serial procedure
   creates no worker roots at all. Spec: the contract's §14 proof record.
+- **2026-10-26 — The remote store and queue adapters are exercised live, and the claim order
+  holds against a real daemon.** The last unproven path in 2c was the one every fixture dodged
+  by running file-backed: kartoteka over HTTP. A scratch host pointed at a live kartoteka 0.64.1
+  (`project: artel-smoke`, never a real project) wrote and read a stored version through
+  `spec_store.py` — the scripted path the skills actually use, not just the MCP tool — and then
+  ran the coordinator's claim order against the real queue: `claim prepare` appended the intent,
+  `task_ready` moved a row into `in_progress` with the run's actor recorded as holder, `claim
+  record` mapped the returned row into the manifest (`state: mapped`, `action.kind: run`), and
+  `task_update` released it back to `ready`. Two things this settles that the deterministic
+  tests could not: the actor the coordinator derives is the actor the daemon records, and the
+  row shape the queue answers is the row shape the manifest accepts. Not claimed: a full
+  remote-backed parallel cycle — no worker was launched and nothing was published, so the
+  transport and the claim order are proven, not the whole loop. The rows and the stored version
+  stay in `artel-smoke` as the trail.

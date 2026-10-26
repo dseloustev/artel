@@ -29,6 +29,14 @@ All notable changes to this project are documented here. The format follows
   fixture, one sample per cell, and no `seats: 1` comparison, because the serial procedure
   creates no worker roots.
 
+- **The remote store and queue adapters are exercised live.** A scratch host on a running
+  kartoteka 0.64.1 daemon (`project: artel-smoke`) wrote and read a stored version through
+  `spec_store.py`, and the coordinator's claim order ran against the real queue: `claim
+  prepare`, a `task_ready` claim into `in_progress` with the run's actor recorded as holder,
+  `claim record` mapping the row into the manifest (`state: mapped`, `action.kind: run`), and
+  a release back to `ready`. Not claimed: a full remote-backed parallel cycle — no worker was
+  launched and nothing was published (`docs/opencode-parallel.md` §14).
+
 ## [0.45.0] - 2026-10-21
 
 ### Added

@@ -1452,3 +1452,22 @@ synthetic fixture, one sample per cell, generation-plus-compile rather than a ne
 there is no `seats: 1` comparison to draw, because the serial procedure creates no worker
 roots at all. Raw evidence: the scratch host's `.artel/run/PROOF-15/` (host-owned, not
 committed).
+
+**Live remote store and queue adapters (2026-10-26).** The last unproven path: every earlier
+fixture ran file-backed, so kartoteka's HTTP store and queue were covered only by their
+deterministic tests, never exercised live. A scratch host was configured with
+`knowledge: {adapter: kartoteka, baseUrl: http://127.0.0.1:8734, project: artel-smoke,
+tokenEnv: KARTOTEKA_TOKEN}` and `parallel.seats: 2`, against a running kartoteka 0.64.1
+daemon. **Store:** `spec_store.py put` wrote `PROOF-16`/`plan`/`plan.md` as **v1**
+(`content_hash 8e5233f4…`), and `list` and `get` read it back with the `version: 1` line
+stamped — the scripted path the skills use, not just the MCP tool. **Queue:** `task_create`
+filed parent #588 and two `ready` children (#589, #590); the coordinator's own claim order was
+then run end to end — `claim prepare` appended intent `<run_id>#1:1` with actor
+`artel@<run_id>#1:1`, `task_ready(parent_id: 588)` claimed #589 into `in_progress` and recorded
+that actor as its holder (principal `dsel`, verified by the daemon), and `claim record` mapped
+the returned row into the manifest as `state: "mapped"` with `action.kind: "run"` at revision
+3. `task_update` then released #589 back to `ready`, clearing the holder. Limits, not claims:
+one claim and one document; no worker was launched and nothing was published, so this proves
+the two adapters and the claim order against a live daemon — not a full remote-backed parallel
+cycle. The rows and the stored version stay in `artel-smoke` as the trail; they are not cleaned
+up, and no real project was touched.

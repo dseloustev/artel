@@ -3,7 +3,7 @@
  *
  * The thin transport half of the Task 7 adapter (docs/opencode-parallel.md §2): four tools
  * registered by the bridge (`opencode/plugin/artel.ts`), each one a small sequence of
- * installed 2.0.32 plugin-client calls bracketed by the policy half
+ * installed 2.1.4 plugin-client calls bracketed by the policy half
  * (`scripts/parallel_launch.py`), which owns every decision -- request validation, the
  * capability gate, the launch journal, session verification, result recovery and
  * interruption semantics. Nothing here re-implements a schema or a lifecycle rule.

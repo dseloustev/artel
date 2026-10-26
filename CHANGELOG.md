@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The parallel capability gate moved to OpenCode 2.1.4.** The installed service upgraded past
+  the pinned 2.0.32, which the gate refuses by design (`unsupported_version`) — so parallel mode
+  was refused on a 2.1.4 host, not merely unproven. The surface check came first and found all
+  seven required client calls present on 2.1.4, so the refusal was the pin and not a capability
+  gap; the gate was then re-proved on 2.1.4 **through the default globally installed plugin**
+  (no wrapper, no scratch install root, no restart): capabilities `ok`, preflight and ticket
+  lock, a `seats: 2` manifest, four detached worker worktrees, four pinned workers, two
+  concurrent validated `succeeded` results, an interrupt reported as `interrupted`, and the
+  worker-role denial of `artel_parallel_startWorker`. `PROVEN_VERSION` now pins 2.1.4
+  (`docs/opencode-parallel.md` §14). Still unproven: live remote store/queue adapters and the
+  expensive-setup/codegen host.
+
 ## [0.45.0] - 2026-10-21
 
 ### Added

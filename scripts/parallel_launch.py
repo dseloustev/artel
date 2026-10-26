@@ -2,7 +2,7 @@
 """parallel-launch: the OpenCode worker-session adapter's policy half.
 
 `opencode/plugin/parallel.ts` is the native transport (session create/prompt/status/
-interrupt through the installed 2.0.32 plugin client); this module owns every decision it
+interrupt through the installed 2.1.4 plugin client); this module owns every decision it
 makes, so no schema or lifecycle policy is reimplemented in TypeScript. Contract:
 docs/opencode-parallel.md -- §2 (adapter surface), §4-§5 (assignment/result), §6/§10
 (task states, the three outcome layers), §9 (model resolution) and §12 (capability
@@ -65,7 +65,7 @@ if str(HOOKS) not in sys.path:
 import hook_common  # noqa: E402
 
 SCHEMA = 1
-PROVEN_VERSION = '2.0.32'
+PROVEN_VERSION = '2.1.4'
 # The installed client surface the transport uses, as dotted capability keys.
 REQUIRED_API = ('app.version', 'model.list', 'session.create', 'session.get',
                 'session.prompt', 'session.interrupt', 'session.context')

@@ -140,7 +140,7 @@ move to the decision log.
   equivalent argues for `sonnet`, and their only measurement points the other way.
 - **Sub-project 2c: parallel seats.** Shipped behind `parallel.seats` (absent or `1` is the
   serial procedure); the frozen contract is [opencode-parallel.md](opencode-parallel.md),
-  proven against OpenCode 2.0.32 (re-proved 2026-10-19; originally 2.0.29) and validated end
+  proven against OpenCode 2.1.4 (re-proved 2026-10-26; originally 2.0.29, then 2.0.32) and validated end
   to end on a real host fixture in local file-backed mode (2026-10-16: worker changes →
   scoped gate → task review → transport/apply/one-cycle commit → durable publication,
   `seats: 2` with pause/resume plus a `seats: 1` sample). Per-task worktrees ([worktrees.md](worktrees.md)) replace shared-tree
@@ -149,12 +149,12 @@ move to the decision log.
   the whole-tree review snapshot, every task patching one tasklist, the shared
   `implementation-notes.md`, whole-tree codegen — are resolved by construction rather than by
   serializing around them. Still unproven and not to be claimed: remote store/queue adapters
-  exercised live, the default globally installed plugin path (the fixture used a per-instance
-  bridge wrapper), and the expensive-setup/codegen host case — the fixture's setup is real
+  exercised live, and the expensive-setup/codegen host case — the fixture's setup is real
   generation work measured at ~0.3–0.5 s per worker root, not an expensive-setup host, so
   per-task worktree setup multiplication at significant setup cost is unmeasured: the
   expensive-setup criterion is marked NOT PROVEN, not replaced by the cheaper case that was
-  measured.
+  measured. The default globally installed plugin path is no longer in this list: the
+  2026-10-26 re-proof ran through it, with no wrapper and no scratch install root.
 - **kartoteka's dashboard shows Mermaid as source.** Its 2026-09-17 dashboard design left Mermaid
   out (no stored document used it; about 3 MB of JavaScript), so `design-analysis.md`'s flow map
   renders as a diagram only on the files path. kartoteka's decision; recorded here because artel
@@ -1782,3 +1782,20 @@ move to the decision log.
   migrating a finished record would invent fields nobody wrote; the message points at a new
   ticket instead. The bug head keeps its stop: a follow-up is the lean head's offer, not a
   second way into a fault run.
+- **2026-10-26 — The parallel capability gate moved to OpenCode 2.1.4, through the global
+  install.** The installed service upgraded past the pinned 2.0.32 and the gate refused
+  parallel mode by design, so the feature was dead on the maintainer's own host while the
+  contract still claimed it. The surface check settled the question before any run: the
+  `workerCapabilities` report listed **all seven** required names as present on 2.1.4, so the
+  refusal was the version pin, not a capability gap. The gate was then re-run on 2.1.4 and,
+  unlike every earlier proof, through the **default globally installed plugin** — the bridge
+  from `~/.config/opencode/plugins/` and the helper from `~/.config/opencode/artel/`, no
+  wrapper, no scratch install root, no restart. Two of the three parked claims close with it:
+  the global install path is exercised (the earlier proofs all avoided it), and the pin moves.
+  The run proved transport, not a cycle: capabilities, preflight, lock, manifest, four
+  detached worktrees, four pinned workers, two concurrent validated results, an interrupt
+  reported as interrupted, and the worker-role denial. `PROVEN_VERSION` now pins 2.1.4; the
+  2.0.32 and 2.0.29 proofs remain history. Disclosed deviation: the pin was edited in the
+  installed copy for the run and restored after, because the pin is the thing being re-proved
+  — the committed source carries the same line. Still unproven: live remote store/queue
+  adapters and the expensive-setup/codegen host.

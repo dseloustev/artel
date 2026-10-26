@@ -144,7 +144,7 @@ class WorkerCase(unittest.TestCase):
         value.update(overrides)
         return value
 
-    def capabilities(self, version='2.0.32', **api_overrides):
+    def capabilities(self, version='2.1.4', **api_overrides):
         api = {key: True for key in parallel_launch.REQUIRED_API}
         api.update(api_overrides)
         return {'version': version, 'api': api}
@@ -424,7 +424,7 @@ class TestCapabilitiesPolicy(AdapterCase):
     def test_the_proven_version_and_api_are_accepted(self):
         report = parallel_launch.capability_report(self.capabilities())
         self.assertTrue(report['ok'])
-        self.assertEqual(report['version'], '2.0.32')
+        self.assertEqual(report['version'], '2.1.4')
         self.assertEqual(report['reasons'], [])
 
     def test_another_version_is_refused_before_any_effect(self):

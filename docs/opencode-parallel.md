@@ -1,6 +1,6 @@
 # OpenCode parallel workers — frozen contract
 
-*Status: v0.2 · 2026-10-19 · proven on OpenCode 2.0.32*
+*Status: v0.2 · 2026-10-26 · proven on OpenCode 2.1.4*
 
 Sub-project 2c runs one worker session per task on the OpenCode host. This file is the
 contract the native capability gate froze: it fixes the session interfaces the adapter
@@ -16,7 +16,8 @@ them through `scripts/parallel.py` (§13.10-§13.11), and `parallel.seats` absen
 the serial procedure exactly as it is (a boolean is not an integer and fails configuration
 validation).
 
-Proven against **OpenCode 2.0.32** only (re-proved 2026-10-19; the original proof was 2.0.29).
+Proven against **OpenCode 2.1.4** only (re-proved 2026-10-26; originally 2.0.29, re-proved on
+2.0.32 on 2026-10-19).
 The names below are the installed v2 HTTP API and event stream, retrieved through
 `opencode api get /openapi.json`; capability coverage is exactly the proven version, not every
 V2 release, so a version change re-runs the gate before parallel mode is enabled.
@@ -35,7 +36,8 @@ barrier until the observer had recorded `started == {A, B}` and `completed == {}
 event stream; only then were they released. Both made a distinct file edit and ran an
 ordinary task check, and the existing bridge hooks ran in each worker's own root.
 
-Demonstrated natively on 2.0.32 (re-proved 2026-10-19; originally 2.0.29): explicit
+Demonstrated natively on 2.1.4 (re-proved 2026-10-26; originally 2.0.29, re-proved on 2.0.32 on
+2026-10-19): explicit
 `location`/`agent`/`model` on session create; concurrent sessions with per-session event
 streams; `session.execution.started` and `session.execution.succeeded`; interrupt with a
 durable `interrupted` outcome; durable status and message recovery after a deliberately
@@ -149,7 +151,7 @@ its own checkout without touching global state.
 
 **Capabilities.** `workerCapabilities` is read-only and reports the installed version and the
 plugin-client surface the adapter needs. `startWorker` re-checks that report first: anything
-but exactly 2.0.32 with the full surface is refused (`unsupported_version` /
+but exactly 2.1.4 with the full surface is refused (`unsupported_version` /
 `unsupported_api`) before any journal, session or prompt exists. The coordinator's preflight
 consumes this report before its first claim or worker creation (§12).
 
@@ -1395,3 +1397,36 @@ model rather than resolved from config, and the coordinator created the feature 
 the repo-local `init.defaultBranch`. Raw evidence: the scratch host's `.artel/run/PROOF-13/`
 and branch `feature/PROOF-13` (not committed). Still unproven: the default globally installed
 plugin path, live remote store/queue adapters and the expensive-setup/codegen host.
+
+**Capability re-proof on 2.1.4 (2026-10-26).** The installed service upgraded past 2.0.32,
+which the gate refuses by design (`unsupported_version`) — parallel mode was refused on the
+maintainer's own host, not merely unproven. Rather than downgrade the service, the gate was
+re-run against 2.1.4 **through the default globally installed plugin** — no wrapper, no
+scratch install root and no service restart: `~/.config/opencode/plugins/artel.ts` registered
+the tools and `~/.config/opencode/artel/scripts/parallel_launch.py` answered every policy
+call, with `ARTEL_ROOT` unset. Recorded: `workerCapabilities` `ok: true` for 2.1.4 with the
+full seven-name client surface; `parallel.py preflight` green on a scratch host
+(`feature/PROOF-14`, `parallel.seats: 2`) and the ticket lock acquired under the coordinator
+session's id; a run manifest at `seats: 2` and four detached lifecycle worktrees, each with
+its own marker and artifact root; four pinned `artel-implementer` workers created and
+prompted (`adopted: false`, distinct session ids `ses_083bebc4…`, `ses_a299ff83…`,
+`ses_c820e069…`, `ses_b274fbdf…`) at `tokenguard/deepseek-flash`; two workers live at the
+same time (1.2 created while 1.1 was still running) and both returning validated `succeeded`
+results whose identity matched their assignments exactly; `interruptWorker` interrupting a
+third mid-turn (`{"interrupted": true}`, `already_interrupted: false`) with `workerStatus`
+reporting `outcome: interrupted`, `success: false`, `result_error: "missing"`; and a worker's
+`artel_parallel_startWorker` call denied pre-execution by the worker-role guard with the exact
+`artel worker role` error, so no child session and no journal entry were created. A fourth
+worker that wrote no result reported `state: awaiting_result`, `result_error: "missing"` — a
+non-success, never an idle-means-done. Raw evidence: the scratch host's
+`.artel/run/PROOF-14/` (host-owned, not committed).
+
+Deviations disclosed: `PROVEN_VERSION` was temporarily set to `'2.1.4'` in the **installed**
+copy of `scripts/parallel_launch.py` for the run, since the pin it carries is the thing being
+re-proved; the file was restored afterwards and the committed source carries the same one
+line. The host was a minimal fixture — no `setup.commands`, no tasklist, no queue and no
+tracker — so this run proves the adapter transport, the guard and the capability gate on
+2.1.4, not a full task cycle. `subagent` and `question` were not re-exercised in the worker
+role (the denial above covered `artel_parallel_startWorker`); the 2.0.32 proof covers all
+three. Still unproven after this run: live remote store/queue adapters and the
+expensive-setup/codegen host.

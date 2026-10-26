@@ -45,7 +45,7 @@ const hooks = { tool: new Map(), session: new Map() }
 const tools = new Map()
 
 const ctx = {
-  app: { version: "2.0.32" },
+  app: { version: "2.1.4" },
   location: { directory: hostDir },
   model: { list: async () => [] },
   tool: {

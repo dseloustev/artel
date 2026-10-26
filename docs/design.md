@@ -164,6 +164,16 @@ move to the decision log.
   ([opencode-parallel.md](opencode-parallel.md) §14). The default globally installed plugin
   path is no longer in this list either: the 2026-10-26 re-proof ran through it, with no wrapper
   and no scratch install root.
+- **Parallel seats serialize setup cost.** Measured 2026-10-26 on a host whose `setup.commands`
+  is a real generator plus byte-compile (~21 s, 371 MB per root): two `worktree create` calls
+  took 21,857 ms and 21,681 ms back to back, so `seats: N` pays N × setup before the first
+  worker starts (~43.5 s at two seats). The coordinator's create loop is the cause, not the
+  setup command. Parallel mode exists to buy wall-clock and this spends it — at four seats on a
+  five-minute codegen host it would be twenty minutes of dead time before any work begins.
+  Not decided: overlapping the create loop, or launching the first worker while later roots
+  build. Recorded rather than fixed because it only bites on hosts with expensive setup, and
+  because changing the loop touches admission and publication ordering
+  ([opencode-parallel.md](opencode-parallel.md) §14).
 - **kartoteka's dashboard shows Mermaid as source.** Its 2026-09-17 dashboard design left Mermaid
   out (no stored document used it; about 3 MB of JavaScript), so `design-analysis.md`'s flow map
   renders as a diagram only on the files path. kartoteka's decision; recorded here because artel

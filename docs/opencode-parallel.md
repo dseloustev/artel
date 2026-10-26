@@ -1463,7 +1463,8 @@ daemon. **Store:** `spec_store.py put` wrote `PROOF-16`/`plan`/`plan.md` as **v1
 stamped — the scripted path the skills use, not just the MCP tool. **Queue:** `task_create`
 filed parent #588 and two `ready` children (#589, #590); the coordinator's own claim order was
 then run end to end — `claim prepare` appended intent `<run_id>#1:1` with actor
-`artel@<run_id>#1:1`, `task_ready(parent_id: 588)` claimed #589 into `in_progress` and recorded
+`artel@<run_id>#1:1`, `task_ready(project=artel-smoke, parent_id: 588)` claimed #589 into
+`in_progress` and recorded
 that actor as its holder (principal `dsel`, verified by the daemon), and `claim record` mapped
 the returned row into the manifest as `state: "mapped"` with `action.kind: "run"` at revision
 3. `task_update` then released #589 back to `ready`, clearing the holder. Limits, not claims:

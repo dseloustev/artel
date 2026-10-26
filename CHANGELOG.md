@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-10-26
+
 ### Added
 
 - **A task whose gate stays red is retried once on the step-up model.** The task gate runs

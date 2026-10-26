@@ -335,6 +335,18 @@ whitespace, non-empty halves, at most one `#` after the model half with a non-em
 `tokenguard/opus-5.5`, `tokenguard/deepseek-flash#xhigh`. A malformed value is a configuration
 error under reading rule 3, caught when that site resolves.
 
+**`#variant` is the effort lever.** OpenCode's variants are named options for one model — "often
+used for reasoning effort or token budgets" (OpenCode V2, Models) — and OpenCode selects one per
+run, session, agent or command, never on the root default. A site value is exactly such a
+selection for one dispatch, so per-agent and per-dispatch effort needs no key of its own: name
+the variant in that site's model and nothing else changes. Variant names come from the selected
+model's catalog metadata, and `low` / `high` / `max` do not exist on every model. An unknown
+variant is a model-resolution error, so check the name against the catalog: the parallel adapter
+refuses it as `unresolved_model` and names the installed variants, while an ordinary dispatch is
+refused by OpenCode and then re-dispatched once without the model
+([agents.md](agents.md) `## Models`, step 4) — it runs on the caller's model, not at the effort
+that was asked for.
+
 ### `guard` — the platform guard's escape hatch
 
 | Key | Type | Default | Allowed values / notes | Consumed by |

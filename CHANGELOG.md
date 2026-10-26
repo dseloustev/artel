@@ -19,6 +19,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **`#variant` is documented as the effort lever.** OpenCode's variants are named options for one
+  model, "often used for reasoning effort or token budgets", and OpenCode selects one per run,
+  session, agent or command — which is exactly what a `models.opencode` site already is. Per-agent
+  and per-dispatch effort therefore needs no key of its own: name the variant in the site's
+  model. The parked "effort per agent or dispatch" item needed no mechanism, only this
+  documentation (`docs/config.md`, `models`).
+
 - **The parallel capability gate moved to OpenCode 2.1.4.** The installed service upgraded past
   the pinned 2.0.32, which the gate refuses by design (`unsupported_version`) — so parallel mode
   was refused on a 2.1.4 host, not merely unproven. The surface check came first and found all

@@ -144,9 +144,11 @@ move to the decision log.
 - **Model selection: what stays parked** (2026-10-02 design,
   `docs/superpowers/specs/2026-10-02-model-distribution-design.md`, local). The distribution
   landed from superpowers 6.4.1's evaluations (decision log, 2026-10-02); the OpenCode
-  `models` block followed on 2026-10-07 (decision log). Still parked: `effort` per agent or
-  dispatch; the `opus`-at-lower-effort arm stays parked as an unmeasured lever. The
-  stronger-model retry after a red task gate left this list on 2026-10-26 (decision log). `tech-writer` and `issue-scout` stay `opus`: no superpowers
+  `models` block followed on 2026-10-07 (decision log). Still parked: the `opus`-at-lower-effort
+  arm stays parked as an unmeasured lever, and no A/B will be run for it (2026-10-26). Two items
+  left this list on 2026-10-26 (decision log): the stronger-model retry after a red task gate,
+  and `effort` per agent or dispatch — which needed no key at all, because `#variant` is
+  OpenCode's effort lever and a dispatch site is already a per-dispatch selection. `tech-writer` and `issue-scout` stay `opus`: no superpowers
   equivalent argues for `sonnet`, and their only measurement points the other way.
 - **Sub-project 2c: parallel seats.** Shipped behind `parallel.seats` (absent or `1` is the
   serial procedure); the frozen contract is [opencode-parallel.md](opencode-parallel.md),
@@ -1866,3 +1868,15 @@ move to the decision log.
   parallel run the retry is the task's next attempt, which the manifest already models.
   Deliberately not adopted: re-dispatching at every red round (it would multiply the correction
   cap), and a separate `implementer.retry` site (two levers for one decision).
+- **2026-10-26 — `#variant` is the effort lever; there is no `effort` key.** The parked item asked
+  for effort per agent or dispatch as though it needed configuration of its own. It does not:
+  OpenCode's variants are named options for one model, "often used for reasoning effort or token
+  budgets", and OpenCode selects one per run, session, agent or command — never on the root
+  default, which is exactly why a per-dispatch value is the right shape. `models.opencode` has
+  carried `provider/model#variant` since 2026-10-07, so the lever existed the whole time and was
+  merely not documented as one; what changed is the documentation, not the mechanism
+  ([config.md](config.md), `models`). The A/B that would have measured `opus` at a lower effort
+  is not going to run — the project does not A/B — so that arm stays parked as unmeasured rather
+  than being claimed or dropped. One consequence worth knowing: an unknown variant is a
+  model-resolution error, and the existing refusal rule re-dispatches once without the model, so
+  a typo costs the effort setting rather than failing the run.

@@ -130,7 +130,11 @@ move to the decision log.
   Evidence files (`findings.json`, `observation.md`) moving into the store, and `.active_ticket`
   moving to `.artel/run/`, stay parked (2026-09-22 design, §16).
 - **The license holder is provisional.** MIT under a personal name pending AdGuard's review of
-  the plugin (decision of 2026-07-27, below). No record that the review has been requested.
+  the plugin (decision of 2026-07-27, below). No record that the review has been requested —
+  and on 2026-10-26 it was deliberately deferred: the project is still in development and has
+  not been rolled out beyond its author, so the holder line stays as written until it is.
+  Revisit at rollout, not before. The repo is already public under that line, so whenever the
+  correction comes it is a visible licence change, not a draft being fixed.
 - **Model selection: what stays parked** (2026-10-02 design,
   `docs/superpowers/specs/2026-10-02-model-distribution-design.md`, local). The distribution
   landed from superpowers 6.4.1's evaluations (decision log, 2026-10-02); the OpenCode

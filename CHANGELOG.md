@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **The Bratishka duty toolkit.** Five `artel-bratishka-*` skills run the daily review duty
+  against one configured external service: `status` renders the read-only board (testing PRs,
+  the queue by approval bucket, live bot tasks, next actions), `cancel-testing-pr` closes the
+  stale testing PR with its fixed comment, `testing-pr` bundles the reviewed but not
+  QA-approved PRs through the bot's manual `/spawn` flow with a local git+`gh` fallback,
+  `request-fix` composes one `/agent` comment from the PR's unresolved threads, and
+  `merge-approved` updates a `BEHIND` branch and squash-merges the QA-approved PRs.
+  `scripts/bratishka.py` keeps every deterministic read and plan in one JSON envelope per
+  invocation. A `bratishka` block in `.artel/config.json` holds the repo, teams, dashboard
+  origin, naming templates and spawn adapter; the contract — approval model, testing-PR body
+  and naming, spawn flow, safety and degradation — is
+  [docs/bratishka-duty.md](docs/bratishka-duty.md).
+
 ## [0.46.0] - 2026-10-26
 
 ### Added

@@ -121,6 +121,9 @@ Contracts and internals:
   · [docs/path-conventions.md](docs/path-conventions.md) — the rules the pipeline obeys
 - [docs/deep-review.md](docs/deep-review.md) — the deep-review contract: the pinned target, the
   machine report (schema 1), and the report's metadata, finding IDs and task format
+- [docs/bratishka-duty.md](docs/bratishka-duty.md) — the Bratishka duty contract: config,
+  approval model, testing-PR body and naming, the spawn flow, and the safety rules the
+  `artel-bratishka-*` skills cite
 - [CHANGELOG.md](CHANGELOG.md)
 
 ## License

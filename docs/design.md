@@ -1880,3 +1880,12 @@ move to the decision log.
   than being claimed or dropped. One consequence worth knowing: an unknown variant is a
   model-resolution error, and the existing refusal rule re-dispatches once without the model, so
   a typo costs the effort setting rather than failing the run.
+- **2026-11-05 — Bratishka duty is a config-driven service integration, not a special case.**
+  The daily review duty is a named external service like kartoteka: a `bratishka` config block
+  holds the repo, teams, dashboard origin, naming templates and spawn adapter; five
+  `artel-bratishka-*` skills orchestrate and confirm; `scripts/bratishka.py` keeps the
+  deterministic reads and plans. Approval is read from review state (QA team vs code-review
+  team; a CODEOWNERS approval is neither); merge readiness is `mergeStateStatus`, because a
+  decorative check fails on every PR; the testing PR is built by the bot through the manual
+  `/spawn` flow, with `--local` as the fallback; the router pays for one compact row
+  (`docs/bratishka-duty.md`, `docs/config.md`).

@@ -36,6 +36,12 @@ class TestConfigDocs(unittest.TestCase):
                          'feature/testing-{dd}-{mm}-{yy}')
         self.assertFalse(block['testingPr']['deleteBranchOnCancel'])
 
+    def test_documented_defaults_match_the_loader(self):
+        import sys
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        import bratishka_config as cfg
+        self.assertEqual(default_config()['bratishka'], cfg.DEFAULTS)
+
     def test_key_reference_names_every_key(self):
         text = read('docs/config.md')
         for key in (

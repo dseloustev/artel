@@ -131,3 +131,54 @@ class TestStatus(unittest.TestCase):
         code, out = run(['nope'], gh=FakeGh([]))
         self.assertEqual(code, 2)
         self.assertEqual(out['error']['kind'], 'invalid_argument')
+
+
+class TestCancel(unittest.TestCase):
+    def setUp(self):
+        self.repo = tempfile.TemporaryDirectory()
+        self.addCleanup(self.repo.cleanup)
+
+    def write_config(self):
+        path = Path(self.repo.name) / '.artel' / 'config.json'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({'bratishka': {'botLogin': 'bratishka-bot'}}),
+                        encoding='utf-8')
+
+    def gh(self):
+        gh = FakeGh([
+            pr(1, title='Testing 03-11-26', head='feature/testing-03-11-26'),
+            pr(2, title='Testing 02.11.26', head='testing/aw-2986-2026-11-02'),
+            pr(3, title='AW-9 ordinary', head='agent/x'),
+        ])
+        gh.closed = []
+        gh.close_pr = lambda repo, n, comment=None, delete_branch=False: \
+            gh.closed.append((n, delete_branch))
+        return gh
+
+    def test_without_yes_it_requires_confirmation(self):
+        self.write_config()
+        code, out = run(['testing-pr-cancel', '--repo', self.repo.name], gh=self.gh())
+        self.assertEqual(code, 1)
+        self.assertTrue(out['error']['confirmation_required'])
+        self.assertEqual([c['number'] for c in out['error']['candidates']], [1, 2])
+
+    def test_yes_closes_only_stale_testing_prs(self):
+        self.write_config()
+        gh = self.gh()
+        code, out = run(['testing-pr-cancel', '--repo', self.repo.name, '--yes', '--json'],
+                        gh=gh)
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(gh.closed), [(1, False), (2, False)])
+
+    def test_today_is_left_alone(self):
+        self.write_config()
+        today = __import__('datetime').date.today()
+        name = today.strftime('%d-%m-%y')
+        gh = FakeGh([pr(9, title='Testing ' + name,
+                        head='feature/testing-' + name)])
+        gh.closed = []
+        gh.close_pr = lambda *a, **k: gh.closed.append(a[1])
+        code, out = run(['testing-pr-cancel', '--repo', self.repo.name, '--yes'],
+                        gh=gh)
+        self.assertEqual(code, 1)
+        self.assertEqual(gh.closed, [])

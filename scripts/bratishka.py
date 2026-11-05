@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """bratishka: the command-line engine behind the Bratishka duty.
 
-The read/plan half of the daily review-day contract (docs/bratishka-duty.md):
-it composes the libraries below into one envelope per invocation, so every skill
-reads deterministic JSON instead of re-deriving approvals or queue buckets.
+The daily review-day contract (docs/bratishka-duty.md) as one envelope per
+invocation: it composes the libraries below into deterministic JSON, so every
+skill reads one verdict instead of re-deriving approvals or queue buckets.
 
 `status` is the read-only board: open testing PRs with their date and age, the
 queue split into the three approval buckets plus the `blocked` and `bot-working`
 overlays, the dashboard's live bot tasks, and next actions that each name the
 skill to run. It writes nothing and never merges, closes or comments.
+
+`testing-pr-cancel` is the one write here: it closes the open testing PRs whose
+name spells a date before today, leaves a fixed close comment, and never touches
+today's, a non-testing or an already closed one.
 
 Exit codes are the contract's: `0` success, `1` a user-actionable failure
 (nothing to do, a refusal), `2` a configuration or environment error. Every
@@ -18,6 +22,7 @@ Contract: docs/bratishka-duty.md (`## Queue and board`, `## Testing PR`,
 `## Safety and degradation`), docs/config.md (`bratishka`).
 
 Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
+       bratishka.py testing-pr-cancel [--repo <dir>] [--delete-branch] [--yes] [--json]
 """
 import json
 import re
@@ -36,6 +41,9 @@ BUCKETS = ('qa-approved', 'needs-qa', 'needs-review', 'bot-working', 'blocked')
 LIVE_STATES = ('active', 'queued')
 # A source PR link in a testing PR's body, e.g. `https://github.com/o/r/pull/12`.
 SOURCE_LINK_RE = re.compile(r'/pull/(\d+)')
+# The one close comment the cancel path posts, whatever the testing PR bundled.
+CANCEL_COMMENT = ('Closed by the duty reviewer: the daily testing PR lives one day '
+                  'and is replaced by today\'s.')
 
 
 class UsageError(Exception):
@@ -74,6 +82,29 @@ def parse_status(args):
             options['json'] = True
         elif arg == '--offline':
             options['offline'] = True
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    return options
+
+
+def parse_cancel(args):
+    """`testing-pr-cancel`'s flags: `repo`, `json`, `delete_branch` and `yes`."""
+    options = {'repo': '.', 'json': False, 'delete_branch': False, 'yes': False}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--repo':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --repo <dir>')
+            options['repo'] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        elif arg == '--delete-branch':
+            options['delete_branch'] = True
+        elif arg == '--yes':
+            options['yes'] = True
         else:
             raise UsageError('unknown flag: {}'.format(arg))
         i += 1
@@ -229,6 +260,114 @@ def build_status(config, gh, dashboard, offline=False):
     }
 
 
+def cancel_plan(config, gh, today=None):
+    """The stale testing PRs to close, oldest first, and how many were kept aside.
+
+    Every open PR is read, not just the bot's: a testing PR from before the
+    naming rule may carry another author. A PR is a candidate when the broad
+    detection accepts it and its name-or-`created_at` date is before `today`.
+    Today's, later-dated and undated testing PRs are never candidates; they are
+    counted in `skip_today` instead. A merged or closed PR is never one either.
+    """
+    config = config if isinstance(config, dict) else {}
+    repo = config.get('repo') or gh.repo_slug()
+    if not repo:
+        raise GhError('failed', 'could not resolve the repository; set bratishka.repo')
+    today = today or date.today()
+    candidates = []
+    skip_today = 0
+    for pr in gh.open_prs(repo):
+        if str(pr.get('state') or 'OPEN').upper() != 'OPEN':
+            continue
+        if not bratishka_rules.is_testing_pr(pr, config):
+            continue
+        found = bratishka_rules.pr_date(pr, config)
+        if found is None or found >= today:
+            skip_today += 1
+            continue
+        candidates.append({
+            'number': pr.get('number'),
+            'title': pr.get('title') or '',
+            'url': pr.get('url') or '',
+            'head': pr.get('head') or '',
+            'date': found.isoformat(),
+            'age_days': (today - found).days,
+        })
+    candidates.sort(key=lambda item: (item['date'], item['number'] or 0))
+    return {'repo': repo, 'candidates': candidates, 'skip_today': skip_today}
+
+
+def cancel_apply(config, gh, candidates, delete_branch=False):
+    """Close every candidate with the fixed comment; collect the failures.
+
+    One failing `gh pr close` never stops the rest: the result names what was
+    closed and what failed, so a partial run is reported instead of hidden.
+    """
+    config = config if isinstance(config, dict) else {}
+    repo = config.get('repo') or gh.repo_slug()
+    if not repo:
+        raise GhError('failed', 'could not resolve the repository; set bratishka.repo')
+    closed = []
+    failed = []
+    for item in candidates:
+        try:
+            gh.close_pr(repo, item.get('number'), comment=CANCEL_COMMENT,
+                        delete_branch=delete_branch)
+        except GhError as exc:
+            failed.append({'number': item.get('number'), 'kind': exc.kind,
+                           'message': exc.message})
+            continue
+        closed.append(item)
+    return {'repo': repo, 'closed': closed, 'failed': failed}
+
+
+def run_cancel(config, gh, options, elapsed):
+    """Plan, ask or apply the testing-PR cancel; returns the exit code."""
+    verb = 'bratishka-testing-pr-cancel'
+    delete_branch = bool(options['delete_branch']
+                         or (config.get('testingPr') or {}).get('deleteBranchOnCancel'))
+    try:
+        plan = cancel_plan(config, gh)
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    candidates = plan['candidates']
+    if not candidates:
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'nothing_to_do',
+            'message': 'no testing PR older than today',
+            'repo': plan['repo'],
+            'skip_today': plan['skip_today']}))
+        return 1
+    if not options['yes']:
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'confirmation_required',
+            'message': 'close {} testing PR(s) older than today'.format(len(candidates)),
+            'confirmation_required': True,
+            'repo': plan['repo'],
+            'delete_branch': delete_branch,
+            'candidates': candidates,
+            'skip_today': plan['skip_today']}))
+        return 1
+    try:
+        result = cancel_apply(config, gh, candidates, delete_branch)
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    if result['failed']:
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'partial_failure',
+            'message': '{} of {} testing PR(s) could not be closed'.format(
+                len(result['failed']), len(candidates)),
+            'closed': result['closed'],
+            'failed': result['failed'],
+            'skip_today': plan['skip_today']}))
+        return 1
+    print(envelope(True, elapsed(), verb, data={
+        'repo': result['repo'],
+        'closed': result['closed'],
+        'skip_today': plan['skip_today']}))
+    return 0
+
+
 def main(argv=None, gh=None, dashboard=None):
     """Dispatch one bratishka command and print its envelope; returns the exit code."""
     start = time.monotonic()
@@ -240,11 +379,15 @@ def main(argv=None, gh=None, dashboard=None):
     if not args:
         return fail('invalid_argument', 'missing command')
     command = args[0]
-    if command != 'status':
+    if command == 'status':
+        parser = parse_status
+    elif command == 'testing-pr-cancel':
+        parser = parse_cancel
+    else:
         return fail('invalid_argument', 'unknown command: {}'.format(command))
 
     try:
-        options = parse_status(args[1:])
+        options = parser(args[1:])
     except UsageError as exc:
         return fail('invalid_argument', str(exc))
 
@@ -254,6 +397,9 @@ def main(argv=None, gh=None, dashboard=None):
         return fail(exc.kind, exc.message)
 
     client = gh if gh is not None else Gh(cwd=options['repo'])
+    if command == 'testing-pr-cancel':
+        return run_cancel(config, client, options, elapsed)
+
     dash = dashboard
     if dash is None and not options['offline'] and config['dashboardUrl']:
         dash = Dashboard(config['dashboardUrl'])

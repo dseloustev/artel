@@ -974,3 +974,18 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Notes:** deterministic engine output (`scripts/bratishka.py status`) rendered in four
   sections; exit `2` is a configuration/environment error that stops the skill. The approval
   rules, buckets and flags are in [bratishka-duty.md](bratishka-duty.md).
+
+### cancel-testing-pr
+
+- **Purpose:** Close the open testing PRs dated before today, leaving the fixed one-day close
+  comment; today's testing PR is never touched.
+- **Invocation:** `/artel-bratishka-cancel-testing-pr [--delete-branch] [--yes]`
+- **Reads:** `.artel/config.json` (`bratishka`, `vcs.adapter`); the repo's open PRs through `gh`.
+- **Writes:** `gh pr close` on each stale testing PR, with the close comment; the branch too when
+  `--delete-branch` is passed or `testingPr.deleteBranchOnCancel` is true.
+- **Pauses:** once, before closing: the candidates and a `question`-tool Close them / Cancel.
+  `--yes` skips the pause; without it nothing is closed.
+- **Notes:** deterministic engine output (`scripts/bratishka.py testing-pr-cancel`); without
+  `--yes` it returns the `confirmation_required` envelope and a run with no stale candidate
+  returns `nothing_to_do`. Staleness, the close text and the today guard are in
+  [bratishka-duty.md](bratishka-duty.md).

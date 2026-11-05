@@ -6,12 +6,15 @@ booleans, the approval bucket, the board flags, the testing-PR candidates and
 the three merge groups. It reads only its arguments -- no `gh`, no dashboard,
 no filesystem -- so the CLI and every skill share one verdict.
 
-Approval is one latest review state per login: the review with the greatest
-`submitted_at` (ISO 8601 UTC stamps compare lexically, a later entry wins a
-tie). `members` is `{'codeReview': set | None, 'qa': set | None}`; `None` means
-the team could not be read. An unreadable QA team with no `qaLogins` fallback is
-`unknown`, never approved. With no `teams.codeReview` the code review falls back
-to any approval that is neither the bot's nor a QA login.
+Approval is one latest effective review state per login: the review with the
+greatest `submitted_at` (ISO 8601 UTC stamps compare lexically, a later entry
+wins a tie). Only `APPROVED`, `CHANGES_REQUESTED` and `DISMISSED` are effective;
+a later `COMMENTED` or `PENDING` review does not withdraw an approval. `members`
+is `{'codeReview': set | None, 'qa': set | None}`; `None` means the team could
+not be read. An unreadable QA team with no `qaLogins` fallback is `unknown`,
+never approved. With no `teams.codeReview` the code review falls back to any
+approval that is neither the bot's nor a QA login; when the team is configured
+but unreadable it is `unknown` instead.
 
 `is_testing_pr` is deliberately broad -- a title matching the configured
 template, a title starting with `Testing `, or any branch containing `testing`
@@ -36,6 +39,8 @@ import bratishka_config
 
 # `mergeStateStatus` values that need no update and no other intervention.
 READY_STATES = frozenset({'CLEAN', 'HAS_HOOKS', 'UNSTABLE'})
+# The review states that change an approval verdict; COMMENTED and PENDING do not.
+EFFECTIVE_STATES = frozenset({'APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'})
 
 BLOCKED = 'blocked'
 
@@ -57,11 +62,14 @@ def _config(value):
 
 
 def latest_reviews(reviews):
-    """`login` -> the review with the latest `submitted_at`.
+    """`login` -> the review with the latest effective `submitted_at`.
 
-    ISO 8601 UTC stamps compare lexically. A review with no login cannot vote,
-    and when two entries share a timestamp the later one in the list wins,
-    because the list is GitHub's chronological order.
+    Only `APPROVED`, `CHANGES_REQUESTED` and `DISMISSED` change a verdict; a
+    later `COMMENTED` or `PENDING` review is ignored, because GitHub does not
+    withdraw an approval when the same reviewer leaves an ordinary comment. ISO
+    8601 UTC stamps compare lexically. A review with no login cannot vote, and
+    when two entries share a timestamp the later one in the list wins, because
+    the list is GitHub's chronological order.
     """
     latest = {}
     for review in reviews or []:
@@ -69,6 +77,9 @@ def latest_reviews(reviews):
             continue
         login = review.get('login') or ''
         if not login:
+            continue
+        state = str(review.get('state') or '').upper()
+        if state not in EFFECTIVE_STATES:
             continue
         at = str(review.get('submitted_at') or '')
         current = latest.get(login)
@@ -104,7 +115,9 @@ def classify(pr, reviews, members, config):
     `bucket` is `qa-approved` (both approvals), `needs-qa` (code review only)
     or `needs-review` (neither, including a `CODEOWNERS` approval from outside
     both sets). `qa_unknown` is True only when the QA team is unreadable and no
-    `qaLogins` fallback is configured; `blocked` flags a PR that has both
+    `qaLogins` fallback is configured; `code_unknown` is True only when
+    `teams.codeReview` is configured but could not be read, in which case the
+    arbitrary-approval fallback is not used. `blocked` flags a PR that has both
     approvals but a merge state that still holds it back.
     """
     config = _config(config)
@@ -113,6 +126,7 @@ def classify(pr, reviews, members, config):
     code_members = members.get('codeReview')
     qa_members = members.get('qa')
     qa_fallback = _logins(config, 'qaLogins')
+    code_configured = bool(_config(config.get('teams')).get('codeReview'))
 
     if qa_members is not None:
         qa_approved = bool(approved & qa_members)
@@ -121,8 +135,12 @@ def classify(pr, reviews, members, config):
         qa_approved = bool(approved & qa_fallback)
         qa_unknown = not qa_fallback
 
+    code_unknown = False
     if code_members is not None:
         code_reviewed = bool(approved & code_members)
+    elif code_configured:
+        code_reviewed = False
+        code_unknown = True
     else:
         excluded = set(qa_fallback)
         if qa_members is not None:
@@ -140,6 +158,8 @@ def classify(pr, reviews, members, config):
         bucket = 'needs-review'
 
     flags = []
+    if code_unknown:
+        flags.append('code-review-unknown')
     if code_reviewed and qa_approved and _merge_verdict(pr)[0] == BLOCKED:
         flags.append(BLOCKED)
 
@@ -151,6 +171,9 @@ def classify(pr, reviews, members, config):
         'code_reviewed': code_reviewed,
         'qa_approved': qa_approved,
         'qa_unknown': qa_unknown,
+        'code_unknown': code_unknown,
+        'mergeable': pr.get('mergeable') or '',
+        'merge_state': pr.get('merge_state') or '',
         'flags': flags,
     }
 
@@ -168,7 +191,8 @@ def queue(prs, reviews_by_pr, members, config):
     The caller passes the repo-scoped queue it already narrowed to the bot's
     open, non-draft, non-testing, non-excluded PRs; this layer only decides each
     PR's approval bucket, so a classified PR carries `number`, `title`, `url`,
-    `bucket`, `code_reviewed`, `qa_approved`, `qa_unknown` and `flags`.
+    `bucket`, `code_reviewed`, `qa_approved`, `qa_unknown`, `code_unknown`,
+    `mergeable`, `merge_state` and `flags`.
     """
     return [item for _, item in _classified(prs, reviews_by_pr, members, config)]
 

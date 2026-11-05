@@ -56,6 +56,43 @@ class TestApprovals(unittest.TestCase):
         self.assertTrue(out['qa_unknown'])
         self.assertFalse(out['qa_approved'])
 
+    def test_a_configured_unreadable_code_team_is_unknown(self):
+        # `teams.codeReview` is configured but the team read failed: the
+        # outsider fallback must not turn a QA approval into a mergeable PR.
+        members = {'codeReview': None, 'qa': {'qa'}}
+        reviews = [review('qa', 'APPROVED'), review('owner', 'APPROVED')]
+        out = rules.classify(pr(1), reviews, members, CONFIG)
+        self.assertFalse(out['code_reviewed'])
+        self.assertTrue(out['code_unknown'])
+        self.assertEqual(out['bucket'], 'needs-review')
+        self.assertIn('code-review-unknown', out['flags'])
+        merged = rules.merge_candidates([pr(1)], {1: reviews}, members, CONFIG)
+        self.assertEqual(merged['ready'], [])
+
+    def test_an_unset_code_team_keeps_the_outsider_fallback(self):
+        config = dict(CONFIG, teams={'codeReview': '', 'qa': 'qa-team'})
+        members = {'codeReview': None, 'qa': {'qa'}}
+        reviews = [review('qa', 'APPROVED'), review('owner', 'APPROVED')]
+        out = rules.classify(pr(1), reviews, members, config)
+        self.assertTrue(out['code_reviewed'])
+        self.assertFalse(out['code_unknown'])
+        self.assertEqual(out['bucket'], 'qa-approved')
+
+    def test_a_later_comment_does_not_withdraw_an_approval(self):
+        reviews = [review('dev', 'APPROVED', '2026-11-05T05:00:00Z'),
+                   review('dev', 'COMMENTED', '2026-11-05T06:00:00Z')]
+        self.assertTrue(rules.classify(pr(1), reviews, MEMBERS, CONFIG)['code_reviewed'])
+
+    def test_a_later_changes_requested_withdraws_an_approval(self):
+        reviews = [review('dev', 'APPROVED', '2026-11-05T05:00:00Z'),
+                   review('dev', 'CHANGES_REQUESTED', '2026-11-05T06:00:00Z')]
+        self.assertFalse(rules.classify(pr(1), reviews, MEMBERS, CONFIG)['code_reviewed'])
+
+    def test_a_later_dismissed_withdraws_an_approval(self):
+        reviews = [review('dev', 'APPROVED', '2026-11-05T05:00:00Z'),
+                   review('dev', 'DISMISSED', '2026-11-05T06:00:00Z')]
+        self.assertFalse(rules.classify(pr(1), reviews, MEMBERS, CONFIG)['code_reviewed'])
+
 
 class TestBuckets(unittest.TestCase):
     def test_the_three_buckets(self):

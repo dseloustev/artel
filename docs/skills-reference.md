@@ -956,3 +956,21 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   / `skipped`, one item per distinct local copy ([spec-storage.md](spec-storage.md) §7): a stale
   local copy never overwrites a newer stored version. Orchestrators invoke it when a run finds a local trail and on resume
   after an outage. `.active_ticket`, evidence and release-scope files are never deleted.
+
+---
+
+## Bratishka duty
+
+### status
+
+- **Purpose:** Render the read-only Bratishka duty board — the open testing PR with its date,
+  age and merged-or-closed source count, the bot PR queue by bucket, the live bot tasks, and the
+  suggested next actions.
+- **Invocation:** `/artel-bratishka-status [--offline] [--json]`
+- **Reads:** `.artel/config.json` (`bratishka`); the repo's open bot PRs, their reviews and team
+  membership through `gh`; the dashboard (`bratishka.dashboardUrl`) unless `--offline`.
+- **Writes:** nothing.
+- **Pauses:** never.
+- **Notes:** deterministic engine output (`scripts/bratishka.py status`) rendered in four
+  sections; exit `2` is a configuration/environment error that stops the skill. The approval
+  rules, buckets and flags are in [bratishka-duty.md](bratishka-duty.md).

@@ -32,7 +32,10 @@ DOC_FILES = (
 REFERENCE = 'docs/skills-reference.md'
 
 # The plausible drifts. Each is a real spelling somebody would reach for.
-NEAR_MISSES = ('--no-kartoteka', '--local-only', '--offline', '--no-knowledge')
+# `--offline` is deliberately absent: `artel-bratishka-status` really takes it
+# (skip the dashboard), so it is a flag in its own right now, not a drift of
+# `--local`.
+NEAR_MISSES = ('--no-kartoteka', '--local-only', '--no-knowledge')
 
 
 def read(rel):

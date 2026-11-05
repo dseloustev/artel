@@ -1,6 +1,6 @@
 ---
 name: artel-using-artel
-description: "Use when starting any conversation in an artel-configured repo — checks whether the request is ticket, feature, queue or knowledge work and routes it to the matching artel skill before any other response or action, including clarifying questions."
+description: "Use when starting a conversation in an artel-configured repo — routes ticket, feature, queue, knowledge or bratishka-duty work to the matching artel skill before any other action, including clarifying questions."
 ---
 
 <SUBAGENT-STOP>
@@ -9,9 +9,9 @@ researcher, planner, implementer, reviewer, …) or any other — ignore this sk
 main session's job; yours is the task you were given.
 </SUBAGENT-STOP>
 
-This repo runs artel: a spec-driven feature workflow where a ticket goes in and a pull request
-comes out. The host status lines injected with this block say whether `.artel/config.json`
-declares kartoteka and which ticket is in flight.
+This repo runs artel: a spec-driven feature workflow, ticket in and pull request out. The
+host status lines say whether `.artel/config.json` declares kartoteka and which ticket is
+in flight.
 
 ## The rule
 
@@ -34,9 +34,9 @@ it). `<ticket>-<N>` is a phase-scoped run.
 
 | The user wants… | Run |
 |---|---|
-| a ticket — feature, small change, bug or question — taken to a pull request; it sizes the work and picks the head, one approval pause | `/artel-feature-development <ticket> [description-file] [--head=full\|lean\|bug] [--mode=…] [--dry-run] [--local]` |
+| a ticket — feature, small change, bug or question — taken to a pull request; sized, with one approval pause | `/artel-feature-development <ticket> [description-file] [--head=full\|lean\|bug] [--mode=…] [--dry-run] [--local]` |
 | just the approved work plan, no implementation | `/artel-feature-development <ticket> --dry-run` |
-| a small change implemented, reviewed and PR-ready | `/artel-feature-development <ticket>` — small work is sized lean; `--head=lean` forces it |
+| a small change implemented and PR-ready | `/artel-feature-development <ticket>` ; small work sizes lean, `--head=lean` forces it |
 | the next phase of a phased ticket | `/artel-feature-development <ticket>-<N>` |
 | an interrupted run resumed | re-invoke the same entry-point command |
 | artel configured or reconfigured for this repo | `/artel-setup` |
@@ -51,9 +51,9 @@ it). `<ticket>-<N>` is a phase-scoped run.
 | the technical vision document | `/artel-generate-vision <ticket> [idea-file]` |
 | research on the codebase for the ticket | `/artel-researcher <ticket> [--local]` |
 | the architecture and implementation plan | `/artel-planner <ticket>` |
-| the plan broken into a tasklist | `/artel-tasklist <ticket>` (from plan) · `/artel-generate-tasklist <ticket> [idea-file] [vision-file]` (from idea + vision) |
+| the plan broken into a tasklist | `/artel-tasklist <ticket>` · `/artel-generate-tasklist <ticket> [idea-file] [vision-file]` |
 | the next open task implemented | `/artel-implementer <ticket> [--local]` |
-| a quick verify loop on the paths just touched | `/artel-inner-loop [paths]` |
+| a quick verify loop on touched paths | `/artel-inner-loop [paths]` |
 
 **Quality gates and close-out**
 
@@ -82,11 +82,12 @@ its evidence contract. Never substitute a generic command — the host's skill i
 | Bitbucket's open PRs recreated on GitHub after set-home | `/artel-migrate-prs [pr-id ...]` |
 | merge conflicts resolved | `/artel-merge-conflicts [branch]` |
 | phase status synced between tasklist and phase files | `/artel-sync-phases <ticket>` |
-| a report or quiz on what happened on a branch | `/artel-change-digest [ticket]` |
-| a text or pasted ticket turned into a Jira-ready task, bug or epic | `/artel-issue-draft` |
+| a report or quiz on a branch's changes | `/artel-change-digest [ticket]` |
+| a text or pasted ticket turned into a Jira-ready issue | `/artel-issue-draft` |
 | the working context saved / restored | `/artel-save-context` · `/artel-restore-context [ticket]` |
 | `AGENTS.md` files created or repaired | `/artel-agents-md-generator` |
 | a GitHub pull request walked one file at a time, with `reviewed` per file | `/artel-collaborative-review <pr-url-or-number>` |
+| the bratishka duty: board | `/artel-bratishka-status` |
 
 **Kartoteka — institutional knowledge and the task queue**
 
@@ -145,7 +146,7 @@ a skill that resolves ticket context first; use the skill.
 
 | Thought | Reality |
 |---|---|
-| "I'll read `tasklist.md` to see what's next" | With the adapter on, the queue is authoritative for iteration work — `/artel-tasks list`; the file still owns the review/runtime/verify-fix sections (and a Final Verification section an older tasklist carries), and the queue shows their rows too. |
+| "I'll read `tasklist.md` to see what's next" | With the adapter on, the queue is authoritative for iteration work — `/artel-tasks list`; the file still owns the review/runtime/verify-fix sections. |
 | "I'll call `search_knowledge` myself" | `/artel-knowledge` keeps the search budget, the citations and the ⚠ NON-CURRENT markers. |
 | "I'll `task_create` it directly" | `/artel-tasks add` keeps `tasklist.md` and the queue in step; a bare row breaks promotion. |
 | "I'll grep for that class" | With the index on PATH, `/ast-index:ast-index` answers in milliseconds; grep is for regex, literals and comments. |

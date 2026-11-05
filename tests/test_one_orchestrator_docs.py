@@ -1216,13 +1216,13 @@ class TestRouter(unittest.TestCase):
 
     def test_the_head_flag_is_the_override(self):
         self.assertIn('| a ticket — feature, small change, bug or question — taken to a pull '
-                      'request; it sizes the work and picks the head, one approval pause | '
+                      'request; sized, with one approval pause | '
                       '`/artel-feature-development <ticket> [description-file] '
                       '[--head=full\\|lean\\|bug] [--mode=…] [--dry-run] [--local]` |', self.raw)
 
     def test_small_work_and_the_next_phase_go_to_the_one_entry_point(self):
-        for row in ('| a small change implemented, reviewed and PR-ready | '
-                    '`/artel-feature-development <ticket>` — small work is sized lean;',
+        for row in ('| a small change implemented and PR-ready | '
+                    '`/artel-feature-development <ticket>` ; small work sizes lean,',
                     '| the next phase of a phased ticket | '
                     '`/artel-feature-development <ticket>-<N>` |',
                     '| "This change is small, I\'ll just implement it" | Small is a size: '

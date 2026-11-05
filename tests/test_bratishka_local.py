@@ -253,7 +253,14 @@ class LocalCommandCase(RepoFixture, unittest.TestCase):
         self.assertEqual(out['error']['conflicts'], ['b.txt'])
         self.assertIn('not pushed', out['error']['message'])
         self.assertEqual(gh.created, [])
-        self.assertFalse(self.worktree.exists())
+        kept = self.worktree.resolve()
+        self.assertTrue(kept.exists())
+        self.assertEqual(out['error']['worktree'], str(kept))
+        self.assertIn(str(kept), out['error']['message'])
+        unmerged = git(self.worktree, 'diff', '--name-only', '--diff-filter=U')
+        self.assertEqual(unmerged.split(), ['b.txt'])
+        self.assertTrue(git(self.worktree, 'status', '--porcelain').strip())
+        self.assertIn(self.branch, git(self.work, 'branch', '--list', self.branch))
         with self.assertRaises(subprocess.CalledProcessError):
             git(self.remote, 'rev-parse', self.branch)
 

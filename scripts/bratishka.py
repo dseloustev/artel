@@ -23,8 +23,8 @@ PRs; nothing is posted, closed, merged or pushed.
 `testing-pr-local` is the explicit local fallback: it assembles today's branch in
 a throwaway worktree under `.artel/run/bratishka/`, merges every source head with
 `--no-ff`, runs the host's `verify.commands`, pushes the branch and opens the PR.
-A conflict stops it with the conflicting files and no push; the working checkout
-is never the workspace.
+A conflict stops it with the conflicting files and no push, and keeps the
+worktree for inspection; the working checkout is never the workspace.
 
 `testing-pr-verify` closes that loop read-only: it finds the spawned task by the
 prompt's `Run id:` marker and today's testing PR by its title or branch (or the
@@ -844,8 +844,9 @@ def local_build(repo_dir, worktree, branch, base_ref, tasks, body, gh,
     """Assemble the testing branch in a throwaway worktree, push it and open the PR.
 
     `tasks` are the selected source PRs (`number`, `head`); each head is merged
-    into `branch` with a merge commit. A content conflict aborts the merge,
-    removes the worktree and returns the conflicting paths with `pr_url` None:
+    into `branch` with a merge commit. A content conflict leaves the merge in
+    progress and the worktree on disk, so the conflicted state stays inspectable;
+    it returns the conflicting paths and the worktree with `pr_url` None, and
     nothing is pushed. On a clean build every `verify_commands` entry runs in
     the worktree; the first red one keeps the worktree for inspection and
     returns an `error` instead of opening the PR, unless `allow_red_verify`.
@@ -879,16 +880,16 @@ def local_build(repo_dir, worktree, branch, base_ref, tasks, body, gh,
         conflicts = [line.strip() for line in git_run(
             worktree, 'diff', '--name-only', '--diff-filter=U',
             check=False).stdout.splitlines() if line.strip()]
-        git_run(worktree, 'merge', '--abort', check=False)
-        remove_worktree(repo_dir, worktree)
-        git_run(repo_dir, 'branch', '-D', branch, check=False)
         if not conflicts:
             detail = (proc.stderr or proc.stdout or '').strip()
+            git_run(worktree, 'merge', '--abort', check=False)
+            remove_worktree(repo_dir, worktree)
+            git_run(repo_dir, 'branch', '-D', branch, check=False)
             raise BuildError('failed', 'could not merge #{} ({}): {}'.format(
                 number, head, detail or 'git merge failed'))
         merge_notes.append('Merge of #{} (`{}`) conflicted.'.format(number, head))
-        return {'branch': branch, 'conflicts': conflicts, 'pr_url': None,
-                'merge_notes': merge_notes, 'verification': []}
+        return {'branch': branch, 'worktree': worktree, 'conflicts': conflicts,
+                'pr_url': None, 'merge_notes': merge_notes, 'verification': []}
     verification, failed = run_verify_commands(
         worktree, verify_commands, stop_on_failure=not allow_red_verify)
     if failed is not None and not allow_red_verify:
@@ -1031,10 +1032,12 @@ def run_local(config, gh, options, elapsed):
     if result['conflicts']:
         print(envelope(False, elapsed(), verb, error={
             'kind': 'conflict',
-            'message': 'the branch was not pushed: {} file(s) conflicted and the '
-                       'worktree was removed'.format(len(result['conflicts'])),
+            'message': 'the branch was not pushed: {} file(s) conflicted; the '
+                       'worktree at {} was kept so the state can be inspected'.format(
+                           len(result['conflicts']), result['worktree']),
             'conflicts': result['conflicts'],
             'merge_notes': result['merge_notes'],
+            'worktree': result['worktree'],
             'repo': repo, 'branch': branch}))
         return 1
     if result.get('error'):

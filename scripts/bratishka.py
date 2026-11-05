@@ -20,6 +20,11 @@ branch, and compose the #144-shaped body prompt. `testing-pr-prompt --out PATH`
 writes the coder prompt and prints its path and the unique run id; nothing is
 posted, closed, merged or pushed.
 
+`testing-pr-verify` closes that loop read-only: it finds the spawned task by the
+prompt's `Run id:` marker and today's testing PR by its title or branch (or the
+task's `head_ref`), and reports a failed completion gate separately from an
+existing PR -- a red coder task is not a failed testing PR.
+
 Exit codes are the contract's: `0` success, `1` a user-actionable failure
 (nothing to do, a refusal), `2` a configuration or environment error. Every
 invocation prints one envelope, `{ok, verb, elapsed_ms, data|error}`.
@@ -32,6 +37,7 @@ Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
        bratishka.py testing-pr-plan [--repo <dir>] [--include N,...] [--exclude N,...] [--json]
        bratishka.py testing-pr-prompt [--repo <dir>] [--out <path>] [--json]
               [--include N,...] [--exclude N,...]
+       bratishka.py testing-pr-verify --run-id <id> [--repo <dir>] [--json]
 """
 import json
 import re
@@ -179,6 +185,32 @@ def parse_plan(args):
 def parse_prompt(args):
     """`testing-pr-prompt`'s flags: `repo`, `json`, `out`, `include` and `exclude`."""
     return parse_selection(args, allow_out=True)
+
+
+def parse_verify(args):
+    """`testing-pr-verify`'s flags: `repo`, `json` and the required `run_id`."""
+    options = {'repo': '.', 'json': False, 'run_id': ''}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--repo':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --repo <dir>')
+            options['repo'] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        elif arg == '--run-id':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --run-id <id>')
+            options['run_id'] = args[i]
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    if not options['run_id']:
+        raise UsageError('missing --run-id <id>')
+    return options
 
 
 def team_members(gh, org, slug):
@@ -474,6 +506,64 @@ def run_prompt(config, gh, options, elapsed):
     return 0
 
 
+def testing_name(config, key, day):
+    """A testing-PR title or branch rendered from the config, default included."""
+    testing = config.get('testingPr') if isinstance(config, dict) else None
+    template = testing.get(key) if isinstance(testing, dict) else None
+    return bratishka_config.render(
+        template or bratishka_config.DEFAULTS['testingPr'][key], day)
+
+
+def verify_testing_pr(config, gh, dashboard, run_id, day=None):
+    """The spawned task and today's testing PR, with a red gate kept separate.
+
+    The task is found by the prompt's `Run id:` marker; the PR by today's
+    rendered title or branch name, falling back to the task's `head_ref` when
+    the dashboard reports one. `gate_failed` is true only when the task's
+    completion gate failed and a PR exists: the PR is the artifact, the gate is
+    a separate finding. A missing task and a missing PR are ordinary answers,
+    never errors. `day` defaults to the local date and pins the names in a test.
+    """
+    config = config if isinstance(config, dict) else {}
+    day = day or date.today()
+    repo = config.get('repo') or gh.repo_slug()
+    if not repo:
+        raise GhError('failed', 'could not resolve the repository; set bratishka.repo')
+    task = dashboard.find_task(run_id) if dashboard is not None else None
+    title = testing_name(config, 'titleTemplate', day)
+    branch = testing_name(config, 'branchTemplate', day)
+    open_prs = gh.open_prs(repo)
+    pr = None
+    for item in open_prs:
+        if item.get('title') == title or item.get('head') == branch:
+            pr = item
+            break
+    if pr is None and isinstance(task, dict) and task.get('head_ref'):
+        for item in open_prs:
+            if item.get('head') == task.get('head_ref'):
+                pr = item
+                break
+    detail = task.get('result_detail') if isinstance(task, dict) else None
+    error = detail.get('error') if isinstance(detail, dict) else None
+    return {
+        'run_id': run_id,
+        'task': task,
+        'pr': pr,
+        'gate_failed': pr is not None and error == 'final_tools_gate_not_satisfied',
+    }
+
+
+def run_verify(config, gh, dashboard, options, elapsed):
+    """Find the spawned task and today's testing PR; returns the exit code."""
+    verb = 'bratishka-testing-pr-verify'
+    try:
+        data = verify_testing_pr(config, gh, dashboard, options['run_id'])
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    print(envelope(True, elapsed(), verb, data=data))
+    return 0
+
+
 def main(argv=None, gh=None, dashboard=None):
     """Dispatch one bratishka command and print its envelope; returns the exit code."""
     start = time.monotonic()
@@ -493,6 +583,8 @@ def main(argv=None, gh=None, dashboard=None):
         parser = parse_plan
     elif command == 'testing-pr-prompt':
         parser = parse_prompt
+    elif command == 'testing-pr-verify':
+        parser = parse_verify
     else:
         return fail('invalid_argument', 'unknown command: {}'.format(command))
 
@@ -513,6 +605,11 @@ def main(argv=None, gh=None, dashboard=None):
         return run_plan(config, client, options, elapsed)
     if command == 'testing-pr-prompt':
         return run_prompt(config, client, options, elapsed)
+    if command == 'testing-pr-verify':
+        dash = dashboard
+        if dash is None and config['dashboardUrl']:
+            dash = Dashboard(config['dashboardUrl'])
+        return run_verify(config, client, dash, options, elapsed)
 
     dash = dashboard
     if dash is None and not options['offline'] and config['dashboardUrl']:

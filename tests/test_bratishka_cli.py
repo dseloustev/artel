@@ -232,3 +232,27 @@ class TestCancel(unittest.TestCase):
                         gh=gh)
         self.assertEqual(code, 1)
         self.assertEqual(gh.closed, [])
+
+
+class TestVerify(unittest.TestCase):
+    def test_a_failed_task_with_the_pr_is_success(self):
+        gh = FakeGh([pr(9, title='Testing 03-11-26', head='feature/testing-03-11-26')])
+        gh.open_prs = lambda repo, author=None: gh.prs
+        dash = FakeDash([{'task_id': 't1', 'status': 'failed',
+                          'description': 'Run id: artel-1',
+                          'result_detail': {'error': 'final_tools_gate_not_satisfied'},
+                          'result_summary': 'delivered'}])
+        from datetime import date
+        out = bratishka.verify_testing_pr(
+            {'repo': 'o/r', 'testingPr': {'titleTemplate': 'Testing {dd}-{mm}-{yy}',
+                                          'branchTemplate': 'feature/testing-{dd}-{mm}-{yy}'}},
+            gh, dash, 'artel-1', date(2026, 11, 3))
+        self.assertEqual(out['pr']['number'], 9)
+        self.assertTrue(out['gate_failed'])
+
+    def test_no_task_and_no_pr_is_not_an_error(self):
+        from datetime import date
+        out = bratishka.verify_testing_pr({'repo': 'o/r'}, FakeGh([]), FakeDash(),
+                                          'artel-1', date(2026, 11, 3))
+        self.assertIsNone(out['task'])
+        self.assertIsNone(out['pr'])

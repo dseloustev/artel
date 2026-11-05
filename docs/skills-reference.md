@@ -989,3 +989,25 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   `--yes` it returns the `confirmation_required` envelope and a run with no stale candidate
   returns `nothing_to_do`. Staleness, the close text and the today guard are in
   [bratishka-duty.md](bratishka-duty.md).
+
+### testing-pr
+
+- **Purpose:** Build today's testing PR through the bot: select the source PRs, compose the
+  #144-shaped coder prompt, open the dashboard's `/spawn` page, then find the spawned task by its
+  `Run id:` marker and report the PR separately from a failed completion gate.
+- **Invocation:** `/artel-bratishka-testing-pr [--print] [--local] [--yes] [--dry-run]`
+- **Reads:** `.artel/config.json` (`bratishka`, `vcs.adapter`); the repo's open PRs and their
+  reviews through `gh`; the dashboard task by its marker when `bratishka.dashboardUrl` is set;
+  the remote branch name.
+- **Writes:** the coder prompt at `.artel/run/bratishka/<date>/testing-pr-prompt.md`; nothing on
+  GitHub on the bot path — the spawned task creates the branch and the PR. The `--local` fallback
+  writes both through `testing-pr-local`.
+- **Pauses:** once before composing the prompt (the plan and a `question`-tool Build it /
+  Cancel; `--yes` skips it), then once to let the person spawn the task; polling waits up to 15
+  minutes. `--print` stops after the prompt.
+- **Notes:** deterministic engine output (`scripts/bratishka.py testing-pr-plan`,
+  `testing-pr-prompt`, `testing-pr-verify`); `--dry-run` prints the plan and stops. Refuses when
+  today's testing PR or branch already exists. A task `failed` with
+  `final_tools_gate_not_satisfied` and an existing PR is reported as that PR plus the gate, never
+  as a failed testing PR. Naming, the prompt and the polling bounds are in
+  [bratishka-duty.md](bratishka-duty.md).

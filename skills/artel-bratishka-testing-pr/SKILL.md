@@ -123,11 +123,15 @@ python3 ${ARTEL_ROOT}/scripts/bratishka.py testing-pr-local --yes --json \
 ```
 
 `--include` is the same frozen confirmed set the prompt path passes, so a PR the person did
-not approve cannot join the build; `--exclude` drops a number that must stay out. It builds the
-same branch and body in a throwaway worktree under `.artel/run/bratishka/`, pushes
-it and opens the PR; a conflict stops it with the conflicting files and no push. Report
-`pr_url` or the conflicts. The confirmation you already gave is this command's consent. Never
-build the branch in the working checkout by hand.
+not approve cannot join the build; `--exclude` drops a number that must stay out. Before any
+worktree or push the engine requires the selected numbers to equal that confirmed set. If it
+answers exit `1` with `error.kind: changed_plan`, nothing was built: say which confirmed PRs
+left or joined (`error.left` / `error.joined`) and ask again with the new `error.selected` set;
+continue only with an explicitly re-confirmed set. It builds the same branch and body in a
+throwaway worktree under `.artel/run/bratishka/`, pushes it and opens the PR assigned to the
+duty reviewer; a conflict stops it with the conflicting files and no push. Report `pr_url` or
+the conflicts. The confirmation you already gave is this command's consent. Never build the
+branch in the working checkout by hand.
 
 ## Rules
 

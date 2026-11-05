@@ -40,7 +40,9 @@ python3 ${ARTEL_ROOT}/scripts/bratishka.py findings --pr <n> --json
 ```
 
 `data.threads` are the **unresolved** review threads, numbered from 1 in `index`, each with
-`path`, `line`, `body` and `author`. A resolved thread is never a finding.
+`path`, `line`, `body` and `author`. A resolved thread is never a finding. By default only the
+bot's own root threads are findings; add `--all-authors` to the command only when the person
+explicitly asks to see every reviewer's unresolved threads, and say that is what the list is.
 
 Show a numbered list: `index`, `path:line`, and the first line of the body. Say how many
 findings there are. When `data.threads` is empty, say that the bot has no unresolved thread on
@@ -55,13 +57,17 @@ With `--notes "<text>"`, skip the list and compose from the notes alone (step 4 
 python3 ${ARTEL_ROOT}/scripts/bratishka.py task-find --pr <n> --json
 ```
 
-`data.task` is the dashboard's newest coder task for this PR and `data.match` says how it was
-found (`description`, `head_ref` or `none`).
+`data.active_tasks` lists **every** `active` or `queued` task whose description names this PR,
+whichever reviewer started it and even when a newer completed task exists. `data.task` is the
+caller-scoped newest task used for post-posting correlation, and `data.match` says how it was
+found (`description`, `head_ref`, `pr_time` or `none`).
 
-- `data.task.status` is `active` or `queued` → **stop**: report the `task_id`, status and
-  description, and do not post. A second `/agent` comment would queue a duplicate run.
+- `data.active_tasks` is not empty → **stop**: report each `task_id`, status and initiator, and
+  do not post. A second `/agent` comment would queue a duplicate run on the same branch.
 - `data.dashboard_online` is false → proceed, but say that correlation is unavailable: the
   dashboard is not configured or unreachable, and the report will have to follow the PR instead.
+- `data.login_error` is set → proceed, but say the post-action match is weaker (`match: pr_time`)
+  because the caller login could not be read; the active-task list is still authoritative.
 - Any other status, or `match: none` → proceed.
 
 ## 4. Compose, then confirm
@@ -117,7 +123,8 @@ python3 ${ARTEL_ROOT}/scripts/bratishka.py task-find --pr <n> --since <posted-at
 
 Every 30 seconds, at most 10 times (5 minutes). A task appears when `data.task` is not null;
 report its `task_id`, `status`, `initiator` and `head_ref`. A `data.match` of `head_ref` means
-the description had no `PR <owner>/<repo>#<n>` marker and the branch was used instead.
+the description had no `PR <owner>/<repo>#<n>` marker and the branch was used instead; `pr_time`
+means the caller login could not be read and the match is weaker.
 
 - No task after 5 minutes, or `data.dashboard_online` false → post the comment URL and say that
   the dashboard has not shown the task. Poll the PR every 15–30 seconds instead and treat the

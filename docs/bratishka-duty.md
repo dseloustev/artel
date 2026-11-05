@@ -59,14 +59,17 @@ The fallbacks are part of the contract:
 
 ## Approval model
 
-Approval is read from **review state, one latest state per login**, not from the event list. A
-reviewer who approved, was dismissed and then approved again has a latest state of `APPROVED`; a
-reviewer whose approval was dismissed has `DISMISSED`. Counting approval events would get both
-wrong.
+Approval is read from **review state, one latest effective state per login**, not from the event list.
+`APPROVED`, `CHANGES_REQUESTED` and `DISMISSED` are the effective states; a later `COMMENTED`
+or `PENDING` review is ignored, so an ordinary comment does not withdraw an approval. A reviewer
+who approved, was dismissed and then approved again has a latest state of `APPROVED`; a reviewer
+whose approval was dismissed has `DISMISSED`. Counting approval events would get both wrong.
 
 - **Code review approval** — the latest `APPROVED` review from a member of `teams.codeReview`.
   When that key is empty, it is any latest `APPROVED` that is neither the bot's nor a configured
-  QA login's.
+  QA login's. When the key is set but the team cannot be read (a missing team, or no
+  `read:org`), the code-review verdict is `unknown` and the PR is flagged
+  `code-review-unknown`; it never falls back to an arbitrary approval.
 - **QA approval** — the latest `APPROVED` review from a member of `teams.qa`, or from a login in
   `qaLogins` when the team is unset or cannot be read.
 - **`CODEOWNERS` is neither.** An approval from a code owner outside both sets is not QA approval
@@ -94,8 +97,8 @@ Each PR has exactly one **approval bucket**, decided by its strongest state: `qa
 **overlays**: a PR can appear in its approval bucket and in an overlay at the same time, and the
 board renders all five as separate lists.
 
-- **`bot-working`** — an active or queued coder task exists for the PR. Do not merge it or post
-  a second task; report the task.
+- **`bot-working`** — an active or queued coder task exists for the PR, whichever reviewer
+  started it. Do not merge it or post a second task; report the task.
 - **`blocked`** — a PR with both approvals that still cannot merge: `mergeStateStatus` is
   `BLOCKED` or `UNKNOWN`, or the branch conflicts (`DIRTY`). Report `gh`'s reason. A
   `needs-review` PR that GitHub reports as `BLOCKED` merely because reviews are required is not
@@ -107,9 +110,11 @@ both. `excludeTitlePatterns` entries are case-insensitive substrings, or regexes
 they exist for a repository whose bot account also runs scheduled automation.
 
 `/artel-bratishka-status` renders the board read-only, in four sections: today's testing PR(s) with
-date, age in days, QA-approval count and whether any bundled source PR has merged or closed; the
-queue with ticket, review state, QA state, CI/merge state and bot-task state; live bot tasks when
-the dashboard is up; and suggested next actions, each naming the skill to run.
+date, age in days, QA-approval count (`qa_approvals`) and whether any bundled source PR has merged
+or closed (`source_merged`); the queue with ticket, review state, QA state, CI/merge state
+(`mergeable`, `merge_state`) and bot-task state; live bot tasks when the dashboard is up; and
+suggested next actions, each naming the skill to run. The engine's `queue --json` command prints
+the same classified queue and its counts alone, without the testing-PR or live-task sections.
 
 ## Testing PR
 
@@ -220,8 +225,11 @@ expected result — and asks for a scoped change and the repository's verificati
 
 Two guards come before posting:
 
-- **Active-task guard** — `task-find --pr N`; an active coder task for that PR means stop and
-  report it instead of queueing another.
+- **Active-task guard** — `task-find --pr N`; its `active_tasks` list holds every `active` or
+  `queued` task whose description names the PR, whichever reviewer started it and even when a
+  newer completed task exists. Any entry means stop and report it instead of queueing another.
+  `data.task` stays the caller-scoped, newest-task correlation used after posting; it is not the
+  guard.
 - **Terminal-state guard** — never post on a merged or closed PR.
 
 After posting, correlation replaces blind polling. A bot task's description contains
@@ -251,6 +259,8 @@ failure shows as `BLOCKED`.
   branch-deletion flag.
 - One PR at a time. After each merge, re-read the queue: the base moved and a `BEHIND` state may
   have appeared on the next PR.
+- Never merge a PR with an active or queued coder task. `merge-plan` marks such an entry
+  `bot_working` and lists its `active_tasks`; report the task id and status and move on.
 
 Nothing in this path force-pushes, pushes to `baseRef`, merges a testing PR, or edits a source PR.
 
@@ -273,8 +283,10 @@ Nothing in this path force-pushes, pushes to `baseRef`, merges a testing PR, or 
   without its tools, prints and copies the prompt and opens `/spawn` instead of failing.
 - **`gh` and the adapter are preconditions.** A missing or unauthenticated `gh`, or a
   `vcs.adapter` other than `github-cli`, stops every skill before it writes, naming the fix.
-- **A run journal** lands at `.artel/run/bratishka/<date>/journal.md`: what was read, what was
-  changed, and the PR and task URLs.
+- **A run journal** is appended at `.artel/run/bratishka/<date>/journal.md`: one line per
+  destructive engine command (`testing-pr-cancel`, `testing-pr-local`) with the UTC time, the
+  action, the PR numbers it touched and their URLs. A journal write failure never fails the
+  command.
 
 ## Sources
 

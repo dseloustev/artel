@@ -19,11 +19,11 @@ The engine reads `.artel/config.json` (`bratishka`) and the repo, then prints
 
 Render, in this order, from `data`:
 
-1. **Testing PR** — each open testing PR, its date, age in days, and how many source PRs are
-   already merged or closed.
+1. **Testing PR** — each open testing PR, its date, age in days, QA-approval count
+   (`qa_approvals`) and how many source PRs are already merged or closed (`source_merged`).
 2. **Queue** — the five buckets (`qa-approved`, `needs-qa`, `needs-review`, `bot-working`,
-   `blocked`) as short tables: number, ticket, title, review state, QA state, flags. An empty
-   bucket is one line "none", not a table.
+   `blocked`) as short tables: number, ticket, title, review state, QA state, CI/merge state
+   (`mergeable`, `merge_state`) and flags. An empty bucket is one line "none", not a table.
 3. **Live bot tasks** — initiator and a one-line description; say "dashboard offline" when
    `--offline` or the engine reported no dashboard.
 4. **Next actions** — the engine's `next_actions`, each naming a skill.

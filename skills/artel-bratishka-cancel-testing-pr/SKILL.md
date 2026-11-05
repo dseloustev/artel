@@ -25,10 +25,12 @@ configuration/environment error: print `error.message` and stop.
   and stop.
 - **Exit 1 with `error.kind: confirmation_required`** — the candidates are in
   `error.candidates`; ask before closing anything.
-- **Exit 0** — the run closed the candidates; report them.
+- **Exit 1 with `error.kind: stale_plan`** — a number passed with `--pr` is no longer a stale
+  testing PR; nothing was closed. Re-run the plan and ask again with the new list.
+- **Exit 0** — the run closed the confirmed candidates; report them.
 
-An invocation carrying `--yes` is the person's explicit consent: skip the question and
-report the result. Never add `--yes` on your own.
+An invocation carrying `--yes` is the person's explicit consent: skip the question and report the
+result. Never add `--yes` on your own, and always pass the confirmed numbers explicitly.
 
 ## Confirmation
 
@@ -39,11 +41,18 @@ or the configured `testingPr.deleteBranchOnCancel`).
 Ask with the `question` tool: **Close these testing PRs?** — options **Close them** /
 **Cancel**. On **Cancel**, or with no answer, stop: nothing was closed.
 
-On **Close them**, re-run with `--yes` and the same `--delete-branch` choice, if any:
+On **Close them**, re-run with `--yes` and the exact numbers you showed, plus the same
+`--delete-branch` choice, if any:
 
 ```bash
-python3 ${ARTEL_ROOT}/scripts/bratishka.py testing-pr-cancel --yes --json [--delete-branch]
+python3 ${ARTEL_ROOT}/scripts/bratishka.py testing-pr-cancel --yes --json \
+  --pr <shown-n>,<shown-n> [--delete-branch]
 ```
+
+`--pr` freezes those numbers: the engine closes only them, so a testing PR that became stale while
+the person considered the question is not closed unseen. If the answer is exit `1` with
+`error.kind: stale_plan`, one of the shown PRs is no longer a candidate; nothing was closed —
+re-run the plan and ask again with the new list.
 
 Pass `--delete-branch` only when the person asked for the branches to go; never on your
 own. Report `data.closed` (number, title, branch, date) and `data.skip_today`. An exit `1`

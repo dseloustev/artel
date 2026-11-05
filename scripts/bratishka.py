@@ -32,12 +32,18 @@ serializes its tasks per branch), and `task-find`/`task-watch` correlate and
 follow the spawned task. Nothing here posts: the skill posts the composed file
 with `gh pr comment`, after its own confirmation.
 
+`merge-plan` is the read half of the morning merge: the bot's open non-draft PRs
+minus the testing and excluded ones, their reviews and team membership, split
+into `ready`, `needs_update` and `blocked` with `gh`'s reason on a blocked
+entry. It merges nothing; the skill updates `BEHIND` branches and squash-merges
+one PR at a time.
+
 Exit codes are the contract's: `0` success, `1` a user-actionable failure
 (nothing to do, a refusal), `2` a configuration or environment error. Every
 invocation prints one envelope, `{ok, verb, elapsed_ms, data|error}`.
 
 Contract: docs/bratishka-duty.md (`## Queue and board`, `## Testing PR`,
-`## Requesting a fix`, `## Safety and degradation`), docs/config.md
+`## Requesting a fix`, `## Merging`, `## Safety and degradation`), docs/config.md
 (`bratishka`).
 
 Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
@@ -52,6 +58,7 @@ Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
        bratishka.py task-find --pr <n> [--repo <dir>] [--since <iso>] [--json]
        bratishka.py task-watch --task-id <id> [--repo <dir>] [--timeout <s>]
               [--interval <s>] [--json]
+       bratishka.py merge-plan [--repo <dir>] [--json]
 """
 import json
 import re
@@ -118,6 +125,25 @@ def parse_status(args):
             options['json'] = True
         elif arg == '--offline':
             options['offline'] = True
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    return options
+
+
+def parse_merge_plan(args):
+    """`merge-plan`'s flags: `repo` and `json`; unknown flags are refused."""
+    options = {'repo': '.', 'json': False}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--repo':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --repo <dir>')
+            options['repo'] = args[i]
+        elif arg == '--json':
+            options['json'] = True
         else:
             raise UsageError('unknown flag: {}'.format(arg))
         i += 1
@@ -732,6 +758,46 @@ def run_verify(config, gh, dashboard, options, elapsed):
     return 0
 
 
+def merge_plan_data(config, gh):
+    """The fully approved PRs split into `ready`, `needs_update` and `blocked`.
+
+    The queue is narrowed here, as the rules layer expects: the bot's open,
+    non-draft PRs minus the testing PRs and `excludeTitlePatterns` matches. Only
+    a PR with both a real code review and a real QA approval reaches
+    `bratishka_rules.merge_candidates`; an unreadable team is `unknown`, never
+    approval. Nothing is updated or merged -- the skill performs the writes.
+    """
+    config = config if isinstance(config, dict) else {}
+    repo = config.get('repo') or gh.repo_slug()
+    if not repo:
+        raise GhError('failed', 'could not resolve the repository; set bratishka.repo')
+    bot_login = config.get('botLogin') or ''
+    org = repo.split('/')[0]
+    candidates = [pr for pr in gh.open_prs(repo, bot_login)
+                  if not pr.get('draft')
+                  and not bratishka_rules.is_testing_pr(pr, config)
+                  and not bratishka_rules.is_excluded(pr, config)]
+    reviews = {pr.get('number'): gh.reviews(repo, pr.get('number'))
+               for pr in candidates}
+    teams = config.get('teams') if isinstance(config.get('teams'), dict) else {}
+    members = {'codeReview': team_members(gh, org, teams.get('codeReview')),
+               'qa': team_members(gh, org, teams.get('qa'))}
+    return bratishka_rules.merge_candidates(candidates, reviews, members, config)
+
+
+def run_merge_plan(config, gh, options, elapsed):
+    """Print the three merge groups; returns the exit code."""
+    verb = 'bratishka-merge-plan'
+    try:
+        data = merge_plan_data(config, gh)
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    config = config if isinstance(config, dict) else {}
+    data['repo'] = config.get('repo') or gh.repo_slug()
+    print(envelope(True, elapsed(), verb, data=data))
+    return 0
+
+
 def findings_data(config, gh, number):
     """The PR's unresolved review threads, numbered from 1.
 
@@ -1013,6 +1079,8 @@ def main(argv=None, gh=None, dashboard=None):
         parser = parse_task_find
     elif command == 'task-watch':
         parser = parse_task_watch
+    elif command == 'merge-plan':
+        parser = parse_merge_plan
     else:
         return fail('invalid_argument', 'unknown command: {}'.format(command))
 
@@ -1042,6 +1110,8 @@ def main(argv=None, gh=None, dashboard=None):
         return run_findings(config, client, options, elapsed)
     if command == 'compose-fix':
         return run_compose_fix(config, client, options, elapsed)
+    if command == 'merge-plan':
+        return run_merge_plan(config, client, options, elapsed)
     if command in ('task-find', 'task-watch'):
         dash = dashboard
         if dash is None and config['dashboardUrl']:

@@ -1031,3 +1031,21 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   already works the PR. `--notes` alone composes from the notes; `--watch` follows the task to a
   terminal status. Selection, correlation and the guards are in
   [bratishka-duty.md](bratishka-duty.md).
+
+### merge-approved
+
+- **Purpose:** Merge the bot's QA-approved, merge-ready pull requests: update a `BEHIND` branch,
+  re-check it once after a bounded wait, and squash-merge one PR at a time; blocked PRs are
+  reported with `gh`'s reason and never merged.
+- **Invocation:** `/artel-bratishka-merge-approved [--yes] [--pr <n>]`
+- **Reads:** `.artel/config.json` (`bratishka`, `vcs.adapter`); the repo's open bot PRs, their
+  reviews and team membership through `gh`.
+- **Writes:** `gh api -X PUT repos/<repo>/pulls/<n>/update-branch` for a `BEHIND` PR, then
+  `gh pr merge --squash` for each confirmed ready PR. No branch deletion.
+- **Pauses:** once, before updating or merging: the three groups and a `question`-tool Merge them
+  / Cancel. `--yes` skips the pause; without it nothing is updated or merged.
+- **Notes:** deterministic engine output (`scripts/bratishka.py merge-plan`); the engine merges
+  nothing and deletes no branch. Only a PR with both a real code review and a real QA approval is
+  grouped, and `unknown` QA is never approval — the skill names the config key to add. Ready
+  states, the one bounded re-check, `--squash` and the no-deletion rule are in
+  [bratishka-duty.md](bratishka-duty.md).

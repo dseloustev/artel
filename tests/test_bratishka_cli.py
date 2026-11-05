@@ -313,3 +313,17 @@ class TestFindings(unittest.TestCase):
         out = bratishka.task_find_data({'repo': 'o/r'}, gh, dash, 7,
                                        since='2026-11-05T00:00:00Z')
         self.assertEqual(out['match'], 'head_ref')
+
+
+class TestMergePlan(unittest.TestCase):
+    def test_groups(self):
+        approved = [{'login': 'dev', 'state': 'APPROVED', 'submitted_at': 't', 'body': ''},
+                    {'login': 'qa', 'state': 'APPROVED', 'submitted_at': 't', 'body': ''}]
+        reviews = {1: approved, 2: approved, 3: approved}
+        gh = FakeGh([pr(1, merge_state='CLEAN'), pr(2, merge_state='BEHIND'),
+                     pr(3, merge_state='BLOCKED')], reviews)
+        out = bratishka.merge_plan_data(
+            {'repo': 'o/r', 'teams': {'codeReview': 'devs', 'qa': 'qa-team'}}, gh)
+        self.assertEqual([x['number'] for x in out['ready']], [1])
+        self.assertEqual([x['number'] for x in out['needs_update']], [2])
+        self.assertEqual([x['number'] for x in out['blocked']], [3])

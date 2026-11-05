@@ -127,6 +127,31 @@ placeholder the init interview replaces.
     "baseUrl": "",
     "project": "",
     "tokenEnv": ""
+  },
+  "bratishka": {
+    "dashboardUrl": "",
+    "repo": "",
+    "botLogin": "bratishka-bot",
+    "baseRef": "",
+    "teams": {
+      "codeReview": "",
+      "qa": ""
+    },
+    "qaLogins": [],
+    "excludeTitlePatterns": [],
+    "fixCommand": "/agent",
+    "spawn": {
+      "adapter": "manual",
+      "tokenEnv": "",
+      "mcpToolPrefix": "",
+      "promptFile": ""
+    },
+    "testingPr": {
+      "titleTemplate": "Testing {dd}-{mm}-{yy}",
+      "branchTemplate": "feature/testing-{dd}-{mm}-{yy}",
+      "deleteBranchOnCancel": false,
+      "bodyFile": ""
+    }
   }
 }
 ```
@@ -580,6 +605,40 @@ still run — because a person asked it for a draft, not for the index.
 The `using_artel` `session.hook("context")` hook reads the key too, only to tell the injected
 router whether those two routes are live.
 
+### `bratishka` — the review-duty service
+
+| Key | Type | Default | Allowed values / notes | Consumed by |
+|---|---|---|---|---|
+| `bratishka.dashboardUrl` | string | `""` | Origin only, no trailing path — e.g. `https://bratishka.example.internal`. Empty: no live task view. Read-only and internal; an unreachable origin is reported and the run continues. | The board's live-task section; task correlation in `request-fix` and `testing-pr` |
+| `bratishka.repo` | string | `""` | `owner/name`. Empty: resolve from `gh repo view --json nameWithOwner`. The queue is repo-scoped — the bot account's PRs elsewhere are not this project's work. | Every skill and `scripts/bratishka.py` |
+| `bratishka.botLogin` | string | `"bratishka-bot"` | The PR author the queue is built from. | Queue classification, testing-PR detection |
+| `bratishka.baseRef` | string | `""` | Empty: the repo's default branch from `gh repo view`. | Testing-PR planning, `update-branch`, merge notes |
+| `bratishka.teams.codeReview` | string | `""` | Team slug whose `APPROVED` review counts as a code review. Empty: any `APPROVED` not from the bot and not from a configured QA login. | Approval classification |
+| `bratishka.teams.qa` | string | `""` | Team slug whose `APPROVED` review counts as QA approval. | Approval classification, `merge-approved` |
+| `bratishka.qaLogins` | array of strings | `[]` | Fallback when the QA team cannot be read (`read:org` missing). | Approval classification |
+| `bratishka.excludeTitlePatterns` | array of strings | `[]` | Case-insensitive substrings, or regexes prefixed `re:`, that drop a bot PR from the queue — for a repo that shares the bot account with scheduled automation (dependency bumps). | Queue construction |
+| `bratishka.fixCommand` | string | `"/agent"` | The command word the bot recognizes. | `request-fix` |
+| `bratishka.spawn.adapter` | string | `"manual"` | `"manual"` \| `"client-api"` \| `"mcp"` — how the testing-PR coder task is started. `"client-api"` needs `spawn.tokenEnv`, `"mcp"` needs `spawn.mcpToolPrefix`; without them it falls back to `"manual"`. | `testing-pr` |
+| `bratishka.spawn.tokenEnv` | string | `""` | The **name** of the env var holding a client-API token with `tasks:write,tasks:read`; never the token itself. Required for `client-api`. | `testing-pr` |
+| `bratishka.spawn.mcpToolPrefix` | string | `""` | MCP tool prefix for `spawn_task` / `get_task` / `get_task_result`, including any trailing separator. Required for `mcp`. | `testing-pr` |
+| `bratishka.spawn.promptFile` | string | `""` | Optional host override of the coder prompt template. | `testing-pr` |
+| `bratishka.testingPr.titleTemplate` | string | `"Testing {dd}-{mm}-{yy}"` | Tokens: `{dd}`, `{mm}`, `{yy}` (two-digit year), `{yyyy}`. Rendered with the local date. | `testing-pr`, `cancel-testing-pr`, `status` |
+| `bratishka.testingPr.branchTemplate` | string | `"feature/testing-{dd}-{mm}-{yy}"` | Same tokens. | `testing-pr`, `cancel-testing-pr` |
+| `bratishka.testingPr.deleteBranchOnCancel` | boolean | `false` | Current practice leaves the branch; deletion is opt-in (`cancel-testing-pr --delete-branch`). | `cancel-testing-pr` |
+| `bratishka.testingPr.bodyFile` | string | `""` | Optional host override of the testing-PR body wrapper. | `testing-pr` |
+
+The block is optional, like [knowledge](#knowledge--the-institutional-memory-mirror), and
+every key has a working default. `repo` and `baseRef` fall back to `gh repo view`; `botLogin`
+has a real default. The team-dependent verdicts are `unknown` when a team is set but cannot be
+read (no `read:org`), and `unknown` is never treated as approved: an empty `teams.qa` with no
+`qaLogins` is likewise `unknown`, while an empty `teams.codeReview` falls back to any non-bot
+approval that is not a QA login. `dashboardUrl` is a read-only observation channel: when it is
+empty or unreachable, the skills lose the live task view and the task correlation, and
+everything else works. `spawn.adapter` stays `manual` until a token or an MCP server is
+configured: the prompt is printed and copied, `/spawn` is opened, and the task is found by its
+`Run id:` marker. The full day contract — approval model, queue buckets, testing-PR body, fix
+loop, merge rules — is [bratishka-duty.md](bratishka-duty.md).
+
 ### App automation — owned by the host project
 
 There is no `runtime` block. Artel ships no launcher, no UI driver and no transient-scaffold
@@ -681,6 +740,31 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub:
     "baseUrl": "http://127.0.0.1:8734",
     "project": "acme-web",
     "tokenEnv": "KARTOTEKA_TOKEN"
+  },
+  "bratishka": {
+    "dashboardUrl": "https://bratishka.example.internal",
+    "repo": "owner/repo",
+    "botLogin": "bratishka-bot",
+    "baseRef": "main",
+    "teams": {
+      "codeReview": "code-review-team",
+      "qa": "team-slug"
+    },
+    "qaLogins": [],
+    "excludeTitlePatterns": ["chore(deps):"],
+    "fixCommand": "/agent",
+    "spawn": {
+      "adapter": "manual",
+      "tokenEnv": "",
+      "mcpToolPrefix": "",
+      "promptFile": ""
+    },
+    "testingPr": {
+      "titleTemplate": "Testing {dd}-{mm}-{yy}",
+      "branchTemplate": "feature/testing-{dd}-{mm}-{yy}",
+      "deleteBranchOnCancel": false,
+      "bodyFile": ""
+    }
   }
 }
 ```

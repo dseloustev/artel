@@ -9,6 +9,7 @@ contracts must spell the same way, because a paraphrase of a gate message is
 what makes two documents disagree about whether consultation happened. Prose is
 deliberately not asserted on; only the spellings are.
 """
+import json
 import re
 import unittest
 from pathlib import Path
@@ -164,8 +165,10 @@ class TestTokenEnv(unittest.TestCase):
 
     def test_both_example_configs_carry_the_key(self):
         # The default block (empty) and the filled example (KARTOTEKA_TOKEN).
-        self.assertEqual(2, read(CONFIG).count('"tokenEnv":'),
-                         'the default and the filled example each spell the key once')
+        configs = [json.loads(block) for block in
+                   re.findall(r'```json\n(.*?)\n```', read(CONFIG), re.S)]
+        self.assertEqual(['', 'KARTOTEKA_TOKEN'],
+                         [config['knowledge']['tokenEnv'] for config in configs])
 
     def test_config_wires_the_mcp_session_with_the_same_variable(self):
         # OpenCode expands {env:VAR} inside the MCP server's headers; the hook

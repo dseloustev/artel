@@ -133,6 +133,56 @@ class TestStatus(unittest.TestCase):
         self.assertEqual(out['error']['kind'], 'invalid_argument')
 
 
+class TestPlanCommand(unittest.TestCase):
+    def test_plan_envelope(self):
+        with tempfile.TemporaryDirectory() as repo:
+            path = Path(repo) / '.artel' / 'config.json'
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({'bratishka': {'teams': {'codeReview': 'devs',
+                                                               'qa': 'qa-team'}}}))
+            gh = FakeGh([pr(1)], {1: [{'login': 'dev', 'state': 'APPROVED',
+                                       'submitted_at': 't', 'body': ''}]})
+            gh.base_sha = lambda repo_name, ref: 'abc'
+            code, out = run(['testing-pr-plan', '--repo', repo], gh=gh,
+                            dashboard=FakeDash())
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data']['tasks'][0]['number'], 1)
+        self.assertEqual(out['data']['base_sha'], 'abc')
+
+    def test_exclude_drops_a_candidate(self):
+        with tempfile.TemporaryDirectory() as repo:
+            path = Path(repo) / '.artel' / 'config.json'
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({'bratishka': {'teams': {'codeReview': 'devs',
+                                                               'qa': 'qa-team'}}}))
+            review = [{'login': 'dev', 'state': 'APPROVED', 'submitted_at': 't',
+                       'body': ''}]
+            gh = FakeGh([pr(1), pr(2)], {1: review, 2: review})
+            gh.base_sha = lambda repo_name, ref: 'abc'
+            code, out = run(['testing-pr-plan', '--repo', repo, '--exclude', '2'],
+                            gh=gh)
+        self.assertEqual(code, 0)
+        self.assertEqual([task['number'] for task in out['data']['tasks']], [1])
+
+    def test_prompt_is_written_with_its_run_id(self):
+        with tempfile.TemporaryDirectory() as repo:
+            path = Path(repo) / '.artel' / 'config.json'
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({'bratishka': {'teams': {'codeReview': 'devs',
+                                                               'qa': 'qa-team'}}}))
+            gh = FakeGh([pr(1)], {1: [{'login': 'dev', 'state': 'APPROVED',
+                                       'submitted_at': 't', 'body': ''}]})
+            gh.base_sha = lambda repo_name, ref: 'abc'
+            target = Path(repo) / 'run' / 'testing-pr-prompt.md'
+            code, out = run(['testing-pr-prompt', '--repo', repo, '--out',
+                             str(target)], gh=gh)
+            text = target.read_text(encoding='utf-8')
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data']['prompt_path'], str(target))
+        self.assertIn('PR #1, head branch agent/x', text)
+        self.assertIn('Run id: ' + out['data']['run_id'], text)
+
+
 class TestCancel(unittest.TestCase):
     def setUp(self):
         self.repo = tempfile.TemporaryDirectory()

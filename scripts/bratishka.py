@@ -14,6 +14,12 @@ skill to run. It writes nothing and never merges, closes or comments.
 name spells a date before today, leaves a fixed close comment, and never touches
 today's, a non-testing or an already closed one.
 
+`testing-pr-plan` and `testing-pr-prompt` are the read-only composition: they
+select the source PRs, resolve the base sha, render the testing PR's title and
+branch, and compose the #144-shaped body prompt. `testing-pr-prompt --out PATH`
+writes the coder prompt and prints its path and the unique run id; nothing is
+posted, closed, merged or pushed.
+
 Exit codes are the contract's: `0` success, `1` a user-actionable failure
 (nothing to do, a refusal), `2` a configuration or environment error. Every
 invocation prints one envelope, `{ok, verb, elapsed_ms, data|error}`.
@@ -23,15 +29,20 @@ Contract: docs/bratishka-duty.md (`## Queue and board`, `## Testing PR`,
 
 Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
        bratishka.py testing-pr-cancel [--repo <dir>] [--delete-branch] [--yes] [--json]
+       bratishka.py testing-pr-plan [--repo <dir>] [--include N,...] [--exclude N,...] [--json]
+       bratishka.py testing-pr-prompt [--repo <dir>] [--out <path>] [--json]
+              [--include N,...] [--exclude N,...]
 """
 import json
 import re
 import sys
 import time
 from datetime import date
+from pathlib import Path
 
 import bratishka_config
 import bratishka_rules
+import bratishka_testing
 from bratishka_dashboard import Dashboard
 from bratishka_gh import Gh, GhError
 
@@ -109,6 +120,65 @@ def parse_cancel(args):
             raise UsageError('unknown flag: {}'.format(arg))
         i += 1
     return options
+
+
+def parse_numbers(value, flag):
+    """A comma-separated PR-number list, e.g. `1,3`; a non-number is refused."""
+    numbers = []
+    for part in value.split(','):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            numbers.append(int(part))
+        except ValueError:
+            raise UsageError('{} expects PR numbers: {!r}'.format(flag, part))
+    return numbers
+
+
+def parse_selection(args, allow_out=False):
+    """The shared `testing-pr-plan`/`testing-pr-prompt` flags.
+
+    Both accept `repo`, `json`, `include` and `exclude`; the prompt adds `out`.
+    """
+    options = {'repo': '.', 'json': False, 'include': [], 'exclude': []}
+    if allow_out:
+        options['out'] = ''
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--repo':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --repo <dir>')
+            options['repo'] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        elif arg in ('--include', '--exclude'):
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for {} <n,...>'.format(arg))
+            key = 'include' if arg == '--include' else 'exclude'
+            options[key].extend(parse_numbers(args[i], arg))
+        elif allow_out and arg == '--out':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --out <path>')
+            options['out'] = args[i]
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    return options
+
+
+def parse_plan(args):
+    """`testing-pr-plan`'s flags: `repo`, `json`, `include` and `exclude`."""
+    return parse_selection(args)
+
+
+def parse_prompt(args):
+    """`testing-pr-prompt`'s flags: `repo`, `json`, `out`, `include` and `exclude`."""
+    return parse_selection(args, allow_out=True)
 
 
 def team_members(gh, org, slug):
@@ -368,6 +438,42 @@ def run_cancel(config, gh, options, elapsed):
     return 0
 
 
+def run_plan(config, gh, options, elapsed):
+    """Compose and print the testing-PR plan; returns the exit code."""
+    verb = 'bratishka-testing-pr-plan'
+    try:
+        data = bratishka_testing.plan(config, gh, include=options['include'],
+                                      exclude=options['exclude'])
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    print(envelope(True, elapsed(), verb, data=data))
+    return 0
+
+
+def run_prompt(config, gh, options, elapsed):
+    """Write the coder prompt, or return it, and print its path and run id."""
+    verb = 'bratishka-testing-pr-prompt'
+    try:
+        data = bratishka_testing.plan(config, gh, include=options['include'],
+                                      exclude=options['exclude'])
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    if not options['out']:
+        print(envelope(True, elapsed(), verb, data={
+            'prompt_path': None, 'run_id': data['run_id'], 'prompt': data['prompt']}))
+        return 0
+    target = Path(options['out'])
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(data['prompt'] + '\n', encoding='utf-8')
+    except OSError as exc:
+        return fail('failed', 'could not write the prompt: {}'.format(exc),
+                    verb=verb, elapsed_ms=elapsed())
+    print(envelope(True, elapsed(), verb, data={
+        'prompt_path': str(target), 'run_id': data['run_id']}))
+    return 0
+
+
 def main(argv=None, gh=None, dashboard=None):
     """Dispatch one bratishka command and print its envelope; returns the exit code."""
     start = time.monotonic()
@@ -383,6 +489,10 @@ def main(argv=None, gh=None, dashboard=None):
         parser = parse_status
     elif command == 'testing-pr-cancel':
         parser = parse_cancel
+    elif command == 'testing-pr-plan':
+        parser = parse_plan
+    elif command == 'testing-pr-prompt':
+        parser = parse_prompt
     else:
         return fail('invalid_argument', 'unknown command: {}'.format(command))
 
@@ -399,6 +509,10 @@ def main(argv=None, gh=None, dashboard=None):
     client = gh if gh is not None else Gh(cwd=options['repo'])
     if command == 'testing-pr-cancel':
         return run_cancel(config, client, options, elapsed)
+    if command == 'testing-pr-plan':
+        return run_plan(config, client, options, elapsed)
+    if command == 'testing-pr-prompt':
+        return run_prompt(config, client, options, elapsed)
 
     dash = dashboard
     if dash is None and not options['offline'] and config['dashboardUrl']:

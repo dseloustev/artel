@@ -20,6 +20,12 @@ branch, and compose the #144-shaped body prompt. `testing-pr-prompt --out PATH`
 writes the coder prompt and prints its path, the unique run id and the selected
 PRs; nothing is posted, closed, merged or pushed.
 
+`testing-pr-local` is the explicit local fallback: it assembles today's branch in
+a throwaway worktree under `.artel/run/bratishka/`, merges every source head with
+`--no-ff`, runs the host's `verify.commands`, pushes the branch and opens the PR.
+A conflict stops it with the conflicting files and no push; the working checkout
+is never the workspace.
+
 `testing-pr-verify` closes that loop read-only: it finds the spawned task by the
 prompt's `Run id:` marker and today's testing PR by its title or branch (or the
 task's `head_ref`), and reports a failed completion gate separately from an
@@ -51,6 +57,8 @@ Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
        bratishka.py testing-pr-plan [--repo <dir>] [--include N,...] [--exclude N,...] [--json]
        bratishka.py testing-pr-prompt [--repo <dir>] [--out <path>] [--json]
               [--include N,...] [--exclude N,...]
+       bratishka.py testing-pr-local [--repo <dir>] [--yes] [--dry-run]
+              [--body-out <path>] [--json]
        bratishka.py testing-pr-verify --run-id <id> [--repo <dir>] [--json]
        bratishka.py findings --pr <n> [--repo <dir>] [--json]
        bratishka.py compose-fix --pr <n> [--repo <dir>] [--select <n,...|none>]
@@ -61,8 +69,11 @@ Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
        bratishka.py merge-plan [--repo <dir>] [--json]
 """
 import json
+import os
 import re
+import subprocess
 import sys
+import tempfile
 import time
 from datetime import date
 from pathlib import Path
@@ -87,10 +98,21 @@ SUGGESTION_RE = re.compile(r'```suggestion[^\n]*\n(.*?)```', re.S)
 # The one close comment the cancel path posts, whatever the testing PR bundled.
 CANCEL_COMMENT = ('Closed by the duty reviewer: the daily testing PR lives one day '
                   'and is replaced by today\'s.')
+# How much of a verify command's output one testing-PR body line keeps.
+VERIFY_LINE_CHARS = 300
 
 
 class UsageError(Exception):
     """An argv the command cannot parse; reported as `invalid_argument`."""
+
+
+class BuildError(Exception):
+    """A git or environment step the local build could not complete; exit `2`."""
+
+    def __init__(self, kind, message):
+        super().__init__(message)
+        self.kind = kind
+        self.message = message
 
 
 def envelope(ok, elapsed_ms, verb, data=None, error=None):
@@ -167,6 +189,35 @@ def parse_cancel(args):
             options['delete_branch'] = True
         elif arg == '--yes':
             options['yes'] = True
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    return options
+
+
+def parse_local(args):
+    """`testing-pr-local`'s flags: `repo`, `json`, `yes`, `dry_run` and `body_out`."""
+    options = {'repo': '.', 'json': False, 'yes': False, 'dry_run': False,
+               'body_out': ''}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--repo':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --repo <dir>')
+            options['repo'] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        elif arg == '--yes':
+            options['yes'] = True
+        elif arg == '--dry-run':
+            options['dry_run'] = True
+        elif arg == '--body-out':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --body-out <path>')
+            options['body_out'] = args[i]
         else:
             raise UsageError('unknown flag: {}'.format(arg))
         i += 1
@@ -700,6 +751,323 @@ def run_prompt(config, gh, options, elapsed):
     return 0
 
 
+def git_run(cwd, *args, check=True):
+    """Run one git command in `cwd`; a non-zero exit is BuildError unless unchecked.
+
+    `check=False` is for the merges, whose exit the caller reads to separate a
+    content conflict from an environment failure.
+    """
+    command = ['git', '-C', str(cwd)] + list(args)
+    try:
+        proc = subprocess.run(command, capture_output=True, text=True)
+    except OSError as exc:
+        raise BuildError('failed', 'could not run git: {}'.format(exc))
+    if check and proc.returncode != 0:
+        detail = (proc.stderr or '').strip() or 'git exited with status {}'.format(
+            proc.returncode)
+        raise BuildError('failed', '{}: {}'.format(' '.join(command), detail))
+    return proc
+
+
+def remove_worktree(repo_dir, worktree):
+    """Remove a throwaway worktree; `--force` covers build artifacts and conflicts."""
+    git_run(repo_dir, 'worktree', 'remove', '--force', str(worktree), check=False)
+
+
+def temp_body_file(text):
+    """Write the PR body to a temporary file and return its path."""
+    handle, path = tempfile.mkstemp(prefix='bratishka-testing-', suffix='.md')
+    with os.fdopen(handle, 'w', encoding='utf-8') as stream:
+        stream.write(text)
+    return path
+
+
+def body_text(body, merge_notes, verification):
+    """The PR body: literal text, or a callable given the build's late results."""
+    if callable(body):
+        return body(merge_notes, verification) or ''
+    return body or ''
+
+
+def verification_line(command, proc):
+    """One `## Local verification` line: the command and its outcome."""
+    output = ((proc.stdout or '') + (proc.stderr or '')).strip()
+    tail = ' '.join(output.split())
+    if len(tail) > VERIFY_LINE_CHARS:
+        tail = '...' + tail[-VERIFY_LINE_CHARS:]
+    if proc.returncode == 0:
+        return '`{}` — passed'.format(command)
+    return '`{}` — failed (exit {}): {}'.format(
+        command, proc.returncode, tail or 'no output')
+
+
+def run_verify_commands(worktree, commands, stop_on_failure=True):
+    """Run `commands` in order; by default stop at the first red one.
+
+    With `stop_on_failure` false every command runs, so an allowed red gate
+    still reports the whole configured set. Returns `(lines, failed)`, where
+    `failed` is the first red command or None. A command's output travels in
+    its line, a missing tool included, so the body never hides it.
+    """
+    lines = []
+    failed = None
+    for command in commands or []:
+        try:
+            proc = subprocess.run(command, shell=True, cwd=str(worktree),
+                                  capture_output=True, text=True)
+        except OSError as exc:
+            lines.append('`{}` — could not run: {}'.format(command, exc))
+            failed = failed or command
+        else:
+            lines.append(verification_line(command, proc))
+            if proc.returncode != 0:
+                failed = failed or command
+        if failed is not None and stop_on_failure:
+            return lines, failed
+    return lines, failed
+
+
+def gh_repo(gh):
+    """The `gh` client's `owner/name`, or '' when it cannot name one."""
+    getter = getattr(gh, 'repo_slug', None)
+    if getter is None:
+        return ''
+    try:
+        return getter() or ''
+    except GhError:
+        return ''
+
+
+def local_build(repo_dir, worktree, branch, base_ref, tasks, body, gh,
+                verify_commands=None, allow_red_verify=False, title=None,
+                repo=None):
+    """Assemble the testing branch in a throwaway worktree, push it and open the PR.
+
+    `tasks` are the selected source PRs (`number`, `head`); each head is merged
+    into `branch` with a merge commit. A content conflict aborts the merge,
+    removes the worktree and returns the conflicting paths with `pr_url` None:
+    nothing is pushed. On a clean build every `verify_commands` entry runs in
+    the worktree; the first red one keeps the worktree for inspection and
+    returns an `error` instead of opening the PR, unless `allow_red_verify`.
+
+    `body` is the composed body text, or a callable receiving this build's
+    `(merge_notes, verification)` so the caller can compose the body after the
+    merges and checks it reports. `title` and `repo` are the planned PR title
+    and `owner/name`; they default to the branch and the `gh` client's repo.
+    """
+    repo_dir = str(repo_dir)
+    worktree = str(worktree)
+    if branch == base_ref:
+        raise BuildError('invalid_argument',
+                         'the testing branch must differ from the base branch')
+    git_run(repo_dir, 'fetch', 'origin')
+    git_run(repo_dir, 'worktree', 'add', '--detach', worktree,
+            'origin/{}'.format(base_ref))
+    git_run(worktree, 'switch', '-c', branch)
+    merge_notes = []
+    for task in tasks or []:
+        if not isinstance(task, dict):
+            continue
+        head = task.get('head') or ''
+        number = task.get('number')
+        proc = git_run(worktree, 'merge', '--no-ff', 'origin/{}'.format(head),
+                       '-m', 'Merge PR #{} ({})'.format(number, head),
+                       check=False)
+        if proc.returncode == 0:
+            merge_notes.append('Merged #{} (`{}`) without conflicts.'.format(number, head))
+            continue
+        conflicts = [line.strip() for line in git_run(
+            worktree, 'diff', '--name-only', '--diff-filter=U',
+            check=False).stdout.splitlines() if line.strip()]
+        git_run(worktree, 'merge', '--abort', check=False)
+        remove_worktree(repo_dir, worktree)
+        git_run(repo_dir, 'branch', '-D', branch, check=False)
+        if not conflicts:
+            detail = (proc.stderr or proc.stdout or '').strip()
+            raise BuildError('failed', 'could not merge #{} ({}): {}'.format(
+                number, head, detail or 'git merge failed'))
+        merge_notes.append('Merge of #{} (`{}`) conflicted.'.format(number, head))
+        return {'branch': branch, 'conflicts': conflicts, 'pr_url': None,
+                'merge_notes': merge_notes, 'verification': []}
+    verification, failed = run_verify_commands(
+        worktree, verify_commands, stop_on_failure=not allow_red_verify)
+    if failed is not None and not allow_red_verify:
+        return {'branch': branch, 'conflicts': [], 'pr_url': None,
+                'merge_notes': merge_notes, 'verification': verification,
+                'error': {'kind': 'verification_failed',
+                          'message': '`{}` failed; the branch was not pushed'.format(failed)}}
+    git_run(worktree, 'push', '-u', 'origin', branch)
+    body_file = temp_body_file(body_text(body, merge_notes, verification))
+    try:
+        pr_url = gh.create_pr(repo or gh_repo(gh), base_ref, branch,
+                              title or branch, body_file)
+    finally:
+        try:
+            os.unlink(body_file)
+        except OSError:
+            pass
+    remove_worktree(repo_dir, worktree)
+    return {'branch': branch, 'conflicts': [], 'pr_url': pr_url,
+            'merge_notes': merge_notes, 'verification': verification}
+
+
+def branch_on_origin(repo_dir, branch):
+    """Whether `origin` already has the named head branch."""
+    output = git_run(repo_dir, 'ls-remote', '--heads', 'origin', branch).stdout
+    return bool((output or '').strip())
+
+
+def existing_testing_pr(gh, repo, title, branch):
+    """The open PR already carrying this title or head branch, or None."""
+    for pr in gh.open_prs(repo):
+        if pr.get('title') == title or pr.get('head') == branch:
+            return pr
+    return None
+
+
+def host_verify_commands(repo):
+    """The host's `verify.commands`, read from the full `.artel/config.json`.
+
+    `bratishka_config.load` exposes only the `bratishka` block, so the document
+    is read again here; a missing or malformed file means no commands.
+    """
+    path = Path(repo) / '.artel' / 'config.json'
+    try:
+        document = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return []
+    block = document.get('verify') if isinstance(document, dict) else None
+    commands = block.get('commands') if isinstance(block, dict) else None
+    if not isinstance(commands, list):
+        return []
+    result = []
+    for command in commands or []:
+        if isinstance(command, str) and command.strip():
+            result.append(command)
+    return result
+
+
+def run_local(config, gh, options, elapsed):
+    """Plan, confirm and build the testing PR locally; returns the exit code."""
+    verb = 'bratishka-testing-pr-local'
+    try:
+        plan = bratishka_testing.plan(config, gh)
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    tasks = plan['tasks']
+    repo = plan['repo']
+    branch = plan['branch']
+    title = plan['title']
+    base_ref = plan['base_ref']
+    base_sha = plan['base_sha']
+    worktree = str(Path(options['repo']).resolve() / '.artel' / 'run' / 'bratishka' /
+                   'testing-pr-{}'.format(date.today().isoformat()))
+    if not tasks:
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'nothing_to_do',
+            'message': 'no source PR is ready for a testing PR'}))
+        return 1
+    try:
+        branch_exists = branch_on_origin(options['repo'], branch)
+    except BuildError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    if branch_exists:
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'already_exists',
+            'message': 'the testing branch {} already exists on origin'.format(branch),
+            'branch': branch, 'repo': repo, 'worktree': worktree}))
+        return 1
+    try:
+        existing = existing_testing_pr(gh, repo, title, branch)
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    if existing is not None:
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'already_exists',
+            'message': 'the testing PR #{} already exists'.format(existing.get('number')),
+            'pr': existing, 'branch': branch, 'repo': repo, 'worktree': worktree}))
+        return 1
+    if Path(worktree).exists():
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'worktree_exists',
+            'message': ('a worktree from an earlier run is still at {}; inspect '
+                        'and remove it before rebuilding').format(worktree),
+            'worktree': worktree}))
+        return 1
+    if options['dry_run']:
+        print(envelope(True, elapsed(), verb, data={
+            'repo': repo, 'title': title, 'branch': branch, 'base_ref': base_ref,
+            'base_sha': base_sha, 'tasks': tasks, 'worktree': worktree,
+            'verify_commands': host_verify_commands(options['repo'])}))
+        return 0
+    if not options['yes']:
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'confirmation_required',
+            'message': 'build and open the testing PR {}'.format(branch),
+            'confirmation_required': True,
+            'repo': repo, 'title': title, 'branch': branch, 'base_ref': base_ref,
+            'base_sha': base_sha, 'tasks': tasks, 'worktree': worktree}))
+        return 1
+    checks_by_pr = {}
+    for task in tasks:
+        try:
+            checks_by_pr[task.get('number')] = gh.checks(repo, task.get('number'))
+        except GhError:
+            checks_by_pr[task.get('number')] = None
+    day = date.today()
+
+    def compose(merge_notes, verification):
+        return bratishka_testing.build_body(
+            tasks, config, day, base_ref, base_sha, checks_by_pr,
+            merge_notes, verification)
+
+    try:
+        result = local_build(
+            options['repo'], worktree, branch, base_ref, tasks, compose, gh,
+            verify_commands=host_verify_commands(options['repo']),
+            title=title, repo=repo)
+    except (BuildError, GhError) as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    if result['conflicts']:
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'conflict',
+            'message': 'the branch was not pushed: {} file(s) conflicted and the '
+                       'worktree was removed'.format(len(result['conflicts'])),
+            'conflicts': result['conflicts'],
+            'merge_notes': result['merge_notes'],
+            'repo': repo, 'branch': branch}))
+        return 1
+    if result.get('error'):
+        error = dict(result['error'])
+        error.update({'merge_notes': result['merge_notes'],
+                      'verification': result['verification'],
+                      'worktree': worktree, 'repo': repo, 'branch': branch})
+        print(envelope(False, elapsed(), verb, error=error))
+        return 1
+    body_path = None
+    if options['body_out']:
+        body_path = str(options['body_out'])
+        try:
+            target = Path(body_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                compose(result['merge_notes'], result['verification']) + '\n',
+                encoding='utf-8')
+        except OSError as exc:
+            print(envelope(False, elapsed(), verb, error={
+                'kind': 'failed',
+                'message': 'the PR was opened but the body could not be written: {}'.format(
+                    exc),
+                'pr_url': result['pr_url'], 'body_path': body_path}))
+            return 2
+    print(envelope(True, elapsed(), verb, data={
+        'repo': repo, 'title': title, 'branch': branch, 'base_ref': base_ref,
+        'base_sha': base_sha, 'pr_url': result['pr_url'], 'body_path': body_path,
+        'merge_notes': result['merge_notes'],
+        'verification': result['verification'], 'tasks': tasks}))
+    return 0
+
+
 def testing_name(config, key, day):
     """A testing-PR title or branch rendered from the config, default included."""
     testing = config.get('testingPr') if isinstance(config, dict) else None
@@ -1069,6 +1437,8 @@ def main(argv=None, gh=None, dashboard=None):
         parser = parse_plan
     elif command == 'testing-pr-prompt':
         parser = parse_prompt
+    elif command == 'testing-pr-local':
+        parser = parse_local
     elif command == 'testing-pr-verify':
         parser = parse_verify
     elif command == 'findings':
@@ -1101,6 +1471,8 @@ def main(argv=None, gh=None, dashboard=None):
         return run_plan(config, client, options, elapsed)
     if command == 'testing-pr-prompt':
         return run_prompt(config, client, options, elapsed)
+    if command == 'testing-pr-local':
+        return run_local(config, client, options, elapsed)
     if command == 'testing-pr-verify':
         dash = dashboard
         if dash is None and config['dashboardUrl']:

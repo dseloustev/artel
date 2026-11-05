@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -68,6 +69,12 @@ class FakeDash:
                 return task
         return None
 
+    def active_tasks_for_pr(self, repo, number):
+        needle = 'PR {}#{}'.format(repo, number)
+        return [task for task in self._tasks
+                if task.get('status') in ('active', 'queued')
+                and needle in (task.get('description') or '')]
+
 
 def pr(number, title='AW-1 x', head='agent/x', merge_state='CLEAN'):
     return {'number': number, 'title': title, 'url': 'u', 'head': head,
@@ -118,6 +125,45 @@ class TestStatus(unittest.TestCase):
                         gh=FakeGh([pr(1)]), dashboard=FakeDash())
         self.assertEqual(code, 0)
         self.assertEqual(out['data']['live_tasks'], [])
+
+    def test_queue_returns_only_the_classified_queue(self):
+        self.write_config()
+        review = [{'login': 'dev', 'state': 'APPROVED', 'submitted_at': 't',
+                   'body': ''}]
+        code, out = run(['queue', '--repo', self.repo.name],
+                        gh=FakeGh([pr(1)], {1: review}))
+        self.assertEqual(code, 0)
+        self.assertEqual(out['data']['counts']['needs-qa'], 1)
+        self.assertNotIn('testing_prs', out['data'])
+        self.assertNotIn('live_tasks', out['data'])
+
+    def test_a_human_authored_testing_pr_is_on_the_board(self):
+        self.write_config()
+        testing = pr(50, title='Testing 03-11-26',
+                     head='feature/testing-03-11-26')
+        testing['author'] = 'human'
+        testing['body'] = 'https://github.com/o/r/pull/1'
+        reviews = {1: [{'login': 'dev', 'state': 'APPROVED', 'submitted_at': 't',
+                        'body': ''},
+                       {'login': 'qa', 'state': 'APPROVED', 'submitted_at': 't',
+                        'body': ''}]}
+        code, out = run(['status', '--repo', self.repo.name],
+                        gh=FakeGh([testing, pr(1)], reviews), dashboard=FakeDash())
+        self.assertEqual(code, 0)
+        self.assertEqual([item['number'] for item in out['data']['testing_prs']], [50])
+        self.assertEqual(out['data']['testing_prs'][0]['qa_approvals'], 1)
+
+    def test_a_queue_item_carries_the_merge_state(self):
+        self.write_config()
+        review = [{'login': 'dev', 'state': 'APPROVED', 'submitted_at': 't',
+                   'body': ''}]
+        code, out = run(['status', '--repo', self.repo.name],
+                        gh=FakeGh([pr(1, merge_state='BEHIND')], {1: review}),
+                        dashboard=FakeDash())
+        self.assertEqual(code, 0)
+        item = out['data']['queue']['needs-qa'][0]
+        self.assertEqual(item['merge_state'], 'BEHIND')
+        self.assertEqual(item['mergeable'], 'MERGEABLE')
 
     def test_invalid_config_exits_2(self):
         path = Path(self.repo.name) / '.artel' / 'config.json'
@@ -239,6 +285,37 @@ class TestCancel(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(sorted(gh.closed), [(1, False), (2, False)])
 
+    def test_yes_with_pr_closes_only_the_confirmed_number(self):
+        self.write_config()
+        gh = self.gh()
+        code, out = run(['testing-pr-cancel', '--repo', self.repo.name, '--yes',
+                         '--pr', '1'], gh=gh)
+        self.assertEqual(code, 0)
+        self.assertEqual(gh.closed, [(1, False)])
+
+    def test_a_confirmed_pr_that_left_the_plan_is_a_stale_plan(self):
+        self.write_config()
+        gh = self.gh()
+        code, out = run(['testing-pr-cancel', '--repo', self.repo.name, '--yes',
+                         '--pr', '1,3'], gh=gh)
+        self.assertEqual(code, 1)
+        self.assertEqual(out['error']['kind'], 'stale_plan')
+        self.assertEqual(out['error']['missing'], [3])
+        self.assertEqual(gh.closed, [])
+
+    def test_a_cancel_is_journaled(self):
+        self.write_config()
+        gh = self.gh()
+        code, _ = run(['testing-pr-cancel', '--repo', self.repo.name, '--yes',
+                       '--pr', '1'], gh=gh)
+        self.assertEqual(code, 0)
+        journal = (Path(self.repo.name) / '.artel' / 'run' / 'bratishka' /
+                   date.today().isoformat() / 'journal.md')
+        text = journal.read_text(encoding='utf-8')
+        self.assertIn('testing-pr-cancel', text)
+        self.assertIn('#1', text)
+        self.assertIn('u', text)
+
     def test_today_is_left_alone(self):
         self.write_config()
         today = __import__('datetime').date.today()
@@ -251,6 +328,46 @@ class TestCancel(unittest.TestCase):
                         gh=gh)
         self.assertEqual(code, 1)
         self.assertEqual(gh.closed, [])
+
+
+class TestAdapterGuard(unittest.TestCase):
+    """The two gh-writing engine commands refuse a non-GitHub adapter."""
+
+    def setUp(self):
+        self.repo = tempfile.TemporaryDirectory()
+        self.addCleanup(self.repo.cleanup)
+        path = Path(self.repo.name) / '.artel' / 'config.json'
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({
+            'vcs': {'adapter': 'bitbucket-mcp'},
+            'bratishka': {'botLogin': 'bratishka-bot'},
+        }), encoding='utf-8')
+
+    def test_cancel_refuses_and_closes_nothing(self):
+        gh = FakeGh([pr(1, title='Testing 03-11-26',
+                        head='feature/testing-03-11-26')])
+        gh.closed = []
+        gh.close_pr = lambda repo, n, comment=None, delete_branch=False: \
+            gh.closed.append(n)
+        code, out = run(['testing-pr-cancel', '--repo', self.repo.name, '--yes'],
+                        gh=gh)
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'adapter_not_github')
+        self.assertIn('bitbucket-mcp', out['error']['message'])
+        self.assertEqual(gh.closed, [])
+
+    def test_local_refuses_and_opens_nothing(self):
+        gh = FakeGh([])
+        gh.created = []
+        gh.create_pr = lambda *args, **kwargs: gh.created.append(args)
+        code, out = run(['testing-pr-local', '--repo', self.repo.name, '--yes'],
+                        gh=gh)
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error']['kind'], 'adapter_not_github')
+        self.assertIn('bitbucket-mcp', out['error']['message'])
+        self.assertEqual(gh.created, [])
+        self.assertFalse((Path(self.repo.name) / '.artel' / 'run' /
+                          'bratishka').exists())
 
 
 class TestVerify(unittest.TestCase):
@@ -288,6 +405,20 @@ class TestFindings(unittest.TestCase):
         out = bratishka.findings_data({'repo': 'o/r'}, gh, 7)
         self.assertEqual([t['path'] for t in out['threads']], ['a.dart'])
 
+    def test_a_human_root_thread_is_not_a_bot_finding(self):
+        gh = FakeGh([])
+        gh.review_threads = lambda repo, n: [
+            {'path': 'a.dart', 'line': 4, 'body': 'bot', 'author': 'bratishka-bot',
+             'resolved': False},
+            {'path': 'b.dart', 'line': 9, 'body': 'human', 'author': 'reviewer',
+             'resolved': False}]
+        out = bratishka.findings_data(
+            {'repo': 'o/r', 'botLogin': 'bratishka-bot'}, gh, 7)
+        self.assertEqual([t['path'] for t in out['threads']], ['a.dart'])
+        every = bratishka.findings_data(
+            {'repo': 'o/r', 'botLogin': 'bratishka-bot'}, gh, 7, all_authors=True)
+        self.assertEqual([t['path'] for t in every['threads']], ['a.dart', 'b.dart'])
+
     def test_compose_one_comment(self):
         body = bratishka.compose_fix_body(
             [{'path': 'a.dart', 'line': 4, 'body': 'fix it'}], [0], 'and test it',
@@ -302,6 +433,40 @@ class TestFindings(unittest.TestCase):
                           'created_at': '2026-11-05T07:00:00Z'}])
         out = bratishka.task_find_data({'repo': 'o/r'}, FakeGh([]), dash, 7)
         self.assertEqual(out['task']['status'], 'active')
+
+    def test_an_active_task_by_another_initiator_is_visible(self):
+        dash = FakeDash([{'task_id': 'other-live', 'status': 'active',
+                          'description': 'PR o/r#7', 'initiator': 'other',
+                          'created_at': '2026-11-05T07:00:00Z'}])
+        out = bratishka.task_find_data({'repo': 'o/r'}, FakeGh([]), dash, 7)
+        self.assertEqual([task['task_id'] for task in out['active_tasks']],
+                         ['other-live'])
+
+    def test_an_older_active_task_is_not_masked_by_a_newer_completed_one(self):
+        dash = FakeDash([
+            {'task_id': 'old-live', 'status': 'active',
+             'description': 'PR o/r#7', 'initiator': 'me',
+             'created_at': '2026-11-05T07:00:00Z'},
+            {'task_id': 'new-done', 'status': 'completed',
+             'description': 'PR o/r#7', 'initiator': 'me',
+             'created_at': '2026-11-05T09:00:00Z'}])
+        out = bratishka.task_find_data({'repo': 'o/r'}, FakeGh([]), dash, 7)
+        self.assertEqual([task['task_id'] for task in out['active_tasks']],
+                         ['old-live'])
+
+    def test_a_login_failure_falls_back_to_pr_time(self):
+        class BrokenLoginGh(FakeGh):
+            def current_login(self):
+                raise bratishka.GhError('failed', 'no authenticated user')
+
+        dash = FakeDash([{'task_id': 't', 'status': 'active',
+                          'description': 'PR o/r#7', 'initiator': 'me',
+                          'created_at': '2026-11-05T07:00:00Z'}])
+        out = bratishka.task_find_data({'repo': 'o/r'}, BrokenLoginGh([]), dash, 7)
+        self.assertEqual(out['match'], 'pr_time')
+        self.assertIn('no authenticated user', out['login_error'])
+        self.assertEqual(out['dashboard_errors'], [])
+        self.assertEqual(out['task']['task_id'], 't')
 
     def test_the_head_ref_fallback(self):
         dash = FakeDash([{'task_id': 't', 'status': 'active',
@@ -327,3 +492,16 @@ class TestMergePlan(unittest.TestCase):
         self.assertEqual([x['number'] for x in out['ready']], [1])
         self.assertEqual([x['number'] for x in out['needs_update']], [2])
         self.assertEqual([x['number'] for x in out['blocked']], [3])
+
+    def test_an_active_coder_task_marks_the_merge_entry(self):
+        approved = [{'login': 'dev', 'state': 'APPROVED', 'submitted_at': 't', 'body': ''},
+                    {'login': 'qa', 'state': 'APPROVED', 'submitted_at': 't', 'body': ''}]
+        gh = FakeGh([pr(1)], {1: approved})
+        dash = FakeDash([{'task_id': 't9', 'status': 'active',
+                          'description': 'PR o/r#1', 'initiator': 'other',
+                          'created_at': '2026-11-05T07:00:00Z'}])
+        out = bratishka.merge_plan_data(
+            {'repo': 'o/r', 'teams': {'codeReview': 'devs', 'qa': 'qa-team'}},
+            gh, dash)
+        self.assertTrue(out['ready'][0]['bot_working'])
+        self.assertEqual(out['ready'][0]['active_tasks'][0]['task_id'], 't9')

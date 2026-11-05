@@ -95,3 +95,35 @@ class TestPrompt(unittest.TestCase):
         self.assertIn('Testing 03-11-26', prompt)
         self.assertIn('Do not merge the testing PR', prompt)
         self.assertIn('Run id: artel-123', prompt)
+        self.assertIn('--assignee @me', prompt)
+
+    def test_plan_names_the_resolved_repository_in_the_prompt(self):
+        class FakeGh:
+            def repo_slug(self):
+                return 'o/r'
+
+            def open_prs(self, repo, author=None):
+                return [{'number': 100, 'title': 'AW-3320: x', 'url': 'u',
+                         'head': 'agent/x', 'author': 'bratishka-bot',
+                         'draft': False, 'state': 'OPEN',
+                         'created_at': '2026-11-03T10:00:00Z',
+                         'body': SOURCE_100, 'review_decision': '',
+                         'mergeable': 'MERGEABLE', 'merge_state': 'CLEAN'}]
+
+            def reviews(self, repo, number):
+                return [{'login': 'dev', 'state': 'APPROVED',
+                         'submitted_at': 't', 'body': ''}]
+
+            def team_members(self, org, team):
+                return {'dev'}
+
+            def default_branch(self, repo):
+                return 'master'
+
+            def base_sha(self, repo, ref):
+                return 'abc'
+
+        plan = testing.plan({'repo': '', 'teams': {'codeReview': 'devs', 'qa': ''}},
+                            FakeGh(), day=date(2026, 11, 3))
+        self.assertIn('Repository: `o/r`', plan['prompt'])
+        self.assertNotIn("this checkout's origin", plan['prompt'])

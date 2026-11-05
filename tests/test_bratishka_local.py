@@ -22,12 +22,14 @@ def git(cwd, *args):
 class FakeGh:
     def __init__(self):
         self.created = []
+        self.assignees = []
 
     def base_sha(self, repo, ref):
         return 'base'
 
     def create_pr(self, repo, base, head, title, body_file, assignee=None):
         self.created.append((base, head, title))
+        self.assignees.append(assignee)
         return 'https://github.com/o/r/pull/9'
 
 
@@ -75,6 +77,7 @@ class LocalCase(RepoFixture, unittest.TestCase):
         gh, out = self.build(['f1'])
         self.assertEqual(out['conflicts'], [])
         self.assertEqual(gh.created[0][1], 'feature/testing-03-11-26')
+        self.assertEqual(gh.assignees, ['@me'])
         git(self.remote, 'rev-parse', 'feature/testing-03-11-26')
 
     def test_a_conflict_stops_without_a_push(self):
@@ -231,6 +234,11 @@ class LocalCommandCase(RepoFixture, unittest.TestCase):
         self.assertIn('Single testing PR for {}'.format(date.today().isoformat()), body)
         self.assertEqual(body_out.read_text(encoding='utf-8').strip(), body.strip())
         self.assertEqual(out['data']['body_path'], str(body_out))
+        journal = (self.work / '.artel' / 'run' / 'bratishka' /
+                   date.today().isoformat() / 'journal.md')
+        text = journal.read_text(encoding='utf-8')
+        self.assertIn('testing-pr-local', text)
+        self.assertIn('https://github.com/o/r/pull/9', text)
 
     def test_include_freezes_the_confirmed_set(self):
         # Both sources conflict on b.txt, so only a narrowed plan can build: the
@@ -242,6 +250,21 @@ class LocalCommandCase(RepoFixture, unittest.TestCase):
         self.assertEqual(len(gh.created), 1)
         self.assertIn('Merged #10 (`f1`) without conflicts.', gh.bodies[0])
         self.assertNotIn('#11', gh.bodies[0])
+
+    def test_a_confirmed_pr_that_left_the_plan_stops_before_building(self):
+        # #11 is not a candidate, so confirming `10,11` must not silently
+        # build the intersection: the changed plan is reported before any
+        # worktree, push or PR is created.
+        gh = CliGh([source_pr(number=10, head='f1')])
+        code, out = self.run_cli(gh, '--yes', '--json', '--include', '10,11')
+        self.assertEqual(code, 1)
+        self.assertEqual(out['error']['kind'], 'changed_plan')
+        self.assertEqual(out['error']['left'], [11])
+        self.assertEqual(out['error']['joined'], [])
+        self.assertEqual(gh.created, [])
+        self.assertFalse(self.worktree.exists())
+        with self.assertRaises(subprocess.CalledProcessError):
+            git(self.remote, 'rev-parse', self.branch)
 
     def test_a_red_verify_stops_before_the_push_and_keeps_the_worktree(self):
         self.write_config(['false', 'true'])

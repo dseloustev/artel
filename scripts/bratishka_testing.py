@@ -254,20 +254,22 @@ def _prompt_task(task):
     ])
 
 
-def build_prompt(tasks, config, day, base_ref, run_id):
+def build_prompt(tasks, config, day, base_ref, run_id, repo=None):
     """The #144-shaped coder prompt, ending with the unique `Run id:` marker.
 
     Every task carries its head branch, notes and platforms, so the coder never
     has to re-derive them from the source PRs. The prompt names the exact title
     and branch to create and the body rules, and forbids merging the testing PR
-    or touching a source PR.
+    or touching a source PR. `repo` is the repository `plan` resolved; when it
+    is not passed the config's `repo` is used, falling back to the checkout's
+    origin.
     """
     config = _config(config)
     tasks = [task for task in tasks or [] if isinstance(task, dict)]
     stamp = day.isoformat()
     title = bratishka_config.render(_template(config, 'titleTemplate'), day)
     branch = bratishka_config.render(_template(config, 'branchTemplate'), day)
-    repo = config.get('repo') or ''
+    repo = repo or config.get('repo') or ''
     repo_line = ('Repository: `{}`'.format(repo) if repo
                  else "Repository: this checkout's origin")
     task_blocks = ('\n\n'.join(_prompt_task(task) for task in tasks)
@@ -286,8 +288,9 @@ def build_prompt(tasks, config, day, base_ref, run_id):
         'Merge only these heads: do not resolve a conflict by force or by dropping '
         "changes, and do not rebase or edit a source branch. If a merge conflicts, stop "
         'and report the conflicting files.',
-        '3. Open one pull request against `{}` with the exact title `{}` and head `{}`. '
-        'Build its body in these ordered parts:'.format(base_ref, title, branch),
+        '3. Open one pull request against `{}` with the exact title `{}` and head `{}`, '
+        'assigned to the duty reviewer (`gh pr create --assignee @me`). Build its body '
+        'in these ordered parts:'.format(base_ref, title, branch),
         '   - `## Summary` — the date, `origin/{}` at the base sha, the source-PR '
         'count, and that the branches were merged without conflicts.'.format(base_ref),
         '   - A blockquote before the task list: **QA: leave feedback and approvals in '
@@ -396,6 +399,6 @@ def plan(config, gh, include=None, exclude=None, day=None):
         'base_sha': gh.base_sha(repo, base_ref) or '',
         'title': bratishka_config.render(_template(config, 'titleTemplate'), day),
         'branch': bratishka_config.render(_template(config, 'branchTemplate'), day),
-        'prompt': build_prompt(tasks, config, day, base_ref, run_id),
+        'prompt': build_prompt(tasks, config, day, base_ref, run_id, repo=repo),
         'run_id': run_id,
     }

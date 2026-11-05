@@ -8,11 +8,14 @@ skill reads one verdict instead of re-deriving approvals or queue buckets.
 `status` is the read-only board: open testing PRs with their date and age, the
 queue split into the three approval buckets plus the `blocked` and `bot-working`
 overlays, the dashboard's live bot tasks, and next actions that each name the
-skill to run. It writes nothing and never merges, closes or comments.
+skill to run. It writes nothing and never merges, closes or comments. `queue` is
+the same classified queue alone, without the board's testing-PR and live-task
+sections.
 
 `testing-pr-cancel` is the one write here: it closes the open testing PRs whose
 name spells a date before today, leaves a fixed close comment, and never touches
-today's, a non-testing or an already closed one.
+today's, a non-testing or an already closed one. `--yes --pr 1,2` closes only
+the confirmed numbers and refuses a changed plan.
 
 `testing-pr-plan` and `testing-pr-prompt` are the read-only composition: they
 select the source PRs, resolve the base sha, render the testing PR's title and
@@ -53,7 +56,9 @@ Contract: docs/bratishka-duty.md (`## Queue and board`, `## Testing PR`,
 (`bratishka`).
 
 Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
-       bratishka.py testing-pr-cancel [--repo <dir>] [--delete-branch] [--yes] [--json]
+       bratishka.py queue [--repo <dir>] [--json]
+       bratishka.py testing-pr-cancel [--repo <dir>] [--delete-branch] [--yes]
+              [--pr <n,...>] [--json]
        bratishka.py testing-pr-plan [--repo <dir>] [--include N,...] [--exclude N,...] [--json]
        bratishka.py testing-pr-prompt [--repo <dir>] [--out <path>] [--json]
               [--include N,...] [--exclude N,...]
@@ -75,7 +80,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import bratishka_config
@@ -153,6 +158,25 @@ def parse_status(args):
     return options
 
 
+def parse_queue(args):
+    """`queue`'s flags: `repo` and `json`; unknown flags are refused."""
+    options = {'repo': '.', 'json': False}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--repo':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --repo <dir>')
+            options['repo'] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    return options
+
+
 def parse_merge_plan(args):
     """`merge-plan`'s flags: `repo` and `json`; unknown flags are refused."""
     options = {'repo': '.', 'json': False}
@@ -173,8 +197,10 @@ def parse_merge_plan(args):
 
 
 def parse_cancel(args):
-    """`testing-pr-cancel`'s flags: `repo`, `json`, `delete_branch` and `yes`."""
-    options = {'repo': '.', 'json': False, 'delete_branch': False, 'yes': False}
+    """`testing-pr-cancel`'s flags: `repo`, `json`, `delete_branch`, `yes` and
+    the confirmed `pr` numbers."""
+    options = {'repo': '.', 'json': False, 'delete_branch': False, 'yes': False,
+               'pr': []}
     i = 0
     while i < len(args):
         arg = args[i]
@@ -189,6 +215,11 @@ def parse_cancel(args):
             options['delete_branch'] = True
         elif arg == '--yes':
             options['yes'] = True
+        elif arg == '--pr':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --pr <n,...>')
+            options['pr'].extend(parse_numbers(args[i], '--pr'))
         else:
             raise UsageError('unknown flag: {}'.format(arg))
         i += 1
@@ -322,8 +353,8 @@ def parse_verify(args):
 
 
 def parse_findings(args):
-    """`findings`'s flags: `repo`, `json` and the required `pr`."""
-    options = {'repo': '.', 'json': False, 'pr': None}
+    """`findings`'s flags: `repo`, `json`, the required `pr` and `all_authors`."""
+    options = {'repo': '.', 'json': False, 'pr': None, 'all_authors': False}
     i = 0
     while i < len(args):
         arg = args[i]
@@ -334,6 +365,8 @@ def parse_findings(args):
             options['repo'] = args[i]
         elif arg == '--json':
             options['json'] = True
+        elif arg == '--all-authors':
+            options['all_authors'] = True
         elif arg == '--pr':
             i += 1
             if i >= len(args) or args[i] == '':
@@ -489,11 +522,38 @@ def source_numbers(body, own_number):
     return numbers
 
 
-def testing_pr(pr, config, open_numbers, today):
-    """One testing PR's board record: date, age and its merged-or-closed sources."""
+def journal_append(repo, action, numbers, urls=None):
+    """Append one line to `.artel/run/bratishka/<date>/journal.md`.
+
+    The journal is the contract's minimal run record: the UTC time, the
+    destructive engine action, the PR numbers it touched and their URLs. A
+    journal write failure never fails the command that succeeded.
+    """
+    stamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    touched = ', '.join('#{}'.format(number) for number in numbers or []) or 'none'
+    links = ', '.join(url for url in urls or [] if url) or 'no URL'
+    line = '- {} {}: PRs {} — {}'.format(stamp, action, touched, links)
+    path = (Path(repo) / '.artel' / 'run' / 'bratishka' /
+            date.today().isoformat() / 'journal.md')
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('a', encoding='utf-8') as stream:
+            stream.write(line + '\n')
+    except OSError:
+        pass
+
+
+def testing_pr(pr, config, open_numbers, today, qa_numbers=None):
+    """One testing PR's board record: date, age, QA count and its source states.
+
+    `qa_numbers` are the source PRs with a QA approval; `qa_approvals` counts
+    the bundle's sources in that set, so a QA approval on the testing PR itself
+    does not count. `source_merged` counts the linked sources no longer open.
+    """
     found = bratishka_rules.pr_date(pr, config)
     age_days = max(0, (today - found).days) if found is not None else None
     sources = source_numbers(pr.get('body'), pr.get('number'))
+    qa_numbers = qa_numbers if isinstance(qa_numbers, set) else set()
     return {
         'number': pr.get('number'),
         'title': pr.get('title') or '',
@@ -501,6 +561,7 @@ def testing_pr(pr, config, open_numbers, today):
         'head': pr.get('head') or '',
         'date': found.isoformat() if found is not None else None,
         'age_days': age_days,
+        'qa_approvals': sum(1 for number in sources if number in qa_numbers),
         'source_merged': sum(1 for number in sources if number not in open_numbers),
     }
 
@@ -530,45 +591,126 @@ def next_actions(testing_prs, queue, today):
     return actions
 
 
+def queue_inputs(config, gh, open_prs):
+    """The bot queue's PRs, reviews, team members and classified items.
+
+    The queue is repo-scoped and author-scoped: only open, non-draft PRs by
+    `botLogin`, minus the testing PRs and `excludeTitlePatterns` matches. The
+    caller passes every open PR so the testing-PR discovery can stay broader
+    than the source queue.
+    """
+    config = config if isinstance(config, dict) else {}
+    repo = config.get('repo') or gh.repo_slug()
+    bot_login = config.get('botLogin') or ''
+    queue_prs = [pr for pr in open_prs
+                 if pr.get('author') == bot_login
+                 and not pr.get('draft')
+                 and not bratishka_rules.is_testing_pr(pr, config)
+                 and not bratishka_rules.is_excluded(pr, config)]
+    reviews = {pr.get('number'): gh.reviews(repo, pr.get('number'))
+               for pr in queue_prs}
+    org = repo.split('/')[0] if repo else ''
+    teams = config.get('teams') if isinstance(config.get('teams'), dict) else {}
+    members = {'codeReview': team_members(gh, org, teams.get('codeReview')),
+               'qa': team_members(gh, org, teams.get('qa'))}
+    classified = bratishka_rules.queue(queue_prs, reviews, members, config)
+    return queue_prs, reviews, members, classified
+
+
+def queue_buckets(classified):
+    """The five board buckets, with a PR repeated in its `blocked` overlay."""
+    queue = {name: [] for name in BUCKETS}
+    for item in classified:
+        queue[item['bucket']].append(item)
+        if bratishka_rules.BLOCKED in item.get('flags', []):
+            queue['blocked'].append(item)
+    return queue
+
+
+def build_queue(config, gh):
+    """The classified bot queue alone, with per-bucket counts.
+
+    This is the design's read-only `queue` command: it deliberately omits the
+    board's testing-PR and live-task sections and never reads the dashboard.
+    """
+    config = config if isinstance(config, dict) else {}
+    repo = config.get('repo') or gh.repo_slug()
+    if not repo:
+        raise GhError('failed', 'could not resolve the repository; set bratishka.repo')
+    open_prs = gh.open_prs(repo, config.get('botLogin') or '')
+    _, _, _, classified = queue_inputs(config, gh, open_prs)
+    queue = queue_buckets(classified)
+    return {
+        'repo': repo,
+        'queue': queue,
+        'counts': {name: len(items) for name, items in queue.items()},
+    }
+
+
+def run_queue(config, gh, options, elapsed):
+    """Print the classified queue and its counts; returns the exit code."""
+    verb = 'bratishka-queue'
+    try:
+        data = build_queue(config, gh)
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    print(envelope(True, elapsed(), verb, data=data))
+    return 0
+
+
+def qa_source_numbers(config, gh, testing_prs_raw, reviews, members, classified):
+    """The source PR numbers with a QA approval, for the testing-PR records.
+
+    A source already in the bot queue reuses its classified verdict. A source
+    outside it (a human-authored PR, or one dropped by the queue filters) is
+    read individually; a failed read keeps the source in the bundle but not in
+    the approved set, because `unknown` is never approval.
+    """
+    numbers = {item['number'] for item in classified if item.get('qa_approved')}
+    repo = config.get('repo') or gh.repo_slug()
+    seen = set()
+    for pr in testing_prs_raw:
+        for number in source_numbers(pr.get('body'), pr.get('number')):
+            if number in seen or number in reviews:
+                continue
+            seen.add(number)
+            try:
+                source_reviews = gh.reviews(repo, number)
+            except GhError:
+                continue
+            if bratishka_rules.classify({'number': number}, source_reviews,
+                                        members, config)['qa_approved']:
+                numbers.add(number)
+    return numbers
+
+
 def build_status(config, gh, dashboard, offline=False):
     """The status board's data: testing PRs, queue, live tasks and next actions.
 
-    The queue is narrowed here, as the rules layer expects: open, non-draft bot
-    PRs, minus testing PRs and `excludeTitlePatterns` matches. A PR keeps its one
-    approval bucket and may also appear in the `blocked` or `bot-working` overlay.
-    `dashboard` may be None (unconfigured, or injected as off); it is never called
-    when `offline` is true.
+    Every open PR is read once. Testing-PR discovery spans **all authors**,
+    because the supported `--local` path opens the testing PR as the duty
+    reviewer; only the source queue is narrowed to `botLogin`. A PR keeps its
+    one approval bucket and may also appear in the `blocked` or `bot-working`
+    overlay. `dashboard` may be None (unconfigured, or injected as off); it is
+    never called when `offline` is true.
     """
     config = config if isinstance(config, dict) else {}
     repo = config.get('repo') or gh.repo_slug()
     if not repo:
         raise GhError('failed', 'could not resolve the repository; set bratishka.repo')
     base = config.get('baseRef') or gh.default_branch(repo)
-    bot_login = config.get('botLogin') or ''
-    org = repo.split('/')[0]
     today = date.today()
 
-    open_prs = gh.open_prs(repo, bot_login)
+    open_prs = gh.open_prs(repo)
     open_numbers = {pr.get('number') for pr in open_prs}
-    testing_prs = [testing_pr(pr, config, open_numbers, today)
-                   for pr in open_prs
+    testing_raw = [pr for pr in open_prs
                    if bratishka_rules.is_testing_pr(pr, config)]
-
-    queue_prs = [pr for pr in open_prs
-                 if not pr.get('draft')
-                 and not bratishka_rules.is_testing_pr(pr, config)
-                 and not bratishka_rules.is_excluded(pr, config)]
-    reviews = {pr.get('number'): gh.reviews(repo, pr.get('number'))
-               for pr in queue_prs}
-    teams = config.get('teams') if isinstance(config.get('teams'), dict) else {}
-    members = {'codeReview': team_members(gh, org, teams.get('codeReview')),
-               'qa': team_members(gh, org, teams.get('qa'))}
-    classified = bratishka_rules.queue(queue_prs, reviews, members, config)
-    queue = {name: [] for name in BUCKETS}
-    for item in classified:
-        queue[item['bucket']].append(item)
-        if bratishka_rules.BLOCKED in item.get('flags', []):
-            queue['blocked'].append(item)
+    _queue_prs, reviews, members, classified = queue_inputs(config, gh, open_prs)
+    queue = queue_buckets(classified)
+    qa_numbers = qa_source_numbers(config, gh, testing_raw, reviews, members,
+                                   classified)
+    testing_prs = [testing_pr(pr, config, open_numbers, today, qa_numbers)
+                   for pr in testing_raw]
 
     live_tasks = []
     errors = []
@@ -675,7 +817,12 @@ def cancel_apply(config, gh, candidates, delete_branch=False):
 
 
 def run_cancel(config, gh, options, elapsed):
-    """Plan, ask or apply the testing-PR cancel; returns the exit code."""
+    """Plan, ask or apply the testing-PR cancel; returns the exit code.
+
+    `--pr` freezes the plan the person confirmed: only those numbers are
+    closed, and a named PR that is no longer a stale candidate makes the whole
+    run a `stale_plan` instead of silently closing something new.
+    """
     verb = 'bratishka-testing-pr-cancel'
     delete_branch = bool(options['delete_branch']
                          or (config.get('testingPr') or {}).get('deleteBranchOnCancel'))
@@ -684,6 +831,25 @@ def run_cancel(config, gh, options, elapsed):
     except GhError as exc:
         return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
     candidates = plan['candidates']
+    if options['pr']:
+        by_number = {item['number']: item for item in candidates}
+        missing = [number for number in options['pr'] if number not in by_number]
+        if missing:
+            print(envelope(False, elapsed(), verb, error={
+                'kind': 'stale_plan',
+                'message': ('the confirmed testing PR(s) {} are no longer stale '
+                            'candidates; nothing was closed').format(
+                                ', '.join('#{}'.format(number) for number in missing)),
+                'repo': plan['repo'],
+                'missing': missing,
+                'candidates': candidates,
+                'skip_today': plan['skip_today']}))
+            return 1
+        candidates = []
+        for number in options['pr']:
+            item = by_number[number]
+            if item not in candidates:
+                candidates.append(item)
     if not candidates:
         print(envelope(False, elapsed(), verb, error={
             'kind': 'nothing_to_do',
@@ -705,6 +871,9 @@ def run_cancel(config, gh, options, elapsed):
         result = cancel_apply(config, gh, candidates, delete_branch)
     except GhError as exc:
         return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    journal_append(options['repo'], 'testing-pr-cancel',
+                   [item.get('number') for item in result['closed']],
+                   [item.get('url') for item in result['closed']])
     if result['failed']:
         print(envelope(False, elapsed(), verb, error={
             'kind': 'partial_failure',
@@ -847,7 +1016,7 @@ def gh_repo(gh):
 
 def local_build(repo_dir, worktree, branch, base_ref, tasks, body, gh,
                 verify_commands=None, allow_red_verify=False, title=None,
-                repo=None):
+                repo=None, assignee='@me'):
     """Assemble the testing branch in a throwaway worktree, push it and open the PR.
 
     `tasks` are the selected source PRs (`number`, `head`); each head is merged
@@ -862,6 +1031,8 @@ def local_build(repo_dir, worktree, branch, base_ref, tasks, body, gh,
     `(merge_notes, verification)` so the caller can compose the body after the
     merges and checks it reports. `title` and `repo` are the planned PR title
     and `owner/name`; they default to the branch and the `gh` client's repo.
+    The PR is assigned to `assignee` (`@me` by default), so the duty reviewer
+    owns the testing PR the `--local` path opens.
     """
     repo_dir = str(repo_dir)
     worktree = str(worktree)
@@ -908,7 +1079,7 @@ def local_build(repo_dir, worktree, branch, base_ref, tasks, body, gh,
     body_file = temp_body_file(body_text(body, merge_notes, verification))
     try:
         pr_url = gh.create_pr(repo or gh_repo(gh), base_ref, branch,
-                              title or branch, body_file)
+                              title or branch, body_file, assignee=assignee)
     finally:
         try:
             os.unlink(body_file)
@@ -933,18 +1104,40 @@ def existing_testing_pr(gh, repo, title, branch):
     return None
 
 
-def host_verify_commands(repo):
-    """The host's `verify.commands`, read from the full `.artel/config.json`.
+def host_config(repo):
+    """The full `.artel/config.json` document, or `{}` when it cannot be read.
 
-    `bratishka_config.load` exposes only the `bratishka` block, so the document
-    is read again here; a missing or malformed file means no commands.
+    `bratishka_config.load` exposes only the `bratishka` block, so the adapter
+    and `verify` sections are read here. A missing or malformed file means the
+    caller's defaults; the CLI has already refused a malformed config.
     """
     path = Path(repo) / '.artel' / 'config.json'
     try:
         document = json.loads(path.read_text(encoding='utf-8'))
     except (OSError, ValueError):
-        return []
-    block = document.get('verify') if isinstance(document, dict) else None
+        return {}
+    return document if isinstance(document, dict) else {}
+
+
+def host_vcs_adapter(repo):
+    """The host's `vcs.adapter`, `github-cli` when the key is absent.
+
+    A missing `vcs` block is the documented default; only an explicit different
+    adapter is a refusal.
+    """
+    vcs = host_config(repo).get('vcs')
+    adapter = vcs.get('adapter') if isinstance(vcs, dict) else None
+    if isinstance(adapter, str) and adapter:
+        return adapter
+    return 'github-cli'
+
+
+def host_verify_commands(repo):
+    """The host's `verify.commands`, read from the full `.artel/config.json`.
+
+    A missing or malformed file means no commands.
+    """
+    block = host_config(repo).get('verify')
     commands = block.get('commands') if isinstance(block, dict) else None
     if not isinstance(commands, list):
         return []
@@ -969,6 +1162,19 @@ def run_local(config, gh, options, elapsed):
     title = plan['title']
     base_ref = plan['base_ref']
     base_sha = plan['base_sha']
+    confirmed = set(options['include']) - set(options['exclude'])
+    selected = {task.get('number') for task in tasks}
+    if confirmed and selected != confirmed:
+        left = sorted(confirmed - selected)
+        joined = sorted(selected - confirmed)
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'changed_plan',
+            'message': ('the confirmed source set changed before the build; '
+                        'nothing was written'),
+            'repo': repo, 'branch': branch,
+            'confirmed': sorted(confirmed), 'selected': sorted(selected),
+            'left': left, 'joined': joined, 'tasks': tasks}))
+        return 1
     worktree = str(Path(options['repo']).resolve() / '.artel' / 'run' / 'bratishka' /
                    'testing-pr-{}'.format(date.today().isoformat()))
     if not tasks:
@@ -1055,6 +1261,9 @@ def run_local(config, gh, options, elapsed):
                       'worktree': worktree, 'repo': repo, 'branch': branch})
         print(envelope(False, elapsed(), verb, error=error))
         return 1
+    journal_append(options['repo'], 'testing-pr-local',
+                   [task.get('number') for task in tasks],
+                   [result['pr_url']])
     body_path = None
     if options['body_out']:
         body_path = str(options['body_out'])
@@ -1137,14 +1346,17 @@ def run_verify(config, gh, dashboard, options, elapsed):
     return 0
 
 
-def merge_plan_data(config, gh):
+def merge_plan_data(config, gh, dashboard=None):
     """The fully approved PRs split into `ready`, `needs_update` and `blocked`.
 
     The queue is narrowed here, as the rules layer expects: the bot's open,
     non-draft PRs minus the testing PRs and `excludeTitlePatterns` matches. Only
     a PR with both a real code review and a real QA approval reaches
     `bratishka_rules.merge_candidates`; an unreadable team is `unknown`, never
-    approval. Nothing is updated or merged -- the skill performs the writes.
+    approval. With a readable dashboard every group entry also carries
+    `bot_working` and `active_tasks` when a live coder task exists for the PR,
+    so the merge skill refuses it. Nothing is updated or merged -- the skill
+    performs the writes.
     """
     config = config if isinstance(config, dict) else {}
     repo = config.get('repo') or gh.repo_slug()
@@ -1161,36 +1373,64 @@ def merge_plan_data(config, gh):
     teams = config.get('teams') if isinstance(config.get('teams'), dict) else {}
     members = {'codeReview': team_members(gh, org, teams.get('codeReview')),
                'qa': team_members(gh, org, teams.get('qa'))}
-    return bratishka_rules.merge_candidates(candidates, reviews, members, config)
+    groups = bratishka_rules.merge_candidates(candidates, reviews, members, config)
+    if dashboard is not None:
+        for group in groups.values():
+            for item in group:
+                tasks = dashboard.active_tasks_for_pr(repo, item.get('number'))
+                if not tasks:
+                    continue
+                item['bot_working'] = True
+                item['active_tasks'] = [
+                    {'task_id': task.get('task_id'),
+                     'status': task.get('status') or '',
+                     'initiator': task.get('initiator') or ''}
+                    for task in tasks]
+    return groups
 
 
-def run_merge_plan(config, gh, options, elapsed):
+def run_merge_plan(config, gh, dashboard, options, elapsed):
     """Print the three merge groups; returns the exit code."""
     verb = 'bratishka-merge-plan'
     try:
-        data = merge_plan_data(config, gh)
+        data = merge_plan_data(config, gh, dashboard)
     except GhError as exc:
         return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
     config = config if isinstance(config, dict) else {}
     data['repo'] = config.get('repo') or gh.repo_slug()
+    if dashboard is None:
+        data['dashboard_state'] = {'online': False, 'reason': 'not configured', 'errors': []}
+    else:
+        errors = [str(message) for message in (getattr(dashboard, 'errors', None) or [])]
+        data['dashboard_state'] = {
+            'online': not errors,
+            'reason': '' if not errors else 'unreachable',
+            'errors': errors,
+        }
     print(envelope(True, elapsed(), verb, data=data))
     return 0
 
 
-def findings_data(config, gh, number):
+def findings_data(config, gh, number, all_authors=False):
     """The PR's unresolved review threads, numbered from 1.
 
     A resolved thread is never a finding: it was fixed or dismissed, and asking
-    the bot to act on it again would undo that decision. `index` is the number the
-    skill shows and `compose-fix --select` takes.
+    the bot to act on it again would undo that decision. By default only a
+    thread whose root comment is `bratishka.botLogin` is a finding, because the
+    skill asks the bot to fix the bot's own threads; `all_authors` keeps every
+    unresolved thread and the caller labels that choice. `index` is the number
+    the skill shows and `compose-fix --select` takes.
     """
     config = config if isinstance(config, dict) else {}
     repo = config.get('repo') or gh.repo_slug()
     if not repo:
         raise GhError('failed', 'could not resolve the repository; set bratishka.repo')
+    bot = config.get('botLogin') or ''
     threads = []
     for thread in gh.review_threads(repo, number):
         if not isinstance(thread, dict) or thread.get('resolved'):
+            continue
+        if not all_authors and bot and (thread.get('author') or '') != bot:
             continue
         record = dict(thread)
         record['index'] = len(threads) + 1
@@ -1275,8 +1515,12 @@ def task_find_data(config, gh, dashboard, number, since=None):
 
     The PR marker in the description is the primary key; when the dashboard does
     not carry it, a task whose `head_ref` is the PR's head and whose `created_at`
-    is at or after `since` is the fallback. `match` is `description`, `head_ref`
-    or `none`; `dashboard_online` says whether the dashboard could be read.
+    is at or after `since` is the fallback. `match` is `description`, `head_ref`,
+    `pr_time` or `none`; `pr_time` means the caller login could not be read, so
+    the post-action match is weaker and `login_error` names the failure.
+    `active_tasks` is the safety list: every `active`/`queued` task for the PR,
+    whichever initiator started it and without collapsing to the newest one.
+    `dashboard_online` says whether the dashboard could be read.
     """
     config = config if isinstance(config, dict) else {}
     repo = config.get('repo') or gh.repo_slug()
@@ -1288,16 +1532,23 @@ def task_find_data(config, gh, dashboard, number, since=None):
         'number': number,
         'task': None,
         'match': 'none',
+        'active_tasks': [],
+        'login_error': None,
         'dashboard_online': dashboard is not None and not errors,
         'dashboard_errors': errors,
     }
     if dashboard is None:
         return data
-    initiator = gh.current_login() or None
+    data['active_tasks'] = dashboard.active_tasks_for_pr(repo, number)
+    initiator = None
+    try:
+        initiator = gh.current_login() or None
+    except GhError as exc:
+        data['login_error'] = '{}: {}'.format(exc.kind, exc.message)
     task = dashboard.find_task_for_pr(repo, number, initiator=initiator, since=since)
     if task is not None:
         data['task'] = task
-        data['match'] = 'description'
+        data['match'] = 'description' if initiator else 'pr_time'
     else:
         candidates = dashboard.tasks(repo=repo, initiator=initiator)
         head = ''
@@ -1350,7 +1601,8 @@ def run_findings(config, gh, options, elapsed):
     """List the PR's unresolved review threads; returns the exit code."""
     verb = 'bratishka-findings'
     try:
-        data = findings_data(config, gh, options['pr'])
+        data = findings_data(config, gh, options['pr'],
+                             all_authors=options['all_authors'])
     except GhError as exc:
         return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
     print(envelope(True, elapsed(), verb, data=data))
@@ -1442,6 +1694,8 @@ def main(argv=None, gh=None, dashboard=None):
     command = args[0]
     if command == 'status':
         parser = parse_status
+    elif command == 'queue':
+        parser = parse_queue
     elif command == 'testing-pr-cancel':
         parser = parse_cancel
     elif command == 'testing-pr-plan':
@@ -1475,7 +1729,16 @@ def main(argv=None, gh=None, dashboard=None):
     except bratishka_config.ConfigError as exc:
         return fail(exc.kind, exc.message)
 
+    if command in ('testing-pr-cancel', 'testing-pr-local'):
+        adapter = host_vcs_adapter(options['repo'])
+        if adapter != 'github-cli':
+            return fail('adapter_not_github',
+                        '{} writes through gh, but vcs.adapter is {!r}; set it to '
+                        '"github-cli"'.format(command, adapter))
+
     client = gh if gh is not None else Gh(cwd=options['repo'])
+    if command == 'queue':
+        return run_queue(config, client, options, elapsed)
     if command == 'testing-pr-cancel':
         return run_cancel(config, client, options, elapsed)
     if command == 'testing-pr-plan':
@@ -1494,7 +1757,10 @@ def main(argv=None, gh=None, dashboard=None):
     if command == 'compose-fix':
         return run_compose_fix(config, client, options, elapsed)
     if command == 'merge-plan':
-        return run_merge_plan(config, client, options, elapsed)
+        dash = dashboard
+        if dash is None and config['dashboardUrl']:
+            dash = Dashboard(config['dashboardUrl'])
+        return run_merge_plan(config, client, dash, options, elapsed)
     if command in ('task-find', 'task-watch'):
         dash = dashboard
         if dash is None and config['dashboardUrl']:

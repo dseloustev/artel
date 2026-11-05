@@ -275,3 +275,41 @@ class TestVerify(unittest.TestCase):
                                           'artel-1', date(2026, 11, 3))
         self.assertIsNone(out['task'])
         self.assertIsNone(out['pr'])
+
+
+class TestFindings(unittest.TestCase):
+    def test_unresolved_only(self):
+        gh = FakeGh([])
+        gh.review_threads = lambda repo, n: [
+            {'path': 'a.dart', 'line': 4, 'body': 'fix it', 'author': 'bratishka-bot',
+             'resolved': False},
+            {'path': 'b.dart', 'line': 9, 'body': 'done', 'author': 'bratishka-bot',
+             'resolved': True}]
+        out = bratishka.findings_data({'repo': 'o/r'}, gh, 7)
+        self.assertEqual([t['path'] for t in out['threads']], ['a.dart'])
+
+    def test_compose_one_comment(self):
+        body = bratishka.compose_fix_body(
+            [{'path': 'a.dart', 'line': 4, 'body': 'fix it'}], [0], 'and test it',
+            {'fixCommand': '/agent'})
+        self.assertTrue(body.startswith('/agent'))
+        self.assertIn('a.dart:4', body)
+        self.assertIn('and test it', body)
+
+    def test_an_active_coder_task_blocks(self):
+        dash = FakeDash([{'task_id': 't', 'status': 'active',
+                          'description': 'PR o/r#7', 'initiator': 'me',
+                          'created_at': '2026-11-05T07:00:00Z'}])
+        out = bratishka.task_find_data({'repo': 'o/r'}, FakeGh([]), dash, 7)
+        self.assertEqual(out['task']['status'], 'active')
+
+    def test_the_head_ref_fallback(self):
+        dash = FakeDash([{'task_id': 't', 'status': 'active',
+                          'description': 'no PR token here',
+                          'head_ref': 'agent/x', 'initiator': 'me',
+                          'created_at': '2026-11-05T07:00:00Z'}])
+        gh = FakeGh([pr(7)])
+        gh.pr = lambda repo, number: pr(7)
+        out = bratishka.task_find_data({'repo': 'o/r'}, gh, dash, 7,
+                                       since='2026-11-05T00:00:00Z')
+        self.assertEqual(out['match'], 'head_ref')

@@ -25,12 +25,20 @@ prompt's `Run id:` marker and today's testing PR by its title or branch (or the
 task's `head_ref`), and reports a failed completion gate separately from an
 existing PR -- a red coder task is not a failed testing PR.
 
+The fix request is three read steps and one composition: `findings` numbers the
+PR's unresolved review threads, `compose-fix` writes the one `/agent` comment
+covering the selected findings (one comment, not one per finding -- the bot
+serializes its tasks per branch), and `task-find`/`task-watch` correlate and
+follow the spawned task. Nothing here posts: the skill posts the composed file
+with `gh pr comment`, after its own confirmation.
+
 Exit codes are the contract's: `0` success, `1` a user-actionable failure
 (nothing to do, a refusal), `2` a configuration or environment error. Every
 invocation prints one envelope, `{ok, verb, elapsed_ms, data|error}`.
 
 Contract: docs/bratishka-duty.md (`## Queue and board`, `## Testing PR`,
-`## Safety and degradation`), docs/config.md (`bratishka`).
+`## Requesting a fix`, `## Safety and degradation`), docs/config.md
+(`bratishka`).
 
 Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
        bratishka.py testing-pr-cancel [--repo <dir>] [--delete-branch] [--yes] [--json]
@@ -38,6 +46,12 @@ Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
        bratishka.py testing-pr-prompt [--repo <dir>] [--out <path>] [--json]
               [--include N,...] [--exclude N,...]
        bratishka.py testing-pr-verify --run-id <id> [--repo <dir>] [--json]
+       bratishka.py findings --pr <n> [--repo <dir>] [--json]
+       bratishka.py compose-fix --pr <n> [--repo <dir>] [--select <n,...|none>]
+              [--notes <text>] [--out <path>] [--json]
+       bratishka.py task-find --pr <n> [--repo <dir>] [--since <iso>] [--json]
+       bratishka.py task-watch --task-id <id> [--repo <dir>] [--timeout <s>]
+              [--interval <s>] [--json]
 """
 import json
 import re
@@ -56,8 +70,13 @@ from bratishka_gh import Gh, GhError
 BUCKETS = ('qa-approved', 'needs-qa', 'needs-review', 'bot-working', 'blocked')
 # The dashboard states that count as live bot work.
 LIVE_STATES = ('active', 'queued')
+# The dashboard states that end a watched task; anything else is still running.
+TERMINAL_STATES = ('completed', 'failed', 'cancelled')
 # A source PR link in a testing PR's body, e.g. `https://github.com/o/r/pull/12`.
 SOURCE_LINK_RE = re.compile(r'/pull/(\d+)')
+# A GitHub suggestion fence inside a review comment: its first code line is the
+# expected change. docs/bratishka-duty.md `## Requesting a fix`.
+SUGGESTION_RE = re.compile(r'```suggestion[^\n]*\n(.*?)```', re.S)
 # The one close comment the cancel path posts, whatever the testing PR bundled.
 CANCEL_COMMENT = ('Closed by the duty reviewer: the daily testing PR lives one day '
                   'and is replaced by today\'s.')
@@ -128,6 +147,14 @@ def parse_cancel(args):
     return options
 
 
+def parse_number(value, flag):
+    """One PR or seconds value; a non-number is refused."""
+    try:
+        return int(value)
+    except ValueError:
+        raise UsageError('{} expects a number: {!r}'.format(flag, value))
+
+
 def parse_numbers(value, flag):
     """A comma-separated PR-number list, e.g. `1,3`; a non-number is refused."""
     numbers = []
@@ -135,10 +162,7 @@ def parse_numbers(value, flag):
         part = part.strip()
         if not part:
             continue
-        try:
-            numbers.append(int(part))
-        except ValueError:
-            raise UsageError('{} expects PR numbers: {!r}'.format(flag, part))
+        numbers.append(parse_number(part, flag))
     return numbers
 
 
@@ -210,6 +234,149 @@ def parse_verify(args):
         i += 1
     if not options['run_id']:
         raise UsageError('missing --run-id <id>')
+    return options
+
+
+def parse_findings(args):
+    """`findings`'s flags: `repo`, `json` and the required `pr`."""
+    options = {'repo': '.', 'json': False, 'pr': None}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--repo':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --repo <dir>')
+            options['repo'] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        elif arg == '--pr':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --pr <n>')
+            options['pr'] = parse_number(args[i], '--pr')
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    if options['pr'] is None:
+        raise UsageError('missing --pr <n>')
+    return options
+
+
+def parse_compose_fix(args):
+    """`compose-fix`'s flags: `repo`, `json`, `pr`, `select`, `notes` and `out`.
+
+    `--select` takes the numbers `findings` printed; `none` composes from the
+    notes alone, and an omitted `--select` selects every finding.
+    """
+    options = {'repo': '.', 'json': False, 'pr': None, 'select': None,
+               'notes': '', 'out': ''}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--repo':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --repo <dir>')
+            options['repo'] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        elif arg == '--pr':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --pr <n>')
+            options['pr'] = parse_number(args[i], '--pr')
+        elif arg == '--select':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --select <n,...|none>')
+            if args[i].strip().lower() == 'none':
+                options['select'] = []
+            else:
+                options['select'] = parse_numbers(args[i], '--select')
+        elif arg == '--notes':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --notes <text>')
+            options['notes'] = args[i]
+        elif arg == '--out':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --out <path>')
+            options['out'] = args[i]
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    if options['pr'] is None:
+        raise UsageError('missing --pr <n>')
+    return options
+
+
+def parse_task_find(args):
+    """`task-find`'s flags: `repo`, `json`, the required `pr` and `since`."""
+    options = {'repo': '.', 'json': False, 'pr': None, 'since': ''}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--repo':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --repo <dir>')
+            options['repo'] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        elif arg == '--pr':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --pr <n>')
+            options['pr'] = parse_number(args[i], '--pr')
+        elif arg == '--since':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --since <iso>')
+            options['since'] = args[i]
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    if options['pr'] is None:
+        raise UsageError('missing --pr <n>')
+    return options
+
+
+def parse_task_watch(args):
+    """`task-watch`'s flags: `repo`, `json`, `task_id`, `timeout` and `interval`."""
+    options = {'repo': '.', 'json': False, 'task_id': '', 'timeout': 900,
+               'interval': 30}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '--repo':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --repo <dir>')
+            options['repo'] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        elif arg == '--task-id':
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for --task-id <id>')
+            options['task_id'] = args[i]
+        elif arg in ('--timeout', '--interval'):
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for {} <s>'.format(arg))
+            key = 'timeout' if arg == '--timeout' else 'interval'
+            options[key] = parse_number(args[i], arg)
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    if not options['task_id']:
+        raise UsageError('missing --task-id <id>')
+    if options['timeout'] < 0:
+        raise UsageError('--timeout must be zero or more seconds')
+    if options['interval'] < 0:
+        raise UsageError('--interval must be zero or more seconds')
     return options
 
 
@@ -565,6 +732,258 @@ def run_verify(config, gh, dashboard, options, elapsed):
     return 0
 
 
+def findings_data(config, gh, number):
+    """The PR's unresolved review threads, numbered from 1.
+
+    A resolved thread is never a finding: it was fixed or dismissed, and asking
+    the bot to act on it again would undo that decision. `index` is the number the
+    skill shows and `compose-fix --select` takes.
+    """
+    config = config if isinstance(config, dict) else {}
+    repo = config.get('repo') or gh.repo_slug()
+    if not repo:
+        raise GhError('failed', 'could not resolve the repository; set bratishka.repo')
+    threads = []
+    for thread in gh.review_threads(repo, number):
+        if not isinstance(thread, dict) or thread.get('resolved'):
+            continue
+        record = dict(thread)
+        record['index'] = len(threads) + 1
+        threads.append(record)
+    return {'repo': repo, 'number': number, 'threads': threads}
+
+
+def suggestion_text(body):
+    """The first line of a GitHub `suggestion` fence in `body`, or ''."""
+    match = SUGGESTION_RE.search(body or '')
+    if not match:
+        return ''
+    for line in match.group(1).splitlines():
+        if line.strip():
+            return line.strip()
+    return ''
+
+
+def finding_text(thread):
+    """A review comment flattened to one line, its suggestion fence removed."""
+    body = SUGGESTION_RE.sub('', thread.get('body') or '')
+    return ' '.join(body.split()) or '(the bot comment has no text)'
+
+
+def expected_text(thread):
+    """The first line of the bot's suggested change, or ''."""
+    suggestion = thread.get('suggestion')
+    if isinstance(suggestion, str) and suggestion.strip():
+        return ' '.join(suggestion.split())
+    return suggestion_text(thread.get('body'))
+
+
+def compose_fix_body(threads, selected, notes, config):
+    """One `/agent` comment for the selected findings, plus extra notes.
+
+    One comment, not one per finding: the bot serializes `/agent` tasks per
+    branch, so N comments queue N runs against the same branch
+    (docs/bratishka-duty.md `## Requesting a fix`). `selected` holds 0-based
+    positions into `threads`; None means every finding.
+    """
+    config = config if isinstance(config, dict) else {}
+    command = config.get('fixCommand') or '/agent'
+    positions = range(len(threads)) if selected is None else list(selected)
+    notes = ' '.join((notes or '').split())
+    lines = [
+        command + ' Fix the review findings on this pull request.',
+        '',
+        'Scope: change only what the findings below name; leave unrelated code alone.',
+        '',
+        "Before pushing, run the repository's verification commands "
+        '(`verify.commands`) and report the result.',
+    ]
+    numbered = []
+    for position in positions:
+        thread = threads[position]
+        path = thread.get('path') or ''
+        line = thread.get('line')
+        location = '`{}:{}`'.format(path, line) if line is not None else '`{}`'.format(path)
+        item = '{}. {} — {}'.format(len(numbered) + 1, location, finding_text(thread))
+        expected = expected_text(thread)
+        if expected:
+            item += ' Expected: {}'.format(expected)
+        numbered.append(item)
+    if numbered:
+        lines.append('')
+        lines.extend(numbered)
+    if notes:
+        lines.append('')
+        lines.append('Additional notes: {}'.format(notes))
+    return '\n'.join(lines)
+
+
+def newest_task(tasks):
+    """The task with the greatest `created_at`; ISO 8601 UTC stamps sort lexically."""
+    if not tasks:
+        return None
+    return max(tasks, key=lambda task: str(task.get('created_at') or ''))
+
+
+def task_find_data(config, gh, dashboard, number, since=None):
+    """The coder task already working this PR, and how it was matched.
+
+    The PR marker in the description is the primary key; when the dashboard does
+    not carry it, a task whose `head_ref` is the PR's head and whose `created_at`
+    is at or after `since` is the fallback. `match` is `description`, `head_ref`
+    or `none`; `dashboard_online` says whether the dashboard could be read.
+    """
+    config = config if isinstance(config, dict) else {}
+    repo = config.get('repo') or gh.repo_slug()
+    if not repo:
+        raise GhError('failed', 'could not resolve the repository; set bratishka.repo')
+    errors = [str(message) for message in (getattr(dashboard, 'errors', None) or [])]
+    data = {
+        'repo': repo,
+        'number': number,
+        'task': None,
+        'match': 'none',
+        'dashboard_online': dashboard is not None and not errors,
+        'dashboard_errors': errors,
+    }
+    if dashboard is None:
+        return data
+    initiator = gh.current_login() or None
+    task = dashboard.find_task_for_pr(repo, number, initiator=initiator, since=since)
+    if task is not None:
+        data['task'] = task
+        data['match'] = 'description'
+    else:
+        candidates = dashboard.tasks(repo=repo, initiator=initiator)
+        head = ''
+        if candidates:
+            head = (gh.pr(repo, number) or {}).get('head') or ''
+        matches = []
+        for item in candidates:
+            if not isinstance(item, dict) or item.get('head_ref') != head:
+                continue
+            if since is not None and (item.get('created_at') or '') < since:
+                continue
+            matches.append(item)
+        found = newest_task(matches) if head else None
+        if found is not None:
+            data['task'] = found
+            data['match'] = 'head_ref'
+    errors = [str(message) for message in (getattr(dashboard, 'errors', None) or [])]
+    data['dashboard_online'] = not errors
+    data['dashboard_errors'] = errors
+    return data
+
+
+def task_watch_data(dashboard, task_id, timeout=900, interval=30,
+                    sleep=None, clock=None):
+    """Poll one task until a terminal status or `timeout` seconds.
+
+    `terminal` is true only for `completed`, `failed` or `cancelled`; a timeout
+    is `timed_out` with the last task seen, never a failure. `sleep` and `clock`
+    are injection points for a test.
+    """
+    if dashboard is None:
+        return {'task': None, 'terminal': False, 'timed_out': False}
+    sleep = sleep or time.sleep
+    clock = clock or time.monotonic
+    deadline = clock() + max(0, timeout)
+    task = None
+    while True:
+        found = dashboard.task(task_id)
+        if isinstance(found, dict):
+            task = found
+        if ((task or {}).get('status') or '') in TERMINAL_STATES:
+            return {'task': task, 'terminal': True, 'timed_out': False}
+        remaining = deadline - clock()
+        if remaining <= 0:
+            return {'task': task, 'terminal': False, 'timed_out': True}
+        sleep(min(max(0, interval), remaining))
+
+
+def run_findings(config, gh, options, elapsed):
+    """List the PR's unresolved review threads; returns the exit code."""
+    verb = 'bratishka-findings'
+    try:
+        data = findings_data(config, gh, options['pr'])
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    print(envelope(True, elapsed(), verb, data=data))
+    return 0
+
+
+def run_compose_fix(config, gh, options, elapsed):
+    """Compose the one fix comment, optionally writing it; returns the exit code."""
+    verb = 'bratishka-compose-fix'
+    try:
+        found = findings_data(config, gh, options['pr'])
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    threads = found['threads']
+    if options['select'] is None:
+        positions = list(range(len(threads)))
+    else:
+        positions = []
+        for number in options['select']:
+            if number < 1 or number > len(threads):
+                return fail('invalid_argument',
+                            '--select {} is out of range; {} finding(s)'.format(
+                                number, len(threads)),
+                            verb=verb, elapsed_ms=elapsed())
+            if number - 1 not in positions:
+                positions.append(number - 1)
+    if not positions and not options['notes'].strip():
+        print(envelope(False, elapsed(), verb, error={
+            'kind': 'nothing_to_do',
+            'message': 'no finding is selected and no notes were given'}))
+        return 1
+    body = compose_fix_body(threads, positions, options['notes'], config)
+    data = {
+        'repo': found['repo'],
+        'number': found['number'],
+        'selected': [threads[position]['index'] for position in positions],
+        'body': body,
+        'body_path': None,
+    }
+    if options['out']:
+        target = Path(options['out'])
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(body + '\n', encoding='utf-8')
+        except OSError as exc:
+            return fail('failed', 'could not write the fix comment: {}'.format(exc),
+                        verb=verb, elapsed_ms=elapsed())
+        data['body_path'] = str(target)
+    print(envelope(True, elapsed(), verb, data=data))
+    return 0
+
+
+def run_task_find(config, gh, dashboard, options, elapsed):
+    """Correlate the PR with its coder task; returns the exit code."""
+    verb = 'bratishka-task-find'
+    try:
+        data = task_find_data(config, gh, dashboard, options['pr'],
+                              since=options['since'] or None)
+    except GhError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    print(envelope(True, elapsed(), verb, data=data))
+    return 0
+
+
+def run_task_watch(dashboard, options, elapsed):
+    """Follow one dashboard task to a terminal status; returns the exit code."""
+    verb = 'bratishka-task-watch'
+    if dashboard is None:
+        return fail('missing_config',
+                    'bratishka.dashboardUrl is not set; task-watch needs the dashboard',
+                    verb=verb, elapsed_ms=elapsed())
+    data = task_watch_data(dashboard, options['task_id'],
+                           timeout=options['timeout'], interval=options['interval'])
+    data['task_id'] = options['task_id']
+    print(envelope(True, elapsed(), verb, data=data))
+    return 0
+
+
 def main(argv=None, gh=None, dashboard=None):
     """Dispatch one bratishka command and print its envelope; returns the exit code."""
     start = time.monotonic()
@@ -586,6 +1005,14 @@ def main(argv=None, gh=None, dashboard=None):
         parser = parse_prompt
     elif command == 'testing-pr-verify':
         parser = parse_verify
+    elif command == 'findings':
+        parser = parse_findings
+    elif command == 'compose-fix':
+        parser = parse_compose_fix
+    elif command == 'task-find':
+        parser = parse_task_find
+    elif command == 'task-watch':
+        parser = parse_task_watch
     else:
         return fail('invalid_argument', 'unknown command: {}'.format(command))
 
@@ -611,6 +1038,17 @@ def main(argv=None, gh=None, dashboard=None):
         if dash is None and config['dashboardUrl']:
             dash = Dashboard(config['dashboardUrl'])
         return run_verify(config, client, dash, options, elapsed)
+    if command == 'findings':
+        return run_findings(config, client, options, elapsed)
+    if command == 'compose-fix':
+        return run_compose_fix(config, client, options, elapsed)
+    if command in ('task-find', 'task-watch'):
+        dash = dashboard
+        if dash is None and config['dashboardUrl']:
+            dash = Dashboard(config['dashboardUrl'])
+        if command == 'task-find':
+            return run_task_find(config, client, dash, options, elapsed)
+        return run_task_watch(dash, options, elapsed)
 
     dash = dashboard
     if dash is None and not options['offline'] and config['dashboardUrl']:

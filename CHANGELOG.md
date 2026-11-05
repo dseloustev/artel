@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-05
+
 ### Added
 
 - **The Bratishka duty toolkit.** Five `artel-bratishka-*` skills run the daily review duty

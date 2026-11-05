@@ -17,8 +17,8 @@ today's, a non-testing or an already closed one.
 `testing-pr-plan` and `testing-pr-prompt` are the read-only composition: they
 select the source PRs, resolve the base sha, render the testing PR's title and
 branch, and compose the #144-shaped body prompt. `testing-pr-prompt --out PATH`
-writes the coder prompt and prints its path and the unique run id; nothing is
-posted, closed, merged or pushed.
+writes the coder prompt and prints its path, the unique run id and the selected
+PRs; nothing is posted, closed, merged or pushed.
 
 `testing-pr-verify` closes that loop read-only: it finds the spawned task by the
 prompt's `Run id:` marker and today's testing PR by its title or branch (or the
@@ -492,7 +492,8 @@ def run_prompt(config, gh, options, elapsed):
         return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
     if not options['out']:
         print(envelope(True, elapsed(), verb, data={
-            'prompt_path': None, 'run_id': data['run_id'], 'prompt': data['prompt']}))
+            'prompt_path': None, 'run_id': data['run_id'], 'tasks': data['tasks'],
+            'prompt': data['prompt']}))
         return 0
     target = Path(options['out'])
     try:
@@ -502,7 +503,7 @@ def run_prompt(config, gh, options, elapsed):
         return fail('failed', 'could not write the prompt: {}'.format(exc),
                     verb=verb, elapsed_ms=elapsed())
     print(envelope(True, elapsed(), verb, data={
-        'prompt_path': str(target), 'run_id': data['run_id']}))
+        'prompt_path': str(target), 'run_id': data['run_id'], 'tasks': data['tasks']}))
     return 0
 
 

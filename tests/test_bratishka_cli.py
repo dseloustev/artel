@@ -182,6 +182,25 @@ class TestPlanCommand(unittest.TestCase):
         self.assertIn('PR #1, head branch agent/x', text)
         self.assertIn('Run id: ' + out['data']['run_id'], text)
 
+    def test_prompt_freezes_the_confirmed_numbers(self):
+        with tempfile.TemporaryDirectory() as repo:
+            path = Path(repo) / '.artel' / 'config.json'
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({'bratishka': {'teams': {'codeReview': 'devs',
+                                                               'qa': 'qa-team'}}}))
+            review = [{'login': 'dev', 'state': 'APPROVED', 'submitted_at': 't',
+                       'body': ''}]
+            gh = FakeGh([pr(1), pr(2)], {1: review, 2: review})
+            gh.base_sha = lambda repo_name, ref: 'abc'
+            target = Path(repo) / 'run' / 'testing-pr-prompt.md'
+            code, out = run(['testing-pr-prompt', '--repo', repo, '--out',
+                             str(target), '--include', '1'], gh=gh)
+            text = target.read_text(encoding='utf-8')
+        self.assertEqual(code, 0)
+        self.assertEqual([task['number'] for task in out['data']['tasks']], [1])
+        self.assertIn('PR #1, head branch agent/x', text)
+        self.assertNotIn('PR #2', text)
+
 
 class TestCancel(unittest.TestCase):
     def setUp(self):

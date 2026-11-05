@@ -42,18 +42,32 @@ python3 ${ARTEL_ROOT}/scripts/bratishka.py testing-pr-plan --json
   **Build it** / **Cancel**. On **Cancel**, or with no answer, stop: nothing was written.
   `--yes` is the person's explicit consent; never add it on your own.
 
+Keep the confirmed set — every `data.tasks[].number` — frozen for step 2; the approval means
+that set and no other.
+
 With `--local`, go to step 5 after this confirmation.
 
 ## 2. Compose the prompt
 
+Pass the confirmed set as `--include`, so a PR the person did not approve cannot join:
+
 ```bash
 python3 ${ARTEL_ROOT}/scripts/bratishka.py testing-pr-prompt \
-  --out .artel/run/bratishka/<date>/testing-pr-prompt.md --json
+  --out .artel/run/bratishka/<date>/testing-pr-prompt.md --json \
+  --include <confirmed-n>,<confirmed-n>
 ```
 
-`<date>` is today's local date in `YYYY-MM-DD`. The answer carries `prompt_path` and a fresh
-`run_id`; read the file and print its text. The prompt ends with its `Run id:` marker — that
-marker is how the spawned task is found, so never edit it.
+`<date>` is today's local date in `YYYY-MM-DD`. The answer carries `prompt_path`, a fresh
+`run_id` and `tasks` — the source PRs the prompt actually bundles. Before printing, copying or
+opening anything, compare its `number` set with the confirmed set. `--include` blocks an
+unapproved PR from joining, but a confirmed PR that lost candidacy (for example QA approved it
+between the two calls) silently falls out of the intersection. If the sets differ, stop: say
+which PRs left or joined and ask again with the same **Build today's testing PR?** question;
+do not read, copy or open the stale prompt (the next compose overwrites it). Continue only with
+an explicitly re-confirmed set, and update the frozen numbers to the answer's `tasks`.
+
+Read the file and print its text. The prompt ends with its `Run id:` marker — that marker is
+how the spawned task is found, so never edit it.
 
 Copy the prompt to the clipboard when a clipboard command exists, and say which one was used:
 

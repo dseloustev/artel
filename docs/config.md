@@ -621,11 +621,11 @@ router whether those two routes are live.
 | `bratishka.spawn.adapter` | string | `"manual"` | `"manual"` \| `"client-api"` \| `"mcp"` — how the testing-PR coder task is started. `"client-api"` needs `spawn.tokenEnv`, `"mcp"` needs `spawn.mcpToolPrefix`; without them it falls back to `"manual"`. | `testing-pr` |
 | `bratishka.spawn.tokenEnv` | string | `""` | The **name** of the env var holding a client-API token with `tasks:write,tasks:read`; never the token itself. Required for `client-api`. | `testing-pr` |
 | `bratishka.spawn.mcpToolPrefix` | string | `""` | MCP tool prefix for `spawn_task` / `get_task` / `get_task_result`, including any trailing separator. Required for `mcp`. | `testing-pr` |
-| `bratishka.spawn.promptFile` | string | `""` | Optional host override of the coder prompt template. | `testing-pr` |
+| `bratishka.spawn.promptFile` | string | `""` | **Reserved.** Accepted and ignored: the coder prompt keeps its fixed built-in shape. A host override needs a substitution contract before this key can work. | — (reserved; no consumer yet) |
 | `bratishka.testingPr.titleTemplate` | string | `"Testing {dd}-{mm}-{yy}"` | Tokens: `{dd}`, `{mm}`, `{yy}` (two-digit year), `{yyyy}`. Rendered with the local date. | `testing-pr`, `cancel-testing-pr`, `status` |
 | `bratishka.testingPr.branchTemplate` | string | `"feature/testing-{dd}-{mm}-{yy}"` | Same tokens. | `testing-pr`, `cancel-testing-pr` |
 | `bratishka.testingPr.deleteBranchOnCancel` | boolean | `false` | Current practice leaves the branch; deletion is opt-in (`cancel-testing-pr --delete-branch`). | `cancel-testing-pr` |
-| `bratishka.testingPr.bodyFile` | string | `""` | Optional host override of the testing-PR body wrapper. | `testing-pr` |
+| `bratishka.testingPr.bodyFile` | string | `""` | **Reserved.** Accepted and ignored: the testing-PR body keeps its fixed built-in shape. A host override needs a substitution contract before this key can work. | — (reserved; no consumer yet) |
 
 The block is optional, like [knowledge](#knowledge--the-institutional-memory-mirror), and
 every key has a working default. `repo` and `baseRef` fall back to `gh repo view`; `botLogin`
@@ -638,6 +638,11 @@ everything else works. `spawn.adapter` stays `manual` until a token or an MCP se
 configured: the prompt is printed and copied, `/spawn` is opened, and the task is found by its
 `Run id:` marker. The full day contract — approval model, queue buckets, testing-PR body, fix
 loop, merge rules — is [bratishka-duty.md](bratishka-duty.md).
+
+Two keys are **reserved**: `spawn.promptFile` and `testingPr.bodyFile` are accepted and ignored,
+because the engine composes the coder prompt and the testing-PR body in their fixed built-in
+shape. A host override will need a substitution contract before either key can do anything;
+keeping them in the block is forward compatibility, not a working override.
 
 ### App automation — owned by the host project
 

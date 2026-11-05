@@ -118,10 +118,13 @@ succeeds; `data` is `{run_id, task, pr, gate_failed}`.
 With `--local`, skip steps 2–4. After the same plan and confirmation, run:
 
 ```bash
-python3 ${ARTEL_ROOT}/scripts/bratishka.py testing-pr-local --yes --json
+python3 ${ARTEL_ROOT}/scripts/bratishka.py testing-pr-local --yes --json \
+  --include <confirmed-n>,<confirmed-n>
 ```
 
-It builds the same branch and body in a throwaway worktree under `.artel/run/bratishka/`, pushes
+`--include` is the same frozen confirmed set the prompt path passes, so a PR the person did
+not approve cannot join the build; `--exclude` drops a number that must stay out. It builds the
+same branch and body in a throwaway worktree under `.artel/run/bratishka/`, pushes
 it and opens the PR; a conflict stops it with the conflicting files and no push. Report
 `pr_url` or the conflicts. The confirmation you already gave is this command's consent. Never
 build the branch in the working checkout by hand.

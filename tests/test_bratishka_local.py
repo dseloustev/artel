@@ -232,6 +232,17 @@ class LocalCommandCase(RepoFixture, unittest.TestCase):
         self.assertEqual(body_out.read_text(encoding='utf-8').strip(), body.strip())
         self.assertEqual(out['data']['body_path'], str(body_out))
 
+    def test_include_freezes_the_confirmed_set(self):
+        # Both sources conflict on b.txt, so only a narrowed plan can build: the
+        # confirmed #10 must be the one merged, and #11 must stay out.
+        gh = CliGh([source_pr(), source_pr(number=11, head='f2')])
+        code, out = self.run_cli(gh, '--yes', '--json', '--include', '10')
+        self.assertEqual(code, 0)
+        self.assertEqual([task['number'] for task in out['data']['tasks']], [10])
+        self.assertEqual(len(gh.created), 1)
+        self.assertIn('Merged #10 (`f1`) without conflicts.', gh.bodies[0])
+        self.assertNotIn('#11', gh.bodies[0])
+
     def test_a_red_verify_stops_before_the_push_and_keeps_the_worktree(self):
         self.write_config(['false', 'true'])
         gh = CliGh([source_pr()])

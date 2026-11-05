@@ -34,10 +34,14 @@ what it feeds:
 - **Teams** — `teams.codeReview` (`""`), `teams.qa` (`""`), `qaLogins` (`[]`).
 - **Queue** — `excludeTitlePatterns` (`[]`), `fixCommand` (`"/agent"`).
 - **Spawn** — `spawn.adapter` (`"manual"`), `spawn.tokenEnv` (`""`), `spawn.mcpToolPrefix`
-  (`""`), `spawn.promptFile` (`""`).
+  (`""`), `spawn.promptFile` (`""`, reserved).
 - **Testing PR** — `testingPr.titleTemplate` (`"Testing {dd}-{mm}-{yy}"`),
   `testingPr.branchTemplate` (`"feature/testing-{dd}-{mm}-{yy}"`),
-  `testingPr.deleteBranchOnCancel` (`false`), `testingPr.bodyFile` (`""`).
+  `testingPr.deleteBranchOnCancel` (`false`), `testingPr.bodyFile` (`""`, reserved).
+
+`spawn.promptFile` and `testingPr.bodyFile` are **reserved**: accepted and ignored, because the
+prompt and the body keep their fixed built-in shape. A host override needs a substitution
+contract before either key can work ([config.md](config.md), `bratishka`).
 
 The fallbacks are part of the contract:
 
@@ -144,8 +148,9 @@ edited or closed by this path.
 ### Body
 
 The body follows the shape observed on the reference testing PR (`#144`) in eight ordered parts —
-the wrapper is composed by `testing-pr-prompt` (or host-overridden through
-`testingPr.bodyFile`), and the content is drawn from the source PRs:
+the wrapper is composed by `testing-pr-prompt` in its fixed built-in shape (`testingPr.bodyFile`
+is reserved — accepted and ignored — until a substitution contract exists), and the content is
+drawn from the source PRs:
 
 ````markdown
 ## Summary

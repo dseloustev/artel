@@ -58,7 +58,7 @@ Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
        bratishka.py testing-pr-prompt [--repo <dir>] [--out <path>] [--json]
               [--include N,...] [--exclude N,...]
        bratishka.py testing-pr-local [--repo <dir>] [--yes] [--dry-run]
-              [--body-out <path>] [--json]
+              [--body-out <path>] [--include N,...] [--exclude N,...] [--json]
        bratishka.py testing-pr-verify --run-id <id> [--repo <dir>] [--json]
        bratishka.py findings --pr <n> [--repo <dir>] [--json]
        bratishka.py compose-fix --pr <n> [--repo <dir>] [--select <n,...|none>]
@@ -196,9 +196,10 @@ def parse_cancel(args):
 
 
 def parse_local(args):
-    """`testing-pr-local`'s flags: `repo`, `json`, `yes`, `dry_run` and `body_out`."""
+    """`testing-pr-local`'s flags: `repo`, `json`, `yes`, `dry_run`, `body_out`,
+    `include` and `exclude`."""
     options = {'repo': '.', 'json': False, 'yes': False, 'dry_run': False,
-               'body_out': ''}
+               'body_out': '', 'include': [], 'exclude': []}
     i = 0
     while i < len(args):
         arg = args[i]
@@ -218,6 +219,12 @@ def parse_local(args):
             if i >= len(args) or args[i] == '':
                 raise UsageError('missing value for --body-out <path>')
             options['body_out'] = args[i]
+        elif arg in ('--include', '--exclude'):
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for {} <n,...>'.format(arg))
+            key = 'include' if arg == '--include' else 'exclude'
+            options[key].extend(parse_numbers(args[i], arg))
         else:
             raise UsageError('unknown flag: {}'.format(arg))
         i += 1
@@ -952,7 +959,8 @@ def run_local(config, gh, options, elapsed):
     """Plan, confirm and build the testing PR locally; returns the exit code."""
     verb = 'bratishka-testing-pr-local'
     try:
-        plan = bratishka_testing.plan(config, gh)
+        plan = bratishka_testing.plan(config, gh, include=options['include'],
+                                      exclude=options['exclude'])
     except GhError as exc:
         return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
     tasks = plan['tasks']

@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The testing-PR duty starts the bot through the MCP tools.** `artel-bratishka-testing-pr` now
+  starts the daily coder task with `spawn_task` and follows it with `get_task` /
+  `get_task_result`, using the returned task id as the correlation key and the run id as the
+  idempotency key. The dashboard `/spawn` handover, the clipboard copy and the browser step are
+  gone from this path; `--local` remains the non-MCP fallback. The skill verifies that the PR
+  title and head branch match `Testing dd-mm-yy` / `feature/testing-dd-mm-yy`.
+
 ## [0.47.1] - 2026-11-09
 
 ### Changed

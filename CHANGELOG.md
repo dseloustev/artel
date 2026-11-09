@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.47.1] - 2026-11-09
+
 ### Changed
 
 - **The merge duty hands the build window to the next review.** `artel-bratishka-merge-approved`

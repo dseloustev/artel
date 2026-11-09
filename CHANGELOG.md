@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.47.2] - 2026-11-09
+
 ### Changed
 
 - **The testing-PR duty starts the bot through the MCP tools.** `artel-bratishka-testing-pr` now

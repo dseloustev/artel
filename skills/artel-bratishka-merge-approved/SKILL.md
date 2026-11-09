@@ -1,6 +1,6 @@
 ---
 name: artel-bratishka-merge-approved
-description: "Use when the Bratishka duty reviewer wants the QA-approved pull requests merged — shows the ready, needs-update and blocked sets, updates BEHIND branches, waits once for the merge state to settle, and squash-merges one PR at a time after confirmation. Never merges a PR whose QA state is unknown, a testing PR, a draft, or a PR blocked by its merge state."
+description: "Use when the Bratishka duty reviewer wants the QA-approved pull requests merged — shows the ready, needs-update and blocked sets, updates BEHIND branches and re-checks them once, squash-merges one PR at a time after confirmation, and hands back so the reviewer can start the next code review while the post-merge builds run. Never merges a PR whose QA state is unknown, a testing PR, a draft, or a PR blocked by its merge state."
 argument-hint: "[--yes] [--pr <n>]"
 ---
 
@@ -103,7 +103,10 @@ Process the confirmed set in the displayed order:
 5. **A failed merge — report `gh`'s message and move on.** Do not retry, force-push or switch
    merge method; re-read the plan before the next PR.
 
-After the confirmed set, re-read the plan once and report each remaining group.
+After the confirmed set, re-read the plan once and report each remaining group. For every PR you
+merged, do not wait for its post-merge builds: say the builds are running and point at the
+`needs-review` queue — `/artel-collaborative-review` — so the build window is used for the next
+code review; re-run `/artel-bratishka-merge-approved` once the builds settle.
 
 ## Rules
 
@@ -115,6 +118,8 @@ After the confirmed set, re-read the plan once and report each remaining group.
   REST endpoint is the only update.
 - One PR at a time: re-read the plan after each merge so a newly `BEHIND` PR is updated before
   its own merge.
+- After a merge, never wait for its post-merge builds. Report the merged PRs and hand back to the
+  review queue; the build window is the next code review.
 - `--pr` narrows the run to one PR; it never widens the merge set. `--yes` skips the question
   and is never added on your own.
 - The engine merges nothing; every update and merge here is a visible `gh` call. The merge

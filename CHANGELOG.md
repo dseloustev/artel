@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The merge duty hands the build window to the next review.** `artel-bratishka-merge-approved`
+  no longer implies waiting for a merged PR's post-merge builds: it reports the merged PRs and
+  points at the `needs-review` queue, so the reviewer starts the next code review while the
+  builds run and re-runs the merge later. `artel-bratishka-status` pairs the two in
+  `next_actions`, and the contract records the interleave (`docs/bratishka-duty.md`).
+
 ## [0.47.0] - 2026-11-05
 
 ### Added

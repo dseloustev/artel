@@ -505,3 +505,22 @@ class TestMergePlan(unittest.TestCase):
             gh, dash)
         self.assertTrue(out['ready'][0]['bot_working'])
         self.assertEqual(out['ready'][0]['active_tasks'][0]['task_id'], 't9')
+
+
+class TestNextActions(unittest.TestCase):
+    def queue(self, approved=(), review=()):
+        return {'qa-approved': [{'number': n} for n in approved],
+                'needs-qa': [], 'needs-review': [{'number': n} for n in review],
+                'blocked': [], 'bot-working': []}
+
+    def test_a_merge_hands_the_build_window_to_the_review(self):
+        actions = bratishka.next_actions([], self.queue(approved=[1], review=[2]),
+                                         date(2026, 11, 9))
+        self.assertIn('While the merge builds run, review 1 PR(s) — '
+                      '/artel-collaborative-review', actions)
+
+    def test_without_a_merge_the_review_is_plain(self):
+        actions = bratishka.next_actions([], self.queue(review=[2, 3]),
+                                         date(2026, 11, 9))
+        self.assertIn('Review 2 PR(s) awaiting code review — '
+                      '/artel-collaborative-review', actions)

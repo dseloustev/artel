@@ -582,8 +582,12 @@ def next_actions(testing_prs, queue, today):
         actions.append("Bundle {} reviewed PR(s) into today's testing PR — "
                        '/artel-bratishka-testing-pr'.format(len(queue['needs-qa'])))
     if queue['needs-review']:
-        actions.append('Review {} PR(s) awaiting code review — '
-                       '/artel-collaborative-review'.format(len(queue['needs-review'])))
+        if queue['qa-approved']:
+            actions.append('While the merge builds run, review {} PR(s) — '
+                           '/artel-collaborative-review'.format(len(queue['needs-review'])))
+        else:
+            actions.append('Review {} PR(s) awaiting code review — '
+                           '/artel-collaborative-review'.format(len(queue['needs-review'])))
     if queue['blocked']:
         actions.append('{} approved PR(s) are blocked by GitHub — '
                        '/artel-bratishka-merge-approved reports the reason'.format(

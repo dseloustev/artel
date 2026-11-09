@@ -259,6 +259,9 @@ failure shows as `BLOCKED`.
   branch-deletion flag.
 - One PR at a time. After each merge, re-read the queue: the base moved and a `BEHIND` state may
   have appeared on the next PR.
+- After a merge, do not wait for its post-merge builds. Report the merged PRs and hand back: the
+  build window is the next code review (`/artel-collaborative-review`), and `merge-approved` is
+  re-run once the builds settle.
 - Never merge a PR with an active or queued coder task. `merge-plan` marks such an entry
   `bot_working` and lists its `active_tasks`; report the task id and status and move on.
 

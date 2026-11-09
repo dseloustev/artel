@@ -1035,8 +1035,9 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 ### merge-approved
 
 - **Purpose:** Merge the bot's QA-approved, merge-ready pull requests: update a `BEHIND` branch,
-  re-check it once after a bounded wait, and squash-merge one PR at a time; blocked PRs are
-  reported with `gh`'s reason and never merged.
+  re-check it once, squash-merge one PR at a time, and hand back so the reviewer can start the
+  next code review while the post-merge builds run; blocked PRs are reported with `gh`'s reason
+  and never merged.
 - **Invocation:** `/artel-bratishka-merge-approved [--yes] [--pr <n>]`
 - **Reads:** `.artel/config.json` (`bratishka`, `vcs.adapter`); the repo's open bot PRs, their
   reviews and team membership through `gh`.

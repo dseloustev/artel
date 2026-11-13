@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-11-13
+
 ### Added
 
 - **`compose-fix` accepts `--all-authors`.** The flag `findings` already had now reaches the

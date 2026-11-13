@@ -1019,18 +1019,22 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   after confirmation, and correlate the spawned task.
 - **Invocation:** `/artel-bratishka-request-fix [<pr>] [--notes <text>] [--watch]`
 - **Reads:** `.artel/config.json` (`bratishka`, `vcs.adapter`); the PR's unresolved review
-  threads through `gh` (`reviewThreads`); the dashboard task for the PR when
-  `bratishka.dashboardUrl` is set.
+  threads through `gh` (`reviewThreads`), page by page, with each thread's `isOutdated` flag,
+  diff hunk, comments and replies; the dashboard task for the PR when `bratishka.dashboardUrl`
+  is set.
 - **Writes:** the composed body at `.artel/run/bratishka/<date>/fix-<n>.md`; one top-level
   `gh pr comment` on the PR. Nothing else.
 - **Pauses:** twice — after the findings list (which to fix, default all, and any notes) and
   before posting the composed body.
 - **Notes:** deterministic engine output (`scripts/bratishka.py findings`, `compose-fix`,
   `task-find`, `task-watch`). One comment, not one per finding: the bot serializes `/agent`
-  tasks per branch. Refuses a merged or closed PR and stops when an `active`/`queued` coder task
-  already works the PR. `--notes` alone composes from the notes; `--watch` follows the task to a
-  terminal status. Selection, correlation and the guards are in
-  [bratishka-duty.md](bratishka-duty.md).
+  tasks per branch. Each finding is a block — anchor, marked diff hunk, every reply, the whole
+  suggestion — because the bot reads the comment without the PR. Refuses a merged or closed PR
+  and stops when an `active`/`queued` coder task already works the PR. `--notes` alone composes
+  from the notes; `--all-authors` must go to both `findings` and `compose-fix`; `--watch`
+  follows the task to a terminal status, after which re-reading `findings` reports which
+  findings disappeared and which remain. Selection, composition, correlation and the guards are
+  in [bratishka-duty.md](bratishka-duty.md).
 
 ### merge-approved
 

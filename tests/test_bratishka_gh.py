@@ -27,6 +27,32 @@ def client(answers):
     return ghmod.Gh(call=fake), fake
 
 
+def review_threads_page(nodes, has_next=False, cursor=None):
+    """One GraphQL answer for `reviewThreads`, page info included."""
+    return {'data': {'repository': {'pullRequest': {'reviewThreads': {
+        'pageInfo': {'hasNextPage': has_next, 'endCursor': cursor},
+        'nodes': nodes}}}}}
+
+
+def review_thread(**overrides):
+    """A raw `reviewThreads` node: one bot root comment and one human reply."""
+    node = {
+        'id': 'RT_1', 'isResolved': False, 'isOutdated': True,
+        'path': 'a.dart', 'line': None, 'startLine': None, 'originalLine': 4,
+        'diffSide': 'RIGHT',
+        'comments': {'nodes': [
+            {'author': {'login': 'bratishka-bot'}, 'body': 'fix this',
+             'createdAt': 't1', 'url': 'u1',
+             'diffHunk': '@@ -2,3 +2,3 @@\n a\n-b\n+c'},
+            {'author': {'login': 'reviewer'}, 'body': 'not like that',
+             'createdAt': 't2', 'url': 'u2',
+             'diffHunk': '@@ -2,3 +2,3 @@\n a\n-b\n+c'},
+        ]},
+    }
+    node.update(overrides)
+    return node
+
+
 class TestReads(unittest.TestCase):
     def test_repo_slug(self):
         gh, fake = client([('view', 'o/r')])
@@ -59,14 +85,59 @@ class TestReads(unittest.TestCase):
         self.assertEqual(gh.checks('o/r', 7)[0]['bucket'], 'pass')
 
     def test_review_threads_flattens_graphql(self):
-        raw = {'data': {'repository': {'pullRequest': {'reviewThreads': {'nodes': [
-            {'isResolved': False, 'path': 'a.dart', 'line': 4,
-             'comments': {'nodes': [{'author': {'login': 'bratishka-bot'},
-                                     'body': 'fix this', 'createdAt': 't'}]}}]}}}}}
+        raw = review_threads_page([review_thread()])
         gh, _ = client([('graphql', json.dumps(raw))])
         threads = gh.review_threads('o/r', 7)
         self.assertEqual(threads[0]['path'], 'a.dart')
         self.assertEqual(threads[0]['body'], 'fix this')
+
+    def test_review_threads_carry_the_code_anchor(self):
+        raw = review_threads_page([review_thread()])
+        gh, _ = client([('graphql', json.dumps(raw))])
+        thread = gh.review_threads('o/r', 7)[0]
+        self.assertEqual(thread['id'], 'RT_1')
+        self.assertTrue(thread['outdated'])
+        self.assertFalse(thread['resolved'])
+        self.assertIsNone(thread['line'])
+        self.assertEqual(thread['original_line'], 4)
+        self.assertEqual(thread['side'], 'RIGHT')
+        self.assertIn('+c', thread['hunk'])
+        self.assertEqual(thread['url'], 'u1')
+        self.assertEqual([c['author'] for c in thread['comments']],
+                         ['bratishka-bot', 'reviewer'])
+        self.assertEqual(thread['comments'][1]['body'], 'not like that')
+
+    def test_review_threads_ask_for_the_anchor_context(self):
+        gh, fake = client([('graphql', json.dumps(review_threads_page([])))])
+        gh.review_threads('o/r', 7)
+        sent = ' '.join(fake.calls[0])
+        for field in ('isOutdated', 'originalLine', 'diffHunk', 'pageInfo',
+                      'endCursor', 'url'):
+            self.assertIn(field, sent, field)
+        self.assertNotIn('after=', sent)
+
+    def test_review_threads_follow_page_info(self):
+        pages = [review_threads_page([review_thread(path='a.dart')], True, 'c1'),
+                 review_threads_page([review_thread(path='b.dart')], False, None)]
+        calls = []
+
+        def call(args):
+            calls.append(list(args))
+            return json.dumps(pages[len(calls) - 1])
+
+        threads = ghmod.Gh(call=call).review_threads('o/r', 7)
+        self.assertEqual([t['path'] for t in threads], ['a.dart', 'b.dart'])
+        self.assertIn('after=c1', ' '.join(calls[1]))
+
+    def test_review_threads_stop_at_the_page_ceiling(self):
+        calls = []
+
+        def call(args):
+            calls.append(list(args))
+            return json.dumps(review_threads_page([], True, 'c'))
+
+        ghmod.Gh(call=call).review_threads('o/r', 7)
+        self.assertEqual(len(calls), ghmod.THREAD_PAGES)
 
     def test_team_members_returns_a_set(self):
         gh, _ = client([('members', 'qa1\nqa2\n')])

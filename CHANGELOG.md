@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`compose-fix` accepts `--all-authors`.** The flag `findings` already had now reaches the
+  composition step too. Without it `compose-fix` re-read the bot's threads only, numbered a
+  different list than the one the numbered list had just shown, and a reviewer's unresolved
+  thread could never be selected for a fix. The two commands now number the same findings.
+
+### Changed
+
+- **A review finding reaches the bot with the code it is about.** `findings` asks
+  `reviewThreads` for `isOutdated`, `originalLine`, `diffSide`, each comment's `diffHunk` and
+  `url`, and follows `pageInfo` instead of silently stopping at the first 100 threads.
+  `compose-fix` renders one block per finding rather than a flattened line: the anchor, the
+  diff hunk with `← this finding` under the commented line, every comment in the thread by
+  author so a reply's correction arrives with it, and the whole `suggestion` fence. Comment text
+  is treated as untrusted — fence delimiters are stripped, line structure kept — and the
+  composed payload says so. An outdated thread stays a finding and is labelled, because its
+  problem may survive the move that nulled its line. `artel-bratishka-request-fix` gains a
+  closing step that re-reads `findings` after the task and reports which findings disappeared
+  and which remain, and its contract in `docs/bratishka-duty.md` records the new payload.
+
 ## [0.47.2] - 2026-11-09
 
 ### Changed

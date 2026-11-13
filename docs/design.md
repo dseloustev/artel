@@ -1889,3 +1889,20 @@ move to the decision log.
   decorative check fails on every PR; the testing PR is built by the bot through the manual
   `/spawn` flow, with `--local` as the fallback; the router pays for one compact row
   (`docs/bratishka-duty.md`, `docs/config.md`).
+- **2026-11-13 — A review finding carries its code, not just its coordinates.** The bot reads
+  the composed `/agent` comment with no view of the PR, so `findings` now asks `reviewThreads`
+  for what the thread actually holds — `isOutdated`, `originalLine`, `diffSide`, each comment's
+  `diffHunk` and `url`, and `pageInfo` for pagination — and `compose-fix` renders one block per
+  finding: the anchor, the hunk with `← this finding` under the anchored line, every reply by
+  author, and the whole `suggestion` fence. Before this, a finding arrived as
+  `` `path:line` — one flattened sentence ``, which asked the bot to guess at the code; the
+  hunk is the difference between a fix and a guess. Three consequences worth recording: an
+  outdated thread stays a finding but is labelled, because GitHub nulls `line` and the problem
+  may survive the move — dropping it silently was the alternative and it loses real work;
+  fence delimiters in comment text are stripped, because comment text is untrusted and a
+  stray fence would swallow the payload; and `compose-fix` gained `--all-authors`, without
+  which the numbers `findings --all-authors` printed addressed a different, bot-only list, so
+  a reviewer's thread could never be selected (a live bug, not a nicety). The loop also closes:
+  re-reading `findings` after the task is terminal reports which findings disappeared and
+  which remain, while the engine still reads thread state only — it never claims a fix, and
+  never resolves, replies to or edits a thread.

@@ -16,7 +16,7 @@ Five skills implement the day. Each is a thin orchestrator over `scripts/bratish
 | `/artel-bratishka-status` | read | The board: today's testing PR and its age, the repo queue by bucket, live bot tasks. Degrades to PR-only without the dashboard. |
 | `/artel-bratishka-cancel-testing-pr` | write | Finds open testing PRs older than today, shows them, posts a close reason, closes them. Today's is never touched. |
 | `/artel-bratishka-testing-pr` | write | Selects the source PRs, composes the coder prompt, starts the bot, finds the task, verifies the PR. `--local` is the explicit git+gh fallback. |
-| `/artel-bratishka-request-fix` | write | Reads the bot's unresolved review threads, composes one fix comment, posts it, correlates the spawned task. |
+| `/artel-bratishka-request-fix` | write | Reads the bot's unresolved review threads with the code anchor each one carries, composes one fix comment, posts it, correlates the spawned task. |
 | `/artel-bratishka-merge-approved` | write | Updates `BEHIND` branches, waits on `BLOCKED` within a bound, squash-merges QA-approved PRs one by one. |
 
 The contract is project-agnostic: every host-specific value comes from the `bratishka` block in
@@ -213,15 +213,35 @@ reviewer.
 
 ## Requesting a fix
 
-`/artel-bratishka-request-fix` reads the bot's unresolved review threads — GraphQL
-`reviewThreads`, first 100 — keeping the root bot comment, path, line and any suggested change.
-It shows a numbered list; the default selection is every unresolved thread, and the person may
-add notes. It then posts **one** self-contained `/agent` comment, not one comment per finding:
-the bot serializes `/agent` tasks per branch, so N comments queue N runs against the same branch.
+`/artel-bratishka-request-fix` reads the bot's unresolved review threads through GraphQL
+`reviewThreads`, 100 threads a page, following `pageInfo` so a large PR is not silently cut at
+the first page. It shows a numbered list; the default selection is every unresolved thread, and
+the person may add notes. It then posts **one** self-contained `/agent` comment, not one comment
+per finding: the bot serializes `/agent` tasks per branch, so N comments queue N runs against the
+same branch.
 
-The comment names each selected finding with enough context to act on it — location, problem,
-expected result — and asks for a scoped change and the repository's verification before pushing.
-`bratishka.fixCommand` is the command word, `/agent` by default.
+Each finding is composed as a **block**, not a location line, because the bot reads the comment
+without the pull request in front of it:
+
+- the `path:line` anchor, plus `(was line N)` when GitHub has nulled the live line;
+- `outdated: true` when GitHub reports the code the comment targeted has changed since — the
+  anchor is gone from the diff, so the block says so and the bot checks whether the problem
+  survives before changing anything. An outdated thread stays a finding; it is never dropped
+  silently;
+- the diff hunk the comment was written against, with `← this finding` inserted under the
+  anchored line, counted on the new side of the diff. The bot reads the code, not a coordinate;
+- every comment in the thread by author — the root and each reply — because the correction is
+  usually in a reply, not in the bot's first word;
+- the GitHub `suggestion` fence, whole and multi-line, when the thread has one.
+
+Fence delimiters in comment text are stripped before composition: a review comment is written by
+whoever can comment on the PR, and a stray code fence in it would swallow the rest of the
+payload. Line structure is kept, so numbered steps and lists arrive intact.
+
+`--all-authors` widens `findings` to every reviewer's unresolved threads, and
+`compose-fix --all-authors` must be passed with it: without it the two commands number different
+lists, and a reviewer's thread can never be selected. `bratishka.fixCommand` is the command word,
+`/agent` by default.
 
 Two guards come before posting:
 
@@ -238,6 +258,11 @@ After posting, correlation replaces blind polling. A bot task's description cont
 posting time (or `head_ref` when the task names it). Without the dashboard, poll the PR every
 15–30 s and treat the bot's summary comment as completion; a read-only ask may answer only in its
 task report. Never include secrets in a fix comment and never edit the bot's own comment.
+
+When the task is terminal, the same `findings` read closes the loop: a selected finding absent
+from the fresh list is resolved or outdated as far as GitHub is concerned, and one still present
+was not fixed. The engine reports thread state, never the diff — it cannot tell a real fix from a
+thread a human resolved — and it never resolves, replies to or edits a thread itself.
 
 ## Merging
 

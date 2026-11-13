@@ -1,6 +1,6 @@
 ---
 name: artel-bratishka-request-fix
-description: "Use when the Bratishka duty reviewer wants the bot to fix review findings on a pull request — reads the bot's unresolved review threads, composes one self-contained /agent comment for the selected findings plus any notes, posts it after confirmation, and correlates the spawned task. Never posts on a merged or closed PR."
+description: "Use when the Bratishka duty reviewer wants the bot to fix review findings on a pull request — reads the bot's unresolved review threads with the diff hunk, replies and suggestion each one carries, composes one self-contained /agent comment for the selected findings plus any notes, posts it after confirmation, and correlates the spawned task. Never posts on a merged or closed PR."
 argument-hint: "[<pr>] [--notes <text>] [--watch]"
 ---
 
@@ -10,6 +10,10 @@ Turn the bot's unresolved review threads into **one** `/agent` comment, post it,
 task it spawns. One comment, not one per finding: the bot serializes `/agent` tasks per branch,
 so N comments queue N runs against the same branch
 (`${ARTEL_ROOT}/docs/bratishka-duty.md`, `## Requesting a fix`).
+
+The bot reads that comment without the pull request in front of it, so a finding is composed as a
+block — the diff hunk its comment was written against with the commented line marked, every reply
+in the thread, and the suggested change — never as a bare `path:line`.
 
 This is a write. Check `.artel/config.json` first: `vcs.adapter` must be `github-cli`,
 otherwise stop and name the value. `bratishka.dashboardUrl` is optional — without it the task
@@ -39,14 +43,21 @@ Keep the number, the head branch and the URL for the report.
 python3 ${ARTEL_ROOT}/scripts/bratishka.py findings --pr <n> --json
 ```
 
-`data.threads` are the **unresolved** review threads, numbered from 1 in `index`, each with
-`path`, `line`, `body` and `author`. A resolved thread is never a finding. By default only the
-bot's own root threads are findings; add `--all-authors` to the command only when the person
-explicitly asks to see every reviewer's unresolved threads, and say that is what the list is.
+`data.threads` are the **unresolved** review threads, numbered from 1 in `index`. A resolved
+thread is never a finding. By default only the bot's own root threads are findings; add
+`--all-authors` to the command only when the person explicitly asks to see every reviewer's
+unresolved threads, and say that is what the list is.
 
-Show a numbered list: `index`, `path:line`, and the first line of the body. Say how many
-findings there are. When `data.threads` is empty, say that the bot has no unresolved thread on
-this PR; stop unless `--notes` was given.
+Each thread carries what its comment was written against: `path` and `line` (the anchor),
+`outdated` when GitHub reports the code it targeted has changed since, `original_line` (where it
+sat before that), `hunk` (the diff hunk the comment was written against), `body` and `author` of
+the root comment, `url`, and `comments` — every comment in the thread, root first, replies after.
+
+Show a numbered list: `index`, `path:line`, the `author`, and the first line of `body`. Say how
+many findings there are, and name any with `outdated` true: their anchor is gone from the diff,
+so the fix has to start from the excerpt and the file, not from the line number. When
+`data.threads` is empty, say that the bot has no unresolved thread on this PR; stop unless
+`--notes` was given.
 
 With `--notes "<text>"`, skip the list and compose from the notes alone (step 4 passes
 `--select none`).
@@ -79,19 +90,25 @@ without composing. Then ask, in the chat, for extra notes; no reply means no not
 
 ```bash
 python3 ${ARTEL_ROOT}/scripts/bratishka.py compose-fix --pr <n> --json \
-  --select <index,...> --notes "<notes>" \
+  [--all-authors] --select <index,...> --notes "<notes>" \
   --out .artel/run/bratishka/<date>/fix-<n>.md
 ```
 
 - Omit `--select` to select every finding; pass `--select none` with `--notes` to compose from
   the notes alone. `<index,...>` is the displayed numbering, not a zero-based position.
+- `--all-authors` **must** repeat the flag given to `findings` in step 2. Without it `compose-fix`
+  reads the bot's threads only, numbers a different list, and `--select` would point at the wrong
+  findings — a reviewer's thread would silently drop out of the request.
 - `<date>` is today's local date in `YYYY-MM-DD`; `<n>` is the PR number. Omit `--notes` when
   there are none; never pass an empty string.
 - Exit `1` with `nothing_to_do` → nothing was selected and there are no notes; say so and stop.
 
-`data.body` is the comment and `data.body_path` the file written. Show the body verbatim, then
-ask with the `question` tool: **Post this fix request?** — options **Post it** / **Cancel**. On
-**Cancel**, or with no answer, stop: the file stays for inspection and nothing is posted.
+`data.body` is the comment and `data.body_path` the file written. Each finding is composed as a
+block, not a line: its anchor, the diff hunk with the commented line marked, the thread's
+comments and replies, and the suggested change when there is one. That is deliberate — the bot
+reads the comment without the PR in front of it. Show the body verbatim, then ask with the
+`question` tool: **Post this fix request?** — options **Post it** / **Cancel**. On **Cancel**, or
+with no answer, stop: the file stays for inspection and nothing is posted.
 
 ## 5. Post it
 
@@ -141,6 +158,23 @@ reached `completed`, `failed` or `cancelled`; summarize its `status` and `result
 `data.timed_out` true is not a failure: report the last `data.task` state and the task id, and
 say it may still be running. Without `--watch`, report the task and stop; do not poll further.
 
+## 7. Check what the fix changed
+
+Once the task is terminal — or later, when the person asks — re-read the threads, with the same
+`--all-authors` flag step 2 used:
+
+```bash
+python3 ${ARTEL_ROOT}/scripts/bratishka.py findings --pr <n> --json
+```
+
+Compare with the selection from step 4. A selected finding that no longer appears is resolved or
+outdated as far as GitHub is concerned; one that still appears was not fixed. Report both by
+`path:line`. Do not claim a finding is fixed: the engine reads thread state, never the diff, and
+cannot tell a real fix from a thread a human resolved by hand.
+
+This step is read-only. Never resolve, reply to or edit a thread, and never close the PR on the
+strength of it.
+
 ## Rules
 
 - One `/agent` comment per request, posted to the PR, never a review thread and never one comment
@@ -150,6 +184,9 @@ say it may still be running. Without `--watch`, report the task and stop; do not
 - Never include secrets, tokens, cookies or customer data in the comment or the notes.
 - Never edit, delete or resolve the bot's comment; the request is a new top-level comment.
 - `--notes` composes from the notes alone; the finding list is skipped, not silently widened.
+- `--all-authors` goes to both `findings` and `compose-fix`, or neither.
+- The composed block carries the hunk, the replies and the suggestion on purpose: the bot reads
+  the comment without the PR. Never trim a finding back to its `path:line`.
 - The engine writes the body file and prints the envelope; nothing in this skill posts on its
   own. The contract is `${ARTEL_ROOT}/docs/bratishka-duty.md` (`## Requesting a fix`,
   `## Safety and degradation`).

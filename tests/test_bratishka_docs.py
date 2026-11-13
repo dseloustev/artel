@@ -72,6 +72,12 @@ class TestContractDoc(unittest.TestCase):
                         '## Local verification'):
             self.assertIn(heading, text, heading)
 
+    def test_carries_the_fix_composition_contract(self):
+        text = read('docs/bratishka-duty.md')
+        for phrase in ('pageInfo', 'outdated', 'diff hunk', '\u2190 this finding',
+                       '--all-authors', 'suggestion'):
+            self.assertIn(phrase, text, phrase)
+
     def test_carries_the_approval_and_naming_rules(self):
         text = read('docs/bratishka-duty.md')
         for phrase in ('CODEOWNERS', 'DISMISSED', 'mergeStateStatus',

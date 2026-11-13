@@ -5,8 +5,9 @@ The GitHub layer behind the bratishka duty (docs/bratishka-duty.md): it runs the
 the key names the rules layer works with -- PRs (`number`, `title`, `url`,
 `head`, `author`, `draft`, `state`, `created_at`, `body`, `review_decision`,
 `mergeable`, `merge_state`), reviews (`login`, `state`, `submitted_at`, `body`),
-checks (`name`, `state`, `bucket`, `link`) and review threads (`path`, `line`,
-`body`, `author`, `resolved`).
+checks (`name`, `state`, `bucket`, `link`) and review threads (`id`, `path`,
+`line`, `start_line`, `original_line`, `side`, `resolved`, `outdated`, `hunk`,
+`comments`, and the root comment's `body`, `author`, `url`).
 
 Every call goes through the injected `call(args) -> str`, which returns stdout;
 the default runs `gh` in `cwd` and raises GhError on a non-zero exit (`404` /
@@ -30,26 +31,36 @@ PR_FIELDS = ('number,title,url,headRefName,author,isDraft,state,createdAt,body,'
              'reviewDecision,mergeable,mergeStateStatus')
 PR_LIMIT = 200
 
-# The GraphQL query for review threads: first 100 threads, each with its root
-# comment first (`comments.nodes` is ordered oldest first) and up to 100
-# replies. docs/bratishka-duty.md `## Requesting a fix`.
+# The GraphQL query for review threads: 100 threads a page, each with its code
+# anchor, its outdated flag, and every comment in it -- the root first
+# (`comments.nodes` is ordered oldest first) and up to 100 replies, each with the
+# diff hunk it was written against. docs/bratishka-duty.md `## Requesting a fix`.
 REVIEW_THREADS_QUERY = """\
-query($owner: String!, $name: String!, $number: Int!) {
+query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      reviewThreads(first: 100) {
+      reviewThreads(first: 100, after: $after) {
+        pageInfo { hasNextPage endCursor }
         nodes {
+          id
           isResolved
+          isOutdated
           path
           line
+          startLine
+          originalLine
+          diffSide
           comments(first: 100) {
-            nodes { author { login } body createdAt }
+            nodes { author { login } body createdAt url diffHunk }
           }
         }
       }
     }
   }
 }"""
+# Pages one read follows; 100 threads each. A PR past this keeps its first 1000
+# findings rather than looping without a bound.
+THREAD_PAGES = 10
 
 
 class GhError(Exception):
@@ -115,16 +126,43 @@ def _normalize_check(raw):
     }
 
 
-def _normalize_thread(raw):
-    """A review thread flattened to its root comment: the bot's first word."""
-    comments = (raw.get('comments') or {}).get('nodes') or []
-    root = comments[0] if comments else {}
+def _normalize_comment(raw):
+    """One comment in a review thread: its author, its text and where it lives."""
     return {
+        'author': _login(raw.get('author')),
+        'body': raw.get('body') or '',
+        'created_at': raw.get('createdAt') or '',
+        'url': raw.get('url') or '',
+    }
+
+
+def _normalize_thread(raw):
+    """A review thread with the code it was written against and all its comments.
+
+    `body` and `author` stay the root comment's -- the bot's first word -- so a
+    caller that only wants the finding reads the same keys as before. `line` is
+    `None` once GitHub calls the thread outdated: the code it targeted is gone
+    from the diff, and `original_line` is where it used to sit.
+    """
+    nodes = [node for node in (raw.get('comments') or {}).get('nodes') or []
+             if isinstance(node, dict)]
+    comments = [_normalize_comment(node) for node in nodes]
+    root = comments[0] if comments else {}
+    head = nodes[0] if nodes else {}
+    return {
+        'id': raw.get('id') or '',
         'path': raw.get('path') or '',
         'line': raw.get('line'),
-        'body': root.get('body') or '',
-        'author': _login(root.get('author')),
+        'start_line': raw.get('startLine'),
+        'original_line': raw.get('originalLine'),
+        'side': raw.get('diffSide') or '',
         'resolved': bool(raw.get('isResolved')),
+        'outdated': bool(raw.get('isOutdated')),
+        'body': root.get('body') or '',
+        'author': root.get('author') or '',
+        'url': root.get('url') or '',
+        'hunk': head.get('diffHunk') or '',
+        'comments': comments,
     }
 
 
@@ -213,17 +251,28 @@ class Gh:
         return [_normalize_check(item) for item in raw]
 
     def review_threads(self, repo, number):
-        """Review threads flattened to path, line, root body, author, resolved."""
+        """Review threads with their code anchor and every comment in them."""
         owner, _, name = repo.partition('/')
         if not owner or not name:
             raise ValueError('repo must be owner/name: {!r}'.format(repo))
-        raw = self._json(['api', 'graphql', '-f', 'query=' + REVIEW_THREADS_QUERY,
-                          '-f', 'owner=' + owner, '-f', 'name=' + name,
-                          '-F', 'number=' + str(number)])
-        data = raw.get('data') or {}
-        pull_request = (data.get('repository') or {}).get('pullRequest') or {}
-        nodes = (pull_request.get('reviewThreads') or {}).get('nodes') or []
-        return [_normalize_thread(node) for node in nodes]
+        threads = []
+        after = ''
+        for _ in range(THREAD_PAGES):
+            args = ['api', 'graphql', '-f', 'query=' + REVIEW_THREADS_QUERY,
+                    '-f', 'owner=' + owner, '-f', 'name=' + name,
+                    '-F', 'number=' + str(number)]
+            if after:
+                args += ['-f', 'after=' + after]
+            raw = self._json(args)
+            data = raw.get('data') or {}
+            pull_request = (data.get('repository') or {}).get('pullRequest') or {}
+            connection = pull_request.get('reviewThreads') or {}
+            threads.extend(_normalize_thread(node) for node in connection.get('nodes') or [])
+            page = connection.get('pageInfo') or {}
+            after = page.get('endCursor') or ''
+            if not page.get('hasNextPage') or not after:
+                break
+        return threads
 
     def base_sha(self, repo, ref):
         """The commit SHA `ref` points at."""

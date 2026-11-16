@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-11-16
+
 ### Added
 
 - **A tracker status move is resolved, never guessed.** `docs/tracker-status.md` is the one copy of

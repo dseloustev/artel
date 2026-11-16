@@ -1906,3 +1906,50 @@ move to the decision log.
   re-reading `findings` after the task is terminal reports which findings disappeared and
   which remain, while the engine still reads thread state only — it never claims a fix, and
   never resolves, replies to or edits a thread.
+- **2026-11-16 — The agent-plugin skills are a peer implementation, and the engine wins.** A
+  sibling plugin (`ai-plugins#77`) shipped the same Wallet duty as five skills, so the two
+  implementations were compared line by line instead of argued about. Five things were adopted,
+  and one was refused. **Rules that an engine can prove stop being prose**: the created PR's head
+  SHA, base ref and its own check runs are now envelope fields (`head_sha`/`base_ref` in the
+  normalized PR, `checks` in `testing-pr-verify`), because a model comparing five fields by hand
+  is a discipline, while an envelope that carries them is a fact — and "no check runs published
+  yet" is not green. **Operational skills end in `## Hard rules` (one `NEVER` per line) and
+  `## Common mistakes` (mistake → fix), and open with `## Prerequisites`** (one line per
+  dependency, proven by a single call, with the remedy rather than a fallback): a prohibition says
+  what not to do, the table names the mistake the model is about to make, and the prerequisite
+  line is the difference between stopping and improvising. **`spawn.promptFile` and
+  `testingPr.bodyFile` are real overrides**, not reserved keys: the engine renders the file with a
+  closed `{placeholder}` vocabulary — an unknown one is `invalid_config`, an unreadable file is
+  `missing_config`, and a prompt must keep `Run id:` or the run cannot be correlated. **Status
+  moves are intents** (`docs/tracker-status.md`): the aliases, the precedence and the
+  exact-override rule live once, an override never falls back to an alias, and a move that does not
+  resolve stops that key for a decision. **Tickets can be delegated in a batch**
+  (`artel-bratishka-delegate`): the engine holds no tracker client, so the skill gathers the issue
+  and its transitions and `delegate-plan` decides the outcomes, both moves and each task's prompt,
+  while `delegate-closeout` reads a finished task against its pull request and reports the gaps a
+  `continue_task` send-back would close. Every requested key ends in one outcome, one bad key never
+  cancels the batch, `idempotency_key` is per issue (`<KEY>:agent`, active-scoped per client, so a
+  shared key would collapse the batch), and a red completion gate with an existing PR is a
+  *delivered* artifact with the gate as a separate finding. Four deviations are deliberate: artel
+  keeps `----` as the horizontal rule where the PR's bug template writes `---` (three hyphens
+  render as an em dash in Jira); no project literal
+  enters a body, so `alexandra-charkova` is `bratishka.teams.qa`, the Russian-body mandate is
+  `language.pr` and the ARB rules are the host's `AGENTS.md`; the duty family stays
+  model-invocable, because every write is already gated by an explicit confirmation and manual-only
+  belongs to skills that mutate without a gate; and delegation is engine-first — 180 lines of
+  orchestrator against the PR's 875, because the rules live in `bratishka_delegate.py`.
+- **2026-11-16 — Progressive disclosure is parked, and the reason is the shape of these skills.**
+  The same PR opens each skill with a `Need | Read` table over `references/`, and that is right for
+  its content — a 600-line CLI contract, a step grammar and a troubleshooting tree, all conditional.
+  Artel's four long skills are long for a different reason: `deep-review`, `issue-draft`,
+  `feature-development` and `collaborative-review` spend their length on *mandatory* procedure that
+  every run executes, and their genuinely conditional parts (`## Resume`, `## Rebuild`, `## Rules`)
+  are twenty lines each. Splitting mandatory procedure behind a read-on-demand table would hide it
+  from the run that needs it, so the pattern is adopted as a **rule for conditional content only**
+  and no section was moved. Two hard constraints stand in the way of a wholesale split anyway:
+  `artel-feature-development` may not gain a `references/` directory without rewriting its exact
+  file inventory and its once-only gate sequence (`tests/test_one_orchestrator_docs.py`), and
+  `artel-issue-draft` has twenty-one phrases pinned inside `SKILL.md` by its own contract test.
+  The PR's own inconsistency is the warning: it prescribes the pattern and then ships an 875-line
+  single-file skill with no references at all. Parked, not rejected — a skill whose conditional
+  material actually grows gets the table then.

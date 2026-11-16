@@ -3,8 +3,9 @@
 The GitHub layer behind the bratishka duty (docs/bratishka-duty.md): it runs the
 `gh` reads and writes every other layer consumes and normalizes their JSON into
 the key names the rules layer works with -- PRs (`number`, `title`, `url`,
-`head`, `author`, `draft`, `state`, `created_at`, `body`, `review_decision`,
-`mergeable`, `merge_state`), reviews (`login`, `state`, `submitted_at`, `body`),
+`head`, `head_sha`, `base_ref`, `author`, `draft`, `state`, `created_at`, `body`,
+`review_decision`, `mergeable`, `merge_state`), reviews (`login`, `state`,
+`submitted_at`, `body`),
 checks (`name`, `state`, `bucket`, `link`) and review threads (`id`, `path`,
 `line`, `start_line`, `original_line`, `side`, `resolved`, `outdated`, `hunk`,
 `comments`, and the root comment's `body`, `author`, `url`).
@@ -27,8 +28,8 @@ import subprocess
 
 # The fields `gh pr list` and `gh pr view` return under the names _normalize_pr
 # reads. One request, one spelling, so the two paths cannot drift apart.
-PR_FIELDS = ('number,title,url,headRefName,author,isDraft,state,createdAt,body,'
-             'reviewDecision,mergeable,mergeStateStatus')
+PR_FIELDS = ('number,title,url,headRefName,headRefOid,baseRefName,author,isDraft,state,'
+             'createdAt,body,reviewDecision,mergeable,mergeStateStatus')
 PR_LIMIT = 200
 
 # The GraphQL query for review threads: 100 threads a page, each with its code
@@ -96,6 +97,8 @@ def _normalize_pr(raw):
         'title': raw.get('title') or '',
         'url': raw.get('url') or '',
         'head': raw.get('headRefName') or '',
+        'head_sha': raw.get('headRefOid') or '',
+        'base_ref': raw.get('baseRefName') or '',
         'author': _login(raw.get('author')),
         'draft': bool(raw.get('isDraft')),
         'state': raw.get('state') or '',

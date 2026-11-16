@@ -61,6 +61,7 @@ class TestReads(unittest.TestCase):
 
     def test_open_prs_normalizes(self):
         raw = [{'number': 7, 'title': 'AW-1 x', 'url': 'u', 'headRefName': 'agent/x',
+                'headRefOid': 'abc123', 'baseRefName': 'master',
                 'author': {'login': 'bratishka-bot'}, 'isDraft': False, 'state': 'OPEN',
                 'createdAt': '2026-11-03T11:55:49Z', 'body': 'b',
                 'reviewDecision': 'APPROVED', 'mergeable': 'MERGEABLE',
@@ -69,9 +70,19 @@ class TestReads(unittest.TestCase):
         prs = gh.open_prs('o/r', 'bratishka-bot')
         self.assertEqual(prs[0]['number'], 7)
         self.assertEqual(prs[0]['head'], 'agent/x')
+        self.assertEqual(prs[0]['head_sha'], 'abc123')
+        self.assertEqual(prs[0]['base_ref'], 'master')
         self.assertEqual(prs[0]['author'], 'bratishka-bot')
         self.assertEqual(prs[0]['merge_state'], 'CLEAN')
         self.assertIn('--author', fake.calls[0])
+        self.assertIn('headRefOid', fake.calls[0][fake.calls[0].index('--json') + 1])
+
+    def test_a_pr_payload_without_the_sha_and_base_normalizes_to_empty(self):
+        raw = [{'number': 7, 'headRefName': 'agent/x'}]
+        gh, _ = client([('list', json.dumps(raw))])
+        prs = gh.open_prs('o/r')
+        self.assertEqual(prs[0]['head_sha'], '')
+        self.assertEqual(prs[0]['base_ref'], '')
 
     def test_reviews_normalizes(self):
         raw = [{'user': {'login': 'qa'}, 'state': 'APPROVED',

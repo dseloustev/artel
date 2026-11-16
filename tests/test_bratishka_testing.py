@@ -1,5 +1,7 @@
 """The testing-PR selection, prompt and body."""
+import copy
 import sys
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
@@ -127,3 +129,77 @@ class TestPrompt(unittest.TestCase):
                             FakeGh(), day=date(2026, 11, 3))
         self.assertIn('Repository: `o/r`', plan['prompt'])
         self.assertNotIn("this checkout's origin", plan['prompt'])
+
+
+class TestOverrides(unittest.TestCase):
+    """A host file replaces the built-in prompt or body; the vocabulary is closed."""
+
+    def setUp(self):
+        self.repo = tempfile.TemporaryDirectory()
+        self.addCleanup(self.repo.cleanup)
+        self.dir = Path(self.repo.name)
+
+    def config(self, **sections):
+        block = copy.deepcopy(cfg.DEFAULTS)
+        for name, values in sections.items():
+            block[name].update(values)
+        return block
+
+    def write(self, name, text):
+        path = self.dir / name
+        path.write_text(text, encoding='utf-8')
+        return str(path)
+
+    def test_render_substitutes_and_keeps_doubled_braces_literal(self):
+        self.assertEqual(testing.render_override('a {date} {{lit}}', {'date': 'X'}),
+                         'a X {lit}')
+
+    def test_an_unknown_placeholder_is_refused(self):
+        with self.assertRaises(cfg.ConfigError) as ctx:
+            testing.render_override('a {typo}', {'date': 'X'})
+        self.assertEqual(ctx.exception.kind, 'invalid_config')
+        self.assertIn('{typo}', ctx.exception.message)
+
+    def test_the_prompt_override_is_used_verbatim(self):
+        path = self.write('prompt.md', '{repo_line}\n\n{tasks}\n\nRun id: {run_id}\n')
+        config = self.config(spawn={'promptFile': path})
+        text = testing.build_prompt([], config, date(2026, 11, 3), 'master', 'artel-1')
+        self.assertEqual(text, "Repository: this checkout's origin\n\n"
+                               '- No source PRs are selected.\n\nRun id: artel-1\n')
+
+    def test_a_prompt_override_without_the_run_id_is_refused(self):
+        path = self.write('prompt.md', 'no marker here\n')
+        config = self.config(spawn={'promptFile': path})
+        with self.assertRaises(cfg.ConfigError) as ctx:
+            testing.build_prompt([], config, date(2026, 11, 3), 'master', 'artel-1')
+        self.assertIn('Run id:', ctx.exception.message)
+
+    def test_the_body_override_is_used_verbatim(self):
+        path = self.write('body.md', '## Summary\n\n{count} source PRs on {date}\n\n{one_day}\n')
+        config = self.config(testingPr={'bodyFile': path})
+        text = testing.build_body([], config, date(2026, 11, 3), 'master', 'abc1234',
+                                  {}, [], [])
+        self.assertIn('0 source PRs on 2026-11-03', text)
+        self.assertIn('lives one day', text)
+
+    def test_a_missing_override_file_is_a_config_error(self):
+        config = self.config(testingPr={'bodyFile': str(self.dir / 'gone.md')})
+        with self.assertRaises(cfg.ConfigError) as ctx:
+            testing.build_body([], config, date(2026, 11, 3), 'master', 'abc', {}, [], [])
+        self.assertEqual(ctx.exception.kind, 'missing_config')
+
+    def test_no_override_keeps_the_built_in_shape(self):
+        text = testing.build_prompt([], CONFIG, date(2026, 11, 3), 'master', 'artel-1')
+        self.assertIn('# Daily testing PR — 2026-11-03', text)
+
+    def test_the_shipped_assets_use_only_the_vocabulary(self):
+        assets = (('skills/artel-bratishka-testing-pr/assets/coder-prompt.md',
+                   testing.PROMPT_PLACEHOLDERS),
+                  ('skills/artel-bratishka-testing-pr/assets/testing-pr-body.md',
+                   testing.BODY_PLACEHOLDERS))
+        for rel, vocabulary in assets:
+            with self.subTest(rel):
+                text = (ROOT / rel).read_text(encoding='utf-8')
+                found = set(testing.PLACEHOLDER_RE.findall(text))
+                self.assertEqual(set(), found - set(vocabulary),
+                                 '{} uses a placeholder the engine never fills'.format(rel))

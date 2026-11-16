@@ -23,6 +23,17 @@ Every engine call prints one envelope. Exit `2` is a configuration or environmen
 `error.message` and stop. Exit `1` with `error.kind: nothing_to_do` is a state answer, not an
 error.
 
+## Prerequisites
+
+One call each; nothing is posted on a guess.
+
+1. **`vcs.adapter` is `github-cli`** and `gh auth status` passes — both the read and the comment go
+   through `gh` (`${ARTEL_ROOT}/docs/config.md`, adapter identity checks).
+2. **The engine answers** — `findings` exit `2` means the configuration or the environment, not an
+   empty PR; print `error.message` and stop.
+3. **The dashboard is optional** — `bratishka.dashboardUrl` empty or unreachable costs the task
+   correlation only; posting still works, and the report says correlation is unavailable.
+
 ## 1. Resolve the PR
 
 With no `<pr>`, read the current branch's PR; with an argument, read that number or URL:
@@ -175,18 +186,32 @@ cannot tell a real fix from a thread a human resolved by hand.
 This step is read-only. Never resolve, reply to or edit a thread, and never close the PR on the
 strength of it.
 
-## Rules
+## Hard rules
 
-- One `/agent` comment per request, posted to the PR, never a review thread and never one comment
-  per finding.
-- Never post on a merged or closed PR, never when an `active`/`queued` coder task already works
-  the PR.
-- Never include secrets, tokens, cookies or customer data in the comment or the notes.
-- Never edit, delete or resolve the bot's comment; the request is a new top-level comment.
-- `--notes` composes from the notes alone; the finding list is skipped, not silently widened.
-- `--all-authors` goes to both `findings` and `compose-fix`, or neither.
-- The composed block carries the hunk, the replies and the suggestion on purpose: the bot reads
-  the comment without the PR. Never trim a finding back to its `path:line`.
-- The engine writes the body file and prints the envelope; nothing in this skill posts on its
-  own. The contract is `${ARTEL_ROOT}/docs/bratishka-duty.md` (`## Requesting a fix`,
-  `## Safety and degradation`).
+- NEVER post on a merged or closed PR, and never when an `active` or `queued` coder task already
+  works the PR.
+- NEVER post a second comment for the same request, reply inside a review thread, or edit or
+  delete the bot's comment.
+- NEVER include secrets, tokens, cookies or customer data in the comment or in the notes.
+- NEVER widen the selection: `--notes` composes from the notes alone, and `--select none` says so.
+- NEVER send `--all-authors` to one of the two engine calls and not the other.
+- NEVER trim a finding back to its `path:line`: the block carries the hunk, the replies and the
+  suggestion because the bot reads it without the PR.
+- NEVER claim a finding is fixed: the engine reads thread state, never the diff.
+- NEVER write the comment body by hand or post without the composed file.
+
+## Common mistakes
+
+| Mistake | Fix |
+| --- | --- |
+| Posting while a coder task is active on the PR | `task-find` first; a second run queues behind the first |
+| Using `--select` after an `--all-authors` list without the flag | Repeat the flag on both calls or the numbering differs |
+| Summarising a finding to one line | Keep the composed block whole |
+| Claiming a finding is fixed because its thread vanished | Report resolved or outdated as GitHub sees it, and say which |
+| Posting the notes as a new comment per finding | One comment per request |
+| Polling forever after 5 minutes with no task | Report the comment URL and say the dashboard has not shown the task |
+| Treating `data.dashboard_online: false` as a failure | Proceed, and say correlation is unavailable |
+| Posting on a PR that closed while you composed | Re-read `state` immediately before posting |
+
+The full contract for this flow is `${ARTEL_ROOT}/docs/bratishka-duty.md` (`## Requesting a fix`,
+`## Safety and degradation`).

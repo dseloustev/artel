@@ -265,3 +265,50 @@ class TestDocs(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestWorkedExamples(unittest.TestCase):
+    """One worked example per type, beside its template and outside it.
+
+    The templates are parsed structurally, so an example lives in its own file: a
+    `$SLOT` or a `---` line inside a template would break the four rules above.
+    """
+
+    EXAMPLE = SKILL_DIR + '/assets/templates/{}.example.md'
+
+    def text(self, name):
+        return (ROOT / self.EXAMPLE.format(name)).read_text(encoding='utf-8')
+
+    def test_every_type_has_one(self):
+        for name in TYPES:
+            with self.subTest(name):
+                self.assertTrue((ROOT / self.EXAMPLE.format(name)).is_file())
+
+    def test_the_example_renders_the_jira_dialect(self):
+        for name in TYPES:
+            with self.subTest(name):
+                text = self.text(name)
+                self.assertIn('```text\n', text, name)
+                self.assertIn('h2. ', text, name)
+
+    def test_a_separator_is_a_jira_rule_never_three_dashes(self):
+        for name in TYPES:
+            with self.subTest(name):
+                lines = self.text(name).splitlines()
+                for line in lines:
+                    self.assertNotEqual(line.strip(), '---',
+                                        name + ' carries a three-hyphen separator')
+        for name in ('bug', 'epic'):
+            with self.subTest(name):
+                self.assertIn('----', self.text(name))
+
+    def test_no_slot_survives_into_a_rendered_description(self):
+        for name in TYPES:
+            with self.subTest(name):
+                fenced = self.text(name).split('```text\n', 1)[1].split('```', 1)[0]
+                self.assertEqual([], SLOT.findall(fenced), name)
+
+    def test_the_skill_points_at_them(self):
+        text = (ROOT / SKILL).read_text(encoding='utf-8')
+        for name in TYPES:
+            self.assertIn('{}.example.md'.format(name), text, name)

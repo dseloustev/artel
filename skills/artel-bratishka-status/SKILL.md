@@ -6,6 +6,18 @@ argument-hint: "[--offline] [--json]"
 
 # Bratishka duty board
 
+## Prerequisites
+
+One call each; nothing here runs on a guess.
+
+1. **The configuration** — `.artel/config.json` parses and the `bratishka` block reads back. The
+   engine's exit `2` is that check: print `error.message` and stop.
+2. **GitHub access** — `gh auth status` passes and `vcs.adapter` is `github-cli`
+   (`${ARTEL_ROOT}/docs/config.md`, adapter identity checks). The board is read through `gh`; any
+   other adapter stops it with `adapter_not_github`, so name the value and stop.
+3. **The dashboard** — optional. `bratishka.dashboardUrl` empty or unreachable costs the live-task
+   section only, and the board still renders.
+
 Run:
 
 ```bash
@@ -30,3 +42,26 @@ Render, in this order, from `data`:
 
 This skill **writes nothing** and is safe at any time. It never posts, merges or closes.
 The approval rules, buckets and flags are in `${ARTEL_ROOT}/docs/bratishka-duty.md`.
+
+## Hard rules
+
+- NEVER write, post, merge, close or label anything: the board is read-only.
+- NEVER render a bucket, a count, a flag or a task the engine did not return: `data` is the whole
+  answer, and a field it omits is unknown.
+- NEVER call a PR approved from `review_decision` alone, or count a bot review as a human one —
+  the engine's buckets are the verdict.
+- NEVER turn `unknown` QA into approval, or an empty bucket into "nothing to do".
+- NEVER present a live task as current when `--offline` was passed or the dashboard is
+  unreachable: say the section is unavailable.
+- NEVER report a red check as resolved, or a pending one as green.
+
+## Common mistakes
+
+| Mistake | Fix |
+| --- | --- |
+| Filling a gap with `gh pr list` | Report what the engine returned; the missing field stays unknown |
+| Drawing a table for an empty bucket | One line, "none" |
+| Treating `--offline` as a failure | It is a read without the dashboard; the rest of the board renders |
+| Reading the live-task section from memory | Say "dashboard offline" when the engine reported none |
+| Rendering `next_actions` as prose | Each action names the skill to run |
+| Calling a source PR merged because the testing PR looks finished | `source_merged` counts them; the testing PR is never merged |

@@ -63,6 +63,34 @@ class TestLoad(ConfigCase):
         self.write({'bratishka': {'dashboardUrl': 'https://b.example/'}})
         self.assertEqual(cfg.load(self.repo.name)['dashboardUrl'], 'https://b.example')
 
+    def test_the_delegate_block_defaults_to_intent_resolution(self):
+        block = cfg.load(self.repo.name)['delegate']
+        self.assertEqual(block['startStatus'], '', 'empty means resolve from the aliases')
+        self.assertEqual(block['handoffStatus'], '')
+        self.assertEqual(block['reviewerLogin'], '')
+        self.assertEqual(block['maxBatch'], 5)
+
+    def test_a_delegate_section_overrides_key_by_key(self):
+        self.write({'bratishka': {'delegate': {'startStatus': 'In Development'}}})
+        block = cfg.load(self.repo.name)['delegate']
+        self.assertEqual(block['startStatus'], 'In Development')
+        self.assertEqual(block['handoffStatus'], '')
+        self.assertEqual(block['maxBatch'], 5)
+
+    def test_a_delegate_status_must_be_a_string(self):
+        self.write({'bratishka': {'delegate': {'handoffStatus': 3}}})
+        with self.assertRaises(cfg.ConfigError) as ctx:
+            cfg.load(self.repo.name)
+        self.assertIn('delegate.handoffStatus', ctx.exception.message)
+
+    def test_a_delegate_batch_size_must_be_a_positive_integer(self):
+        for value in (0, -1, '5', True, 5.0):
+            with self.subTest(value=value):
+                self.write({'bratishka': {'delegate': {'maxBatch': value}}})
+                with self.assertRaises(cfg.ConfigError) as ctx:
+                    cfg.load(self.repo.name)
+                self.assertIn('delegate.maxBatch', ctx.exception.message)
+
 
 class TestTemplates(unittest.TestCase):
     def test_render(self):

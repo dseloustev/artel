@@ -42,6 +42,12 @@ DEFAULTS = {
         'deleteBranchOnCancel': False,
         'bodyFile': '',
     },
+    'delegate': {
+        'startStatus': '',
+        'handoffStatus': '',
+        'reviewerLogin': '',
+        'maxBatch': 5,
+    },
 }
 
 SPAWN_ADAPTERS = ('manual', 'client-api', 'mcp')
@@ -56,7 +62,7 @@ _DATE_TOKENS = (
 )
 _SCALAR_KEYS = ('dashboardUrl', 'repo', 'botLogin', 'baseRef', 'qaLogins',
                 'excludeTitlePatterns', 'fixCommand')
-_SECTIONS = ('teams', 'spawn', 'testingPr')
+_SECTIONS = ('teams', 'spawn', 'testingPr', 'delegate')
 
 
 class ConfigError(Exception):
@@ -151,6 +157,28 @@ def _validate(block):
         _refuse('bratishka.testingPr.deleteBranchOnCancel', 'a boolean',
                 block['testingPr']['deleteBranchOnCancel'])
     _string(block['testingPr']['bodyFile'], 'bratishka.testingPr.bodyFile')
+
+    for key in ('startStatus', 'handoffStatus', 'reviewerLogin'):
+        _string(block['delegate'][key], 'bratishka.delegate.' + key)
+    max_batch = block['delegate']['maxBatch']
+    if isinstance(max_batch, bool) or not isinstance(max_batch, int) or max_batch < 1:
+        _refuse('bratishka.delegate.maxBatch', 'a positive integer', max_batch)
+
+
+def pr_language(repo):
+    """`language.pr` of the host config, or `"en"` when it is absent or unreadable.
+
+    Separate from `load` on purpose: that one returns the `bratishka` block, and
+    the output language lives at the root of the same file.
+    """
+    path = Path(repo) / '.artel' / 'config.json'
+    try:
+        document = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return 'en'
+    language = document.get('language') if isinstance(document, dict) else None
+    value = language.get('pr') if isinstance(language, dict) else None
+    return value if isinstance(value, str) and value.strip() else 'en'
 
 
 def load(repo):

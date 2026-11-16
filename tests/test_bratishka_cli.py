@@ -18,6 +18,7 @@ class FakeGh:
         self.prs = prs
         self.reviews_by_pr = reviews or {}
         self.members = members or {'devs': {'dev'}, 'qa-team': {'qa'}}
+        self.checks_by_pr = {}
         self.calls = []
 
     def repo_slug(self):
@@ -34,6 +35,9 @@ class FakeGh:
 
     def reviews(self, repo, number):
         return self.reviews_by_pr.get(number, [])
+
+    def checks(self, repo, number):
+        return self.checks_by_pr.get(number, [])
 
     def team_members(self, org, team):
         return self.members[team]
@@ -78,6 +82,7 @@ class FakeDash:
 
 def pr(number, title='AW-1 x', head='agent/x', merge_state='CLEAN'):
     return {'number': number, 'title': title, 'url': 'u', 'head': head,
+            'head_sha': 'sha-' + str(number), 'base_ref': 'master',
             'author': 'bratishka-bot', 'draft': False, 'state': 'OPEN',
             'created_at': '2026-11-03T10:00:00Z', 'body': '',
             'review_decision': '', 'mergeable': 'MERGEABLE',
@@ -384,7 +389,30 @@ class TestVerify(unittest.TestCase):
                                           'branchTemplate': 'feature/testing-{dd}-{mm}-{yy}'}},
             gh, dash, 'artel-1', date(2026, 11, 3))
         self.assertEqual(out['pr']['number'], 9)
+        self.assertEqual(out['pr']['head_sha'], 'sha-9')
+        self.assertEqual(out['pr']['base_ref'], 'master')
         self.assertTrue(out['gate_failed'])
+        self.assertEqual(out['checks'], [], 'an empty list is none published yet')
+
+    def test_no_pr_means_no_checks_to_read(self):
+        from datetime import date
+        out = bratishka.verify_testing_pr({'repo': 'o/r'}, FakeGh([]), FakeDash(),
+                                          'artel-1', date(2026, 11, 3))
+        self.assertIsNone(out['checks'])
+
+    def test_a_failed_check_read_is_not_a_failed_verify(self):
+        from datetime import date
+        gh = FakeGh([pr(9, title='Testing 03-11-26', head='feature/testing-03-11-26')])
+
+        def boom(repo, number):
+            raise bratishka.GhError('failed', 'checks unavailable')
+        gh.checks = boom
+        out = bratishka.verify_testing_pr(
+            {'repo': 'o/r', 'testingPr': {'titleTemplate': 'Testing {dd}-{mm}-{yy}',
+                                          'branchTemplate': 'feature/testing-{dd}-{mm}-{yy}'}},
+            gh, FakeDash(), 'artel-1', date(2026, 11, 3))
+        self.assertIsNotNone(out['pr'])
+        self.assertIsNone(out['checks'])
 
     def test_no_task_and_no_pr_is_not_an_error(self):
         from datetime import date

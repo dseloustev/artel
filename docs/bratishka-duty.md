@@ -34,14 +34,24 @@ what it feeds:
 - **Teams** — `teams.codeReview` (`""`), `teams.qa` (`""`), `qaLogins` (`[]`).
 - **Queue** — `excludeTitlePatterns` (`[]`), `fixCommand` (`"/agent"`).
 - **Spawn** — `spawn.adapter` (`"manual"`), `spawn.tokenEnv` (`""`), `spawn.mcpToolPrefix`
-  (`""`), `spawn.promptFile` (`""`, reserved).
+  (`""`), `spawn.promptFile` (`""`).
 - **Testing PR** — `testingPr.titleTemplate` (`"Testing {dd}-{mm}-{yy}"`),
   `testingPr.branchTemplate` (`"feature/testing-{dd}-{mm}-{yy}"`),
-  `testingPr.deleteBranchOnCancel` (`false`), `testingPr.bodyFile` (`""`, reserved).
+  `testingPr.deleteBranchOnCancel` (`false`), `testingPr.bodyFile` (`""`).
+- **Delegate** — `delegate.startStatus` (`""`), `delegate.handoffStatus` (`""`),
+  `delegate.reviewerLogin` (`""`), `delegate.maxBatch` (`5`).
 
-`spawn.promptFile` and `testingPr.bodyFile` are **reserved**: accepted and ignored, because the
-prompt and the body keep their fixed built-in shape. A host override needs a substitution
-contract before either key can work ([config.md](config.md), `bratishka`).
+`spawn.promptFile` and `testingPr.bodyFile` are **overrides**. Empty, the engine builds the prompt
+and the body itself in the fixed shape above. A path to a Markdown file replaces that text: it is
+rendered with a closed `{placeholder}` vocabulary and sent verbatim, an unknown placeholder is
+`invalid_config`, and an unreadable file is `missing_config`. A prompt override must still carry
+`Run id: {run_id}`, or the run cannot be correlated with its pull request. The two vocabularies
+ship as the contract beside the skill
+(`skills/artel-bratishka-testing-pr/assets/`); [config.md](config.md) carries the per-key rules.
+
+The delegate statuses are empty by default as well: empty means "resolve the intent from the alias
+lists", and a value is matched exactly — [tracker-status.md](tracker-status.md) is the one copy of
+that resolution.
 
 The fallbacks are part of the contract:
 
@@ -149,6 +159,15 @@ when today's branch or testing PR already exists, and `--print` stops before `/s
 Source PRs with failing CI are **not** excluded — the observed runs bundled them and named the
 failures. The PR is never merged, the base branch is never pushed to, and source PRs are never
 edited or closed by this path.
+
+**The read-back is the check.** A verification answer is trusted only when the created PR matches
+the plan that produced it: the URL the create call returned, a head branch equal to the plan's
+branch, a head SHA on that branch, a base ref equal to the plan's base, and the plan's title. A
+field that disagrees is a naming defect to report — never a PR to rename, rebuild or re-spawn. The
+created PR's own check runs are reported as observed: none published yet is "not started", never
+green; `pending` is still running; a failing check is named with its reason. `checks: null` means
+there was no PR to read or the read failed, and the checks are then unknown — the source PRs'
+checks in `## CI status of source PRs` are a different question and never fill that gap.
 
 ### Body
 
@@ -292,6 +311,48 @@ failure shows as `BLOCKED`.
 
 Nothing in this path force-pushes, pushes to `baseRef`, merges a testing PR, or edits a source PR.
 
+## Delegating a ticket
+
+`/artel-bratishka-delegate` runs one ticket through the bot: one task, one branch and one pull
+request per issue, with the ticket's status kept in step. Issues are independent, so a batch runs
+concurrently — and one impossible key is reported without cancelling the rest.
+
+**The engine holds no tracker client.** The skill reads the issue and its available transitions
+through the tracker's MCP tools and writes both answers under
+`.artel/run/bratishka/<date>/delegate/`; `delegate-plan` then decides from those facts and returns
+one row per key plus one filled prompt per ready key. `delegate-closeout` reads a finished task
+against its pull request. Both verbs are read-only.
+
+**Every requested key ends in one outcome** — `ready`, `invalid` (no such issue),
+`needs-decision` (a done issue, or a status move that did not resolve), `blocked`, `spawn-failed`,
+`failed` or `completed` — and the report carries one row per key, in the order given.
+
+**The two moves are intents.** `delegate.startStatus` and `delegate.handoffStatus` are empty by
+default, which means "resolve from the aliases"; a value is matched exactly and never falls back to
+an alias. [tracker-status.md](tracker-status.md) is the one copy of that resolution, and a move it
+cannot resolve stops that key for a decision instead of moving it anyway.
+
+**The batch is by phase, not by issue.** Gather every issue, move every ready ticket, spawn every
+task, then poll in rounds — `get_task(task_id, wait_timeout=300)` once per distinct task in one
+message, so a round costs one wait however many tasks run. A task's own close-out starts as soon as
+it lands: find its pull request, request the reviewer, read the result, move the ticket.
+
+**The prompt is the task's only instruction.** It is composed per issue, self-contained, and
+carries the issue verbatim, the root-cause constraint, the branch and title to use, the
+repository's own pull-request template and the output language, and the reviewer login.
+`spawn_task` has **no** reviewer parameter: the login travels in the prompt and is applied with
+`gh pr edit --add-reviewer`.
+
+**`idempotency_key` is per issue** (`<KEY>:agent`), because it is active-scoped per API client: one
+key shared by two issues would collapse them into a single task. A deliberate second run of a
+finished issue appends the date.
+
+**The close-out sends work back.** `delegate-closeout` reports `gaps` — no pull request, an empty
+body, a reviewer that was not requested — and `send_back`. The skill then calls
+`continue_task(task_id, prompt)` with the gap verbatim, so the same branch and pull request update.
+A task whose completion gate stayed red **with** a pull request is `completed` with `gate_failed`
+set: the pull request is the artifact and the gate is a separate finding.
+
 ## Safety and degradation
 
 - **`--yes` is never the default.** Every destructive step — closing PRs, posting a fix comment,
@@ -315,6 +376,15 @@ Nothing in this path force-pushes, pushes to `baseRef`, merges a testing PR, or 
   destructive engine command (`testing-pr-cancel`, `testing-pr-local`) with the UTC time, the
   action, the PR numbers it touched and their URLs. A journal write failure never fails the
   command.
+- **No reported fact outlives the call that produced it.** A PR number, URL, SHA, check state or
+  task id that no command in this run returned is reported as unknown. A guessed PR number
+  silently points at a different pull request.
+- **A check nobody published is not green.** Zero check runs, a `pending` bucket and a `null` read
+  are three different answers, and none of them is a pass.
+- **A delegated batch changes the tickets.** Every move is resolved from the transitions the
+  tracker just returned, never from a stored identifier, and a key whose move does not resolve is
+  left for a human decision instead of being moved anyway. Nothing is spawned before the batch is
+  confirmed, and one bad key never cancels the others.
 
 ## Sources
 

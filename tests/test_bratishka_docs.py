@@ -54,6 +54,8 @@ class TestConfigDocs(unittest.TestCase):
             'bratishka.testingPr.branchTemplate',
             'bratishka.testingPr.deleteBranchOnCancel',
             'bratishka.testingPr.bodyFile',
+            'bratishka.delegate.startStatus', 'bratishka.delegate.handoffStatus',
+            'bratishka.delegate.reviewerLogin', 'bratishka.delegate.maxBatch',
         ):
             self.assertIn(key, text, key)
 
@@ -83,4 +85,48 @@ class TestContractDoc(unittest.TestCase):
         for phrase in ('CODEOWNERS', 'DISMISSED', 'mergeStateStatus',
                        'Testing {dd}-{mm}-{yy}', 'feature/testing-{dd}-{mm}-{yy}',
                        'Run id:', 'update-branch', '--squash'):
+            self.assertIn(phrase, text, phrase)
+
+
+class TestSkillConventions(unittest.TestCase):
+    """The three sections every operational skill carries (skills/README.md)."""
+
+    SKILLS = ('artel-bratishka-status', 'artel-bratishka-cancel-testing-pr',
+              'artel-bratishka-testing-pr', 'artel-bratishka-request-fix',
+              'artel-bratishka-merge-approved')
+
+    def text(self, name):
+        return read('skills/{}/SKILL.md'.format(name))
+
+    def block(self, name, heading):
+        return self.text(name).split('\n' + heading + '\n', 1)[1].split('\n## ', 1)[0]
+
+    def test_every_operational_skill_carries_the_three_sections(self):
+        for name in self.SKILLS:
+            with self.subTest(name):
+                text = self.text(name)
+                for heading in ('## Prerequisites', '## Hard rules', '## Common mistakes'):
+                    self.assertIn('\n' + heading + '\n', text, name + ' lacks ' + heading)
+
+    def test_hard_rules_are_prohibitions(self):
+        for name in self.SKILLS:
+            with self.subTest(name):
+                lines = [line for line in self.block(name, '## Hard rules').splitlines()
+                         if line.startswith('- ')]
+                self.assertGreaterEqual(len(lines), 4, name)
+                for line in lines:
+                    self.assertIn('NEVER', line, '{}: {}'.format(name, line))
+
+    def test_common_mistakes_is_a_two_column_table(self):
+        for name in self.SKILLS:
+            with self.subTest(name):
+                rows = [line for line in self.block(name, '## Common mistakes').splitlines()
+                        if line.startswith('|')]
+                self.assertEqual(rows[0], '| Mistake | Fix |', name)
+                self.assertEqual(rows[1], '| --- | --- |', name)
+                self.assertGreaterEqual(len(rows) - 2, 4, name)
+
+    def test_the_readme_states_the_convention(self):
+        text = read('skills/README.md')
+        for phrase in ('`## Prerequisites`', '`## Hard rules`', '`## Common mistakes`'):
             self.assertIn(phrase, text, phrase)

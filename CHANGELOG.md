@@ -6,6 +6,44 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A tracker status move is resolved, never guessed.** `docs/tracker-status.md` is the one copy of
+  the resolution the delegated workflow obeys: the two intents (`start`, `handoff`), the alias
+  lists, the precedence that prefers `to.name` over the transition's `name`, the rule that an
+  explicit override never falls back to an alias, the rollback confirmation, and the
+  `needs-decision` outcomes that stop instead of choosing. `bratishka.delegate.startStatus` /
+  `handoffStatus` / `reviewerLogin` / `maxBatch` are the keys it reads.
+- **The operational skills end in prohibitions and a mistake table.** `artel-bratishka-status`,
+  `cancel-testing-pr`, `testing-pr`, `request-fix` and `merge-approved` now carry `## Hard rules`
+  (one `NEVER` per line) and `## Common mistakes` (mistake → fix), and open with
+  `## Prerequisites` — one line per dependency, each proven by a single call, each with the remedy
+  instead of a fallback. The convention is stated once in `skills/README.md` and pinned by
+  `tests/test_bratishka_docs.py`.
+- **A worked example sits beside each issue template.** `assets/templates/task|bug|epic.example.md`
+  show an input and the description the template renders from it, in their own files: a `$SLOT` or
+  a three-hyphen line inside a template would break the four structural rules that parse them.
+- **Tickets can be delegated to the bot in a batch.** `artel-bratishka-delegate` runs one ticket
+  per task, branch and pull request, concurrently, and moves each ticket to its work-started and
+  then its review status. The engine holds no tracker client, so the skill gathers the issue and
+  its available transitions and `delegate-plan` decides the outcomes, both moves and each task's
+  prompt; `delegate-closeout` reads a finished task against its pull request and reports the gaps a
+  `continue_task` send-back would close. Every requested key ends in one outcome, and one bad key
+  never cancels the batch.
+
+### Changed
+
+- **A verification answer now carries what the report must prove.** The normalized PR gained
+  `head_sha` and `base_ref`, and `testing-pr-verify` returns the created PR's own `checks` list, so
+  `artel-bratishka-testing-pr` compares URL, head branch, head SHA, base ref and title against the
+  plan, and reports "no check runs published yet" instead of passing an empty list off as green.
+  A failed check read is `null`, not a failed verification.
+- **`spawn.promptFile` and `testingPr.bodyFile` are real overrides.** The engine renders a host
+  Markdown file with a closed `{placeholder}` vocabulary and the coder uses it verbatim; an unknown
+  placeholder is `invalid_config`, an unreadable file is `missing_config`, and a prompt override
+  must keep `Run id:`. Both vocabularies ship as the contract under
+  `skills/artel-bratishka-testing-pr/assets/`.
+
 ## [0.48.0] - 2026-11-13
 
 ### Added

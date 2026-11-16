@@ -29,3 +29,11 @@ conversational front doors to kartoteka's read and write sides, under the same
 request one changed file at a time — a standalone, read-only utility that dispatches the
 `artel-collaborative-reviewer` agent for every analysis pass and keeps its approval checklist under
 `.artel/run/collaborative-review/`.
+
+Three sections keep an operational skill honest — one that writes, merges or closes, or whose first
+call can fail for its environment. `## Prerequisites` opens the body: one line per dependency, each
+proven by a single call, each with the exact remedy rather than a fallback. `## Hard rules` closes
+it: prohibitions only, one `NEVER` per line. `## Common mistakes` follows: a two-column table
+pairing a mistake with its fix, because a prohibition says what not to do while the table names the
+mistake the model is about to make. `collaborative-review`'s siblings under `artel-bratishka-*` are
+the worked example; `tests/test_bratishka_docs.py` keeps the three sections in place.

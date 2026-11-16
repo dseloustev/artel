@@ -10,6 +10,18 @@ This is a write. Check `.artel/config.json`: `vcs.adapter` must be `github-cli`,
 otherwise stop and name the value. The contract is
 `${ARTEL_ROOT}/docs/bratishka-duty.md` (`## Testing PR`, `## Safety and degradation`).
 
+## Prerequisites
+
+One call each; nothing is closed on a guess.
+
+1. **`vcs.adapter` is `github-cli`** — the close goes through `gh`; the engine answers
+   `adapter_not_github` otherwise (`${ARTEL_ROOT}/docs/config.md`, adapter identity checks). Stop
+   and name the value.
+2. **`gh auth status` passes** — otherwise nothing is read and nothing is closed: name the failing
+   account and stop.
+3. **The plan runs before any question** — `nothing_to_do`, `confirmation_required` and
+   `stale_plan` are answers, not failures, and each has its own response below.
+
 Plan first:
 
 ```bash
@@ -62,3 +74,26 @@ with `error.kind: partial_failure` carries the closed and failed PRs in `error.c
 Never close a PR the engine did not list, and never close one by hand. Today's testing PR,
 a merged or closed PR and a non-testing PR are never candidates — the engine enforces all
 three, and this skill adds no selection of its own.
+
+## Hard rules
+
+- NEVER close a PR the plan did not list, and never close one by hand.
+- NEVER touch today's testing PR, a merged or closed PR, or a non-testing PR.
+- NEVER add `--yes` on your own: it is the person's explicit consent, and only after they saw the
+  list.
+- NEVER pass `--delete-branch` unless the person asked for the branches to go.
+- NEVER close a set different from the one shown: `--pr` freezes it.
+- NEVER resolve `stale_plan` by closing the numbers that vanished — re-plan and ask again.
+- NEVER report a `partial_failure` by its closed half alone.
+
+## Common mistakes
+
+| Mistake | Fix |
+| --- | --- |
+| Closing right after the plan, without the question | Show the candidates, ask, then re-run with `--yes` and those numbers |
+| Re-using the old number list after `stale_plan` | One of them is no longer a candidate; re-plan and ask again |
+| Closing today's PR because it is open | Today is never stale; `skip_today` says how many were spared |
+| Treating `nothing_to_do` as a failure | Say no testing PR is older than today and stop |
+| Deleting the branch by default | `--delete-branch`, or the configured `testingPr.deleteBranchOnCancel` |
+| Reporting only the closed PRs after `partial_failure` | Report `error.closed` and `error.failed` together |
+| Closing the source PRs too | Only testing PRs are candidates; source PRs are never edited or closed |

@@ -151,6 +151,12 @@ placeholder the init interview replaces.
       "branchTemplate": "feature/testing-{dd}-{mm}-{yy}",
       "deleteBranchOnCancel": false,
       "bodyFile": ""
+    },
+    "delegate": {
+      "startStatus": "",
+      "handoffStatus": "",
+      "reviewerLogin": "",
+      "maxBatch": 5
     }
   }
 }
@@ -621,11 +627,15 @@ router whether those two routes are live.
 | `bratishka.spawn.adapter` | string | `"manual"` | `"manual"` \| `"client-api"` \| `"mcp"` — how the testing-PR coder task is started. `"client-api"` needs `spawn.tokenEnv`, `"mcp"` needs `spawn.mcpToolPrefix`; without them it falls back to `"manual"`. | `testing-pr` |
 | `bratishka.spawn.tokenEnv` | string | `""` | The **name** of the env var holding a client-API token with `tasks:write,tasks:read`; never the token itself. Required for `client-api`. | `testing-pr` |
 | `bratishka.spawn.mcpToolPrefix` | string | `""` | MCP tool prefix for `spawn_task` / `get_task` / `get_task_result`, including any trailing separator. Required for `mcp`. | `testing-pr` |
-| `bratishka.spawn.promptFile` | string | `""` | **Reserved.** Accepted and ignored: the coder prompt keeps its fixed built-in shape. A host override needs a substitution contract before this key can work. | — (reserved; no consumer yet) |
+| `bratishka.spawn.promptFile` | string | `""` | Path to a Markdown override for the coder prompt — absolute, or relative to the engine's working directory. Empty: the built-in shape. Rendered with a closed `{placeholder}` vocabulary ([the contract](../skills/artel-bratishka-testing-pr/assets/coder-prompt.md)); an unknown one is `invalid_config`, an unreadable file `missing_config`, and the text must carry `Run id: {run_id}`. | `testing-pr` |
 | `bratishka.testingPr.titleTemplate` | string | `"Testing {dd}-{mm}-{yy}"` | Tokens: `{dd}`, `{mm}`, `{yy}` (two-digit year), `{yyyy}`. Rendered with the local date. | `testing-pr`, `cancel-testing-pr`, `status` |
 | `bratishka.testingPr.branchTemplate` | string | `"feature/testing-{dd}-{mm}-{yy}"` | Same tokens. | `testing-pr`, `cancel-testing-pr` |
 | `bratishka.testingPr.deleteBranchOnCancel` | boolean | `false` | Current practice leaves the branch; deletion is opt-in (`cancel-testing-pr --delete-branch`). | `cancel-testing-pr` |
-| `bratishka.testingPr.bodyFile` | string | `""` | **Reserved.** Accepted and ignored: the testing-PR body keeps its fixed built-in shape. A host override needs a substitution contract before this key can work. | — (reserved; no consumer yet) |
+| `bratishka.testingPr.bodyFile` | string | `""` | Path to a Markdown override for the testing-PR body, resolved like `spawn.promptFile`. Empty: the built-in eight-part shape. Same closed vocabulary and failure kinds ([the contract](../skills/artel-bratishka-testing-pr/assets/testing-pr-body.md)). | `testing-pr` |
+| `bratishka.delegate.startStatus` | string | `""` | The status name meaning "work has started", matched **exactly** against the available transitions. Empty: resolve the `start` intent from the alias lists in [tracker-status.md](tracker-status.md). An explicit value never falls back to an alias. | `delegate` |
+| `bratishka.delegate.handoffStatus` | string | `""` | The status name meaning "ready for review". Empty: resolve the `handoff` intent from the same alias lists. A project with no such status is asked about, never guessed. | `delegate` |
+| `bratishka.delegate.reviewerLogin` | string | `""` | GitHub login requested as reviewer on every delegated pull request. Empty: the requesting user's own login, resolved once with `gh api user --jq .login`. | `delegate` |
+| `bratishka.delegate.maxBatch` | integer | `5` | A batch larger than this is reported with its count and asked about before spawning: each issue is a full agent run. | `delegate` |
 
 The block is optional, like [knowledge](#knowledge--the-institutional-memory-mirror), and
 every key has a working default. `repo` and `baseRef` fall back to `gh repo view`; `botLogin`
@@ -639,10 +649,14 @@ configured: the prompt is printed and copied, `/spawn` is opened, and the task i
 `Run id:` marker. The full day contract — approval model, queue buckets, testing-PR body, fix
 loop, merge rules — is [bratishka-duty.md](bratishka-duty.md).
 
-Two keys are **reserved**: `spawn.promptFile` and `testingPr.bodyFile` are accepted and ignored,
-because the engine composes the coder prompt and the testing-PR body in their fixed built-in
-shape. A host override will need a substitution contract before either key can do anything;
-keeping them in the block is forward compatibility, not a working override.
+`spawn.promptFile` and `testingPr.bodyFile` are **overrides**, not reserved keys. Empty, which is
+the default, the engine composes the coder prompt and the testing-PR body in their fixed built-in
+shape. A path to a Markdown file replaces that text: the engine renders it with a closed
+`{placeholder}` vocabulary and the coder uses the result verbatim, an unknown placeholder fails as
+`invalid_config`, and an unreadable file fails as `missing_config`. A prompt override must keep a
+`Run id:` line, because the run is correlated with its pull request by that marker alone. Both
+vocabularies ship as the contract under
+[skills/artel-bratishka-testing-pr/assets](../skills/artel-bratishka-testing-pr/assets/coder-prompt.md).
 
 ### App automation — owned by the host project
 
@@ -769,6 +783,12 @@ A hypothetical TypeScript project tracked in Jira, shipped through GitHub:
       "branchTemplate": "feature/testing-{dd}-{mm}-{yy}",
       "deleteBranchOnCancel": false,
       "bodyFile": ""
+    },
+    "delegate": {
+      "startStatus": "In Progress",
+      "handoffStatus": "Code Review",
+      "reviewerLogin": "",
+      "maxBatch": 5
     }
   }
 }

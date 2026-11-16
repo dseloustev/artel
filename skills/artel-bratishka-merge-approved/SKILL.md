@@ -22,6 +22,18 @@ entry carries `number`, `title`, `url`, `code_reviewed` and `qa_approved`; a blo
 carries `reason`, and an entry with a live coder task carries `bot_working: true` and
 `active_tasks` (task id, status, initiator).
 
+## Prerequisites
+
+One call each; nothing is merged on a guess.
+
+1. **`vcs.adapter` is `github-cli`** and `gh auth status` passes — every update and merge is a
+   visible `gh` call (`${ARTEL_ROOT}/docs/config.md`, adapter identity checks). Name the failing
+   account and stop.
+2. **The QA identity is configured** — `bratishka.teams.qa` or `bratishka.qaLogins`. Without
+   either, every QA verdict is `unknown` and nothing is mergeable: name the key to add.
+3. **The plan parses** — exit `2` is the configuration, not an empty queue; print `error.message`
+   and stop.
+
 ## 1. Show the groups
 
 Render three short tables — number, title and URL per entry, plus `reason` for a blocked
@@ -108,20 +120,33 @@ merged, do not wait for its post-merge builds: say the builds are running and po
 `needs-review` queue — `/artel-collaborative-review` — so the build window is used for the next
 code review; re-run `/artel-bratishka-merge-approved` once the builds settle.
 
-## Rules
+## Hard rules
 
-- Never merge a PR whose QA state is `unknown`. Name `bratishka.teams.qa` or
-  `bratishka.qaLogins` as the key to add.
-- Never merge a testing PR, a draft PR, a PR with only one of the two approvals, a PR the
-  plan does not list, or a PR with an active/queued coder task (`bot_working`).
-- Never delete a branch, force-push, or push to the base branch; `update-branch` through the
-  REST endpoint is the only update.
-- One PR at a time: re-read the plan after each merge so a newly `BEHIND` PR is updated before
-  its own merge.
-- After a merge, never wait for its post-merge builds. Report the merged PRs and hand back to the
-  review queue; the build window is the next code review.
-- `--pr` narrows the run to one PR; it never widens the merge set. `--yes` skips the question
-  and is never added on your own.
-- The engine merges nothing; every update and merge here is a visible `gh` call. The merge
-  states, the bounded re-check and the no-deletion rule are in
-  `${ARTEL_ROOT}/docs/bratishka-duty.md` (`## Merging`).
+- NEVER merge a PR whose QA state is `unknown`: name `bratishka.teams.qa` or `bratishka.qaLogins`
+  as the key to add.
+- NEVER merge a testing PR, a draft PR, a PR with only one of the two approvals, a PR the plan
+  does not list, or a PR with an active or queued coder task (`bot_working`).
+- NEVER delete a branch, force-push, or push to the base branch. `gh api -X PUT …/update-branch`
+  is the only update.
+- NEVER use `gh pr update-branch`: `hooks/vcs_guard.py` denies it as an unknown verb.
+- NEVER merge two PRs without re-reading the plan between them, and never merge after a second
+  re-check that is still `needs_update`.
+- NEVER wait for a merged PR's post-merge builds: report and hand back to the review queue.
+- NEVER let `--pr` widen the merge set, and never add `--yes` on your own.
+- NEVER retry a failed merge, switch its merge method, or report it as done.
+
+## Common mistakes
+
+| Mistake | Fix |
+| --- | --- |
+| Merging with `--merge` or `--rebase` | `--squash` only |
+| Passing `--delete-branch` | This path has no branch deletion |
+| Updating a `BEHIND` branch with `gh pr update-branch` | The REST endpoint; the guard denies the subcommand |
+| Re-checking a `needs_update` PR twice | One re-check, then report the state |
+| Merging while the post-merge build of the previous PR runs | That is the review window, not a blocker |
+| Treating an empty `ready` group as a failure | Report the groups and stop |
+| Counting a bot approval as QA | Only the configured QA team or logins count |
+| Merging a PR that entered the plan after the question | The confirmation freezes the numbers |
+
+The merge states, the one bounded re-check and the no-deletion rule are in
+`${ARTEL_ROOT}/docs/bratishka-duty.md` (`## Merging`).

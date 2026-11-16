@@ -51,6 +51,13 @@ into `ready`, `needs_update` and `blocked` with `gh`'s reason on a blocked
 entry. It merges nothing; the skill updates `BEHIND` branches and squash-merges
 one PR at a time.
 
+`delegate-plan` and `delegate-closeout` are the batch side of the duty. The skill
+gathers the tracker facts (each issue and its available transitions) into JSON files
+because the engine has no tracker client; `delegate-plan` then decides which key is
+usable, which status move each one needs (docs/tracker-status.md), and what prompt each
+task receives, and `delegate-closeout` reads a finished task against its pull request.
+Neither writes anything, to GitHub or to the tracker.
+
 Exit codes are the contract's: `0` success, `1` a user-actionable failure
 (nothing to do, a refusal), `2` a configuration or environment error. Every
 invocation prints one envelope, `{ok, verb, elapsed_ms, data|error}`.
@@ -76,6 +83,10 @@ Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
        bratishka.py task-watch --task-id <id> [--repo <dir>] [--timeout <s>]
               [--interval <s>] [--json]
        bratishka.py merge-plan [--repo <dir>] [--json]
+       bratishka.py delegate-plan --keys <KEY[,KEY]> [--issues <file>]
+                                  [--transitions <file>] [--repo <dir>] [--json]
+       bratishka.py delegate-closeout --key <KEY> [--task <file>] [--pr <file>]
+                                      [--repo <dir>] [--json]
 """
 import json
 import os
@@ -89,6 +100,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 import bratishka_config
+import bratishka_delegate
 import bratishka_rules
 import bratishka_testing
 from bratishka_dashboard import Dashboard
@@ -336,6 +348,51 @@ def parse_plan(args):
 def parse_prompt(args):
     """`testing-pr-prompt`'s flags: `repo`, `json`, `out`, `include` and `exclude`."""
     return parse_selection(args, allow_out=True)
+
+
+def parse_delegate_plan(args):
+    """`delegate-plan`'s flags: the keys, the two fact files and the repo dir."""
+    options = {'repo': '.', 'json': False, 'keys': [], 'issues': '', 'transitions': ''}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg in ('--keys', '--issues', '--transitions', '--repo'):
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for {}'.format(arg))
+            if arg == '--keys':
+                options['keys'].append(args[i])
+            else:
+                options[arg[2:]] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    if not options['keys']:
+        raise UsageError('missing --keys <KEY[,KEY]>')
+    return options
+
+
+def parse_delegate_closeout(args):
+    """`delegate-closeout`'s flags: the key, the task and pull-request files."""
+    options = {'repo': '.', 'json': False, 'key': '', 'task': '', 'pr': ''}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg in ('--key', '--task', '--pr', '--repo'):
+            i += 1
+            if i >= len(args) or args[i] == '':
+                raise UsageError('missing value for {}'.format(arg))
+            options[arg[2:]] = args[i]
+        elif arg == '--json':
+            options['json'] = True
+        else:
+            raise UsageError('unknown flag: {}'.format(arg))
+        i += 1
+    if not options['key']:
+        raise UsageError('missing --key <KEY>')
+    return options
 
 
 def parse_verify(args):
@@ -1323,7 +1380,9 @@ def verify_testing_pr(config, gh, dashboard, run_id, day=None):
     rendered title or branch name, falling back to the task's `head_ref` when
     the dashboard reports one. `gate_failed` is true only when the task's
     completion gate failed and a PR exists: the PR is the artifact, the gate is
-    a separate finding. A missing task and a missing PR are ordinary answers,
+    a separate finding. `checks` is that PR's own check runs, or None when there
+    is no PR or the read failed -- an empty list means "none published yet",
+    which is not green. A missing task and a missing PR are ordinary answers,
     never errors. `day` defaults to the local date and pins the names in a test.
     """
     config = config if isinstance(config, dict) else {}
@@ -1347,12 +1406,86 @@ def verify_testing_pr(config, gh, dashboard, run_id, day=None):
                 break
     detail = task.get('result_detail') if isinstance(task, dict) else None
     error = detail.get('error') if isinstance(detail, dict) else None
+    checks = None
+    if isinstance(pr, dict) and pr.get('number') is not None:
+        try:
+            checks = gh.checks(repo, pr['number'])
+        except GhError:
+            checks = None
     return {
         'run_id': run_id,
         'task': task,
         'pr': pr,
         'gate_failed': pr is not None and error == 'final_tools_gate_not_satisfied',
+        'checks': checks,
     }
+
+
+def _fact_file(path, what):
+    """One JSON file the skill wrote, or a config error naming it."""
+    try:
+        with open(path, encoding='utf-8') as handle:
+            return json.load(handle)
+    except OSError as exc:
+        raise bratishka_config.ConfigError(
+            'missing_config', 'cannot read the {} file {}: {}'.format(what, path, exc))
+    except ValueError as exc:
+        raise bratishka_config.ConfigError(
+            'invalid_config', 'the {} file {} is not JSON: {}'.format(what, path, exc))
+
+
+def delegate_plan_data(config, gh, options, day=None):
+    """The batch plan from the facts the skill gathered; writes nothing.
+
+    `options['issues']` and `options['transitions']` are the MCP answers, keyed by
+    issue key. A key absent from them is `invalid` in the report, never a guess.
+    """
+    keys = bratishka_delegate.parse_keys(options['keys'])
+    if not keys:
+        raise bratishka_config.ConfigError('invalid_argument', 'no issue key was given')
+    issues = _fact_file(options['issues'], 'issues') if options['issues'] else {}
+    transitions = {}
+    if options['transitions']:
+        transitions = _fact_file(options['transitions'], 'transitions')
+    repo = config.get('repo') or gh.repo_slug()
+    data = bratishka_delegate.plan(
+        config, keys,
+        issues if isinstance(issues, dict) else {},
+        transitions if isinstance(transitions, dict) else {},
+        day or date.today(), repo=repo,
+        language=bratishka_config.pr_language(options['repo']))
+    data['table'] = bratishka_delegate.report(data['rows'])
+    return data
+
+
+def run_delegate_plan(config, gh, options, elapsed):
+    """Print the batch plan and the exact spawn calls; returns the exit code."""
+    verb = 'bratishka-delegate-plan'
+    try:
+        data = delegate_plan_data(config, gh, options)
+    except (bratishka_config.ConfigError, GhError) as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    print(envelope(True, elapsed(), verb, data=data))
+    return 0
+
+
+def delegate_closeout_data(options):
+    """One finished task against its pull request; reads files, writes nothing."""
+    task = _fact_file(options['task'], 'task') if options['task'] else None
+    pr = _fact_file(options['pr'], 'pull request') if options['pr'] else None
+    return bratishka_delegate.closeout(options['key'], task,
+                                       pr if isinstance(pr, dict) else None)
+
+
+def run_delegate_closeout(config, gh, options, elapsed):
+    """Print one key's outcome and the gaps a send-back would close."""
+    verb = 'bratishka-delegate-closeout'
+    try:
+        data = delegate_closeout_data(options)
+    except bratishka_config.ConfigError as exc:
+        return fail(exc.kind, exc.message, verb=verb, elapsed_ms=elapsed())
+    print(envelope(True, elapsed(), verb, data=data))
+    return 0
 
 
 def run_verify(config, gh, dashboard, options, elapsed):
@@ -1841,6 +1974,10 @@ def main(argv=None, gh=None, dashboard=None):
         parser = parse_task_watch
     elif command == 'merge-plan':
         parser = parse_merge_plan
+    elif command == 'delegate-plan':
+        parser = parse_delegate_plan
+    elif command == 'delegate-closeout':
+        parser = parse_delegate_closeout
     else:
         return fail('invalid_argument', 'unknown command: {}'.format(command))
 
@@ -1862,6 +1999,10 @@ def main(argv=None, gh=None, dashboard=None):
                         '"github-cli"'.format(command, adapter))
 
     client = gh if gh is not None else Gh(cwd=options['repo'])
+    if command == 'delegate-plan':
+        return run_delegate_plan(config, client, options, elapsed)
+    if command == 'delegate-closeout':
+        return run_delegate_closeout(config, client, options, elapsed)
     if command == 'queue':
         return run_queue(config, client, options, elapsed)
     if command == 'testing-pr-cancel':

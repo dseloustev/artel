@@ -1054,3 +1054,26 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   grouped, and `unknown` QA is never approval — the skill names the config key to add. Ready
   states, the one bounded re-check, `--squash` and the no-deletion rule are in
   [bratishka-duty.md](bratishka-duty.md).
+
+### delegate
+
+- **Purpose:** Delegate one or more tickets to the Bratishka bot — one task, branch and pull
+  request per ticket, run concurrently, with each ticket moved to its work-started and then its
+  review status as it progresses.
+- **Invocation:** `/artel-bratishka-delegate <KEY> [<KEY> ...] [start=<status>] [handoff=<status>] [--yes] [--dry-run]`
+- **Reads:** `.artel/config.json` (`bratishka`, `bratishka.delegate`, `tracker`, `vcs.adapter`);
+  the ticket and its available transitions through the tracker's MCP tools; the open bot pull
+  requests through `gh`.
+- **Writes:** `.artel/run/bratishka/<date>/delegate/{issues,transitions,<KEY>.task,<KEY>.pr}.json`
+  (the gathered facts); tracker moves and one comment per delivered key; `spawn_task` and
+  `continue_task` through the configured adapter; `gh pr edit --add-reviewer`.
+- **Pauses:** once, before anything moves or spawns — the batch table and a `question`-tool
+  Delegate them / Cancel; again for a key the engine answered `needs-decision` (the candidate
+  transitions are shown), and for a batch larger than `bratishka.delegate.maxBatch`. `--yes` skips
+  the batch pause only; `--dry-run` prints and stops.
+- **Notes:** the engine holds no tracker client, so the skill gathers the facts and
+  `scripts/bratishka.py delegate-plan` decides the outcomes, the two status moves and each task's
+  prompt; `delegate-closeout` reads a finished task against its pull request. Resolution rules are
+  in [tracker-status.md](tracker-status.md), the batch contract and the send-back in
+  [bratishka-duty.md](bratishka-duty.md). One bad key never cancels the batch, and the idempotency
+  key is per issue.

@@ -39,6 +39,9 @@ store, task grammar and queue, worktrees, parallel) · `opencode/plugin/` (`arte
   [hooks/README.md](hooks/README.md) (its ABI list is pinned to the bridge), and a test.
 - **New skill**: `skills/artel-*/SKILL.md` + an entry in
   [docs/skills-reference.md](docs/skills-reference.md); the build discovers it, no registration.
+- **Operational skill** (one that writes, merges or closes, or whose first call can fail for the
+  environment): end it with `## Hard rules` and `## Common mistakes`, and open it with
+  `## Prerequisites` — [skills/README.md](skills/README.md) states the three-section convention.
 
 ## Conventions
 

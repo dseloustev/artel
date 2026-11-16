@@ -281,7 +281,11 @@ what fills it; the `$NAME` placeholders are the slots:
 - **`optional`** — omitted, heading included, when its slot is empty. Never pad.
 
 Section and placeholder names here are the shipped templates'; a host override is read by its
-comments' rules, not by these names. Then:
+comments' rules, not by these names. Each shipped template has a worked example beside it —
+`assets/templates/task.example.md`, `bug.example.md` and `epic.example.md`: an input, then the
+finished description in the Jira dialect. Read the example for the chosen type when a rule alone
+leaves a section's tone or granularity open; the template is the structure, the example is the
+register. Then:
 
 - Fill each slot from §§3–5.
 - Keep the skeleton's order and everything around the slots: headings with their trailing

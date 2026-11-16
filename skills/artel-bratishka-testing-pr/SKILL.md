@@ -20,6 +20,21 @@ stop and name the missing MCP connection — `--local` is the only non-MCP path.
 Every engine call prints one envelope. Exit `2` is a configuration or environment error: print
 `error.message` and stop.
 
+## Prerequisites
+
+Prove each with one call; nothing starts on a guess.
+
+1. **`vcs.adapter` is `github-cli`** and `gh auth status` passes — every read, and `--local`'s
+   push, go through `gh` (`${ARTEL_ROOT}/docs/config.md`, adapter identity checks). A failure
+   stops the run naming the account or the adapter value.
+2. **The task surface** — `bratishka.spawn.adapter` is `"mcp"` with its tools reachable, or
+   `"client-api"` with `spawn.tokenEnv` exported, or `"manual"`. Prove it with one call: ask the
+   router for the bratishka server's tools under a compressing router, or read `spawn_task`'s
+   schema. Without any of them, stop and name the missing connection — `--local` is the only
+   non-task path.
+3. **The configuration parses** — the engine's exit `2` is that check; print `error.message` and
+   stop.
+
 ## 1. Plan
 
 ```bash
@@ -110,14 +125,20 @@ python3 ${ARTEL_ROOT}/scripts/bratishka.py testing-pr-verify --run-id <run-id> -
 Every 30 seconds, at most 30 times (15 minutes). The envelope is `ok: true` whenever the read
 succeeds; `data` is `{run_id, task, pr, gate_failed}`.
 
-- `data.pr` is not null → the artifact exists. Check the naming before reporting: the title must
-  be exactly `data.title` (`Testing dd-mm-yy`) and the head branch exactly `data.branch`
-  (`feature/testing-dd-mm-yy`), the same date in both. A PR with another title or head is
-  reported as a naming defect; never rename it, rebuild it or start a second task. Report its
-  `number`, `title`, `url` and head branch. If `data.gate_failed` is true, report the gate
-  **separately**: the coder task is red on its completion gate
-  (`final_tools_gate_not_satisfied`) while the PR is the artifact. That is expected while a
-  repository-wide CI failure lasts, and is not a failed testing PR.
+- `data.pr` is not null → the artifact exists. Check it against the plan before reporting, field by
+  field: `data.pr.title` is exactly `data.title` (`Testing dd-mm-yy`), `data.pr.head` exactly
+  `data.branch` (`feature/testing-dd-mm-yy`), `data.pr.base_ref` the plan's `data.base_ref`, and
+  `data.pr.head_sha` is a commit on the branch this run pushed. A PR that disagrees on any field is
+  reported as a naming defect, naming the field that disagreed; never rename it, rebuild it, or
+  start a second task. Report its `number`, `title`, `url`, head branch and head SHA. If
+  `data.gate_failed` is true, report the gate **separately**: the coder task is red on its
+  completion gate (`final_tools_gate_not_satisfied`) while the PR is the artifact. That is expected
+  while a repository-wide CI failure lasts, and is not a failed testing PR.
+- `data.checks` is the created PR's own check runs, and it is reported as observed. `[]` means no
+  check run is published yet — say "no check runs published yet", never "green" and never "no CI".
+  A `fail` or `cancel` bucket is a failure, named with its check; `pending` is still running.
+  `null` means there was no PR to read or the read failed: say the checks are unknown, and never
+  fill the gap from the source PRs' checks (those are in `## CI status of source PRs`).
 - `data.pr` is null → keep polling; report the task state from `get_task` /
   `get_task_result`, not from the dashboard, and ignore `data.task`.
 - After 15 minutes with no PR, report the last task state, the task id and the run id. Do not
@@ -143,15 +164,33 @@ duty reviewer; a conflict stops it with the conflicting files and no push. Repor
 the conflicts. The confirmation you already gave is this command's consent. Never build the
 branch in the working checkout by hand.
 
-## Rules
+## Hard rules
 
-- One testing PR per day. Never create a second when today's title, branch or PR exists.
-- Never merge the testing PR, push to the base branch or a source branch, or edit, close,
-  rebase or force-update a source PR.
-- The returned `task_id` is the correlation key; one run id is one task — a retried
-  `spawn_task` returns the same task, and nothing starts a second one. Never guess a task by
-  time alone.
-- The PR's title and head branch are the contract: `Testing dd-mm-yy` and
-  `feature/testing-dd-mm-yy`, the same date in both. Report a deviation, never repair it.
-- `--yes` is explicit consent; `--print` stops before any task starts; `--dry-run` writes
-  nothing.
+- NEVER create a second testing PR: one per day, and today's title, branch or PR ends the run.
+- NEVER merge the testing PR, push to the base branch or a source branch, or edit, close, rebase
+  or force-update a source PR.
+- NEVER start a second task for one run id, and never guess a task by time alone: the returned
+  `task_id` is the correlation key.
+- NEVER repair the PR's title or head branch, and never rebuild it: report the deviation.
+- NEVER add `--yes` on your own; it is the person's explicit consent, and `--print` and
+  `--dry-run` start nothing.
+- NEVER report a PR link, number or SHA that no call in this run returned: re-read every claim
+  against the tool result that produced it before sending the report.
+- NEVER call a PR green while a check failed or is pending, and never call an empty check list
+  green.
+- NEVER bundle a PR outside the confirmed set, including one that lost candidacy between the plan
+  and the prompt.
+
+## Common mistakes
+
+| Mistake | Fix |
+| --- | --- |
+| Creating today's PR again after a failed task | `status --offline` and `git ls-remote` first; one PR per day |
+| Reporting the PR while the task's gate is red | Report the PR as the artifact and the gate separately |
+| Treating `wait_timeout_exceeded` as a failure | It is a passed deadline: report the last task state and say it may still be running |
+| Reading the PR's title from the prompt instead of the envelope | Compare `data.pr` with `data.title` / `data.branch`; a mismatch is a defect |
+| Declaring "CI is running" with zero check runs | "No check runs published yet" — pending, not green |
+| Filling in the PR number from the neighbouring one | Only `data.pr.number` from this run |
+| Using the stale prompt after the set changed | Stop, re-ask, and continue only with the re-confirmed set |
+| Building the branch by hand in the working checkout | `--local` builds in a throwaway worktree; never assemble it by hand |
+| Adding someone as the assignee | Only the PR is opened; assignees are not this skill's business |

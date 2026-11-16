@@ -124,6 +124,9 @@ Contracts and internals:
 - [docs/bratishka-duty.md](docs/bratishka-duty.md) — the Bratishka duty contract: config,
   approval model, testing-PR body and naming, the spawn flow, and the safety rules the
   `artel-bratishka-*` skills cite
+- [docs/tracker-status.md](docs/tracker-status.md) — how a status move is resolved on any
+  tracker: the two intents, alias matching, the exact-override rule, and what stops for a
+  decision instead of guessing
 - [CHANGELOG.md](CHANGELOG.md)
 
 ## License

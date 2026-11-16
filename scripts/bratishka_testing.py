@@ -26,6 +26,7 @@ docs/config.md (`bratishka.testingPr`).
 import re
 import uuid
 from datetime import date
+from pathlib import Path
 
 import bratishka_config
 import bratishka_rules
@@ -44,6 +45,16 @@ CHECKED_RE = re.compile(r'^[-*]\s*\[[xX]\]\s+(.+?)\s*$')
 CHECKBOX_RE = re.compile(r'^[-*]\s*\[[ xX]\]\s*')
 # The first ticket key in a source PR title, e.g. `AW-3320`.
 TICKET_RE = re.compile(r'[A-Z][A-Z0-9]+-\d+')
+# A `{placeholder}` in a host override. The vocabulary is closed per file, so a
+# typo fails as invalid_config instead of reaching the bot as literal text.
+PLACEHOLDER_RE = re.compile(r'\{([a-z][a-z0-9_]*)\}')
+# What a prompt override may fill. An override must keep `{run_id}`, because
+# `testing-pr-verify` correlates the PR with the run by that marker alone.
+PROMPT_PLACEHOLDERS = ('base_ref', 'branch', 'date', 'repo', 'repo_line', 'run_id',
+                       'tasks', 'title')
+# What a body override may fill: the eight parts the built-in body carries.
+BODY_PLACEHOLDERS = ('base_ref', 'base_sha', 'count', 'date', 'merge_notes', 'notes',
+                     'one_day', 'short_sha', 'tasks', 'verification')
 
 
 def _config(value):
@@ -189,6 +200,45 @@ def _notes_block(task):
         parse_platforms(body))
 
 
+def render_override(text, values):
+    """Substitute `{name}` placeholders from `values`; refuse every other bare token.
+
+    `{{` and `}}` are literal braces, so a snippet that needs one writes two. The
+    vocabulary is the dict's keys: anything else is a config error, never a
+    literal `{typo}` inside a prompt the bot reads.
+    """
+    protected = text.replace('{{', '\0').replace('}}', '\1')
+
+    def substitute(match):
+        name = match.group(1)
+        if name not in values:
+            raise bratishka_config.ConfigError(
+                'invalid_config',
+                'unknown placeholder {{{}}}; the override may use {}'.format(
+                    name, ', '.join('{' + key + '}' for key in sorted(values))))
+        return str(values[name])
+
+    rendered = PLACEHOLDER_RE.sub(substitute, protected)
+    return rendered.replace('\0', '{').replace('\1', '}')
+
+
+def _override_path(config, section, key):
+    """The configured override file, or '' when the key is unset or mistyped."""
+    block = _config(config).get(section)
+    value = block.get(key) if isinstance(block, dict) else None
+    return value if isinstance(value, str) else ''
+
+
+def _read_override(path, what):
+    """A configured override file's text; a missing one is a config error."""
+    try:
+        return Path(path).read_text(encoding='utf-8')
+    except OSError as exc:
+        raise bratishka_config.ConfigError(
+            'missing_config',
+            'cannot read the {} override {}: {}'.format(what, path, exc))
+
+
 def build_body(tasks, config, day, base_ref, base_sha, checks_by_pr, merge_notes,
                verification):
     """The #144-shaped testing-PR body in its eight ordered parts.
@@ -220,14 +270,29 @@ def build_body(tasks, config, day, base_ref, base_sha, checks_by_pr, merge_notes
         ci = '- No source PRs were selected.'
     one_day = ('Single testing PR for {} — it lives one day and will be closed by the '
                'next duty reviewer.'.format(day.isoformat()))
+    merge_block = _list_block(merge_notes, 'No merge notes.')
+    verify_block = _list_block(verification, 'Verification was not run in this pass.')
+    override = _override_path(config, 'testingPr', 'bodyFile')
+    if override:
+        return render_override(_read_override(override, 'testing-PR body'), {
+            'base_ref': base_ref,
+            'base_sha': base_sha or '',
+            'count': count,
+            'date': day.isoformat(),
+            'merge_notes': merge_block,
+            'notes': notes,
+            'one_day': one_day,
+            'short_sha': _short(base_sha),
+            'tasks': task_lines,
+            'verification': verify_block,
+        })
     return '\n'.join([
         '## Summary', '', summary, '', blockquote, '',
         '## Tasks', '', task_lines, '',
         '## Notes for QA', '', notes, '',
         '## CI status of source PRs', '', ci, '',
-        '## Merge notes', '', _list_block(merge_notes, 'No merge notes.'), '',
-        '## Local verification', '',
-        _list_block(verification, 'Verification was not run in this pass.'), '',
+        '## Merge notes', '', merge_block, '',
+        '## Local verification', '', verify_block, '',
         '---', '', one_day,
     ])
 
@@ -274,6 +339,24 @@ def build_prompt(tasks, config, day, base_ref, run_id, repo=None):
                  else "Repository: this checkout's origin")
     task_blocks = ('\n\n'.join(_prompt_task(task) for task in tasks)
                    if tasks else '- No source PRs are selected.')
+    override = _override_path(config, 'spawn', 'promptFile')
+    if override:
+        text = render_override(_read_override(override, 'coder prompt'), {
+            'base_ref': base_ref,
+            'branch': branch,
+            'date': stamp,
+            'repo': repo,
+            'repo_line': repo_line,
+            'run_id': run_id,
+            'tasks': task_blocks,
+            'title': title,
+        })
+        if 'Run id:' not in text:
+            raise bratishka_config.ConfigError(
+                'invalid_config',
+                'the coder-prompt override must carry a `Run id:` line; without it '
+                'testing-pr-verify cannot correlate the pull request with the run')
+        return text
     return '\n'.join([
         '# Daily testing PR — {}'.format(stamp), '',
         repo_line,

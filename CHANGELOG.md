@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-11-17
+
 ### Added
 
 - **Arming a run now checks the host policy against the run's own state.**

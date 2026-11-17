@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Arming a run now checks the host policy against the run's own state.**
+  `scripts/sensitive_policy_check.py --ticket <TICKET_ID> --mode <effective_mode>` prints one
+  `warning:` line per run-owned file the policy floors above the effective mode, naming the
+  glob to fix. Advisory by construction — it always exits 0, because the guard exempts those
+  paths anyway. `feature-development` step 5 and `autonomous-run.md` §10 report its lines.
+
+### Fixed
+
+- **An armed run can always record its own completion.** `sensitive_guard.py` now exempts the
+  five files a run owns — `run-state.json`, `run-journal.md`, `open-questions.md`,
+  `runtime-observation.md`, `.stop-gate-blocks` under `.artel/run/<TICKET_ID>/` — so a host
+  policy that floors them at `full-gates` no longer makes a `plan-gate` run unable to write
+  `completed: true`. The set is explicit: every other path under the run directory,
+  `.artel/run/.hooks/` and the policy files stay guarded.
+- **The stop gate says what it checks.** Its block reason now reports the state it read
+  (`run_active`, `completed`, `pause_reason`, age) and the two ways to end the run, instead of
+  claiming "gates are not green" — a condition the hook never evaluates and which sent a green
+  run hunting a gate failure.
+
 ## [0.50.0] - 2026-11-17
 
 ### Added

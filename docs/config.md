@@ -22,6 +22,12 @@ The `.artel/` directory is artel's whole footprint in the host repo:
   default policy (`hooks/sensitive-paths.json`) wholesale. Committed, like the config; the
   `artel-setup` skill offers to scaffold it from the shipped defaults. The same policy, resolved
   identically, is what `deep-review`'s `prepare` uses to compute the run's dangerous-change flag.
+  A host policy may list the run's own bookkeeping under `.artel/run/<TICKET_ID>/`
+  (`run-state.json`, `run-journal.md`, `open-questions.md`, `runtime-observation.md`,
+  `.stop-gate-blocks`), but those five files are **exempt** for the run's own writes — the
+  guard never blocks them, so the run always records its completion. A matching policy only
+  warns at arm time (`scripts/sensitive_policy_check.py`, `autonomous-run.md` §10); it never
+  refuses an arm.
 - `.artel/templates/issue-draft-<type>.md` (`<type>` is `task`, `bug` or `epic`) and
   `.artel/templates/issue-draft.md` — optional host overrides of the description templates the
   `artel-issue-draft` skill renders (`skills/artel-issue-draft/assets/templates/<type>.template.md` in the

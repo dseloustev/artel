@@ -19,6 +19,14 @@ Five layers:
     Policy: [`sensitive-paths.json`](sensitive-paths.json) (shipped defaults: `secrets` and
     `gate-config` at `full-gates`, `ci-cd` at `plan-gate`), replaced **wholesale** by a host
     `.artel/sensitive-paths.json` when present. Inert outside armed runs.
+    **The run's own state is never guarded**: during an armed run, writes to
+    `.artel/run/<TICKET_ID>/run-state.json`, `run-journal.md`, `open-questions.md`,
+    `runtime-observation.md` and `.stop-gate-blocks` are allowed whatever the policy floors
+    them at — a run that cannot write its completion record can never end. The set is exactly
+    those five names: every other path under the run directory, `.artel/run/.hooks/`, the two
+    `.artel/` policy files and `.opencode/` stay guarded. A host policy that matches a
+    run-owned path only earns an arm-time warning
+    (`scripts/sensitive_policy_check.py`, [autonomous-run.md](../docs/autonomous-run.md) §10).
 - **Platform layer** — always armed, never gated on a run: enforces which VCS and tracker
   platform this project actually uses, in every session, not only autonomous ones.
   - `vcs_guard.py` (`tool.execute.before` on the `Bash` shell call or a platform-named tool) —

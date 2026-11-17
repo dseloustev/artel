@@ -239,6 +239,12 @@ re-run with `--step`. `--dry-run` ⇒ stop here too: print the resolved mode, it
 intended external actions — the task and checkpoint commits, the checkpoint pushes, and the pull
 request the run ends with (opened without asking in `yolo`) — and write nothing.
 
+**Warn before arming.** Run `python3 ${ARTEL_ROOT}/scripts/sensitive_policy_check.py
+--ticket <TICKET_ID> --mode <effective_mode>` and report each line it prints with the mode
+announcement. It always exits 0: a match means the host policy floors one of the run's own
+bookkeeping files above the effective mode, and the guard exempts those paths, so the run
+arms anyway — the line names the glob the host owner should fix (hooks/README.md).
+
 **Take the ticket lock first** (worktrees.md §9) — on the arming path, never on a `--dry-run`,
 which writes nothing at all. The ticket belongs to one run at a time, and a second session on it
 would commit the same tasks twice. Resolve the session id with the bridge's

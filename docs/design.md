@@ -1971,3 +1971,20 @@ move to the decision log.
   routing at turn one, lookup on demand, and the router pays a byte budget the reference does not).
   The reference also gained the both-ways test the router already had, which is what turns "forgot
   the entry" from a silent miss into a red suite.
+- **2026-11-17 — A run's own bookkeeping is exempt from the sensitive-path policy, and the stop
+  gate now says what it checks.** AW-2452 in the wallet repo deadlocked at close-out: the host
+  policy floored `.artel/run/*/run-state.json` at `full-gates`, `sensitive_guard.py` honoured it
+  under a `plan-gate` run, and the run could not write `completed: true` — while `stop_gate.py`
+  blocked every idle with "gates are not green", a predicate it never evaluates. Two rules were
+  unsatisfiable and only one could move: `full-gates` never arms a run, so the policy had to
+  yield. The guard now exempts exactly five names under `.artel/run/<TICKET_ID>/` — the files the
+  run itself writes — and leaves everything else under that directory, `.artel/run/.hooks/` and
+  the policy files guarded; an explicit set, not a prefix, so a stray file cannot ride the
+  carve-out. Because the exemption makes the run safe regardless of the policy, the arm-time
+  check (`scripts/sensitive_policy_check.py`) warns and exits 0 instead of refusing: a refusal is
+  the same deadlock through another door. Guard, check and both documents share one
+  loader/matcher in `hook_common.py` so they cannot drift. **Parked:** `sizing.json` and
+  `reports/**` are written into the same directory during a run and are deliberately outside the
+  exemption (the observed policy named the five, and a broad `.artel/run/**` glob is a host bug
+  worth seeing); a host policy that floors them would still break a lean run's reports, and is
+  the next thing to look at if it ever happens.

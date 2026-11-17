@@ -358,7 +358,14 @@ Three ranked modes control how much the run pauses for approval: `yolo=0 < plan-
 5. `forced_floor == "full-gates"` ⇒ do **not** arm: report the matched category/globs and instruct
    the user to run with `--step`. (Key material and database migrations are typical categories
    that demand per-gate supervision.)
-6. Write all six mode fields (`effective_mode`, `requested_mode`, `suggested_mode`, `forced_floor`, `mode_reasons`, `gates_confirmed`) into `run-state.json` at arm time; announce
+6. **Check the run's own state is writable.** Run
+   `python3 ${ARTEL_ROOT}/scripts/sensitive_policy_check.py --ticket <TICKET_ID> --mode <effective_mode>`
+   and report each `warning:` line with the mode announcement. The check is advisory and always
+   exits 0: the guard exempts the run's own bookkeeping (the five files above,
+   [hooks/README.md](../hooks/README.md)), so a host policy that floors them above
+   `effective_mode` cannot deadlock the run — the line names the glob so the host owner can fix
+   the policy rather than rely on the carve-out.
+7. Write all six mode fields (`effective_mode`, `requested_mode`, `suggested_mode`, `forced_floor`, `mode_reasons`, `gates_confirmed`) into `run-state.json` at arm time; announce
    `mode + reasons` in the run output. Never trust stale fields — re-derive before re-arming.
 
 **`gates_confirmed`:** immediately after the approval pause (the full head's pause on approve,

@@ -22,6 +22,14 @@ WORKER_MARKER_PATH = Path('.artel/parallel-worker.json')
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 VERIFY_SCRIPT = PLUGIN_ROOT / 'scripts' / 'verify.py'
 DEFAULT_TICKET_PATTERN = r'^(?:{projectKey}-)?(\d+)(?:-p?(\d+))?$'
+SENSITIVE_HOST_PATH = Path('.artel/sensitive-paths.json')
+SENSITIVE_DEFAULT_PATH = Path(__file__).resolve().parent / 'sensitive-paths.json'
+MODE_RANK = {'yolo': 0, 'plan-gate': 1, 'full-gates': 2}
+# The files an armed run writes about itself; the sensitive-path guard exempts exactly these
+# under .artel/run/<ticket>/ (docs/autonomous-run.md §10, hooks/README.md). A new run file is
+# added here deliberately -- never a directory prefix, or a stray file rides the exemption.
+RUN_OWNED_FILES = ('run-state.json', 'run-journal.md', 'open-questions.md',
+                   'runtime-observation.md', '.stop-gate-blocks')
 
 
 def read_input():
@@ -203,6 +211,48 @@ def resolve_active_ticket(config):
 
 def ticket_run_dir(ticket):
     return RUN_DIR / ticket
+
+
+def is_run_owned(rel, ticket):
+    """True when `rel` is one of the run's own bookkeeping files under .artel/run/<ticket>/ --
+    the files an armed run must always be able to write, whatever a host policy floors them at
+    (hooks/README.md). An explicit filename set: a stray file in the run directory,
+    .artel/run/.hooks/ and another ticket's directory are not exempt."""
+    if not rel or not ticket:
+        return False
+    run_dir = ticket_run_dir(ticket).as_posix() + '/'
+    return rel.startswith(run_dir) and rel[len(run_dir):] in RUN_OWNED_FILES
+
+
+def load_sensitive_categories(root=None):
+    """The effective sensitive-paths policy's categories: the host override when present, else
+    the shipped default -- wholesale replacement, never a merge. Raises on an unreadable or
+    malformed policy so a hook can fail open and a CLI can report."""
+    base = Path(root) if root is not None else Path.cwd()
+    host = base / SENSITIVE_HOST_PATH
+    path = host if host.is_file() else SENSITIVE_DEFAULT_PATH
+    data = json.loads(path.read_text(encoding='utf-8'))
+    categories = data.get('categories') if isinstance(data, dict) else None
+    return categories if isinstance(categories, list) else []
+
+
+def sensitive_matches(rel, categories):
+    """Every (category name, glob, floor) a repo-relative path matches, in policy order. A
+    category without a floor defaults to full-gates; malformed categories and non-list globs
+    are skipped (a policy may not wedge the guard)."""
+    matches = []
+    for category in categories or []:
+        if not isinstance(category, dict):
+            continue
+        globs = category.get('globs')
+        if not isinstance(globs, list):
+            continue
+        floor = category.get('floor') or 'full-gates'
+        name = category.get('name')
+        for glob in globs:
+            if isinstance(glob, str) and glob and fnmatch.fnmatch(rel, glob):
+                matches.append((name, glob, floor))
+    return matches
 
 
 def _absolute_path(value):

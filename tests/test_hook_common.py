@@ -310,5 +310,75 @@ class TestHooksReadInputFirst(unittest.TestCase):
                 self.assertEqual(calls[1], 'enter_session_root', path.name)
 
 
+class TestSensitivePolicy(unittest.TestCase):
+    def setUp(self):
+        self._old_cwd = os.getcwd()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        (self.root / '.artel').mkdir()
+        os.chdir(self.root)
+
+    def tearDown(self):
+        os.chdir(self._old_cwd)
+        self._tmp.cleanup()
+
+    def write_host(self, value):
+        (self.root / '.artel' / 'sensitive-paths.json').write_text(
+            value if isinstance(value, str) else json.dumps(value), encoding='utf-8')
+
+    def test_host_policy_replaces_the_default_wholesale(self):
+        self.write_host({'categories': [{'name': 'house', 'floor': 'plan-gate',
+                                         'globs': ['infra/*']}]})
+        self.assertEqual([c.get('name') for c in h.load_sensitive_categories()], ['house'])
+
+    def test_the_shipped_default_applies_without_a_host_file(self):
+        names = [c.get('name') for c in h.load_sensitive_categories()]
+        self.assertIn('secrets', names)
+        self.assertIn('gate-config', names)
+
+    def test_a_malformed_policy_raises_for_the_caller_to_fail_open(self):
+        self.write_host('{not json')
+        with self.assertRaises(ValueError):
+            h.load_sensitive_categories()
+
+    def test_a_policy_without_a_categories_list_is_empty(self):
+        self.write_host({'categories': 'nope'})
+        self.assertEqual(h.load_sensitive_categories(), [])
+
+    def test_matches_keep_policy_order_and_default_the_floor(self):
+        categories = [{'name': 'wide', 'globs': ['a/*']},
+                      {'name': 'narrow', 'floor': 'plan-gate', 'globs': ['a/b.txt', 'c/*']}]
+        self.assertEqual(h.sensitive_matches('a/b.txt', categories),
+                         [('wide', 'a/*', 'full-gates'), ('narrow', 'a/b.txt', 'plan-gate')])
+
+    def test_matches_skip_malformed_categories_and_globs(self):
+        categories = ['nope', {'globs': 'a/*', 'name': 'string-globs'},
+                      {'name': 'ok', 'globs': ['', None, 'a/*']}]
+        self.assertEqual(h.sensitive_matches('a/b.txt', categories),
+                         [('ok', 'a/*', 'full-gates')])
+
+
+class TestRunOwned(unittest.TestCase):
+    def test_the_five_run_files_are_exempt(self):
+        for name in h.RUN_OWNED_FILES:
+            self.assertTrue(h.is_run_owned('.artel/run/AW-1/' + name, 'AW-1'), name)
+
+    def test_anything_else_in_the_run_directory_is_not(self):
+        self.assertFalse(h.is_run_owned('.artel/run/AW-1/other.md', 'AW-1'))
+
+    def test_the_hook_namespace_is_not(self):
+        self.assertFalse(h.is_run_owned('.artel/run/.hooks/run-state.json', 'AW-1'))
+
+    def test_another_ticket_is_not(self):
+        self.assertFalse(h.is_run_owned('.artel/run/AW-2/run-state.json', 'AW-1'))
+
+    def test_a_prefix_is_not_a_match(self):
+        self.assertFalse(h.is_run_owned('.artel/run/AW-1/run-state.json.bak', 'AW-1'))
+
+    def test_no_ticket_and_no_path_are_not_exempt(self):
+        self.assertFalse(h.is_run_owned('.artel/run/AW-1/run-state.json', None))
+        self.assertFalse(h.is_run_owned('', 'AW-1'))
+
+
 if __name__ == '__main__':
     unittest.main()

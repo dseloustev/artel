@@ -142,6 +142,25 @@ class TestBlocks(StopGateCase):
         self.assertIn('pause_reason', reason)
         self.assertIn('run_active=false', reason)
 
+    def test_the_reason_names_the_predicate_and_never_claims_gate_state(self):
+        """AW-2452: 'gates are not green' sent the operator hunting a gate that was green."""
+        reason = self.assertBlocked()
+        self.assertNotIn('gates are not green', reason)
+        for fragment in ('run_active=true', 'completed=false', 'pause_reason=null'):
+            self.assertIn(fragment, reason)
+        self.assertRegex(reason, r'started \d+(?: h \d+ min| min) ago')
+
+    def test_the_reason_names_both_ways_to_end_the_run(self):
+        reason = self.assertBlocked()
+        self.assertIn('pause_reason="user-abort"', reason)
+        self.assertIn('run_active=false', reason)
+
+    def test_a_future_timestamp_never_produces_a_negative_age(self):
+        """Clock skew is not a reason to say the run started minus three minutes ago."""
+        self.write_state(started_at=iso(1))
+        reason = self.assertBlocked()
+        self.assertIn('started 0 min ago', reason)
+
     def test_counter_increments_across_blocks(self):
         for expected in range(1, stop_gate.MAX_CONSECUTIVE_BLOCKS + 1):
             reason = self.assertBlocked()

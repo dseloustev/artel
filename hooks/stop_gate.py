@@ -26,6 +26,14 @@ MAX_CONSECUTIVE_BLOCKS = 5
 WALL_CLOCK_HOURS = 3
 
 
+def _age_label(started):
+    """How long the run has been armed, in whole minutes; clamped at zero for clock skew."""
+    minutes = max(0, int((datetime.now(timezone.utc) - started).total_seconds() // 60))
+    if minutes < 60:
+        return '{} min'.format(minutes)
+    return '{} h {} min'.format(minutes // 60, minutes % 60)
+
+
 def allow(counter_file):
     if counter_file is not None:
         try:
@@ -86,10 +94,13 @@ def main():
 
     counter_file.write_text(str(blocks + 1), encoding='utf-8')
     reason = (
-        'Autonomous run for {t} is active and gates are not green — continue the '
-        'pipeline, or record an explicit abort in .artel/run/{t}/run-state.json '
-        '(set pause_reason="user-abort" or run_active=false). '
-        'Block {n}/{cap}.'.format(t=ticket, n=blocks + 1, cap=MAX_CONSECUTIVE_BLOCKS)
+        'Autonomous run for {t} is unfinished — run_active=true, completed=false, '
+        'pause_reason=null, started {age} ago. The gate reads that record and nothing '
+        "else: the run's gate results are not its input. Continue the pipeline, or "
+        'record an explicit pause/abort in .artel/run/{t}/run-state.json (set '
+        'pause_reason="user-abort" to wait for a human, or run_active=false to leave the '
+        'run). Block {n}/{cap}.'.format(
+            t=ticket, age=_age_label(started), n=blocks + 1, cap=MAX_CONSECUTIVE_BLOCKS)
     )
     print(json.dumps({'decision': 'block', 'reason': reason}))
     sys.exit(0)

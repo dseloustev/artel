@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-11-17
+
 ### Added
 
 - **A ticket's acceptance criteria can be drafted in one pass.** `artel-acceptance` reads the

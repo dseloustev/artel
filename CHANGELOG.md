@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A ticket's acceptance criteria can be drafted in one pass.** `artel-acceptance` reads the
+  ticket and its comments once and renders criteria in the PRD's `## Requirements` shape — numbered
+  entries with one observable check each — for the runs that never open a PRD: a lean or bug run, a
+  half-specified ticket, a review that needs something to check against. It is deliberately the
+  fast pass (`analysis` interviews); a PRD that already exists keeps its IDs, so the output becomes
+  a kept / gap / extra mapping instead of a competing list, and twelve entries is the ceiling.
+- **Maintaining the plugin has a skill of its own.** `artel-skill-author` adds, changes or removes
+  a skill: the frontmatter contract the build enforces, orchestrator or worker, the three-section
+  convention, references and assets, what a description must say, and the integration a new folder
+  silently needs — skills-reference entry, router row, changelog bullet, doc-contract test.
+
+### Changed
+
+- **The skills reference is guarded both ways.** `docs/skills-reference.md` had no completeness
+  test — the router was checked in both directions, the reference was pinned for three skills only —
+  so a skill could be added, routed, baked and shipped with no entry at all. The new test fails for
+  a folder without an entry and for an entry without a folder, and it knows the one rule the
+  `## Bratishka duty` section uses: its headings drop the family prefix.
+
 ## [0.49.0] - 2026-11-16
 
 ### Added

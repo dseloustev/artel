@@ -185,6 +185,23 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
   runtime-optional (autonomous-run.md §13). A "Park for designer" answer stops the pipeline
   with `DESIGN_BLOCKED`. Ticket-level only (phase suffix ignored).
 
+### acceptance
+
+- **Purpose:** Draft a ticket's acceptance criteria in the PRD's `## Requirements` shape — numbered
+  entries with one observable check each — in a single read, for the runs that never open a PRD.
+- **Invocation:** `/artel-acceptance [ticket-id] [--out <path>] [--comment]`
+- **Reads:** `.artel/config.json` (`tracker`, `language.docs`, `specs.dir`); the ticket, its
+  description and its comments through the configured adapter; and, when one already exists, the
+  ticket's PRD — its `## Requirements` only, never the whole trail.
+- **Writes:** nothing by default. `--out <path>` writes the rendered block to a run path (never the
+  spec trail), and `--comment` posts it to the ticket after one explicit confirmation.
+- **Pauses:** only for a gap that leaves a criterion unverifiable (≤ 6 questions, batched, each with
+  a recommended reading), and for `--comment`.
+- **Notes:** worker, not orchestrator — runs inline. Deliberately the *fast* pass: `analysis`
+  interviews for a full PRD, and this does not. When a PRD exists its IDs are the truth, so the
+  output becomes a kept / gap / extra mapping instead of a competing list; twelve entries is the
+  ceiling, past which the answer is "this is a PRD" and the route is `/artel-analysis`.
+
 ### analysis
 
 - **Purpose:** Run the upfront requirements interview and draft the ticket's PRD.
@@ -893,6 +910,23 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Notes:** worker. Generates only from what the repo itself documents — never invents
   commands or assumes directory structures; preserves critical security/deployment warnings.
   Not ticket-scoped. Adapted from a community skill (attribution in the skill body).
+
+### skill-author
+
+- **Purpose:** Add, change or remove a skill in this plugin: the frontmatter contract, orchestrator
+  or worker, the three-section convention, references and assets, and the integration a new folder
+  silently needs — reference entry, router row, changelog bullet, doc-contract test.
+- **Invocation:** `/artel-skill-author <skill-name | what the skill should do> [--new] [--remove]`
+- **Reads:** `skills/README.md` (the conventions), `docs/skills-reference.md` (where the entry goes),
+  `skills/artel-using-artel/SKILL.md` (the router and its 10 KiB cap), `AGENTS.md`, and the tests
+  that assert the frontmatter and the bake.
+- **Writes:** a skill folder and its body; `docs/skills-reference.md`; the router; `CHANGELOG.md`;
+  and the test that pins the new contract. Nothing in a host project.
+- **Pauses:** before creating or removing a skill, and before shortening a neighbouring router
+  sentence to make room for a route.
+- **Notes:** worker, not orchestrator — it edits files itself. Exists because a skill works locally
+  without being routed or referenced, and those are the three failures that ship silently; the
+  router test and the reference-completeness test are what make them loud.
 
 ---
 

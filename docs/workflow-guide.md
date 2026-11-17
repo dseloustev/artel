@@ -99,6 +99,7 @@ config nothing is injected.
 | A question (can we, is it feasible, which of these) | `/artel-feature-development PROJ-XXXX` — sized `spike`: the researcher answers in `spike.md` and the run stops |
 | Run the next phase of a phased ticket | `/artel-feature-development PROJ-XXXX-<N>` |
 | Just the PRD interview | `/artel-analysis PROJ-XXXX` |
+| Just the ticket's acceptance criteria, fast | `/artel-acceptance PROJ-XXXX` |
 | Just research + plan | `/artel-researcher PROJ-XXXX` then `/artel-planner PROJ-XXXX` |
 | Check a plan for hallucinated references | `python3 <plugin-root>/scripts/plan_check.py --plan specs/.current/PROJ-XXXX/plan.md --strict` (kartoteka path: `set -o pipefail; python3 <plugin-root>/scripts/spec_store.py get specs/.current/PROJ-XXXX/plan.md | python3 <plugin-root>/scripts/plan_check.py --plan - --strict`) |
 | Just the tasklist | `/artel-tasklist PROJ-XXXX` (from plan) or `/artel-generate-tasklist PROJ-XXXX` (from the idea, with the vision when there is one) |
@@ -109,6 +110,7 @@ config nothing is injected.
 | Resume an interrupted run | re-invoke the same entry-point command — resume is automatic |
 | Ask the archive: what was decided about X, what is filed under a ticket, is the index fresh | `/artel-knowledge <query>` · `/artel-knowledge PROJ-XXXX` · `/artel-knowledge status` (needs `knowledge.adapter: "kartoteka"`) |
 | See or operate the ticket's task queue: list, add, done, block, release | `/artel-tasks list PROJ-XXXX` · `/artel-tasks add PROJ-XXXX "<title>" --iteration N` or `--fix CRF` for a review fix (same requirement) |
+| Add, change or remove a skill in this plugin | `/artel-skill-author <skill-name>` |
 
 (`<plugin-root>` is the plugin's install directory — inside a skill it is
 `${ARTEL_ROOT}`; from your own shell it is `$ARTEL_ROOT`, defaulting to

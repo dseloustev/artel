@@ -12,7 +12,7 @@ and `setup` (the one-time config
 interview the entry point triggers when `.artel/config.json` is missing). Most skills here are
 orchestrators — they resolve ticket context, invoke agents, and report; they never inline the
 agent's work. A handful are self-declared procedural workers instead (e.g. `sync-phases`,
-`generate-idea`, `merge-conflicts`, `set-home`, `migrate-prs`) — no agent matches their job, so
+`generate-idea`, `merge-conflicts`, `set-home`, `migrate-prs`, `acceptance`, `skill-author`) — no agent matches their job, so
 they run their documented procedure inline and say so in their own body. `set-home` moves a
 project to a different VCS platform, rewriting `vcs.*` in `.artel/config.json` and re-pointing
 the git remotes together; `migrate-prs` follows it to recreate a Bitbucket project's still-open
@@ -21,14 +21,15 @@ move a ticket's work into its own git worktree and back, through `scripts/worktr
 ([docs/worktrees.md](../docs/worktrees.md)); `worktrees` is the read side of the same script —
 it lists them and changes nothing.
 
-Four of them are not pipeline stages: `using-artel` is the session router the `using_artel`
+Some are not pipeline stages: `using-artel` is the session router the `using_artel`
 hook injects at turn one (a routing table over every other skill —
 `tests/test_using_artel_docs.py` keeps it complete both ways), `knowledge` / `tasks` are the
 conversational front doors to kartoteka's read and write sides, under the same
 `knowledge.adapter` gate the pipeline uses, and `collaborative-review` walks a GitHub pull
 request one changed file at a time — a standalone, read-only utility that dispatches the
 `artel-collaborative-reviewer` agent for every analysis pass and keeps its approval checklist under
-`.artel/run/collaborative-review/`.
+`.artel/run/collaborative-review/`; `skill-author` is the plugin's own maintenance skill — it
+adds, changes or removes a skill and finishes the integration a new folder silently needs.
 
 Three sections keep an operational skill honest — one that writes, merges or closes, or whose first
 call can fail for its environment. `## Prerequisites` opens the body: one line per dependency, each

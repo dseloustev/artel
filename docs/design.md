@@ -1953,3 +1953,21 @@ move to the decision log.
   The PR's own inconsistency is the warning: it prescribes the pattern and then ships an 875-line
   single-file skill with no references at all. Parked, not rejected — a skill whose conditional
   material actually grows gets the table then.
+- **2026-11-17 — Two gaps a skill set leaves behind: how a skill is born, and what "done" means
+  before a PRD.** The team's skills page asks for four things Artel already does — one shared place,
+  no duplication with a common/project split, a periodic revisit, and proposals for new skills — and
+  lists seven typical skill directions, six of which Artel covers. The two it did not cover were
+  process, not content. **Adding a skill was three bullets**, and the cost showed up at once: one
+  new skill needed five unstated things — frontmatter legality, the three-section convention, the
+  bake and pointer rules, the router row, the reference entry. `artel-skill-author` now carries that
+  contract, including the rule that a new route is paid for by shortening the router, which is
+  capped at 10 KiB because every session loads it. **Acceptance criteria existed only inside the
+  full PRD interview**: the lean and bug heads write no PRD at all, so a small change had nothing to
+  verify against. `artel-acceptance` is the fast pass — one read, at most six questions, twelve
+  entries, the PRD's `## Requirements` shape — and when a PRD does exist it never renumbers it,
+  reporting a kept / gap / extra mapping instead. Two things stay rejected: teaching the implementer
+  the reviewer's criteria (a second copy of one rule set, against the page's no-duplication rule)
+  and merging the router and the reference into one registry (they answer different questions —
+  routing at turn one, lookup on demand, and the router pays a byte budget the reference does not).
+  The reference also gained the both-ways test the router already had, which is what turns "forgot
+  the entry" from a silent miss into a red suite.

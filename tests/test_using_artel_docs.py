@@ -276,3 +276,37 @@ class TestRouterDebugging(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestReferenceCompleteness(unittest.TestCase):
+    """docs/skills-reference.md is the second place a skill is registered (skills/README.md).
+
+    The router is guarded both ways above; the reference was not, so a skill could be
+    added, routed, baked and shipped with no entry at all. The `## Bratishka duty`
+    section drops the family prefix from its headings (`### status` for
+    `artel-bratishka-status`), which is the one rule this has to know.
+    """
+
+    def setUp(self):
+        self.folders = {path.parent.name for path in (ROOT / 'skills').glob('*/SKILL.md')}
+        self.entries = re.findall(r'(?m)^### ([a-z0-9-]+)$', read(REFERENCE))
+
+    def test_every_skill_has_an_entry(self):
+        for folder in sorted(self.folders):
+            route = folder[len('artel-'):]
+            family = route[len('bratishka-'):] if route.startswith('bratishka-') else route
+            with self.subTest(folder):
+                self.assertTrue(route in self.entries or family in self.entries,
+                                '{} has no entry in {}'.format(folder, REFERENCE))
+
+    def test_every_entry_names_a_skill_that_exists(self):
+        for entry in sorted(set(self.entries)):
+            candidates = {'artel-' + entry, 'artel-bratishka-' + entry}
+            with self.subTest(entry):
+                self.assertTrue(candidates & self.folders,
+                                '{} has an entry for {}, which is not a skill'.format(
+                                    REFERENCE, entry))
+
+    def test_an_entry_appears_once(self):
+        self.assertEqual(len(self.entries), len(set(self.entries)),
+                         REFERENCE + ' repeats an entry heading')

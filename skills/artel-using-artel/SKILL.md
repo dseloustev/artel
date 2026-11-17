@@ -47,7 +47,7 @@ it). `<ticket>-<N>` is a phase-scoped run.
 |---|---|
 | the ticket imported from the tracker into `idea.md` | `/artel-generate-idea <ticket> [description-file]` |
 | the Figma design analysed (flow, screen mapping) | `/artel-figma-analysis <ticket> [figma-url]` |
-| the PRD interview | `/artel-analysis <ticket> [description-file] [--local]` |
+| the PRD interview, or the acceptance criteria fast | `/artel-analysis <ticket> [description-file] [--local]` · `/artel-acceptance [ticket-id]` |
 | the technical vision document | `/artel-generate-vision <ticket> [idea-file]` |
 | research on the codebase for the ticket | `/artel-researcher <ticket> [--local]` |
 | the architecture and implementation plan | `/artel-planner <ticket>` |
@@ -85,19 +85,19 @@ its evidence contract. Never substitute a generic command — the host's skill i
 | a report or quiz on a branch's changes | `/artel-change-digest [ticket]` |
 | a text or pasted ticket turned into a Jira-ready issue | `/artel-issue-draft` |
 | the working context saved / restored | `/artel-save-context` · `/artel-restore-context [ticket]` |
-| `AGENTS.md` files created or repaired | `/artel-agents-md-generator` |
+| `AGENTS.md` files, or a skill added, changed or removed | `/artel-agents-md-generator` · `/artel-skill-author <skill-name>` |
 | a GitHub pull request walked one file at a time, with `reviewed` per file | `/artel-collaborative-review <pr-url-or-number>` |
 | the bratishka duty: the board, or tickets handed to the bot | `/artel-bratishka-status` · `/artel-bratishka-cancel-testing-pr` · `/artel-bratishka-testing-pr` · `/artel-bratishka-request-fix` · `/artel-bratishka-merge-approved` · `/artel-bratishka-delegate <KEY> [<KEY> …]` |
 
 **Kartoteka — institutional knowledge and the task queue**
 
 Only when the status line says `knowledge.adapter: kartoteka` and its `project` is a name, not
-`NOT SET`. With `none`, say that the index is not declared for this project and point at
+`NOT SET`. With `none`, say the index is not declared for this project and point at
 `/artel-setup`; with `project NOT SET`, say that `knowledge.project` is missing and point there
 too — every kartoteka call needs it. A `knowledge.tokenEnv: … (NOT SET …)` line does not stop
-routing: mention it once — the daemon may have `[auth]` on, and then the mirror hook's writes
-will be refused until that variable is exported and the MCP registration carries the same token
-(`headers`; config.md) — and route as usual.
+routing: mention it once — with `[auth]` on, the mirror hook's writes are refused until that
+variable is exported and the MCP registration carries it (`headers`; config.md) — and route as
+usual.
 
 | The user wants… | Run |
 |---|---|
@@ -112,12 +112,11 @@ will be refused until that variable is exported and the MCP registration carries
 
 **Code navigation — the AST index**
 
-Only when the status line says `ast-index: on PATH` — the hook checks the CLI, which is what
-the index runs on; if the `/ast-index:` skills are not installed in this session, run the CLI
-directly (`ast-index search`, `usages`, `callers`, …). Then the index is the first tool for any
-code search — before grep, ripgrep or the
-Search tool — and its result is the complete answer; grep only for regex patterns, string
-literals, comment text, or after an empty result.
+Only when the status line says `ast-index: on PATH` — the hook checks the CLI. If the
+`/ast-index:` skills are not installed in this session, run the CLI directly. Then the index is
+the first tool for any code search — before grep or the Search tool — and its result is the
+complete answer; grep only for regex patterns, string literals, comment text, or after an empty
+result.
 
 | The user wants… | Run |
 |---|---|

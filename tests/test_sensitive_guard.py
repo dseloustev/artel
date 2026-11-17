@@ -194,6 +194,59 @@ class TestHostOverride(GuardCase):
         self.assertIn('full-gates', self.assertDenied('danger/thing.txt'))
 
 
+class TestRunOwnedStateIsExempt(GuardCase):
+    """A run records its own completion: no host policy may floor that record shut.
+    Contract: docs/autonomous-run.md §10, hooks/README.md."""
+
+    def setUp(self):
+        super().setUp()
+        (self.root / '.artel' / 'sensitive-paths.json').write_text(json.dumps(
+            {'categories': [
+                {'name': 'gate-config', 'floor': 'full-gates',
+                 'globs': ['.artel/config.json', '.artel/sensitive-paths.json']},
+                {'name': 'run-dir', 'floor': 'full-gates', 'globs': ['.artel/run/*/*']},
+                {'name': 'code', 'floor': 'full-gates', 'globs': ['lib/**']},
+            ]}), encoding='utf-8')
+
+    def test_every_run_owned_file_stays_writable(self):
+        self.arm(effective_mode='plan-gate')
+        for name in ('run-state.json', 'run-journal.md', 'open-questions.md',
+                     'runtime-observation.md', '.stop-gate-blocks'):
+            self.assertAllowed('.artel/run/{}/{}'.format(TICKET, name))
+
+    def test_the_completion_write_is_the_whole_observed_defect(self):
+        """AW-2452: plan-gate could not write the record that closes the run."""
+        self.arm(effective_mode='plan-gate', completed=False)
+        self.assertAllowed('.artel/run/{}/run-state.json'.format(TICKET))
+
+    def test_a_stray_file_in_the_run_directory_is_still_denied(self):
+        self.arm(effective_mode='plan-gate')
+        self.assertIn('run-dir', self.assertDenied('.artel/run/{}/other.md'.format(TICKET)))
+
+    def test_the_hook_namespace_is_still_denied(self):
+        self.arm(effective_mode='plan-gate')
+        self.assertIn('run-dir', self.assertDenied('.artel/run/.hooks/pin.json'))
+
+    def test_the_gate_config_files_are_still_denied(self):
+        self.arm(effective_mode='plan-gate')
+        self.assertIn('gate-config', self.assertDenied('.artel/config.json'))
+        self.assertIn('gate-config', self.assertDenied('.artel/sensitive-paths.json'))
+
+    def test_code_outside_the_run_directory_is_still_denied(self):
+        self.arm(effective_mode='plan-gate')
+        self.assertIn('full-gates', self.assertDenied('lib/x.dart'))
+
+    def test_another_ticket_s_run_state_is_not_exempt(self):
+        self.arm(effective_mode='plan-gate')
+        self.assertIn('run-dir', self.assertDenied('.artel/run/AW-9999/run-state.json'))
+
+    def test_the_exemption_needs_an_armed_run(self):
+        """Exempt paths are writable only where the guard is active at all."""
+        self.arm(effective_mode='plan-gate', run_active=False)
+        self.assertAllowed('.artel/run/{}/run-state.json'.format(TICKET))
+        self.assertAllowed('.env')
+
+
 class TestFailsOpen(GuardCase):
     def test_unreadable_rules_do_not_block_the_write(self):
         """A broken policy file must not wedge every edit in the repo."""

@@ -1,7 +1,9 @@
 """tool.execute.before (edit|write|patch): during an armed autonomous run (run-state.json,
 autonomous-run.md sections 2 and 10), deny writes to sensitive paths whose floor the effective
-mode does not satisfy. Inactive in normal sessions."""
-import fnmatch
+mode does not satisfy. Inactive in normal sessions.
+
+The run's own bookkeeping under .artel/run/<ticket>/ is exempt: a run must be able to record its
+completion or it can never end (hook_common.RUN_OWNED_FILES, hooks/README.md)."""
 import json
 import sys
 import time
@@ -11,16 +13,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import hook_common as h  # noqa: E402
 
-HOST_RULES_PATH = Path('.artel/sensitive-paths.json')
-DEFAULT_RULES_PATH = Path(__file__).resolve().parent / 'sensitive-paths.json'
-MODE_RANK = {'yolo': 0, 'plan-gate': 1, 'full-gates': 2}
+MODE_RANK = h.MODE_RANK  # the one rank table: scripts/sensitive_policy_check.py uses the same
 WALL_CLOCK_HOURS = 3  # single staleness constant — matches autonomous-run.md §2 and stop_gate.py
 STALE_AFTER_SECONDS = WALL_CLOCK_HOURS * 3600
 FLOOR_PAUSE_GATE = 'TASKLIST_READY'
 
 
-def _run_state(config):  # -> dict | None (comment, not annotation: 3.9 compatibility)
-    ticket = h.resolve_active_ticket(config)
+def _run_state(ticket):  # -> dict | None (comment, not annotation: 3.9 compatibility)
     if ticket is None:
         return None
     state_path = h.ticket_run_dir(ticket) / 'run-state.json'
@@ -39,13 +38,6 @@ def _run_state(config):  # -> dict | None (comment, not annotation: 3.9 compatib
     return state
 
 
-def _load_rules():
-    """Host policy replaces the shipped default wholesale — the effective policy is always
-    exactly one file."""
-    path = HOST_RULES_PATH if HOST_RULES_PATH.is_file() else DEFAULT_RULES_PATH
-    return json.loads(path.read_text(encoding='utf-8'))
-
-
 def deny(reason):
     print(json.dumps({'hookSpecificOutput': {
         'hookEventName': 'PreToolUse',
@@ -57,29 +49,31 @@ def deny(reason):
 def main():
     data = h.read_hook_input()  # first: it moves into the session's worktree
     config = h.load_config()
-    state = _run_state(config)
+    ticket = h.resolve_active_ticket(config)
+    state = _run_state(ticket)
     if state is None:
         return 0  # no active autopilot run — guard disarmed
     rel = h.relpath_from_tool_input(data)
     if not rel:
         return 0
-    rules = _load_rules()
+    if h.is_run_owned(rel, ticket):
+        # The run records its own completion; a host policy may not floor that record shut at
+        # any mode (docs/autonomous-run.md §10, hooks/README.md). The set is explicit, so the
+        # rest of the run directory stays guarded.
+        return 0
     effective = state.get('effective_mode') or 'yolo'
     confirmed = state.get('gates_confirmed') or []
-    for category in rules.get('categories') or []:
-        for glob in category.get('globs') or []:
-            if fnmatch.fnmatch(rel, glob):
-                floor = category.get('floor') or 'full-gates'
-                if MODE_RANK.get(effective, 0) < MODE_RANK.get(floor, 2):
-                    deny("sensitive path ({}): floor '{}' exceeds effective mode '{}' — the "
-                         'risk classifier must re-run and the mode be escalated before this '
-                         'file can change'.format(category.get('name'), floor, effective))
-                    return 0
-                if FLOOR_PAUSE_GATE not in confirmed:
-                    deny("sensitive path ({}): floor '{}' requires the {} pause to be "
-                         'confirmed in run-state.json before writes'.format(
-                             category.get('name'), floor, FLOOR_PAUSE_GATE))
-                    return 0
+    for name, glob, floor in h.sensitive_matches(rel, h.load_sensitive_categories()):
+        if MODE_RANK.get(effective, 0) < MODE_RANK.get(floor, 2):
+            deny("sensitive path ({}): floor '{}' exceeds effective mode '{}' — the "
+                 'risk classifier must re-run and the mode be escalated before this '
+                 'file can change'.format(name, floor, effective))
+            return 0
+        if FLOOR_PAUSE_GATE not in confirmed:
+            deny("sensitive path ({}): floor '{}' requires the {} pause to be "
+                 'confirmed in run-state.json before writes'.format(
+                     name, floor, FLOOR_PAUSE_GATE))
+            return 0
     return 0
 
 

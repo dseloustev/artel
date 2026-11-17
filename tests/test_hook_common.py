@@ -379,6 +379,20 @@ class TestRunOwned(unittest.TestCase):
         self.assertFalse(h.is_run_owned('.artel/run/AW-1/run-state.json', None))
         self.assertFalse(h.is_run_owned('', 'AW-1'))
 
+    def test_equivalent_spellings_of_the_same_path_are_exempt(self):
+        """A dot segment or a doubled separator names the same file, so it may not be denied."""
+        for rel in ('.artel/run/AW-1/./run-state.json',
+                    '.artel/run/AW-1//run-state.json',
+                    './.artel/run/AW-1/run-state.json',
+                    '.artel/run/AW-1/sub/../run-state.json'):
+            self.assertTrue(h.is_run_owned(rel, 'AW-1'), rel)
+
+    def test_a_traversal_out_of_the_ticket_directory_is_not_exempt(self):
+        for rel in ('.artel/run/AW-1/../AW-2/run-state.json',
+                    '.artel/run/AW-1/../../config.json',
+                    '.artel/run/AW-1/x/../secret.pem'):
+            self.assertFalse(h.is_run_owned(rel, 'AW-1'), rel)
+
 
 if __name__ == '__main__':
     unittest.main()

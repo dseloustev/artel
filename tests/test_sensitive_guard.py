@@ -240,6 +240,12 @@ class TestRunOwnedStateIsExempt(GuardCase):
         self.arm(effective_mode='plan-gate')
         self.assertIn('run-dir', self.assertDenied('.artel/run/AW-9999/run-state.json'))
 
+    def test_an_equivalent_spelling_of_the_completion_path_is_exempt(self):
+        """The tool payload may name the same file with a doubled separator or a dot segment."""
+        self.arm(effective_mode='plan-gate')
+        for suffix in ('//run-state.json', '/./run-state.json'):
+            self.assertAllowed('{}/.artel/run/{}{}'.format(self.root, TICKET, suffix))
+
     def test_the_exemption_needs_an_armed_run(self):
         """Exempt paths are writable only where the guard is active at all."""
         self.arm(effective_mode='plan-gate', run_active=False)

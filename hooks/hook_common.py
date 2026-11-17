@@ -10,6 +10,7 @@ needs no environment variable.
 import fnmatch
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -217,11 +218,14 @@ def is_run_owned(rel, ticket):
     """True when `rel` is one of the run's own bookkeeping files under .artel/run/<ticket>/ --
     the files an armed run must always be able to write, whatever a host policy floors them at
     (hooks/README.md). An explicit filename set: a stray file in the run directory,
-    .artel/run/.hooks/ and another ticket's directory are not exempt."""
+    .artel/run/.hooks/ and another ticket's directory are not exempt. The path is normalized
+    lexically first, so a dot segment or a doubled separator cannot hide the file from the
+    exemption -- nor smuggle another file into it."""
     if not rel or not ticket:
         return False
+    normalized = posixpath.normpath(rel)
     run_dir = ticket_run_dir(ticket).as_posix() + '/'
-    return rel.startswith(run_dir) and rel[len(run_dir):] in RUN_OWNED_FILES
+    return normalized.startswith(run_dir) and normalized[len(run_dir):] in RUN_OWNED_FILES
 
 
 def load_sensitive_categories(root=None):

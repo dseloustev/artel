@@ -1,8 +1,13 @@
 # Coder-prompt override
 
-Point `bratishka.spawn.promptFile` at a copy of this file to replace the coder prompt the testing
-PR is built with. The engine renders the text and sends it **verbatim** as the spawned task's
-prompt, so the task sees only what is here.
+**Not used by `/artel-bratishka-testing-pr`.** The skill builds the testing PR with
+`testing-pr-local`, so no coder prompt is composed and no bot task opens the PR. This file stays
+as the contract of the delegated path the skill left behind: `bratishka.spawn.promptFile` still
+replaces the prompt the engine would render for a host that runs that task, and a coder agent's
+own naming rule is the reason the skill does not.
+
+Point `bratishka.spawn.promptFile` at a copy of this file and the engine renders it and sends it
+**verbatim** as that delegated task's prompt, so the task sees only what is here.
 
 The placeholders below are the entire vocabulary. Any other braced token is refused as
 `invalid_config` before anything is spawned — a typo never reaches the bot as literal text. Write

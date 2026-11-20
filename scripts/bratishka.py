@@ -32,7 +32,9 @@ worktree for inspection; the working checkout is never the workspace.
 `testing-pr-verify` closes that loop read-only: it finds the spawned task by the
 prompt's `Run id:` marker and today's testing PR by its title or branch (or the
 task's `head_ref`), and reports a failed completion gate separately from an
-existing PR -- a red coder task is not a failed testing PR.
+existing PR -- a red coder task is not a failed testing PR. Without a run id it
+reports today's testing PR alone, which is the read-back of the local build the
+engine opened itself.
 
 The fix request is three read steps and one composition: `findings` numbers the
 PR's unresolved review threads, `compose-fix` writes the one `/agent` comment
@@ -75,7 +77,7 @@ Usage: bratishka.py status [--repo <dir>] [--offline] [--json]
               [--include N,...] [--exclude N,...]
        bratishka.py testing-pr-local [--repo <dir>] [--yes] [--dry-run]
               [--body-out <path>] [--include N,...] [--exclude N,...] [--json]
-       bratishka.py testing-pr-verify --run-id <id> [--repo <dir>] [--json]
+       bratishka.py testing-pr-verify [--run-id <id>] [--repo <dir>] [--json]
        bratishka.py findings --pr <n> [--repo <dir>] [--all-authors] [--json]
        bratishka.py compose-fix --pr <n> [--repo <dir>] [--all-authors]
               [--select <n,...|none>] [--notes <text>] [--out <path>] [--json]
@@ -396,7 +398,12 @@ def parse_delegate_closeout(args):
 
 
 def parse_verify(args):
-    """`testing-pr-verify`'s flags: `repo`, `json` and the required `run_id`."""
+    """`testing-pr-verify`'s flags: `repo`, `json` and an optional `run_id`.
+
+    Without `run_id` the command reports today's testing PR alone, which is the
+    local build's read-back: the engine opened that PR itself, so there is no
+    spawned task to correlate it with.
+    """
     options = {'repo': '.', 'json': False, 'run_id': ''}
     i = 0
     while i < len(args):
@@ -416,8 +423,6 @@ def parse_verify(args):
         else:
             raise UsageError('unknown flag: {}'.format(arg))
         i += 1
-    if not options['run_id']:
-        raise UsageError('missing --run-id <id>')
     return options
 
 
@@ -1376,9 +1381,11 @@ def testing_name(config, key, day):
 def verify_testing_pr(config, gh, dashboard, run_id, day=None):
     """The spawned task and today's testing PR, with a red gate kept separate.
 
-    The task is found by the prompt's `Run id:` marker; the PR by today's
-    rendered title or branch name, falling back to the task's `head_ref` when
-    the dashboard reports one. `gate_failed` is true only when the task's
+    The task is found by the prompt's `Run id:` marker; `run_id` None skips that
+    lookup and reports today's testing PR alone, which is the local build's
+    read-back. The PR is found by today's rendered title or branch name, falling
+    back to the task's `head_ref` when the dashboard reports one. `gate_failed`
+    is true only when the task's
     completion gate failed and a PR exists: the PR is the artifact, the gate is
     a separate finding. `checks` is that PR's own check runs, or None when there
     is no PR or the read failed -- an empty list means "none published yet",
@@ -1390,7 +1397,8 @@ def verify_testing_pr(config, gh, dashboard, run_id, day=None):
     repo = config.get('repo') or gh.repo_slug()
     if not repo:
         raise GhError('failed', 'could not resolve the repository; set bratishka.repo')
-    task = dashboard.find_task(run_id) if dashboard is not None else None
+    task = (dashboard.find_task(run_id)
+            if run_id and dashboard is not None else None)
     title = testing_name(config, 'titleTemplate', day)
     branch = testing_name(config, 'branchTemplate', day)
     open_prs = gh.open_prs(repo)
@@ -1413,7 +1421,7 @@ def verify_testing_pr(config, gh, dashboard, run_id, day=None):
         except GhError:
             checks = None
     return {
-        'run_id': run_id,
+        'run_id': run_id or None,
         'task': task,
         'pr': pr,
         'gate_failed': pr is not None and error == 'final_tools_gate_not_satisfied',
@@ -1489,7 +1497,7 @@ def run_delegate_closeout(config, gh, options, elapsed):
 
 
 def run_verify(config, gh, dashboard, options, elapsed):
-    """Find the spawned task and today's testing PR; returns the exit code."""
+    """Find today's testing PR, and the spawned task when a run id was given."""
     verb = 'bratishka-testing-pr-verify'
     try:
         data = verify_testing_pr(config, gh, dashboard, options['run_id'])

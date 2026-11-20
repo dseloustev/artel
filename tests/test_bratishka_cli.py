@@ -421,6 +421,22 @@ class TestVerify(unittest.TestCase):
         self.assertIsNone(out['task'])
         self.assertIsNone(out['pr'])
 
+    def test_the_local_read_back_needs_no_task(self):
+        from datetime import date
+        gh = FakeGh([pr(9, title='Testing 03-11-26', head='feature/testing-03-11-26')])
+        out = bratishka.verify_testing_pr(
+            {'repo': 'o/r', 'testingPr': {'titleTemplate': 'Testing {dd}-{mm}-{yy}',
+                                          'branchTemplate': 'feature/testing-{dd}-{mm}-{yy}'}},
+            gh, FakeDash(), None, date(2026, 11, 3))
+        self.assertEqual(out['pr']['number'], 9, 'the PR is read by its planned name')
+        self.assertIsNone(out['task'])
+        self.assertIsNone(out['run_id'])
+        self.assertFalse(out['gate_failed'], 'there is no task gate to fail')
+
+    def test_run_id_is_optional(self):
+        self.assertEqual(bratishka.parse_verify([]), {'repo': '.', 'json': False, 'run_id': ''})
+        self.assertEqual(bratishka.parse_verify(['--run-id', 'artel-1'])['run_id'], 'artel-1')
+
 
 class TestFindings(unittest.TestCase):
     def test_unresolved_only(self):

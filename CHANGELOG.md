@@ -6,6 +6,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The daily testing PR is built and opened by the engine, not a bot task.**
+  `/artel-bratishka-testing-pr` now runs `testing-pr-local` end to end: a throwaway worktree,
+  `--no-ff` merges, the host's `verify.commands`, one push, and `gh pr create` with the rendered
+  title and the composed body. The plan, the confirmation and the read-back stay as they were, and
+  `testing-pr-verify` answers without a run id by reading today's PR by its planned title or
+  branch. A rejected metadata check — a repository that requires a ticket-key prefix rejects a
+  bare `Testing dd-mm-yy` — is cosmetic on a one-day, never-merged PR: it is reported, and the
+  title is never renamed to pass it.
+
+### Removed
+
+- **`--print` and `--local` are gone from `/artel-bratishka-testing-pr`.** There is one build
+  path, so the flag that selected the fallback and the flag that stopped before the bot name
+  nothing; `--yes` and `--dry-run` remain.
+
+### Fixed
+
+- **A testing PR no longer comes back with a ticket key in front of its title.** The title was the
+  prompt's, not the author's: a coder agent carries a rule that a PR title must start with a
+  ticket key — with its own fallback when the task is given none — and its completion gate refuses
+  to end on a red check, so it prefixed the key to go green (`<KEY>-<n> Testing dd-mm-yy`). The
+  agent no longer creates this PR, so the planned title is the one that ships.
+
 ## [0.51.0] - 2026-11-17
 
 ### Added

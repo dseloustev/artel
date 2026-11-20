@@ -1026,24 +1026,23 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 
 ### testing-pr
 
-- **Purpose:** Build today's testing PR through the bot: select the source PRs, compose the
-  #144-shaped coder prompt, open the dashboard's `/spawn` page, then find the spawned task by its
-  `Run id:` marker and report the PR separately from a failed completion gate.
-- **Invocation:** `/artel-bratishka-testing-pr [--print] [--local] [--yes] [--dry-run]`
-- **Reads:** `.artel/config.json` (`bratishka`, `vcs.adapter`); the repo's open PRs and their
-  reviews through `gh`; the dashboard task by its marker when `bratishka.dashboardUrl` is set;
-  the remote branch name.
-- **Writes:** the coder prompt at `.artel/run/bratishka/<date>/testing-pr-prompt.md`; nothing on
-  GitHub on the bot path — the spawned task creates the branch and the PR. The `--local` fallback
-  writes both through `testing-pr-local`.
-- **Pauses:** once before composing the prompt (the plan and a `question`-tool Build it /
-  Cancel; `--yes` skips it), then once to let the person spawn the task; polling waits up to 15
-  minutes. `--print` stops after the prompt.
+- **Purpose:** Build today's testing PR: select the source PRs that have code review but not QA
+  approval, confirm the set, then let the engine build the branch, run the host's verification,
+  push it and open the PR with the exact planned title and the #144-shaped body; read the PR back
+  and report it.
+- **Invocation:** `/artel-bratishka-testing-pr [--dry-run] [--yes]`
+- **Reads:** `.artel/config.json` (`bratishka`, `vcs.adapter`); the repo's open PRs, their reviews
+  and their checks through `gh`; the remote branch name; the host's `verify.commands`.
+- **Writes:** one branch and one PR, both through `testing-pr-local`, off a throwaway worktree under
+  `.artel/run/bratishka/`; never the working checkout. A conflict or a red verification writes
+  nothing to the remote.
+- **Pauses:** once, before the build (the plan and a `question`-tool Build it / Cancel; `--yes`
+  skips it). `--dry-run` prints the plan and stops.
 - **Notes:** deterministic engine output (`scripts/bratishka.py testing-pr-plan`,
-  `testing-pr-prompt`, `testing-pr-verify`); `--dry-run` prints the plan and stops. Refuses when
-  today's testing PR or branch already exists. A task `failed` with
-  `final_tools_gate_not_satisfied` and an existing PR is reported as that PR plus the gate, never
-  as a failed testing PR. Naming, the prompt and the polling bounds are in
+  `testing-pr-local`, `testing-pr-verify`); no bot task is involved, because a coder agent's own
+  naming rule would rewrite the fixed title. Refuses when today's testing PR or branch already
+  exists. The title and branch are never changed to satisfy a check: a rejected metadata check is
+  reported, not repaired. Naming, the body and the verification bounds are in
   [bratishka-duty.md](bratishka-duty.md).
 
 ### request-fix

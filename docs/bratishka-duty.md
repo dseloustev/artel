@@ -15,7 +15,7 @@ Five skills implement the day. Each is a thin orchestrator over `scripts/bratish
 |---|---|---|
 | `/artel-bratishka-status` | read | The board: today's testing PR and its age, the repo queue by bucket, live bot tasks. Degrades to PR-only without the dashboard. |
 | `/artel-bratishka-cancel-testing-pr` | write | Finds open testing PRs older than today, shows them, posts a close reason, closes them. Today's is never touched. |
-| `/artel-bratishka-testing-pr` | write | Selects the source PRs, composes the coder prompt, starts the bot, finds the task, verifies the PR. `--local` is the explicit git+gh fallback. |
+| `/artel-bratishka-testing-pr` | write | Selects the source PRs, confirms the set, builds the branch, runs the host's verification, pushes and opens the PR with the fixed title and body, then reads the PR back. No bot task creates it. |
 | `/artel-bratishka-request-fix` | write | Reads the bot's unresolved review threads with the code anchor each one carries, composes one fix comment, posts it, correlates the spawned task. |
 | `/artel-bratishka-merge-approved` | write | Updates `BEHIND` branches, waits on `BLOCKED` within a bound, squash-merges QA-approved PRs one by one. |
 
@@ -45,9 +45,11 @@ what it feeds:
 and the body itself in the fixed shape above. A path to a Markdown file replaces that text: it is
 rendered with a closed `{placeholder}` vocabulary and sent verbatim, an unknown placeholder is
 `invalid_config`, and an unreadable file is `missing_config`. A prompt override must still carry
-`Run id: {run_id}`, or the run cannot be correlated with its pull request. The two vocabularies
-ship as the contract beside the skill
-(`skills/artel-bratishka-testing-pr/assets/`); [config.md](config.md) carries the per-key rules.
+`Run id: {run_id}`, or the run cannot be correlated with its pull request. The prompt override
+belongs to the delegated task path that `/artel-bratishka-testing-pr` does not use; the body
+override shapes the body the engine opens the PR with. The two vocabularies ship as the contract
+beside the skill (`skills/artel-bratishka-testing-pr/assets/`); [config.md](config.md) carries the
+per-key rules.
 
 The delegate statuses are empty by default as well: empty means "resolve the intent from the alias
 lists", and a value is matched exactly — [tracker-status.md](tracker-status.md) is the one copy of
@@ -143,38 +145,45 @@ engine falls back to `created_at`. `--delete-branch` is the only way a cancel re
 and `testingPr.deleteBranchOnCancel` (default `false`) is the configured default for the same
 choice. `/artel-bratishka-cancel-testing-pr` never touches today's PR.
 
-**The bot creates it.** The default path composes the coder prompt and starts the task through
-`spawn.adapter`. Phase 1 ships `manual`: the skill prints and copies the prompt, opens
-`<dashboardUrl>/spawn`, then finds the spawned task by the unique `Run id:` marker it put in the
-prompt — `Run id: artel-<uuid>` — and verifies the PR from there. `--local` is the explicit
-git+gh fallback: it builds the same branch and body in a throwaway worktree under
-`.artel/run/bratishka/`, never in the working checkout, and stops on conflict.
+**The engine opens it.** `/artel-bratishka-testing-pr` builds today's branch in a throwaway
+worktree under `.artel/run/bratishka/` — never in the working checkout — merges the source heads
+with merge commits, runs the host's `verify.commands`, pushes once and opens the PR with the
+rendered title and the composed body (`testing-pr-local`). A conflict stops it with the conflicting
+files, no push and the worktree kept; a red verification stops it before the push.
 
-**A failed coder gate with an existing PR is not a failed PR.** Bot tasks report `failed` when
-their completion gate cannot go green — a repository-wide red build does that to every task — yet
-the PR may exist and be correct. Verification checks for the PR first: when it exists, the report
-names it as the artifact and reports the gate separately. `/artel-bratishka-testing-pr` refuses
-when today's branch or testing PR already exists, and `--print` stops before `/spawn`.
+**No bot task creates this PR.** A coder task carries naming rules of its own, and one that
+requires a ticket-key prefix — with its own value when the task is given no ticket — resolves the
+conflict with a fixed title by adding that key, because its completion gate refuses to end on a red
+check. The title is a duty contract, so the agent that has that rule never writes it. The engine
+still exposes `testing-pr-prompt` and its `Run id: artel-<uuid>` correlation for a host that
+delegates the work to a bot task, but this skill does not use them: that path cannot keep the exact
+title while a metadata check demands a key.
+
+**A rejected metadata check is reported, never renamed.** A repository whose metadata check
+requires a ticket-key prefix rejects a bare `Testing …` title. On this PR the check is cosmetic —
+the testing PR is never merged — so the title stays and the rejection is named in the report. The
+title and the branch are never changed to satisfy a check; a check that genuinely blocks the duty
+is a decision for the person and the repository's owners.
 
 Source PRs with failing CI are **not** excluded — the observed runs bundled them and named the
 failures. The PR is never merged, the base branch is never pushed to, and source PRs are never
 edited or closed by this path.
 
 **The read-back is the check.** A verification answer is trusted only when the created PR matches
-the plan that produced it: the URL the create call returned, a head branch equal to the plan's
-branch, a head SHA on that branch, a base ref equal to the plan's base, and the plan's title. A
-field that disagrees is a naming defect to report — never a PR to rename, rebuild or re-spawn. The
-created PR's own check runs are reported as observed: none published yet is "not started", never
-green; `pending` is still running; a failing check is named with its reason. `checks: null` means
-there was no PR to read or the read failed, and the checks are then unknown — the source PRs'
-checks in `## CI status of source PRs` are a different question and never fill that gap.
+the plan that produced it: a head branch equal to the plan's branch, a head SHA on that branch, a
+base ref equal to the plan's base, and the plan's exact title. A field that disagrees is a naming
+defect to report — never a PR to rename, rebuild or open again. The created PR's own check runs are
+reported as observed: none published yet is "not started", never green; `pending` is still running;
+a failing check is named with its reason. `checks: null` means there was no PR to read or the read
+failed, and the checks are then unknown — the source PRs' checks in `## CI status of source PRs`
+are a different question and never fill that gap.
 
 ### Body
 
 The body follows the shape observed on the reference testing PR (`#144`) in eight ordered parts —
-the wrapper is composed by `testing-pr-prompt` in its fixed built-in shape (`testingPr.bodyFile`
-is reserved — accepted and ignored — until a substitution contract exists), and the content is
-drawn from the source PRs:
+the wrapper is composed by the engine (`build_body`) before the PR opens, or by a host copy of
+`skills/artel-bratishka-testing-pr/assets/testing-pr-body.md` through `testingPr.bodyFile` — and
+the content is drawn from the source PRs:
 
 ````markdown
 ## Summary
@@ -226,8 +235,8 @@ reviewer.
    check is never silently treated as resolved.
 6. `## Merge notes` — clean merges, files a merge re-introduced, and anything the source-PR owner
    should know.
-7. `## Local verification` — the host's `verify.commands` and their results. The bot runs them
-   itself; `--local` runs them in the worktree. A missing tool is reported, not hidden.
+7. `## Local verification` — the host's `verify.commands` and their results, run in the build's
+   worktree. A missing tool is reported, not hidden.
 8. The one-day line, outside every heading.
 
 ## Requesting a fix
@@ -360,16 +369,18 @@ set: the pull request is the artifact and the gate is a separate finding.
   is an explicit opt-in; `--dry-run` prints the plan and stops.
 - **No force-push, ever.** No push to the base branch. The testing PR is never merged. Source PRs
   are never edited, closed or force-updated by the toolkit.
-- **The host checkout is not a workspace.** `--local` assembles the testing PR in a throwaway
-  worktree under `.artel/run/bratishka/`; the bot owns its own workspace on the default path. A
-  conflict leaves the worktree for inspection and stops.
+- **The host checkout is not a workspace.** The testing PR is assembled in a throwaway worktree
+  under `.artel/run/bratishka/`; the working checkout is never the build's workspace. A conflict
+  leaves the worktree for inspection and stops.
 - **The dashboard is optional.** `dashboardUrl` empty or unreachable costs the live-task section
   and task correlation; the PR paths keep working and the report says what was skipped. The
   dashboard is read-only — the toolkit never writes to it.
 - **`read:org` is optional.** Without it the team lookups are `unknown`; `qaLogins` is the login
   fallback; `unknown` never becomes approved, and the merge skill names the key to add.
 - **Spawn degrades to `manual`.** A `client-api` adapter without its token, or an `mcp` adapter
-  without its tools, prints and copies the prompt and opens `/spawn` instead of failing.
+  without its tools, prints and copies the prompt and opens `/spawn` instead of failing. This
+  applies to the ticket work (`/artel-bratishka-delegate`, `/artel-bratishka-request-fix`), not to
+  the testing PR: that one is built by the engine whatever the spawn adapter says.
 - **`gh` and the adapter are preconditions.** A missing or unauthenticated `gh`, or a
   `vcs.adapter` other than `github-cli`, stops every skill before it writes, naming the fix.
 - **A run journal** is appended at `.artel/run/bratishka/<date>/journal.md`: one line per

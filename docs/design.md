@@ -1988,3 +1988,26 @@ move to the decision log.
   exemption (the observed policy named the five, and a broad `.artel/run/**` glob is a host bug
   worth seeing); a host policy that floors them would still break a lean run's reports, and is
   the next thing to look at if it ever happens.
+- **2026-11-20 — The engine opens the testing PR; a keyed coder agent must not.** The first
+  testing PR built through the bot came back as `ADG-1 Testing 19-11-26` (#205) although the
+  composed prompt said, verbatim, "with the exact title `Testing 19-11-26`". Nothing was wrong
+  with the prompt: the `coder` preset's system prompt carries an org-wide rule that a PR title
+  **must** start with a Jira key and names its own fallback (`ADG-1`) when `jira_task` is absent —
+  which it is for a bundle with no single ticket — and `pr_discipline` refuses to end a task on a
+  red check. The repository's `check-pr-metadata` (regex `^[A-Z]+-[0-9]+ .+`, one exemption for
+  `Release vX.Y.Z`) rejects a bare `Testing dd-mm-yy`, so every earlier testing PR from #138 to
+  #200 was red on it, and #205 is the first that a bot made green — by prefixing a key. Two rules
+  that cannot both hold, and the agent resolved them in favour of its own. The fix is a boundary,
+  not a wording: `testing-pr-local` (already the reference shape — throwaway worktree, `--no-ff`
+  merges, `verify.commands`, one push, `gh pr create` with the rendered title and body) becomes the
+  only path, and the skill no longer spawns a task to create this PR. The metadata check is
+  accepted as cosmetic here, because the testing PR is never merged; a rejected check is named in
+  the report and the title is never renamed to pass it — the sibling
+  `wallet-bratishka-daily-testing-pr` reached the same stance (`## 6. Keep the metadata fixed`)
+  for the same repository, and its step 4a keeps the same boundary: the delegated agent merges
+  and pushes, the skill opens the PR. `testing-pr-verify` now also answers without a run id,
+  reading today's PR by the planned title or branch, which is the local build's read-back.
+  **Parked:** `testing-pr-prompt`, `build_prompt`, `assets/coder-prompt.md` and
+  `spawn.promptFile` are no longer used by this skill and are documented as the delegated path it
+  does not take; deleting them touches the config contract and six test files, so it waits for a
+  change that needs the room.

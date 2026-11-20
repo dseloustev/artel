@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-11-20
+
 ### Changed
 
 - **The daily testing PR is built and opened by the engine, not a bot task.**

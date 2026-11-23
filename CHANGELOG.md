@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.52.1] - 2026-11-23
+
 ### Changed
 
 - **`init-branch` picks the branch name, then the base, then the worktree.** When the current

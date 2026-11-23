@@ -94,6 +94,34 @@ class InitBranchWorktreeCase(unittest.TestCase):
         self.assertIn('Inside a linked worktree, skip the rest of this step — go straight\n'
                       '   to Step 3.', self.text)
 
+    def test_takes_an_optional_base_branch_as_a_second_argument(self):
+        self.assertIn('argument-hint: "[ticket-id] [base-branch]"', self.text)
+        self.assertIn('`$1` is the optional **base branch**', self.text)
+
+    def test_the_base_is_the_argument_or_the_detected_default(self):
+        self.assertIn('second argument', self.text)
+        self.assertIn('`git symbolic-ref refs/remotes/origin/HEAD`', self.text)
+        self.assertIn('never a hardcoded\n     `main`/`develop`/`master`', self.text)
+
+    def test_a_base_that_resolves_nowhere_stops_before_git(self):
+        self.assertIn('**Neither resolving is fatal** — run no git\n     command', self.text)
+
+    def test_the_branch_is_created_before_the_worktree_is_offered(self):
+        # The worktree question follows the branch, and move-in takes the branch as it is.
+        self.assertLess(self.text.index('git checkout -b <NEW_BRANCH> <BASE_REF>'),
+                        self.text.index('header `Worktree`'))
+        self.assertIn('The branch already exists locally at this point', self.text)
+
+    def test_an_existing_branch_is_adopted_not_recreated(self):
+        self.assertIn('A branch that exists is adopted, never re-created.', self.text)
+        self.assertNotIn('**Stay on `<CURRENT_BRANCH>`**', self.text)
+
+    def test_the_reference_quotes_the_invocation(self):
+        text = read('docs/skills-reference.md')
+        entry = text[text.index('### init-branch\n'):]
+        entry = entry[:entry.index('\n### ', 1)]
+        self.assertIn('`/artel-init-branch [ticket-id] [base-branch]`', entry)
+
 
 class WorktreeContractCase(unittest.TestCase):
     def setUp(self):

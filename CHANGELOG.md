@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **`init-branch` picks the branch name, then the base, then the worktree.** When the current
+  branch carries no ticket ID it now proposes candidate names from the task and creates the one the
+  user picks, on top of the branch named by an optional **second argument**
+  (`/artel-init-branch <ticket> [base-branch]`) — or the repo's detected default branch when the
+  argument is omitted — and only then asks whether the work should continue in
+  `.opencode/worktrees/<name>`. Nothing is created without the user's answer, and a second argument
+  that resolves to no branch stops the run before any git command instead of falling back to a
+  guess.
+
 ## [0.52.0] - 2026-11-20
 
 ### Changed

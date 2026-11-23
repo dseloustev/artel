@@ -76,7 +76,7 @@ its evidence contract. Never substitute a generic command — the host's skill i
 
 | The user wants… | Run |
 |---|---|
-| a branch set up for a ticket | `/artel-init-branch <ticket>` |
+| a branch set up for a ticket | `/artel-init-branch <ticket> [base]` |
 | a ticket's work moved into its own worktree / handed back, or the worktrees listed | `/artel-move-to-worktree [ticket]` · `/artel-return-from-worktree [ticket]` · `/artel-worktrees` |
 | the project moved to another VCS platform | `/artel-set-home <repo-url>` |
 | Bitbucket's open PRs recreated on GitHub after set-home | `/artel-migrate-prs [pr-id ...]` |

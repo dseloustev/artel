@@ -55,7 +55,9 @@ regardless.
 
 ## 4. Move-in procedure
 
-Skills follow these steps; `init-branch` supplies the branch arguments from its own Step 2.
+Skills follow these steps; `init-branch` supplies the branch arguments from its own Step 2 and has
+already created or checked out the branch by the time it asks, so it always takes the first row of
+the table below.
 
 1. **Arguments.** `--ticket <TICKET_ID> --name <name> --base <BASE_BRANCH> --branch <branch>`,
    plus how the branch comes to exist:

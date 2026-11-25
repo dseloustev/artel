@@ -1059,8 +1059,8 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Invocation:** `/artel-bratishka-request-fix [<pr>] [--notes <text>] [--watch]`
 - **Reads:** `.artel/config.json` (`bratishka`, `vcs.adapter`); the PR's unresolved review
   threads through `gh` (`reviewThreads`), page by page, with each thread's `isOutdated` flag,
-  diff hunk, comments and replies; the dashboard task for the PR when `bratishka.dashboardUrl`
-  is set.
+  diff hunk, comments, replies, the images they embed and the thread's own link; the dashboard
+  task for the PR when `bratishka.dashboardUrl` is set.
 - **Writes:** the composed body at `.artel/run/bratishka/<date>/fix-<n>.md`; one top-level
   `gh pr comment` on the PR. Nothing else.
 - **Pauses:** twice — after the findings list (which to fix, default all, and any notes) and
@@ -1068,7 +1068,10 @@ Paths in the **Reads** / **Writes** lines are logical: with kartoteka as the spe
 - **Notes:** deterministic engine output (`scripts/bratishka.py findings`, `compose-fix`,
   `task-find`, `task-watch`). One comment, not one per finding: the bot serializes `/agent`
   tasks per branch. Each finding is a block — anchor, marked diff hunk, every reply, the whole
-  suggestion — because the bot reads the comment without the PR. Refuses a merged or closed PR
+  suggestion, and every image with the thread's link — because the bot reads the comment without
+  the PR. An image is part of the finding, and the payload asks for a reproduction back for a
+  visual one: the bot cannot run the app, so the person checks the state by eye or with the
+  host's own automation. Refuses a merged or closed PR
   and stops when an `active`/`queued` coder task already works the PR. `--notes` alone composes
   from the notes; `--all-authors` must go to both `findings` and `compose-fix`; `--watch`
   follows the task to a terminal status, after which re-reading `findings` reports which

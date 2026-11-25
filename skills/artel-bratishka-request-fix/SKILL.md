@@ -1,6 +1,6 @@
 ---
 name: artel-bratishka-request-fix
-description: "Use when the Bratishka duty reviewer wants the bot to fix review findings on a pull request — reads the bot's unresolved review threads with the diff hunk, replies and suggestion each one carries, composes one self-contained /agent comment for the selected findings plus any notes, posts it after confirmation, and correlates the spawned task. Never posts on a merged or closed PR."
+description: "Use when the Bratishka duty reviewer wants the bot to fix review findings on a pull request — reads the bot's unresolved review threads with the diff hunk, the images, replies and suggestion each one carries, composes one self-contained /agent comment for the selected findings plus any notes, posts it after confirmation, and correlates the spawned task. Never posts on a merged or closed PR."
 argument-hint: "[<pr>] [--notes <text>] [--watch]"
 ---
 
@@ -12,8 +12,15 @@ so N comments queue N runs against the same branch
 (`${ARTEL_ROOT}/docs/bratishka-duty.md`, `## Requesting a fix`).
 
 The bot reads that comment without the pull request in front of it, so a finding is composed as a
-block — the diff hunk its comment was written against with the commented line marked, every reply
-in the thread, and the suggested change — never as a bare `path:line`.
+block — the diff hunk its comment was written against with the commented line marked, every image
+the thread embeds with the thread's own link, every reply in the thread, and the suggested change
+— never as a bare `path:line`.
+
+An image is a finding's other half. A reviewer who points instead of writing leaves an anchor and
+a screenshot, and the screenshot is what is wrong; the anchor only says where. The bot can look
+at a picture and cannot run the application, so the payload asks it to come back with the
+reproduction — the change and how to reach the same state — which the person checks by eye or
+hands to the project's own UI automation.
 
 This is a write. Check `.artel/config.json` first: `vcs.adapter` must be `github-cli`,
 otherwise stop and name the value. `bratishka.dashboardUrl` is optional — without it the task
@@ -62,12 +69,19 @@ unresolved threads, and say that is what the list is.
 Each thread carries what its comment was written against: `path` and `line` (the anchor),
 `outdated` when GitHub reports the code it targeted has changed since, `original_line` (where it
 sat before that), `hunk` (the diff hunk the comment was written against), `body` and `author` of
-the root comment, `url`, and `comments` — every comment in the thread, root first, replies after.
+the root comment, `url` (the thread's own link), and `comments` — every comment in the thread,
+root first, replies after.
 
-Show a numbered list: `index`, `path:line`, the `author`, and the first line of `body`. Say how
-many findings there are, and name any with `outdated` true: their anchor is gone from the diff,
-so the fix has to start from the excerpt and the file, not from the line number. When
-`data.threads` is empty, say that the bot has no unresolved thread on this PR; stop unless
+A comment may carry images. They are the finding, not decoration: a comment whose body is only a
+screenshot is a finding with no words, and the image says what is wrong while the anchor says
+where. Never treat an image-only finding as empty, and never summarise one without saying it has
+an image — the person chose the picture because describing it in text was the slow path.
+
+Show a numbered list: `index`, `path:line`, the `author`, and the first line of `body`; for a
+finding with images, say how many, and for an image-only one show the image count instead of a
+blank. Say how many findings there are, and name any with `outdated` true: their anchor is gone
+from the diff, so the fix has to start from the excerpt and the file, not from the line number.
+When `data.threads` is empty, say that the bot has no unresolved thread on this PR; stop unless
 `--notes` was given.
 
 With `--notes "<text>"`, skip the list and compose from the notes alone (step 4 passes
@@ -115,9 +129,13 @@ python3 ${ARTEL_ROOT}/scripts/bratishka.py compose-fix --pr <n> --json \
 - Exit `1` with `nothing_to_do` → nothing was selected and there are no notes; say so and stop.
 
 `data.body` is the comment and `data.body_path` the file written. Each finding is composed as a
-block, not a line: its anchor, the diff hunk with the commented line marked, the thread's
-comments and replies, and the suggested change when there is one. That is deliberate — the bot
-reads the comment without the PR in front of it. Show the body verbatim, then ask with the
+block, not a line: its anchor, the diff hunk with the commented line marked, every image the
+thread embeds listed with its URL and the thread's own link, the thread's comments and replies,
+and the suggested change when there is one. The payload also names the images as part of the
+requirement — and asks the bot, for a finding whose images show a screen or a document, to answer
+with a short "What changed and how to see it": the change and the way to reach the same state.
+That is deliberate — the bot reads the comment without the PR in front of it, and it cannot run
+the application. Show the body verbatim, then ask with the
 `question` tool: **Post this fix request?** — options **Post it** / **Cancel**. On **Cancel**, or
 with no answer, stop: the file stays for inspection and nothing is posted.
 
@@ -169,6 +187,12 @@ reached `completed`, `failed` or `cancelled`; summarize its `status` and `result
 `data.timed_out` true is not a failure: report the last `data.task` state and the task id, and
 say it may still be running. Without `--watch`, report the task and stop; do not poll further.
 
+When the bot's summary carries a **"What changed and how to see it"** for a visual finding, quote
+it in the report and give the link to the summary comment. That reproduction is the visual check:
+the person pastes the link into the host project's own automation skill to reach the same state,
+or follows the steps by hand. The engine does not read it and no gate depends on it — never
+report it as a verification result.
+
 ## 7. Check what the fix changed
 
 Once the task is terminal — or later, when the person asks — re-read the threads, with the same
@@ -197,6 +221,10 @@ strength of it.
 - NEVER send `--all-authors` to one of the two engine calls and not the other.
 - NEVER trim a finding back to its `path:line`: the block carries the hunk, the replies and the
   suggestion because the bot reads it without the PR.
+- NEVER drop a finding's images or the thread's link — and never read an image-only finding as an
+  empty one: the picture is what is wrong, the anchor is only where.
+- NEVER report the bot's "What changed and how to see it" as a verification result: it is a
+  reproduction for the person's eye or the host's automation, not a gate.
 - NEVER claim a finding is fixed: the engine reads thread state, never the diff.
 - NEVER write the comment body by hand or post without the composed file.
 
@@ -207,6 +235,8 @@ strength of it.
 | Posting while a coder task is active on the PR | `task-find` first; a second run queues behind the first |
 | Using `--select` after an `--all-authors` list without the flag | Repeat the flag on both calls or the numbering differs |
 | Summarising a finding to one line | Keep the composed block whole |
+| Reading a screenshot-only finding as empty | It is a finding: the image says what, the anchor says where |
+| Calling a design finding verified because the task completed | Quote its reproduction and the summary link; the eye decides |
 | Claiming a finding is fixed because its thread vanished | Report resolved or outdated as GitHub sees it, and say which |
 | Posting the notes as a new comment per finding | One comment per request |
 | Polling forever after 5 minutes with no task | Report the comment URL and say the dashboard has not shown the task |

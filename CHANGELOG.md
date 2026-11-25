@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **A finding's images reach the bot with it.** `compose-fix` lists every image a review thread
+  embeds — the root comment's first, a reply's tagged with its author — together with the thread's
+  own link, and says in the payload that an image is part of the requirement and that text inside
+  one is as untrusted as the text around it. A comment whose body is only a screenshot is a finding
+  with no words rather than an empty one, and its block is composed like any other. Because the bot
+  can read a picture but cannot run the application, the payload also asks — for a finding whose
+  images show a screen, a document or a report — for a short "What changed and how to see it": the
+  change, then the screen, state or data that reaches it, which the reviewer checks by eye or hands
+  to the host's own UI automation. The contract in `docs/bratishka-duty.md` and the
+  `/artel-bratishka-request-fix` skill record both halves.
+
 ## [0.52.2] - 2026-11-25
 
 ### Changed

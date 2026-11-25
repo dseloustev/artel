@@ -77,7 +77,8 @@ class TestContractDoc(unittest.TestCase):
     def test_carries_the_fix_composition_contract(self):
         text = read('docs/bratishka-duty.md')
         for phrase in ('pageInfo', 'outdated', 'diff hunk', '\u2190 this finding',
-                       '--all-authors', 'suggestion'):
+                       '--all-authors', 'suggestion', 'image', 'What changed and how to '
+                       'see it'):
             self.assertIn(phrase, text, phrase)
 
     def test_carries_the_approval_and_naming_rules(self):

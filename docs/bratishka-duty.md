@@ -260,7 +260,19 @@ without the pull request in front of it:
   anchored line, counted on the new side of the diff. The bot reads the code, not a coordinate;
 - every comment in the thread by author — the root and each reply — because the correction is
   usually in a reply, not in the bot's first word;
+- every image the thread embeds, with the thread's own link, and a rule in the payload: an image
+  is part of the requirement. A reviewer who points instead of writing — a line anchor plus a
+  pasted screenshot — is composing a finding whose text may be absent and whose picture says
+  what is wrong; the anchor says only where it lives. An image-only comment is a finding, never
+  an empty one;
 - the GitHub `suggestion` fence, whole and multi-line, when the thread has one.
+
+The bot cannot run the application, so an image reaches it as a specification, never as a check.
+The payload therefore asks for the other half back. For each finding whose images show something
+the code produces — a screen, a document, a report — the task summary carries a short
+**"What changed and how to see it"**: the change, then the screen, the state or data that reaches
+it, and what it should now look like. That reproduction is what the duty reviewer checks by eye,
+or feeds to the project's own UI automation; the engine never parses it and no gate depends on it.
 
 Fence delimiters in comment text are stripped before composition: a review comment is written by
 whoever can comment on the PR, and a stray code fence in it would swallow the rest of the

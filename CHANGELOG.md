@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.52.2] - 2026-11-25
+
 ### Changed
 
 - **The fix request no longer prescribes a verification command.** `compose-fix` drops the sentence

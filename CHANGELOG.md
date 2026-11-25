@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.52.3] - 2026-11-25
+
 ### Changed
 
 - **A finding's images reach the bot with it.** `compose-fix` lists every image a review thread

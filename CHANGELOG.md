@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The fix request no longer prescribes a verification command.** `compose-fix` drops the sentence
+  that told the bot to run the repository's `verify.commands` — a key the bot never reads, because it
+  follows the host's `AGENTS.md` regardless. On a host whose documented full gate includes a tool the
+  bot environment does not provide, every fix reply ended by reporting that tool missing. The composed
+  comment now carries the findings, the scope and the untrusted-text warning only; verification stays
+  with the bot's own instructions.
+
 ## [0.52.1] - 2026-11-23
 
 ### Changed
